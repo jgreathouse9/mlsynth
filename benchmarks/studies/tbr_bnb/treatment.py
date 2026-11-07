@@ -17,11 +17,13 @@ most its RSS. Its value is bounded below exactly at the NNLS point by the float 
 certificate over that box (certificate.box_bound_float: the hull's with lo = 0 and the
 size at the number of controls, the size constraint slack and the knapsack at
 multiplier 0). The cap (slope_cap, in doubles where its rounding is relative) is that of
-certificate.ExactData.slope_cap, ||y|| / sqrt(lambda_min(G)), with one lower bound on
-lambda_min for every group: the controls' Gram matrix is a principal submatrix of the
-full one, and a principal submatrix's smallest eigenvalue is at least the full
-matrix's (the interlacing inequalities, Hogben 2007, Sect. 8.2, Fact 5, applied
-once per deleted row and column).
+certificate.ExactData.slope_cap, ||y|| / sqrt(L), with one L for every group, the
+full Gram matrix M'M's (certificate.gram_lower): the controls' Gram matrix is a
+principal submatrix of M'M, so when no entry of M'M is negative none of its entries
+is and its smallest diagonal entry is at least M'M's, and otherwise its smallest
+eigenvalue is at least M'M's (the interlacing inequalities, Hogben 2007, Sect. 8.2,
+Fact 5, applied once per deleted row and column). With more geos than periods M'M
+is singular, and only the diagonal bound is above zero.
 
 Each design of the group has corr^2 = 1 - RSS / y'y, so the floor bounds its
 correlation too, and can_compete reads the rounding: a group whose correlation bound
@@ -79,10 +81,9 @@ import numpy as np
 from scipy.optimize import nnls
 
 from mlsynth.exceptions import MlsynthDataError
-from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 
 from . import fastfloor
-from .certificate import box_bound_float, qarr
+from .certificate import box_bound_float, gram_lower, qarr
 from .gated import certify_gated, gates_of
 
 #: Half a step of round(corr, 2), and the slack for the key's correlation being a double.
@@ -91,12 +92,11 @@ SLACK = Q(1, 10 ** 9)
 
 
 def gram_floor(M) -> Optional[Q]:
-    """An exact lower bound on the smallest eigenvalue of M'M, or None when none
-    positive is found; it bounds every group's control Gram, a principal submatrix
-    (module docstring)."""
+    """certificate.gram_lower of M'M, exact: at most x'x for every control group of
+    every treatment group, or None when no positive bound is found (module
+    docstring)."""
     Mq = qarr(np.asarray(M, dtype=float))
-    lam = lambda_min_lower(_from_fractions((Mq.T @ Mq).tolist()))
-    return lam if lam is not None and lam > 0 else None
+    return gram_lower(Mq.T @ Mq)
 
 
 def _split(M, T):

@@ -294,12 +294,24 @@ def test_one_control_left():
         assert len(out.controls) == 1
 
 
-def test_a_singular_gram_gives_zero_floors_and_searches_every_group():
+def test_a_singular_gram_with_a_negative_entry_gives_zero_floors_and_searches_every_group():
     M = geo_panel(5)
-    M[:, 2] = M[:, 0] + 0.5 * M[:, 1]      # collinear, no design a perfect fit
+    M[:, 2] = -(M[:, 0] + 0.5 * M[:, 1])   # collinear, a negative Gram entry, no design a perfect fit
     assert gram_floor(M) is None
     out = guided_treatment(M, 1, n_test=N_TEST, restarts=3)
     assert out.screened_out == 0 and out.searched == out.groups
+    _check_bound(M, 1, out)
+
+
+def test_a_singular_gram_with_no_negative_entry_still_screens():
+    """The diagonal bound (certificate.gram_lower) gives a floor where the eigenvalue
+    bound gives none, so the screen still rules groups out."""
+    M = geo_panel(5)
+    M[:, 2] = M[:, 0] + 0.5 * M[:, 1]      # collinear, no design a perfect fit
+    assert np.linalg.matrix_rank(M) < M.shape[1] and (M.T @ M).min() >= 0
+    assert gram_floor(M) is not None
+    out = guided_treatment(M, 1, n_test=N_TEST, restarts=3)
+    assert out.screened_out > 0
     _check_bound(M, 1, out)
 
 

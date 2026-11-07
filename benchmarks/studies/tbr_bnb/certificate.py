@@ -12,10 +12,15 @@ Thm 3.2), with tr Z = 1 + tr W <= 1 + hi sum(w) <= 1 + m hi^2 from diag(W) <= hi
 and sum(w) <= m hi (derived here).
 
 Slope cap, derived here. A design whose RSS is below y'y has b = y'x / x'x > 0,
-and by Cauchy-Schwarz b <= ||y|| / ||x||; x'x = u'G u >= lambda_min(G) ||u||^2
->= lambda_min(G) for a nonzero binary u (the Rayleigh quotient bound,
-Horn and Johnson 2013, Sect. 4.2), so b <= ||y|| / sqrt(lambda_min(G)), with lambda_min(G) bounded below
-exactly by lambda_min_lower.
+and by Cauchy-Schwarz b <= ||y|| / ||x||, so b <= ||y|| / sqrt(L) for any L at or
+below x'x = u'G u over every nonzero binary u (gram_lower). When no entry of G is
+negative, u'G u = sum_{i, j in C} G_ij >= sum_{j in C} G_jj >= min_j G_jj, which
+holds however many controls there are; with more controls than periods G is
+singular, and this is the only one of the two bounds above zero. Otherwise
+u'G u >= lambda_min(G) ||u||^2 >= lambda_min(G) (the Rayleigh quotient bound,
+Horn and Johnson 2013, Sect. 4.2), with lambda_min(G) bounded below exactly by
+lambda_min_lower. The same bound at u = e_j gives min_j G_jj >= lambda_min(G), so
+the diagonal never gives a looser cap.
 
 Boyd, S. and Vandenberghe, L. (2004). Convex Optimization. Cambridge.
 Dantzig, G. B. (1957). Discrete-variable extremum problems. Oper. Res. 5, 266-288.
@@ -51,6 +56,7 @@ import functools
 import math
 from fractions import Fraction as Q
 from types import SimpleNamespace
+from typing import Optional
 
 import numpy as np
 
@@ -89,6 +95,19 @@ def _integer_matrix(A):
     return N.reshape(A.shape), D
 
 
+def gram_lower(G) -> Optional[Q]:
+    """An exact L > 0 with u'G u >= L for every nonzero binary u, or None when none is
+    found: min_j G_jj when no entry of G is negative, else lambda_min_lower(G)
+    (module docstring, slope cap)."""
+    if G.size == 0:
+        return None
+    if all(g >= 0 for g in G.ravel()):
+        lam = min(G[j, j] for j in range(G.shape[0]))
+    else:
+        lam = lambda_min_lower(_from_fractions(G.tolist()))
+    return lam if lam is not None and lam > 0 else None
+
+
 class ExactData:
     """y and X as given (doubles), their exact Gram, cross products and norms.
 
@@ -124,10 +143,10 @@ class ExactData:
 
     def slope_cap(self):
         """No design whose RSS is below y'y has slope b = y'x/x'x above
-        ||y|| / sqrt(lambda_min(G)) (x'x = u'Gu >= m lambda_min(G) >= lambda_min(G)).
+        ||y|| / sqrt(L), L = gram_lower(G) at most x'x = u'Gu (module docstring).
         Exact: a rational upper bound on the ratio, or None."""
-        lam = lambda_min_lower(_from_fractions(self.G.tolist()))
-        if lam is None or lam <= 0:
+        lam = gram_lower(self.G)
+        if lam is None:
             return None
         ratio2 = self.yy / lam                 # b^2 <= y'y / lambda_min
         r = Q(math.sqrt(float(ratio2)) * (1 + 1e-12))

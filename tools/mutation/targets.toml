@@ -11328,6 +11328,36 @@ test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_certificate.py 
 timeout = 1500.0
 
   [[target.mutant]]
+  id = "the-diagonal-read-with-negative-entries"
+  find = "    if all(g >= 0 for g in G.ravel()):\n"
+  replace = "    if True:\n"
+  models = "the smallest diagonal entry taken as the Gram floor when G has a negative entry, where two nearly opposite controls sum to a series far shorter than either and the slope cap falls below their best-fit slope"
+
+  [[target.mutant]]
+  id = "the-eigenvalue-bound-always"
+  find = "    if all(g >= 0 for g in G.ravel()):\n"
+  replace = "    if False:\n"
+  models = "the eigenvalue bound kept for a nonnegative Gram, which is 0 with more controls than periods, so there is no slope cap and the hull stage is skipped"
+
+  [[target.mutant]]
+  id = "the-largest-diagonal"
+  find = "        lam = min(G[j, j] for j in range(G.shape[0]))\n"
+  replace = "        lam = max(G[j, j] for j in range(G.shape[0]))\n"
+  models = "the largest diagonal entry as the floor, above u'Gu for the shortest single control"
+
+  [[target.mutant]]
+  id = "a-zero-gram-floor-is-returned"
+  find = "    return lam if lam is not None and lam > 0 else None\n"
+  replace = "    return lam\n"
+  models = "a floor of 0 (a control that is zero in every period) returned as a bound, which the slope cap then divides by"
+
+  [[target.mutant]]
+  id = "an-empty-gram-is-read"
+  find = "    if G.size == 0:\n        return None\n"
+  replace = "    pass\n"
+  models = "no guard for a group with no controls, whose diagonal has no minimum"
+
+  [[target.mutant]]
   id = "the-gram-is-over-one-denominator"
   find = "        self.G = to_q(N.T @ N, Dx * Dx)\n"
   replace = "        self.G = to_q(N.T @ N, Dx)\n"
@@ -12089,8 +12119,32 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_dual_reuse.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-full-solve-failure-ends-the-search"
+  find = "        try:\n            sol = solve(c, G, lam, R)\n        except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved\n            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)\n"
+  replace = "        sol = solve(c, G, lam, R)\n"
+  models = "Clarabel's failure on the full relaxation raised out of the certificate, ending the treatment search (the 100-geo incident)"
+
+  [[target.mutant]]
+  id = "a-failed-full-solve-certifies-the-size"
+  find = "            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)\n"
+  replace = "            return SizeResult(True, Q(0), r, len(tri), time.perf_counter() - t0, u)\n"
+  models = "a size whose relaxation could not be solved read as certified, so its designs are pruned unexamined"
+
+  [[target.mutant]]
+  id = "a-failed-round-drops-the-last-point"
+  find = "            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)\n"
+  replace = "            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, None)\n"
+  models = "the last solved round's relaxation point dropped on a failure, so branching picks its geo blind"
+
+  [[target.mutant]]
+  id = "every-error-reads-as-no-bound"
+  find = "        except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved\n"
+  replace = "        except Exception:    # no bound: the size is open, branched from the last point solved\n"
+  models = "any error in the full relaxation read as the solver's failure, so a defect in the rows or the bound is swallowed"
 
   [[target.mutant]]
   id = "a-given-start-skips-the-descent"
@@ -12539,6 +12593,18 @@ test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_treatment.py be
 timeout = 1200.0
 
   [[target.mutant]]
+  id = "no-gram-floor-for-any-panel"
+  find = "    return gram_lower(Mq.T @ Mq)\n"
+  replace = "    return None\n"
+  models = "no Gram floor for any panel, so every floor is 0 and the screen rules nothing out, as with more geos than periods before the diagonal bound"
+
+  [[target.mutant]]
+  id = "the-gram-of-the-periods"
+  find = "    return gram_lower(Mq.T @ Mq)\n"
+  replace = "    return gram_lower(Mq @ Mq.T)\n"
+  models = "the floor read from M M', the periods' Gram, whose diagonal is not among any group's x_j'x_j"
+
+  [[target.mutant]]
   id = "the-start-design-is-not-adopted"
   find = "    if key0 is not None:\n        out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0\n"
   replace = "    if False:\n        out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0\n"
@@ -12889,12 +12955,6 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
   find = "            if not res.certified:\n                left_open.append((list(T), yy, c))\n"
   replace = "            if False:\n                left_open.append((list(T), yy, c))\n"
   models = "a survivor whose own certification was cut short counted as certified"
-
-  [[target.mutant]]
-  id = "a-singular-gram-gives-a-floor"
-  find = "    return lam if lam is not None and lam > 0 else None\n"
-  replace = "    return lam\n"
-  models = "a nonpositive eigenvalue bound used as the slope cap's denominator"
 
   [[target.mutant]]
   id = "the-start-group-is-left-out-of-the-queue"

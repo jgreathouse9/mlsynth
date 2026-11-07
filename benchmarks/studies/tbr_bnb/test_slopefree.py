@@ -583,3 +583,17 @@ def test_a_poor_start_still_reaches_the_optimum(monkeypatch):
     assert {worst} != C
     out = certify_slope_free(y, X, start={worst}, hull=False)
     assert out.certified and set(out.controls) == C
+
+
+def test_more_controls_than_periods_still_runs_the_hull_stage():
+    """Nine positive controls over six periods: the group's Gram is singular, the
+    slope cap comes from its diagonal, and the hull stage runs and keeps the
+    enumerated optimum."""
+    from .brute import wide_panel
+    M = wide_panel(3, n=6, p=10)
+    y, X = M[:, 0], M[:, 1:]
+    out = certify_slope_free(y, X, restarts=10)
+    best, C = positive_optimum(y, X)
+    assert out.hull_seconds > 0 and len(out.sizes_after_hull) < 9
+    assert out.certified and float(out.incumbent) == pytest.approx(best, rel=1e-9)
+    assert set(out.controls) == C
