@@ -86,7 +86,7 @@ import cvxpy as cp
 import numpy as np
 import scipy.sparse as sp
 
-from mlsynth.exceptions import MlsynthDataError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 
 from .certificate import ExactData, _dot_err, round_down
@@ -525,6 +525,37 @@ class GroupResult:
     bound: Optional[Q]
     tier: str                            # dual, full, or open when neither closed it
     seconds: float
+    rung: Optional[int] = None           # the schedule that closed it on the dual tier, None otherwise
+
+
+#: The group screen's first-order schedules, tried in turn until one closes:
+#: (evaluations per smoothing stage, stages, evaluation budget). The first is the
+#: size certificates' (dual_multipliers' defaults). At 150 evaluations a stage the
+#: multipliers stop far from the relaxation's optimum on large groups: on the 19
+#: groups the 100-geo, four-treated search certified, the first schedule closed 4,
+#: and the longer ones with it 17 in 4 to 25 s, where Clarabel took 78 to 140 s a
+#: group; the 2 left open Clarabel left open too.
+SCREEN_SCHEDULES: Tuple[Tuple[int, int, int], ...] = ((150, 6, DUAL_BUDGET), (1000, 8, 8000), (3000, 4, 12000))
+
+#: The longer schedules run from this many candidate controls. Where the second
+#: closes, it took 0.7-1.5 s against Clarabel's 0.8-1.8 s at 36 controls (the
+#: GeoLift groups' size), 1.5-2.3 s against 4.6-6.7 s at 56, and 7.8 s against
+#: 27 s at 76, and a schedule that does not close costs its whole budget.
+SCREEN_LADDER_FROM = 48
+
+
+def screen_schedules(p: int) -> Tuple[Tuple[int, int, int], ...]:
+    """The schedules the group screen tries for ``p`` candidate controls."""
+    return SCREEN_SCHEDULES if p >= SCREEN_LADDER_FROM else SCREEN_SCHEDULES[:1]
+
+
+def _checked(schedules) -> Tuple[Tuple[int, int, int], ...]:
+    if not isinstance(schedules, tuple):
+        raise MlsynthConfigError(f"the screen's schedules are a tuple of (maxfun, stages, budget), not {schedules!r}.")
+    for sch in schedules:
+        if not (isinstance(sch, tuple) and len(sch) == 3 and all(type(v) is int and v >= 1 for v in sch)):
+            raise MlsynthConfigError(f"a screen schedule is (maxfun, stages, budget), each a positive int, not {sch!r}.")
+    return schedules
 
 
 def group_bound(A, R: Rows, y_eq, y_in) -> Optional[Q]:
@@ -533,23 +564,27 @@ def group_bound(A, R: Rows, y_eq, y_in) -> Optional[Q]:
     return bound(A, R, y_eq, y_in, R.p)
 
 
-def group_certificate(c, G, lam) -> GroupResult:
+def group_certificate(c, G, lam, schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None) -> GroupResult:
     """Whether no design of any size has u'(cc' - lam G)u > 0 (with c'u >= 0), by the
-    size-free rows' certificate: the first-order multipliers first, then the
-    relaxation's own (Clarabel). Certified at lam' = dyadic_below(lam) <= lam, so no
-    design's ratio exceeds lam' either."""
+    size-free rows' certificate: the first-order multipliers of each schedule in turn
+    (screen_schedules(p) when ``schedules`` is None), then the relaxation's own
+    (Clarabel). Certified at lam' = dyadic_below(lam) <= lam, so no design's ratio
+    exceeds lam' either."""
     t0 = time.perf_counter()
     if len(c) == 0:
         raise MlsynthDataError("the group screen needs a candidate control: there is no candidate control.")
+    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)
     lam = dyadic_below(lam)
     A = objective(c, G, lam)
     R = Rows(c, None)
-    w, _ = dual_multipliers(A, R, R.p, c)
     b = None
-    if w is not None:
+    for rung, (maxfun, stages, budget) in enumerate(schedules):
+        w, _ = dual_multipliers(A, R, R.p, c, maxfun=maxfun, stages=stages, budget=budget)
+        if w is None:
+            continue
         b = group_bound(A, R, w.y_eq, w.y_in)
         if b is not None and b <= 0:
-            return GroupResult(True, b, "dual", time.perf_counter() - t0)
+            return GroupResult(True, b, "dual", time.perf_counter() - t0, rung)
     try:
         sol = solve(c, G, lam, R)
     except cp.error.SolverError:        # pragma: no cover - Clarabel solves the size-free rows of every test panel

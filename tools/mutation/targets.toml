@@ -12119,7 +12119,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -12204,9 +12204,69 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-positive-group-bound-certifies"
-  find = "        if b is not None and b <= 0:\n            return GroupResult(True, b, \"dual\", time.perf_counter() - t0)\n"
-  replace = "        if b is not None:\n            return GroupResult(True, b, \"dual\", time.perf_counter() - t0)\n"
+  find = "        if b is not None and b <= 0:\n            return GroupResult(True, b, \"dual\", time.perf_counter() - t0, rung)\n"
+  replace = "        if b is not None:\n            return GroupResult(True, b, \"dual\", time.perf_counter() - t0, rung)\n"
   models = "the dual tier's certificate taken whatever its sign, so a group holding a design below the ceiling is screened out"
+
+  [[target.mutant]]
+  id = "the-ladder-stops-after-the-first-rung"
+  find = "    for rung, (maxfun, stages, budget) in enumerate(schedules):\n"
+  replace = "    for rung, (maxfun, stages, budget) in enumerate(schedules[:1]):\n"
+  models = "only the size certificates' schedule tried, so a large group whose multipliers stall at 150 evaluations a stage goes to Clarabel's 100-140 s solve (the 100-geo bottleneck)"
+
+  [[target.mutant]]
+  id = "every-rung-runs-the-first-schedule"
+  find = "        w, _ = dual_multipliers(A, R, R.p, c, maxfun=maxfun, stages=stages, budget=budget)\n"
+  replace = "        w, _ = dual_multipliers(A, R, R.p, c)\n"
+  models = "the schedules' settings never passed, so each rung reruns the first schedule and the ladder only repeats a stalled search"
+
+  [[target.mutant]]
+  id = "a-rung-that-gives-up-ends-the-ladder"
+  find = "        if w is None:\n            continue\n"
+  replace = "        if w is None:\n            break\n"
+  models = "the ladder abandoned when a schedule finds no multipliers, the case it exists for"
+
+  [[target.mutant]]
+  id = "an-exact-miss-ends-the-ladder"
+  find = "            return GroupResult(True, b, \"dual\", time.perf_counter() - t0, rung)\n"
+  replace = "            return GroupResult(True, b, \"dual\", time.perf_counter() - t0, rung)\n        break\n"
+  models = "the ladder abandoned when a schedule's float certificate closes and its exact bound does not, so a longer schedule is never tried"
+
+  [[target.mutant]]
+  id = "the-ladder-runs-below-its-size"
+  find = "    return SCREEN_SCHEDULES if p >= SCREEN_LADDER_FROM else SCREEN_SCHEDULES[:1]\n"
+  replace = "    return SCREEN_SCHEDULES\n"
+  models = "the long schedules run on small groups, where a schedule that does not close costs more than Clarabel's solve (GeoLift's 36 controls)"
+
+  [[target.mutant]]
+  id = "the-ladder-never-runs-by-size"
+  find = "    return SCREEN_SCHEDULES if p >= SCREEN_LADDER_FROM else SCREEN_SCHEDULES[:1]\n"
+  replace = "    return SCREEN_SCHEDULES[:1]\n"
+  models = "the size rule never admitting the long schedules, so the ladder is defined and tested but the search never uses it"
+
+  [[target.mutant]]
+  id = "the-screen-ignores-the-size-rule"
+  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n"
+  replace = "    schedules = SCREEN_SCHEDULES[:1] if schedules is None else _checked(schedules)\n"
+  models = "the screen's default schedules fixed, not chosen by the group's number of controls"
+
+  [[target.mutant]]
+  id = "a-malformed-schedule-is-taken"
+  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n"
+  replace = "    schedules = screen_schedules(len(c)) if schedules is None else schedules\n"
+  models = "a schedule with a zero or missing entry passed to the optimiser, which fails or runs nothing instead of the caller being told"
+
+  [[target.mutant]]
+  id = "the-closing-rung-is-misreported"
+  find = "            return GroupResult(True, b, \"dual\", time.perf_counter() - t0, rung)\n"
+  replace = "            return GroupResult(True, b, \"dual\", time.perf_counter() - t0, 0)\n"
+  models = "every dual closure reported as the first schedule's, so a run's record cannot show what the ladder bought"
+
+  [[target.mutant]]
+  id = "the-first-rung-is-a-long-schedule"
+  find = "SCREEN_SCHEDULES: Tuple[Tuple[int, int, int], ...] = ((150, 6, DUAL_BUDGET), (1000, 8, 8000), (3000, 4, 12000))\n"
+  replace = "SCREEN_SCHEDULES: Tuple[Tuple[int, int, int], ...] = ((1000, 8, 8000), (150, 6, DUAL_BUDGET), (3000, 4, 12000))\n"
+  models = "the long schedule first, so every group pays it, including those the size certificates' schedule closes in a fraction of a second"
 
   [[target.mutant]]
   id = "the-screen-has-no-clarabel-tier"
