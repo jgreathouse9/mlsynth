@@ -975,13 +975,72 @@ geos 274.7 s against 267.2 s; `geo_panel(0)` with 60 geos at four took 206.3 s
 against 204.6 s. Each pair certifies the same design with the same key, survivors
 and screen.
 
+## The floor-guided search
+
+`guided.py` is `certify_treatment` without its certificates. It takes the library's
+start, computes every treatment group's exact floor, and searches the controls of
+every group the floors cannot rule out, best floor first and the start group first
+of all. The answer is a design, not a proof, with a bound from the floors on how far
+it can be from the optimum.
+
+Each group's search is the study's RSS descent (`_local`, 50 restarts) and, when the
+RSS descent's design fails one of the key's gates, a descent on the key itself from
+that design: the library's local search with the treatment group fixed. The start
+group is also descended from the library's design.
+
+The bound: a group searched whose floor can still beat the reported design is open,
+since its own optimum may be better than what the search found in it. Every other
+group cannot beat the design. When no open group's correlation bound can round above
+the design's class, the optimum is in that class, its RSS is at least the least floor
+of the open groups, and its required impact is at least the design's impact times
+the square root of that floor over the design's RSS (derived here; `guided.py`'s
+docstring).
+
+On one process (`results/guided.log`, a quiet host), against each case's certified
+optimum:
+
+| panel | treated geos | groups | searched | time | design | required impact | proven at least |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| GeoLift | 3 | 9,880 | 11 | 4.6 s | the certified optimum | 1,585.8 | 1,322.4 |
+| GeoLift | 4 | 91,390 | 91 | 8.0 s | the certified optimum | 1,845.8 | 1,690.8 |
+| GeoLift | 5 | 658,008 | 489 | 32.6 s | the certified optimum | 2,047.3 | 1,831.4 |
+| `geo_panel(0)`, 60 geos | 3 | 34,220 | 10 | 17.8 s | the certified optimum | 29.9 | 26.1 |
+| `geo_panel(0)`, 80 geos | 3 | 82,160 | 4 | 48.1 s | the certified optimum | 24.5 | 23.0 |
+
+The certified search took 27.2 s at four geos and 65.0 s at five on one process
+(`results/best_start.log`). The design's impact is 6.7% to 19.9% above the bound the
+floors give; the certificates are what close that.
+
+On the same three-geo GeoLift case the library's hill climbs (`results/guided.log`)
+need a larger effect to detect: the greedy alone 2,310.2 (46% above the optimum);
+the greedy and the local search with 10 restarts 2,159.8, and with 50 restarts
+1,593.4, the optimum's treatment group with 17 controls against its 14. Over 20
+seeds of the local search none reached the optimum, at 10 restarts or at 50. At four
+and five geos, over 10 seeds with 50 restarts, the closest were 3.1% and 2.2% above
+the optimum and the furthest 18.3% and 20.5%.
+
+The first version of this search read the pass of `certify_treatment` and stopped
+where its certificates begin. At three geos it reported 1,602.4 against the optimum's
+1,585.8, a ratio of 1.0105, for two causes. The pass leaves out the start group,
+which `certify_treatment` certifies last, and the start group held the optimum; so
+the group kept the library's design, whose RSS (2,977,639.8 against the optimum's
+2,916,143.5) accounts for the whole ratio (the square root of the RSS ratio is
+1.0105). And the pass's descent minimises RSS alone: in that group its least-RSS
+design fails the Breusch-Godfrey gate, at 10 restarts and at 50, so the group
+reports no passing design. Either cause alone leaves the miss. With both removed,
+the key's descent from the library's design reaches the optimum from one seed in
+ten and stops 0.12% above it from the others, a local optimum of the library's
+moves; the RSS descent with 50 restarts, then the key's descent, reaches it in the
+search above. The first version's bound also left out the start group's floor; at
+four and five geos that floor was not the least, and the bound did not change.
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (590 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (632 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 269 mutants of the 23
+but for the lines marked `pragma: no cover`, each with its reason. The 284 mutants of the 24
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for five recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -1089,6 +1148,7 @@ fixing is certified to the solver's value.
   (`size_certificate`) and `certify_slope_free()`.
 - `gated.py`: the reference key's four gates on the slope-free search, `certify_gated()`.
 - `treatment.py`: the search over treatment groups, `certify_treatment()`.
+- `guided.py`: the floor-guided search without certificates, `guided_treatment()`, and its bound.
 - `fastfloor.py`: the floors of a chunk of groups in one compiled loop, with numba installed.
 - `brute.py`: enumeration, the truth the tests check against, the simulated AR(1) panels, and
   `treatment_optimum`, every treatment and control group of a small panel scored by the library's key.

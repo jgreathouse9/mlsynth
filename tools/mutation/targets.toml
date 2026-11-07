@@ -13183,3 +13183,81 @@ timeout = 300.0
   find = "Xpool = (Xs if with_treated else Xs[:, 1:]) if covariates else None"
   replace = "Xpool = Xs[:, 1:] if covariates else None"
   models = "with covariates and the treated unit in the pools, the predictor columns no longer line up with the outcome columns, so each placebo is matched on another unit's predictors"
+
+[[target]]
+name = "tbr-bnb-guided"
+module-path = "benchmarks/studies/tbr_bnb/guided.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_guided.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-start-group-is-not-searched"
+  find = "    search(T0, C0)\n"
+  replace = "    pass\n"
+  models = "the start group never given the group search, so its design stays the library's and its own optimum is missed (the RCA's first cause)"
+
+  [[target.mutant]]
+  id = "the-start-group-is-searched-twice"
+  find = "        if T == tuple(T0):\n            continue\n"
+  replace = "        pass\n"
+  models = "the start group searched again in floor order, counted twice and searched twice"
+
+  [[target.mutant]]
+  id = "a-failing-rss-design-ends-the-group-search"
+  find = "    froms = [] if key is not None else [Cg]\n"
+  replace = "    froms = []\n"
+  models = "the RSS descent's design failing a gate leaves the group with no passing design, the key's descent never run from it (the RCA's second cause)"
+
+  [[target.mutant]]
+  id = "the-start-design-is-not-descended"
+  find = "    if start:\n        froms.append(sorted(start))\n"
+  replace = "    if False:\n        froms.append(sorted(start))\n"
+  models = "the library's design dropped from the start group's search, which can then report a design worse than its start"
+
+  [[target.mutant]]
+  id = "the-start-floor-is-left-out-of-the-bound"
+  find = "out.open = [T for T in out.searched_groups if"
+  replace = "out.open = [T for T in out.searched_groups[1:] if"
+  models = "the start group's floor missing from the open groups and so from the bound (the hole the RCA found in the first bound)"
+
+  [[target.mutant]]
+  id = "the-open-groups-ignore-their-floors"
+  find = "    out.open = [T for T in out.searched_groups if can_compete(exact(T), floors[T], r, out.rss)]\n"
+  replace = "    out.open = list(out.searched_groups)\n"
+  models = "every searched group reported open, including those whose floor shows they cannot beat the design"
+
+  [[target.mutant]]
+  id = "the-bound-is-the-design-itself"
+  find = "    out.rss_bound = min([floors[T] for T in out.open] + ([out.rss] if out.rss is not None else []))\n"
+  replace = "    out.rss_bound = out.rss if out.rss is not None else min(floors[T] for T in out.open)\n"
+  models = "the open groups' floors dropped from the bound, which then claims the design is the optimum"
+
+  [[target.mutant]]
+  id = "no-group-rounds-above-the-class"
+  find = "        out.above_class = any("
+  replace = "        out.above_class = False and any("
+  models = "an open group that could round above the design's class ignored, so an impact bound is given where none holds"
+
+  [[target.mutant]]
+  id = "the-impact-bound-without-the-root"
+  find = "math.sqrt(float(out.rss_bound / out.rss))"
+  replace = "float(out.rss_bound / out.rss)"
+  models = "the impact bound taken linear in the RSS, where the required impact is linear in its square root"
+
+  [[target.mutant]]
+  id = "proven-whatever-is-open"
+  find = "        out.proven = not out.open\n"
+  replace = "        out.proven = True\n"
+  models = "the design reported as the optimum while groups that could beat it are open"
+
+  [[target.mutant]]
+  id = "the-screen-is-dropped"
+  find = "        if competes(floor, yy, T):\n"
+  replace = "        if True:\n"
+  models = "every group searched whatever its floor, the screen that makes the search scale gone"
+
+  [[target.mutant]]
+  id = "a-group-that-cannot-compete-is-searched-against-no-incumbent"
+  find = "        r = Q(out.key[4]) if out.key is not None else None\n        return _competes("
+  replace = "        r = None\n        return _competes("
+  models = "the screen read without the incumbent, so no group is ruled out"
