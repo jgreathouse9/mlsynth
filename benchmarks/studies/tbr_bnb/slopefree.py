@@ -875,7 +875,7 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
         if not fixes and res.multipliers is not None:
             inc["warm"] = res.multipliers       # the next size's first try
         return
-    if relax and res.u is not None and inc.get("round", ROUND_NODES):
+    if res.u is not None and inc.get("round", ROUND_NODES):   # only a node that solved the relaxations has a point
         C = rounded_design(res.u, fixes, m)
         cu, r = _ratio(c, G, C)
         if cu > 0 and r > inc["lam"] and C not in excluded:

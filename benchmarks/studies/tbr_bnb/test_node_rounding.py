@@ -114,12 +114,14 @@ def test_only_a_strictly_better_rounded_design_is_taken(monkeypatch, above, take
 
 
 def test_a_negative_slope_rounded_design_is_never_taken(monkeypatch):
-    """A design whose slope is not positive has no RSS in the slope-free search, so
-    its ratio never replaces the incumbent, however large."""
+    """A design whose slope is not positive has no RSS in the slope-free search:
+    _ratio scores it 0, which never beats the threshold, at least 0, so it never
+    replaces the incumbent."""
     from itertools import combinations
     y, X = panel(5, p=8)
     D = ExactData(y, X)
     neg = next(set(C) for C in combinations(range(8), 3) if slopefree._ratio(D.c, D.G, set(C))[0] <= 0)
+    assert slopefree._ratio(D.c, D.G, neg)[1] == 0
     monkeypatch.setattr(slopefree, "rounded_design", lambda u, fixes, m: set(neg))
     out = slopefree.SlopeFreeCertificate(incumbent=Q(0), controls=[], ratio=Q(0), sizes_after_hull=[])
     inc = {"lam": Q(10) ** -9, "C": {"start"}, "every": 1, "round": True}

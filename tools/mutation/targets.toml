@@ -12246,8 +12246,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-refresh-rate-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C)}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding}\n"
   models = "clarabel_every accepted and validated but never reaching the branch and bound, which runs the default"
 
   [[target.mutant]]
@@ -12264,15 +12264,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-node-never-rounds"
-  find = "    if relax and res.u is not None and inc.get(\"round\", ROUND_NODES):\n"
+  find = "    if res.u is not None and inc.get(\"round\", ROUND_NODES):   # only a node that solved the relaxations has a point\n"
   replace = "    if False:\n"
   models = "the rounding written and never reached, so the search keeps the start's incumbent"
-
-  [[target.mutant]]
-  id = "an-inherited-node-rounds"
-  find = "    if relax and res.u is not None and inc.get(\"round\", ROUND_NODES):\n"
-  replace = "    if res.u is not None and inc.get(\"round\", ROUND_NODES):\n"
-  models = "a node that skipped the relaxations rounds its parent's point again, an evaluation the parent already made"
 
   [[target.mutant]]
   id = "a-rounded-design-at-the-incumbents-ratio-is-taken"
@@ -12291,6 +12285,8 @@ timeout = 900.0
   find = "        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n            inc.update(lam=r, C=C)\n            out.rounded += 1\n"
   replace = "        if r > inc[\"lam\"] and C not in excluded:\n            inc.update(lam=r, C=C)\n            out.rounded += 1\n"
   models = "a rounded design with a negative slope taken, though its ratio is no RSS the slope-free search may claim"
+  expected = "survived"
+  accepted-because = "equivalent: _ratio scores a design without a positive slope 0, and the threshold it must beat is never negative (the incumbent's ratio, or y'y minus a ceiling only when that is larger), so the guard, kept to match the leaves, never decides"
 
   [[target.mutant]]
   id = "the-smallest-values-are-rounded-in"
