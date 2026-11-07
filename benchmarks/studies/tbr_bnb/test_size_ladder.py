@@ -8,7 +8,7 @@ screen's longer schedules closed 19, 20 and 27 in 8 to 37 s, and rounds of trian
 separated from the dual's own smoothed point, each round restarted from zero, closed
 21, 22 and 26 after one round and 23 and 24 after two; 25 was still open after three.
 Warm-starting a round from the last one's multipliers left 23, 24 and 25 open after
-six. So from SCREEN_LADDER_FROM candidate controls a size tries the screen's
+six. So from SIZE_LADDER_FROM candidate controls a size tries the screen's
 schedules, then up to FIRST_ORDER_ROUNDS such rounds, before the Shor and full
 relaxations."""
 from fractions import Fraction as Q
@@ -25,7 +25,7 @@ from . import slopefree
 from .brute import geo_panel
 from .certificate import ExactData
 from .search import incumbent
-from .slopefree import (FIRST_ORDER_ROUNDS, FIRST_ORDER_ROUNDS_FROM, SCREEN_LADDER_FROM, SCREEN_SCHEDULES, Rows, dual_multipliers,
+from .slopefree import (FIRST_ORDER_ROUNDS, SIZE_LADDER_FROM, SCREEN_LADDER_FROM, SCREEN_SCHEDULES, Rows, dual_multipliers,
                         dyadic_below, objective, size_certificate)
 from .treatment import _split
 
@@ -194,14 +194,26 @@ def test_the_dual_reports_no_point_when_it_closes():
 
 def test_the_default_schedules_follow_the_number_of_controls(monkeypatch, needs_triangles):
     c, G, lam, m, cuts = needs_triangles
-    assert len(c) < SCREEN_LADDER_FROM
+    assert len(c) < SIZE_LADDER_FROM
     calls = _spy(monkeypatch)
     size_certificate(c, G, lam, m, cuts=cuts)
     assert len([cl for cl in calls if cl[2] == 0]) == 1 and not any(cl[2] > 0 for cl in calls)
     calls.clear()
-    monkeypatch.setattr(slopefree, "SCREEN_LADDER_FROM", 1)
-    size_certificate(c, G, lam, m, cuts=cuts)
+    monkeypatch.setattr(slopefree, "SIZE_LADDER_FROM", 1)
+    res = size_certificate(c, G, lam, m, cuts=cuts)
     assert len([cl for cl in calls if cl[2] == 0]) == len(SCREEN_SCHEDULES)
+    assert any(cl[2] > 0 for cl in calls) and res.tier == "triangles"
+
+
+def test_a_size_follows_its_own_threshold_not_the_screens(monkeypatch, needs_triangles):
+    """The screen's longer schedules run from 48 controls; a size's only from
+    SIZE_LADDER_FROM, below which they broke even on the 80-geo group."""
+    c, G, lam, m, cuts = needs_triangles
+    assert SCREEN_LADDER_FROM < SIZE_LADDER_FROM
+    monkeypatch.setattr(slopefree, "SCREEN_LADDER_FROM", 1)
+    calls = _spy(monkeypatch)
+    size_certificate(c, G, lam, m, cuts=cuts)
+    assert len(calls) == 1
 
 
 def test_the_branch_and_bound_certifies_with_the_ladder_of_its_size(monkeypatch):
@@ -220,15 +232,15 @@ def test_the_branch_and_bound_certifies_with_the_ladder_of_its_size(monkeypatch)
 
 
 def test_the_default_rounds_follow_the_number_of_controls(monkeypatch, needs_triangles):
-    """With the schedules given, the rounds still run only from FIRST_ORDER_ROUNDS_FROM
+    """With the schedules given, the rounds still run only from SIZE_LADDER_FROM
     controls unless asked for."""
     c, G, lam, m, cuts = needs_triangles
-    assert len(c) < FIRST_ORDER_ROUNDS_FROM
+    assert len(c) < SIZE_LADDER_FROM
     calls = _spy(monkeypatch)
     res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
     assert not any(cl[2] > 0 for cl in calls) and res.tier == "full"
     calls.clear()
-    monkeypatch.setattr(slopefree, "FIRST_ORDER_ROUNDS_FROM", 1)
+    monkeypatch.setattr(slopefree, "SIZE_LADDER_FROM", 1)
     res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
     assert any(cl[2] > 0 for cl in calls) and res.tier == "triangles"
 
@@ -243,7 +255,7 @@ def test_no_rounds_when_asked_for_none(monkeypatch, needs_triangles):
 def test_the_rounds_need_the_ladder(monkeypatch, needs_triangles):
     """One schedule is the size certificates' cascade of before: no rounds by default."""
     c, G, lam, m, cuts = needs_triangles
-    monkeypatch.setattr(slopefree, "FIRST_ORDER_ROUNDS_FROM", 1)
+    monkeypatch.setattr(slopefree, "SIZE_LADDER_FROM", 1)
     calls = _spy(monkeypatch)
     size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES[:1])
     assert not any(cl[2] > 0 for cl in calls)

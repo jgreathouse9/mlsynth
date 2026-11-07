@@ -12228,25 +12228,37 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-size-ignores-the-size-rule"
-  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n    if first_order_rounds is None:"
-  replace = "    schedules = SCREEN_SCHEDULES if schedules is None else _checked(schedules)\n    if first_order_rounds is None:"
+  find = "    schedules = size_schedules(len(c)) if schedules is None else _checked(schedules)\n"
+  replace = "    schedules = SCREEN_SCHEDULES if schedules is None else _checked(schedules)\n"
   models = "the long schedules and the rounds run on every size of every group, where on small groups a schedule that does not close costs more than Clarabel's solve"
 
   [[target.mutant]]
+  id = "a-size-follows-the-screens-threshold"
+  find = "    return SCREEN_SCHEDULES if p >= SIZE_LADDER_FROM else SCREEN_SCHEDULES[:1]\n"
+  replace = "    return SCREEN_SCHEDULES if p >= SCREEN_LADDER_FROM else SCREEN_SCHEDULES[:1]\n"
+  models = "a size's longer schedules run from the screen's 48 controls, where on the 80-geo group they broke even and cost about 50 s on each size that went to Clarabel anyway"
+
+  [[target.mutant]]
+  id = "a-size-never-gets-the-schedules"
+  find = "    return SCREEN_SCHEDULES if p >= SIZE_LADDER_FROM else SCREEN_SCHEDULES[:1]\n"
+  replace = "    return SCREEN_SCHEDULES[:1]\n"
+  models = "the size rule never admitting the schedules, so the ladder and the rounds are defined and tested but no search uses them"
+
+  [[target.mutant]]
   id = "no-first-order-triangle-rounds"
-  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= FIRST_ORDER_ROUNDS_FROM else 0\n"
+  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM else 0\n"
   replace = "        first_order_rounds = 0\n"
   models = "the triangle rounds defined and never run by default, so a size of a large group that needs triangles always goes to Clarabel"
 
   [[target.mutant]]
   id = "triangle-rounds-without-the-ladder"
-  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= FIRST_ORDER_ROUNDS_FROM else 0\n"
-  replace = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(c) >= FIRST_ORDER_ROUNDS_FROM else 0\n"
+  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM else 0\n"
+  replace = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(c) >= SIZE_LADDER_FROM else 0\n"
   models = "the rounds run when only the size certificates' schedule is given, so a caller asking for the old cascade gets the rounds too"
 
   [[target.mutant]]
   id = "triangle-rounds-below-their-size"
-  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= FIRST_ORDER_ROUNDS_FROM else 0\n"
+  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM else 0\n"
   replace = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 else 0\n"
   models = "the rounds run from the schedules' 48 controls, where at 76 they made the incumbent's group slower (479 s against 439 s)"
 

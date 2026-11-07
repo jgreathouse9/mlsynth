@@ -483,12 +483,20 @@ def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
 #: three, at 6.0 times y'y and falling, and went to Clarabel.
 FIRST_ORDER_ROUNDS = 3
 
-#: The rounds run from this many candidate controls. On the 100-geo incumbent's group
-#: (97 controls) a Clarabel solve took 100-145 s and a first-order round about 45 s,
-#: and the rounds took the group from 2,321 s to 1,272 s; on the 80-geo one (76
-#: controls) Clarabel's first solve took 43-48 s, about a round's cost, and the
-#: rounds made the group slower, 479 s against 439 s. Two groups, one either side.
-FIRST_ORDER_ROUNDS_FROM = 90
+#: A size tries the screen's longer schedules and the rounds from this many candidate
+#: controls; below it the cascade is the size certificates' of before. On the 100-geo
+#: incumbent's group (97 controls) a Clarabel solve took 100-145 s and a first-order
+#: round about 45 s, and the two took the group from 2,321 s to 1,272 s. On the
+#: 80-geo one (76 controls) Clarabel's first solve took 43-48 s, about a round's cost:
+#: with the rounds the group took 479 s, with the schedules alone 447 s (they closed
+#: three sizes at about 7 s that Clarabel took 43-48 s on, and cost about 50 s each on
+#: three that went to Clarabel anyway), against 439 s. Two groups, one either side.
+SIZE_LADDER_FROM = 90
+
+
+def size_schedules(p: int) -> Tuple[Tuple[int, int, int], ...]:
+    """The schedules a size of a group with ``p`` candidate controls tries."""
+    return SCREEN_SCHEDULES if p >= SIZE_LADDER_FROM else SCREEN_SCHEDULES[:1]
 
 
 def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
@@ -501,18 +509,18 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     full relaxation's, with up to ``rounds`` rounds of the ``per_round`` most violated
     triangle inequalities where it is above zero.
 
-    The first-order tier tries each of ``schedules`` in turn (screen_schedules(p)
+    The first-order tier tries each of ``schedules`` in turn (size_schedules(p)
     when None), ``warm`` given to the first only, and then up to
     ``first_order_rounds`` rounds of triangles separated from the last schedule's
     smoothed point (FIRST_ORDER_ROUNDS when None, there is more than one schedule and
-    there are FIRST_ORDER_ROUNDS_FROM controls, else none), each on the last schedule
+    there are SIZE_LADDER_FROM controls, else none), each on the last schedule
     from zero: warm-starting a round from
     the last round's multipliers left three sizes of the 100-geo incumbent's group
     open after six rounds that two rounds from zero closed."""
     t0 = time.perf_counter()
-    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)
+    schedules = size_schedules(len(c)) if schedules is None else _checked(schedules)
     if first_order_rounds is None:
-        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= FIRST_ORDER_ROUNDS_FROM else 0
+        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM else 0
     elif type(first_order_rounds) is not int or first_order_rounds < 0:
         raise MlsynthConfigError(f"first_order_rounds is a count of rounds, an int at least 0, not {first_order_rounds!r}.")
     lam = dyadic_below(lam)
