@@ -622,6 +622,43 @@ The screen runs inside the worker that certifies the group, in parallel with the
 rest of its wave. The gain at four processes, 17% against 28% at one, has not
 been decomposed.
 
+### The screen's schedules
+
+On the simulated 100-geo panel at four treated geos (97 candidate controls), the
+groups the screen closed cost 95 to 145 s each, nearly all of it one Clarabel
+solve: 53 interior-point iterations at about 2.3 s each on the 98 x 98
+semidefinite block (profiled on group (4, 21, 35, 58)). Dropping every pair row
+left 290 rows and 28 iterations at the same cost each, so the row count is not
+the cost. The k-cluster literature bounds problems of this size with first-order
+methods instead (Malick and Roupin 2012, 2013; Krislock, Malick and Roupin 2016),
+and the screen's first-order tier is one. It gave up on these groups because of
+its schedule, not its bound: L-BFGS-B at 150 evaluations a smoothing stage, the
+smoothing shrinking tenfold a stage, stops far from the relaxation's optimum. On
+(4, 33, 35, 58) its best certificate after 1,143 evaluations was 3,725 times y'y; at
+3,000 evaluations a stage it was below zero in the second stage.
+
+On the 19 groups that search certified, each screened at its recorded ceiling:
+
+| schedule | groups closed | seconds a closed group |
+| --- | --- | --- |
+| 150 evaluations a stage, 400 in all (the size certificates') | 4 | 1.3-1.6 |
+| 1,000 a stage, 8 stages, 8,000 in all | 16 | 4.3-9.3 |
+| 3,000 a stage, 4 stages, 12,000 in all | 17 | 8.1-25.3 |
+| Clarabel, full rows | 17 | 78.4-140.1 |
+
+The 17 are the same groups in the last two rows. The two left open, (4, 35, 58,
+60) and (4, 21, 35, 58), are left open by Clarabel too, and go on to the sizes.
+`group_certificate` now tries the three schedules in turn and hands what none
+closes to Clarabel; the result's `rung` names the schedule that closed it.
+
+The longer schedules run from 48 candidate controls (`SCREEN_LADDER_FROM`). On
+simulated 90-period panels, where the second schedule closed a group, it took
+0.7-1.5 s against Clarabel's 0.8-1.8 s at 36 controls, the GeoLift groups' size;
+1.5-2.3 s against 4.6-6.7 s at 56; and 7.8 s against 27 s at 76. A schedule that
+does not close costs its whole budget: on five 30-geo groups (26 controls, 20
+periods) the two longer schedules spent 1.9-4.6 s, where the whole screen with
+Clarabel took 0.35-0.71 s. Below 48 controls the screen is unchanged.
+
 ## Several processes
 
 `certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
