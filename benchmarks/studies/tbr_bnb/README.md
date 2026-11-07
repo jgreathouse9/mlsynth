@@ -82,10 +82,14 @@ is empty (the remark after their Thm 1).
 
 Every prune compares an exact lower bound with the incumbent's exact RSS:
 
-- Slope cap. A design with RSS below `y'y` has `b <= ||y|| / sqrt(lambda_min(G))`
-  (Cauchy-Schwarz and the Rayleigh quotient, derived here), with
-  `lambda_min(G)` bounded below exactly by the library's `lambda_min_lower`. The
-  pieces cover `(0, cap]`; the cap is 53 to 85 times the incumbent's slope.
+- Slope cap. A design with RSS below `y'y` has `b <= ||y|| / sqrt(L)` with
+  `L <= x'x = u'Gu` for every nonzero binary `u` (Cauchy-Schwarz, derived here).
+  When no entry of `G` is negative, `L = min_j G_jj`, since `u'Gu` sums the entries
+  of a principal submatrix and so is at least any one diagonal entry in it; else `L`
+  is `lambda_min(G)` bounded below exactly by the library's `lambda_min_lower` (the
+  Rayleigh quotient). The diagonal is never below `lambda_min(G)`. The pieces cover
+  `(0, cap]`; on the four GeoLift groups of `results/certify_lbfgs.log` the cap is 7
+  to 11 times the incumbent's slope, 53 to 85 times with `lambda_min(G)`.
 - Hull QP. `f(wbar) + min_P grad f(wbar)'(w - wbar)` is a bound at any point
   (Boyd and Vandenberghe 2004, eq. (3.2)); the linear minimum is a continuous
   knapsack (Dantzig 1957), solved exactly.
