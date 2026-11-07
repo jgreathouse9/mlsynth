@@ -12228,21 +12228,33 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-size-ignores-the-size-rule"
-  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    if warm is not None:"
-  replace = "    schedules = SCREEN_SCHEDULES if schedules is None else _checked(schedules)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    if warm is not None:"
+  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n    if first_order_rounds is None:"
+  replace = "    schedules = SCREEN_SCHEDULES if schedules is None else _checked(schedules)\n    if first_order_rounds is None:"
   models = "the long schedules and the rounds run on every size of every group, where on small groups a schedule that does not close costs more than Clarabel's solve"
 
   [[target.mutant]]
   id = "no-first-order-triangle-rounds"
-  find = "    first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 else 0\n"
-  replace = "    first_order_rounds = 0\n"
-  models = "the triangle rounds defined and never run, so a size that needs triangles always goes to Clarabel"
+  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= FIRST_ORDER_ROUNDS_FROM else 0\n"
+  replace = "        first_order_rounds = 0\n"
+  models = "the triangle rounds defined and never run by default, so a size of a large group that needs triangles always goes to Clarabel"
 
   [[target.mutant]]
   id = "triangle-rounds-without-the-ladder"
-  find = "    first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 else 0\n"
-  replace = "    first_order_rounds = FIRST_ORDER_ROUNDS\n"
-  models = "the rounds run on small groups too, below the size the schedules were measured to pay at"
+  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= FIRST_ORDER_ROUNDS_FROM else 0\n"
+  replace = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(c) >= FIRST_ORDER_ROUNDS_FROM else 0\n"
+  models = "the rounds run when only the size certificates' schedule is given, so a caller asking for the old cascade gets the rounds too"
+
+  [[target.mutant]]
+  id = "triangle-rounds-below-their-size"
+  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= FIRST_ORDER_ROUNDS_FROM else 0\n"
+  replace = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 else 0\n"
+  models = "the rounds run from the schedules' 48 controls, where at 76 they made the incumbent's group slower (479 s against 439 s)"
+
+  [[target.mutant]]
+  id = "a-malformed-round-count-is-taken"
+  find = "    elif type(first_order_rounds) is not int or first_order_rounds < 0:\n"
+  replace = "    elif False:\n"
+  models = "a negative or non-integer round count accepted, read as no rounds or as a float range, instead of the caller being told"
 
   [[target.mutant]]
   id = "one-triangle-round-short"

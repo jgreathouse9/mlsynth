@@ -25,9 +25,12 @@ from . import slopefree
 from .brute import geo_panel
 from .certificate import ExactData
 from .search import incumbent
-from .slopefree import (FIRST_ORDER_ROUNDS, SCREEN_LADDER_FROM, SCREEN_SCHEDULES, Rows, dual_multipliers,
+from .slopefree import (FIRST_ORDER_ROUNDS, FIRST_ORDER_ROUNDS_FROM, SCREEN_LADDER_FROM, SCREEN_SCHEDULES, Rows, dual_multipliers,
                         dyadic_below, objective, size_certificate)
 from .treatment import _split
+
+#: The schedules and the triangle rounds forced on, whatever the group's size.
+LADDER = dict(schedules=SCREEN_SCHEDULES, first_order_rounds=FIRST_ORDER_ROUNDS)
 
 SETTINGS = settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -93,7 +96,7 @@ def test_the_rows_count_their_triangles():
 def test_smoke_first_order_triangle_rounds_close_what_the_dual_leaves(needs_triangles):
     c, G, lam, m, cuts = needs_triangles
     before = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES[:1])
-    after = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
+    after = size_certificate(c, G, lam, m, cuts=cuts, **LADDER)
     assert before.certified and before.tier == "full" and before.rounds == 1
     assert after.certified and after.tier == "triangles" and after.rounds == 1 and after.triangles > 0
     assert after.bound <= 0 and after.multipliers is None
@@ -105,7 +108,7 @@ def test_smoke_first_order_triangle_rounds_close_what_the_dual_leaves(needs_tria
 def test_a_longer_schedule_closes_a_size_the_first_gives_up(needs_ladder):
     c, G, lam, m, cuts = needs_ladder
     assert size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES[:1]).tier != "dual"
-    res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
+    res = size_certificate(c, G, lam, m, cuts=cuts, **LADDER)
     assert res.certified and res.tier == "dual" and res.rounds == 0
 
 
@@ -113,7 +116,7 @@ def test_the_schedules_run_in_turn_and_only_the_first_is_warm(monkeypatch, needs
     c, G, lam, m, cuts = needs_triangles
     warm = size_certificate(c, G, lam, m - 1, cuts=cuts).multipliers
     calls = _spy(monkeypatch)
-    size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES, warm=warm)
+    size_certificate(c, G, lam, m, cuts=cuts, **LADDER, warm=warm)
     ladder = [cl for cl in calls if cl[2] == 0]
     assert [cl[0] for cl in ladder] == [SCREEN_SCHEDULES[0]] + list(SCREEN_SCHEDULES[1:])
     assert [cl[1] for cl in ladder] == [warm is not None] + [False] * (len(SCREEN_SCHEDULES) - 1)
@@ -122,7 +125,7 @@ def test_the_schedules_run_in_turn_and_only_the_first_is_warm(monkeypatch, needs
 def test_a_triangle_round_runs_on_the_last_schedule_with_the_separated_rows(monkeypatch, needs_triangles):
     c, G, lam, m, cuts = needs_triangles
     calls = _spy(monkeypatch)
-    res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
+    res = size_certificate(c, G, lam, m, cuts=cuts, **LADDER)
     rounds = [cl for cl in calls if cl[2] > 0]
     assert len(rounds) == res.rounds == 1 and rounds[0][2] == res.triangles
     assert rounds[0][0] == SCREEN_SCHEDULES[-1] and not rounds[0][1]
@@ -140,7 +143,7 @@ def test_at_most_the_round_limit_then_clarabel_decides(monkeypatch, needs_triang
 
     monkeypatch.setattr(slopefree, "separate_triangles", separate)
     calls = _spy(monkeypatch, fail=True)
-    res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
+    res = size_certificate(c, G, lam, m, cuts=cuts, **LADDER)
     assert sum(1 for cl in calls if cl[2] > 0) == FIRST_ORDER_ROUNDS
     assert res.certified and res.tier == "full"
 
@@ -156,7 +159,7 @@ def test_no_violated_triangle_ends_the_rounds(monkeypatch, needs_triangles):
 
     monkeypatch.setattr(slopefree, "separate_triangles", separate)
     calls = _spy(monkeypatch)
-    res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
+    res = size_certificate(c, G, lam, m, cuts=cuts, **LADDER)
     assert not any(cl[2] > 0 for cl in calls) and res.certified and res.tier == "full"
 
 
@@ -167,7 +170,7 @@ def test_a_round_whose_exact_bound_misses_goes_on(monkeypatch, needs_triangles):
     real = slopefree.bound
     monkeypatch.setattr(slopefree, "bound", lambda A, R, ye, yi, m_: Q(1) if R.n_triangles else real(A, R, ye, yi, m_))
     calls = _spy(monkeypatch)
-    res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
+    res = size_certificate(c, G, lam, m, cuts=cuts, **LADDER)
     assert res.tier == "full" and sum(1 for cl in calls if cl[2] > 0) >= 1
 
 
@@ -216,6 +219,36 @@ def test_the_branch_and_bound_certifies_with_the_ladder_of_its_size(monkeypatch)
     assert out.certified and seen and set(seen) == {"default"}
 
 
+def test_the_default_rounds_follow_the_number_of_controls(monkeypatch, needs_triangles):
+    """With the schedules given, the rounds still run only from FIRST_ORDER_ROUNDS_FROM
+    controls unless asked for."""
+    c, G, lam, m, cuts = needs_triangles
+    assert len(c) < FIRST_ORDER_ROUNDS_FROM
+    calls = _spy(monkeypatch)
+    res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
+    assert not any(cl[2] > 0 for cl in calls) and res.tier == "full"
+    calls.clear()
+    monkeypatch.setattr(slopefree, "FIRST_ORDER_ROUNDS_FROM", 1)
+    res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
+    assert any(cl[2] > 0 for cl in calls) and res.tier == "triangles"
+
+
+def test_no_rounds_when_asked_for_none(monkeypatch, needs_triangles):
+    c, G, lam, m, cuts = needs_triangles
+    calls = _spy(monkeypatch)
+    res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES, first_order_rounds=0)
+    assert not any(cl[2] > 0 for cl in calls) and res.tier == "full"
+
+
+def test_the_rounds_need_the_ladder(monkeypatch, needs_triangles):
+    """One schedule is the size certificates' cascade of before: no rounds by default."""
+    c, G, lam, m, cuts = needs_triangles
+    monkeypatch.setattr(slopefree, "FIRST_ORDER_ROUNDS_FROM", 1)
+    calls = _spy(monkeypatch)
+    size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES[:1])
+    assert not any(cl[2] > 0 for cl in calls)
+
+
 # ---------------------------------------------------------------- properties
 
 
@@ -255,7 +288,7 @@ def test_a_size_closed_by_a_triangle_round_holds_no_better_design():
     """Seed 12 at size 8: the first-order round closes it, and no design of size 8 has
     a larger ratio (enumerated)."""
     c, G, lam, m, cuts = _geo_size(12, Q(1), -1)
-    res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
+    res = size_certificate(c, G, lam, m, cuts=cuts, **LADDER)
     assert m == 8 and res.certified and res.tier == "triangles"
     best = _best_of_size(c, G, m, cuts)
     assert best is None or best <= float(dyadic_below(lam)) * (1 + 1e-9)
@@ -270,7 +303,7 @@ def test_property_a_certified_size_holds_no_better_design(seed, f, dm):
     if case is None:
         return
     c, G, lam, m, cuts = case
-    res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
+    res = size_certificate(c, G, lam, m, cuts=cuts, **LADDER)
     first = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES[:1])
     if res.certified:
         best = _best_of_size(c, G, m, cuts)
@@ -289,7 +322,7 @@ def test_a_node_with_fixings_holds_no_better_design_when_certified():
     C = sorted(cuts[0])
     out = next(j for j in range(len(c)) if j not in cuts[0])
     fixes = [(C[0], 1), (out, 0)]
-    res = size_certificate(c, G, lam, m, cuts=cuts, fixes=fixes, schedules=SCREEN_SCHEDULES)
+    res = size_certificate(c, G, lam, m, cuts=cuts, fixes=fixes, **LADDER)
     designs = [D for D in combinations(range(len(c)), m) if C[0] in D and out not in D and set(D) != cuts[0]]
     cf = np.array([float(v) for v in c]); Gf = np.array([[float(v) for v in r] for r in G])
     best = max((cf[list(D)].sum() ** 2 / Gf[np.ix_(D, D)].sum() for D in designs if cf[list(D)].sum() > 0), default=None)
@@ -302,7 +335,7 @@ def test_a_point_that_offers_only_known_triangles_ends_the_rounds(monkeypatch, n
     nothing: the rounds stop there, not at the limit."""
     c, G, lam, m, cuts = needs_triangles
     calls = _spy(monkeypatch, fail=True)            # each round's point is the one before it
-    res = size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES)
+    res = size_certificate(c, G, lam, m, cuts=cuts, **LADDER)
     assert sum(1 for cl in calls if cl[2] > 0) == 1 < FIRST_ORDER_ROUNDS and res.tier == "full"
 
 
@@ -321,3 +354,10 @@ def test_a_malformed_schedule_is_refused(schedules, needs_triangles):
     c, G, lam, m, cuts = needs_triangles
     with pytest.raises(MlsynthConfigError, match="schedule"):
         size_certificate(c, G, lam, m, cuts=cuts, schedules=schedules)
+
+
+@pytest.mark.parametrize("rounds", [-1, 1.0, "3", True])
+def test_a_malformed_round_count_is_refused(rounds, needs_triangles):
+    c, G, lam, m, cuts = needs_triangles
+    with pytest.raises(MlsynthConfigError, match="first_order_rounds"):
+        size_certificate(c, G, lam, m, cuts=cuts, schedules=SCREEN_SCHEDULES, first_order_rounds=rounds)

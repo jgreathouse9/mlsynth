@@ -483,10 +483,18 @@ def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
 #: three, at 6.0 times y'y and falling, and went to Clarabel.
 FIRST_ORDER_ROUNDS = 3
 
+#: The rounds run from this many candidate controls. On the 100-geo incumbent's group
+#: (97 controls) a Clarabel solve took 100-145 s and a first-order round about 45 s,
+#: and the rounds took the group from 2,321 s to 1,272 s; on the 80-geo one (76
+#: controls) Clarabel's first solve took 43-48 s, about a round's cost, and the
+#: rounds made the group slower, 479 s against 439 s. Two groups, one either side.
+FIRST_ORDER_ROUNDS_FROM = 90
+
 
 def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
                      warm: Optional[Multipliers] = None,
-                     schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None) -> SizeResult:
+                     schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None,
+                     first_order_rounds: Optional[int] = None) -> SizeResult:
     """Whether no design of size m (within the fixings) has u'(cc' - lam G)u > 0,
     by the cheapest certificate of a cascade (module docstring): ``warm``, another
     size's multipliers, at this size's rows; then the Shor relaxation's; then the
@@ -494,13 +502,19 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     triangle inequalities where it is above zero.
 
     The first-order tier tries each of ``schedules`` in turn (screen_schedules(p)
-    when None), ``warm`` given to the first only, and, when there is more than one,
-    up to FIRST_ORDER_ROUNDS rounds of triangles separated from the last schedule's
-    smoothed point, each on the last schedule from zero: warm-starting a round from
+    when None), ``warm`` given to the first only, and then up to
+    ``first_order_rounds`` rounds of triangles separated from the last schedule's
+    smoothed point (FIRST_ORDER_ROUNDS when None, there is more than one schedule and
+    there are FIRST_ORDER_ROUNDS_FROM controls, else none), each on the last schedule
+    from zero: warm-starting a round from
     the last round's multipliers left three sizes of the 100-geo incumbent's group
     open after six rounds that two rounds from zero closed."""
     t0 = time.perf_counter()
     schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)
+    if first_order_rounds is None:
+        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= FIRST_ORDER_ROUNDS_FROM else 0
+    elif type(first_order_rounds) is not int or first_order_rounds < 0:
+        raise MlsynthConfigError(f"first_order_rounds is a count of rounds, an int at least 0, not {first_order_rounds!r}.")
     lam = dyadic_below(lam)
     A = objective(c, G, lam)
     if warm is not None:
@@ -521,7 +535,6 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
             if b is not None and b <= 0:
                 return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="dual", multipliers=w)
     tri: List = []
-    first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 else 0
     for r in range(1, first_order_rounds + 1):
         if point is None:
             break
