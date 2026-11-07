@@ -670,6 +670,55 @@ does not close costs its whole budget: on five 30-geo groups (26 controls, 20
 periods) the two longer schedules spent 1.9-4.6 s, where the whole screen with
 Clarabel took 0.35-0.71 s. Below 48 controls the screen is unchanged.
 
+### The sizes' schedules and first-order triangle rounds
+
+What the screen cannot close is a different kind of hard. Profiled alone, the
+100-geo group (4, 35, 58, 60) took 2,321 s. It is the incumbent's own group (its
+best design is the incumbent, RSS 1,413.44 with 25 controls), so the screen does
+not apply and every size is certified against the incumbent's ratio. All 41 sizes
+survive the hull, 29 close on the first-order tier at about 1 s each and three
+are priced, and nine around the optimum's size, 19 to 27, go to Clarabel, 2,250 s
+of the total. None branches. Each Clarabel solve costs 100-145 s, and each round
+of triangles one more solve.
+
+The same two levers apply as at the screen, now per size. On those nine sizes,
+first-order multipliers alone (no Clarabel):
+
+| size | `main` (Clarabel) | first-order |
+| --- | --- | --- |
+| 19, 20, 27 | 144-149 s, no triangles | the longer schedules close them |
+| 21, 22, 26 | 244-270 s, one round of 400 triangles | one first-order round closes them |
+| 23, 24 | 345-354 s, two rounds | two first-order rounds close them |
+| 25 | 392 s, two rounds | three first-order rounds leave it open (829, 159, 27, 6 times y'y) |
+
+A first-order round adds the 400 most violated triangles at the dual's smoothed
+point (`dual_multipliers` returns it when it gives up) and runs the last schedule
+from zero. The triangle rounds inside a first-order method are those of
+Krislock, Malick and Roupin (2016); their warm start between rounds does not carry
+over here. Started from the last round's multipliers, sizes 23, 24 and 25 were
+still open after six rounds (4.6, 53 and 98 times y'y), where two rounds from zero
+closed 23 and 24: as at the screen, a start near the boundary begins the smoothing
+too fine.
+
+From 48 candidate controls `size_certificate` now tries the screen's three
+schedules (the previous size's multipliers given to the first only), then up to
+`FIRST_ORDER_ROUNDS = 3` rounds, before the Shor and full relaxations; the result's
+tier names `triangles` when a round closes it. Profiled again, the group took
+1,272 s:
+
+| sizes | tier | seconds a size |
+| --- | --- | --- |
+| 19, 20, 27 | dual | 10.3, 62.8, 16.0 |
+| 21, 22, 26 | triangles, one round | 92.4-94.5 |
+| 23, 24 | triangles, two rounds | 137.7, 149.4 |
+| 25 | full, after three first-order rounds | 584.5 (392 on `main`) |
+
+The other hard group of that search, (4, 27, 33, 58), is hard in a third way: the
+screen does not close it (193 s), and size 21 is open at the root after six
+Clarabel rounds of triangles (798 s), so it branches, at 148-249 s a node. A
+profile was cut short by a host restart after five nodes; cheaper nodes and the
+branching rule are its levers, not measured here.
+
 ## Several processes
 
 `certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
