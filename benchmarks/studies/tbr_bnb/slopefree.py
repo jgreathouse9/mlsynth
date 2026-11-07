@@ -315,6 +315,7 @@ class SizeResult:
     seconds: float
     u: Optional[np.ndarray] = None       # the relaxation's last u, for branching
     tier: str = "full"                   # the cascade's tier that decided: reuse, dual, triangles, shor or full
+    #                                      (first-order: open after the first-order tiers, no relaxation solved)
     multipliers: Optional[Multipliers] = None   # those of the certificate that closed it
 
 
@@ -502,7 +503,7 @@ def size_schedules(p: int) -> Tuple[Tuple[int, int, int], ...]:
 def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
                      warm: Optional[Multipliers] = None,
                      schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None,
-                     first_order_rounds: Optional[int] = None) -> SizeResult:
+                     first_order_rounds: Optional[int] = None, relaxations: bool = True) -> SizeResult:
     """Whether no design of size m (within the fixings) has u'(cc' - lam G)u > 0,
     by the cheapest certificate of a cascade (module docstring): ``warm``, another
     size's multipliers, at this size's rows; then the Shor relaxation's; then the
@@ -514,7 +515,10 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     ``first_order_rounds`` rounds of triangles separated from the last schedule's
     smoothed point (FIRST_ORDER_ROUNDS when None, there is more than one schedule and
     there are SIZE_LADDER_FROM controls, else none), each on the last schedule
-    from zero: warm-starting a round from
+    from zero; with ``relaxations`` False the cascade stops there, and a size the
+    first-order tiers leave open is returned open with no point (tier
+    "first-order"), for a node that branches on its parent's point. Warm-starting a
+    round from
     the last round's multipliers left three sizes of the 100-geo incumbent's group
     open after six rounds that two rounds from zero closed."""
     t0 = time.perf_counter()
@@ -559,6 +563,8 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
             b = bound(A, Rt, w.y_eq, w.y_in, m)
             if b is not None and b <= 0:
                 return SizeResult(True, b, r, len(tri), time.perf_counter() - t0, tier="triangles")
+    if not relaxations:
+        return SizeResult(False, None, 0, len(tri), time.perf_counter() - t0, None, tier="first-order")
     R = Rows(c, m, cuts=cuts, fixes=fixes, level="shor")
     try:
         sol = solve(c, G, lam, R)
@@ -797,7 +803,17 @@ def price_subtree(c, G, out, m, fixes, inc, excluded):
             inc.update(lam=r, C=C)
 
 
-def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc, excluded):
+#: A node solves the Shor and full relaxations every this many levels (the root of a
+#: size always), and in between branches on its parent's point. On 38 branching groups
+#: of 30 simulated units (20 periods; 4 and 10 treated, enumeration off) every second
+#: level took 35-40% fewer Clarabel solves for 5-11% more nodes, with no group
+#: certified to a different design; every third saved about half and left more groups
+#: open at the depth limit. On 21 groups of 20 markets none of the 127 nodes that
+#: reached the full relaxation closed there: the solve buys the branching point.
+CLARABEL_EVERY = 2
+
+
+def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc, excluded, parent_u=None):
     """Prune the node by its certificate, or branch on its most fractional geo; a
     node whose fixings leave one design of size m (m geos fixed in, or p - m fixed
     out) is that design, evaluated exactly, and one better than the incumbent
@@ -805,7 +821,13 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     left, down to the depth limit: on GeoLift a size-9 node with nine geos fixed
     in was left open that way. The nodes after it are searched at the new ratio; those
     before it were pruned at a smaller ratio, the stronger claim, and no other node
-    holds the new design, since the fixings partition the designs."""
+    holds the new design, since the fixings partition the designs.
+
+    The relaxations are solved at depths that are multiples of ``inc["every"]``
+    (CLARABEL_EVERY when absent) and wherever the parent had no point; elsewhere the
+    node runs the first-order tiers only and branches on ``parent_u``, its parent's
+    point. Which control is branched on never changes what is proved: a pruned node
+    is pruned by its own certificate."""
     p = len(c)
     ones = sum(v for _, v in fixes)
     if ones > m or len(fixes) - ones > p - m:
@@ -822,8 +844,10 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     if math.comb(p - len(fixes), m - ones) <= PRICE_LIMIT:   # cheaper_to_price at the cost model
         price_subtree(c, G, out, m, fixes, inc, excluded)
         return
+    every = inc.get("every", CLARABEL_EVERY)
+    relax = depth % every == 0 or parent_u is None
     res = size_certificate(c, G, inc["lam"], m, cuts=cuts, fixes=fixes, rounds=rounds, per_round=per_round,
-                           warm=None if fixes else inc.get("warm"))
+                           warm=None if fixes else inc.get("warm"), relaxations=relax)
     out.tiers[res.tier] = out.tiers.get(res.tier, 0) + 1
     if res.certified:
         if not fixes and res.multipliers is not None:
@@ -833,9 +857,11 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
         out.open.append((m, tuple(fixes)))
         return
     free = [j for j in range(p) if j not in dict(fixes)]
-    j = min(free, key=lambda j: abs(res.u[j] - 0.5)) if res.u is not None else free[0]
+    u = res.u if relax else parent_u
+    j = min(free, key=lambda j: abs(u[j] - 0.5)) if u is not None else free[0]
     for v in (1, 0):
-        _branch(c, G, out, m, cuts, fixes + [(j, v)], rounds, per_round, depth + 1, max_depth, inc, excluded)
+        _branch(c, G, out, m, cuts, fixes + [(j, v)], rounds, per_round, depth + 1, max_depth, inc, excluded,
+                parent_u=u)
 
 
 class NoDesignLeft(ValueError):
@@ -868,7 +894,8 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
                        hull: bool = True, exclude: Sequence[Set[int]] = (),
                        ceiling: Optional[Q] = None,
                        start: Optional[Set[int]] = None,
-                       group_screen: bool = True) -> SlopeFreeCertificate:
+                       group_screen: bool = True,
+                       clarabel_every: int = CLARABEL_EVERY) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -896,10 +923,15 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     Before any size is searched against a ceiling, ``group_screen`` tries one
     certificate for every size at that ratio (group_certificate); when it closes,
     the ceiling is held without the hull stage or a size.
+
+    Within a size's branch and bound the Shor and full relaxations are solved every
+    ``clarabel_every`` levels (_branch); 1 solves them at every node.
     """
     from .search import hull_survivors, incumbent, pieces_to
 
     t_all = time.perf_counter()
+    if type(clarabel_every) is not int or clarabel_every < 1:
+        raise MlsynthConfigError(f"clarabel_every is a number of levels, an int at least 1, not {clarabel_every!r}.")
     p = X.shape[1]
     excluded = [set(e) for e in exclude]
     C = set(incumbent(y, X, restarts=restarts, seed=seed)[1])
@@ -936,7 +968,7 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
         s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - test)
         sizes = sorted({pc[2] for pc in s1})
         t_h = time.perf_counter() - t0
-    inc = {"lam": test, "C": set(C)}
+    inc = {"lam": test, "C": set(C), "every": clarabel_every}
     out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
                                hull_seconds=t_h, group_tier=None if screen is None else screen.tier,
                                group_seconds=0.0 if screen is None else screen.seconds)
