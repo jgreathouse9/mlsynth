@@ -499,9 +499,13 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
             return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="shor",
                               multipliers=Multipliers("shor", sol.y_eq, sol.y_in))
     tri: List = []
+    u = None
     for r in range(rounds + 1):
         R = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes)
-        sol = solve(c, G, lam, R)
+        try:
+            sol = solve(c, G, lam, R)
+        except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved
+            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)
         b = bound(A, R, sol.y_eq, sol.y_in, m)
         u = None if sol.Z is None else np.asarray(sol.Z)[0, 1:]
         if b is not None and b <= 0:

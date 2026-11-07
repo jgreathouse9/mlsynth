@@ -277,15 +277,17 @@ def test_a_shor_solver_failure_goes_on_to_the_full_relaxation(monkeypatch):
 
 
 def test_a_full_solver_failure_is_reported():
-    """The last tier has nowhere to send a failure: it raises."""
+    """The last tier hands a failure to the branch and bound: the size is reported
+    open, with no bound, and is branched like any size that does not close
+    (test_solver_failure.py)."""
     import cvxpy as cp
 
     c, G, lam, C = _at_optimum(0)
     with pytest.MonkeyPatch.context() as mp:
         _no_dual(mp)
         mp.setattr(sf, "solve", lambda *a, **k: (_ for _ in ()).throw(cp.error.SolverError("failed")))
-        with pytest.raises(cp.error.SolverError):
-            size_certificate(c, G, lam, 2, cuts=[C])
+        res = size_certificate(c, G, lam, 2, cuts=[C])
+    assert not res.certified and res.bound is None and res.u is None
 
 
 # ---------------------------------------------------------------- the search hands multipliers on
