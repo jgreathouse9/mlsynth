@@ -12119,7 +12119,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_node_reuse.py benchmarks/studies/tbr_bnb/test_node_rounding.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_node_reuse.py benchmarks/studies/tbr_bnb/test_node_rounding.py benchmarks/studies/tbr_bnb/test_shor_root.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -12246,8 +12246,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-refresh-rate-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"shor_root\": shor_root}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding, \"shor_root\": shor_root}\n"
   models = "clarabel_every accepted and validated but never reaching the branch and bound, which runs the default"
 
   [[target.mutant]]
@@ -12314,8 +12314,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-rounding-flag-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"shor_root\": shor_root}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"shor_root\": shor_root}\n"
   models = "rounding=False accepted and ignored"
 
   [[target.mutant]]
@@ -12821,6 +12821,54 @@ timeout = 900.0
   find = "    if out.ceiling_held:                  # no design beat the ceiling: report the incumbent itself\n        inc.update(lam=lam)\n"
   replace = "    if False:\n        inc.update(lam=lam)\n"
   models = "a held ceiling reported as the incumbent's RSS, a value no design has"
+
+  [[target.mutant]]
+  id = "a-root-solves-the-full-relaxation-anyway"
+  find = "full=bool(fixes) or not inc.get(\"shor_root\", SHOR_ROOT))"
+  replace = "full=True)"
+  models = "the Shor root accepted and the full relaxation solved at every root, the 954 s a 100-geo root spent"
+
+  [[target.mutant]]
+  id = "every-node-stops-at-shor"
+  find = "full=bool(fixes) or not inc.get(\"shor_root\", SHOR_ROOT))"
+  replace = "full=not inc.get(\"shor_root\", SHOR_ROOT))"
+  models = "every node, not only the root, skipping the full relaxation, so no node below the root can close on it"
+
+  [[target.mutant]]
+  id = "the-shor-point-is-dropped"
+  find = "            u = None if sol.Z is None else np.asarray(sol.Z)[0, 1:]\n"
+  replace = "            u = None\n"
+  models = "the Shor root returning no point, so the root branches on the first free control"
+
+  [[target.mutant]]
+  id = "full-false-is-ignored"
+  find = "        if not full:                       # the root branches on Shor's point\n"
+  replace = "        if False:                       # the root branches on Shor's point\n"
+  models = "full=False accepted and the full relaxation solved anyway"
+
+  [[target.mutant]]
+  id = "an-open-shor-root-certifies"
+  find = "            return SizeResult(False, b, 0, 0, time.perf_counter() - t0, u, tier=\"shor\")\n"
+  replace = "            return SizeResult(True, b, 0, 0, time.perf_counter() - t0, u, tier=\"shor\")\n"
+  models = "a root the Shor relaxation leaves open reported certified, pruning a size that holds a better design"
+
+  [[target.mutant]]
+  id = "the-default-keeps-the-full-root"
+  find = "SHOR_ROOT = True\n"
+  replace = "SHOR_ROOT = False\n"
+  models = "the measured default lost, so every root pays the full relaxation"
+
+  [[target.mutant]]
+  id = "the-shor-root-flag-is-not-carried"
+  find = "\"round\": rounding, \"shor_root\": shor_root}\n"
+  replace = "\"round\": rounding}\n"
+  models = "shor_root=False accepted and the default used"
+
+  [[target.mutant]]
+  id = "a-malformed-shor-root-is-taken"
+  find = "    if type(shor_root) is not bool:\n"
+  replace = "    if False:\n"
+  models = "a shor_root of 0, 1 or a string accepted, read by truth value"
 
 [[target]]
 name = "tbr-bnb-gated"

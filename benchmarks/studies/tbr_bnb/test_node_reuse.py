@@ -158,11 +158,10 @@ def test_a_node_without_a_parent_point_solves_the_relaxations(monkeypatch, bed_g
     real = slopefree.solve
     calls = []
 
-    def solve(c, G, lam, R):                   # the root's first full solve fails
-        if R.level == "full":
-            calls.append(1)
-            if len(calls) == 1:
-                raise slopefree.cp.error.SolverError("injected")
+    def solve(c, G, lam, R):                   # every solve at the root fails, Shor's and the full
+        if R.n_fixes == 0:
+            calls.append(R.level)
+            raise slopefree.cp.error.SolverError("injected")
         return real(c, G, lam, R)
 
     monkeypatch.setattr(slopefree, "solve", solve)
@@ -171,6 +170,7 @@ def test_a_node_without_a_parent_point_solves_the_relaxations(monkeypatch, bed_g
     out = slopefree.SlopeFreeCertificate(incumbent=Q(0), controls=[], ratio=Q(0), sizes_after_hull=[])
     inc = {"lam": Q(10) ** -9, "C": set(), "every": 2}
     slopefree._branch(D.c, D.G, out, 5, [], [], 0, 400, 0, 1, inc, [])
+    assert calls[:2] == ["shor", "full"]                 # the root had no point
     assert [relax for d, relax, _ in nodes if d == 1] == [True, True]
 
 

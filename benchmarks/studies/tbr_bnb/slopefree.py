@@ -131,6 +131,7 @@ class Rows:
             raise ValueError(f"the rows' level is 'full' or 'shor', not {level!r}")
         p = len(c)
         self.p, self.n, self.m, self.level = p, p + 1, m, level
+        self.n_fixes = len(fixes)
         full = level == "full"
         self.eq: List[Dict] = []; self.beq: List = []
         self.ineq: List[Dict] = []; self.bin: List = []
@@ -503,7 +504,8 @@ def size_schedules(p: int) -> Tuple[Tuple[int, int, int], ...]:
 def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
                      warm: Optional[Multipliers] = None,
                      schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None,
-                     first_order_rounds: Optional[int] = None, relaxations: bool = True) -> SizeResult:
+                     first_order_rounds: Optional[int] = None, relaxations: bool = True,
+                     full: bool = True) -> SizeResult:
     """Whether no design of size m (within the fixings) has u'(cc' - lam G)u > 0,
     by the cheapest certificate of a cascade (module docstring): ``warm``, another
     size's multipliers, at this size's rows; then the Shor relaxation's; then the
@@ -517,7 +519,10 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     there are SIZE_LADDER_FROM controls, else none), each on the last schedule
     from zero; with ``relaxations`` False the cascade stops there, and a size the
     first-order tiers leave open is returned open with no point (tier
-    "first-order"), for a node that branches on its parent's point. Warm-starting a
+    "first-order"), for a node that branches on its parent's point. With ``full``
+    False a size the Shor relaxation leaves open is returned open with Shor's point
+    (tier "shor"), for a root that branches without the full relaxation; when the
+    Shor solve fails the full relaxation runs as usual. Warm-starting a
     round from
     the last round's multipliers left three sizes of the 100-geo incumbent's group
     open after six rounds that two rounds from zero closed."""
@@ -575,6 +580,9 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
         if b is not None and b <= 0:
             return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="shor",
                               multipliers=Multipliers("shor", sol.y_eq, sol.y_in))
+        if not full:                       # the root branches on Shor's point
+            u = None if sol.Z is None else np.asarray(sol.Z)[0, 1:]
+            return SizeResult(False, b, 0, 0, time.perf_counter() - t0, u, tier="shor")
     tri: List = []
     u = None
     for r in range(rounds + 1):
@@ -824,6 +832,15 @@ def rounded_design(u, fixes, m) -> Set[int]:
 #: reached the full relaxation closed there: the solve buys the branching point.
 CLARABEL_EVERY = 2
 
+#: Whether a size's root, once the first-order tiers leave it open, stops at the Shor
+#: relaxation and branches on its point. On the five test beds the full relaxation at
+#: a root closed almost nothing: with the root on Shor alone the beds took 30% fewer
+#: Clarabel solves (827 to 575) for 6% more nodes (4,682 to 4,970), and no group
+#: certified a different design. At 96 candidate controls (the 100-geo group
+#: (4, 27, 33, 58), size 21) one Shor solve took 39.9 s against 121.5 s for one full
+#: solve, and the root with its six triangle rounds 954 s.
+SHOR_ROOT = True
+
 #: Whether an open node that solved the relaxations rounds its point to a design.
 ROUND_NODES = True
 
@@ -870,7 +887,8 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     every = inc.get("every", CLARABEL_EVERY)
     relax = depth % every == 0 or parent_u is None
     res = size_certificate(c, G, inc["lam"], m, cuts=cuts, fixes=fixes, rounds=rounds, per_round=per_round,
-                           warm=None if fixes else inc.get("warm"), relaxations=relax)
+                           warm=None if fixes else inc.get("warm"), relaxations=relax,
+                           full=bool(fixes) or not inc.get("shor_root", SHOR_ROOT))
     out.tiers[res.tier] = out.tiers.get(res.tier, 0) + 1
     if res.certified:
         if not fixes and res.multipliers is not None:
@@ -925,7 +943,8 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
                        start: Optional[Set[int]] = None,
                        group_screen: bool = True,
                        clarabel_every: int = CLARABEL_EVERY,
-                       rounding: bool = ROUND_NODES) -> SlopeFreeCertificate:
+                       rounding: bool = ROUND_NODES,
+                       shor_root: bool = SHOR_ROOT) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -957,7 +976,9 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     Within a size's branch and bound the Shor and full relaxations are solved every
     ``clarabel_every`` levels (_branch); 1 solves them at every node. With
     ``rounding`` an open node that solved them rounds its point to a design, which
-    replaces the incumbent when it is better (``rounded`` counts those).
+    replaces the incumbent when it is better (``rounded`` counts those). With
+    ``shor_root`` a size's root stops at the Shor relaxation and branches on its point
+    (SHOR_ROOT).
     """
     from .search import hull_survivors, incumbent, pieces_to
 
@@ -966,6 +987,8 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
         raise MlsynthConfigError(f"clarabel_every is a number of levels, an int at least 1, not {clarabel_every!r}.")
     if type(rounding) is not bool:
         raise MlsynthConfigError(f"rounding is True or False, not {rounding!r}.")
+    if type(shor_root) is not bool:
+        raise MlsynthConfigError(f"shor_root is True or False, not {shor_root!r}.")
     p = X.shape[1]
     excluded = [set(e) for e in exclude]
     C = set(incumbent(y, X, restarts=restarts, seed=seed)[1])
@@ -1002,7 +1025,7 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
         s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - test)
         sizes = sorted({pc[2] for pc in s1})
         t_h = time.perf_counter() - t0
-    inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding}
+    inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding, "shor_root": shor_root}
     out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
                                hull_seconds=t_h, group_tier=None if screen is None else screen.tier,
                                group_seconds=0.0 if screen is None else screen.seconds)
