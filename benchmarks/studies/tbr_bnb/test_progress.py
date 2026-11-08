@@ -244,6 +244,44 @@ def test_each_sink_keeps_its_own_level(tmp_path, capsys):
     assert " size " in err and " node " not in err and " solve " not in err
 
 
+def test_a_long_run_flushes_on_time(tmp_path, monkeypatch):
+    """A log flushes once FLUSH_SECONDS have passed since its last write, so a run
+    that is one long group can be read while it runs."""
+    monkeypatch.setattr(progress, "FLUSH_SECONDS", 0.0)
+    y, X = panel(3, p=8)
+    seen = []
+    with reporting(progress=seen.append, verbose=1, log=tmp_path / "log", log_level=1):
+        certify_slope_free(y, X, restarts=3)
+        parts = len(list((tmp_path / "log").glob("part-*.parquet")))
+    assert parts == len(seen) > 1
+
+
+def test_the_flush_clock_restarts_at_each_write(tmp_path, monkeypatch):
+    """On a clock that reads 0, 5, 11, 12, 15 and 22 with FLUSH_SECONDS = 10, the log
+    writes at 11 and at 22, not at every event after the first ten seconds."""
+    import time as _time
+
+    class Clock:
+        now = 0.0
+
+        @staticmethod
+        def perf_counter():
+            return Clock.now
+
+        time_ns = staticmethod(_time.time_ns)
+
+    monkeypatch.setattr(progress, "time", Clock)
+    monkeypatch.setattr(progress, "FLUSH_SECONDS", 10.0)
+    log = progress.ParquetLog(tmp_path)
+    parts = []
+    for now in (0, 5, 11, 12, 15, 22):
+        Clock.now = float(now)
+        log(Event(1, "hull", float(now), 1, {}, {"sizes": [1], "seconds": 0.0}))
+        parts.append(len(list(tmp_path.glob("part-*.parquet"))))
+    assert parts == [0, 0, 1, 1, 1, 2]
+    assert len(read_log(tmp_path)) == 6
+
+
 def test_the_log_level_is_its_own():
     import tempfile
     from pathlib import Path

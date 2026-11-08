@@ -23,7 +23,7 @@ through it too: its printer writes to the shared stderr, its log to its own file
 and a ``progress`` function runs in the worker's process. Each group's events carry
 the group as the tag ``treatment``. A forked worker leaves without running exit
 handlers, so a log flushes at the end of every tagged group as well as every
-``FLUSH_EVERY`` events and when reporting ends."""
+``FLUSH_EVERY`` events, every ``FLUSH_SECONDS``, and when reporting ends."""
 from __future__ import annotations
 
 import os
@@ -40,8 +40,10 @@ import pyarrow.parquet as pq
 
 from mlsynth.exceptions import MlsynthConfigError
 
-#: A parquet log writes a file after this many events in one process.
+#: A parquet log writes a file after this many events in one process, or once this
+#: many seconds have passed since its last write, so a long run is readable as it goes.
 FLUSH_EVERY = 20000
+FLUSH_SECONDS = 60.0
 
 #: kind -> (level, declared fields)
 KINDS: Dict[str, Tuple[int, Tuple[str, ...]]] = {
@@ -190,6 +192,7 @@ class ParquetLog:
         self.pid = os.getpid()
         self.rows: List[dict] = []
         self.seq = 0
+        self.last = time.perf_counter()
 
     def __call__(self, e: Event) -> None:
         if os.getpid() != self.pid:     # pragma: no cover - a forked worker, which coverage does not trace; the parent writes its own rows
@@ -200,7 +203,7 @@ class ParquetLog:
         if row.get("treatment") is None and "treatment" in e.tags:
             row["treatment"] = _cell("treatment", e.tags["treatment"])
         self.rows.append(row)
-        if len(self.rows) >= FLUSH_EVERY:
+        if len(self.rows) >= FLUSH_EVERY or time.perf_counter() - self.last >= FLUSH_SECONDS:
             self.flush()
 
     def flush(self) -> None:
@@ -213,6 +216,7 @@ class ParquetLog:
         pq.write_table(table, self.path / f"part-{self.pid}-{self.run}-{self.seq:05d}.parquet")
         self.seq += 1
         self.rows = []
+        self.last = time.perf_counter()
 
 
 def read_log(path):

@@ -13710,9 +13710,21 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-log-never-flushes-early"
-  find = "        if len(self.rows) >= FLUSH_EVERY:\n            self.flush()\n"
+  find = "        if len(self.rows) >= FLUSH_EVERY or time.perf_counter() - self.last >= FLUSH_SECONDS:\n            self.flush()\n"
   replace = ""
   models = "a long run's log held in memory until the end"
+
+  [[target.mutant]]
+  id = "a-long-run-never-flushes-on-time"
+  find = " or time.perf_counter() - self.last >= FLUSH_SECONDS:\n"
+  replace = ":\n"
+  models = "a run that is one long group writes nothing until it ends or reaches 20,000 events, so its log cannot be read while it runs"
+
+  [[target.mutant]]
+  id = "the-flush-clock-is-not-reset"
+  find = "        self.rows = []\n        self.last = time.perf_counter()\n"
+  replace = "        self.rows = []\n"
+  models = "after the first minute every event flushes, one parquet file an event"
 
   [[target.mutant]]
   id = "a-boolean-verbose-is-taken"
