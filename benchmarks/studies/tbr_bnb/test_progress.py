@@ -164,7 +164,9 @@ def test_the_print_level_shows_only_its_events(capsys):
     assert " node " in err and " solve " in err
 
 
-def test_clarabel_logs_only_at_four(monkeypatch):
+@pytest.mark.parametrize("face", [True, False])
+def test_clarabel_logs_only_at_four(monkeypatch, face):
+    """On the face and off it: each solve passes its own verbose flag."""
     seen = []
     real = slopefree.cp.Problem.solve
 
@@ -174,10 +176,10 @@ def test_clarabel_logs_only_at_four(monkeypatch):
 
     monkeypatch.setattr(slopefree.cp.Problem, "solve", spy)
     y, X = _branching()
-    certify_slope_free(y, X, restarts=5, verbose=3)
+    certify_slope_free(y, X, restarts=5, verbose=3, face=face)
     assert seen and not any(seen)
     seen.clear()
-    certify_slope_free(y, X, restarts=5, verbose=4)
+    certify_slope_free(y, X, restarts=5, verbose=4, face=face)
     assert seen and all(seen)
 
 
