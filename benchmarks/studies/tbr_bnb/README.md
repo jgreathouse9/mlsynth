@@ -777,6 +777,59 @@ multipliers that search returns, so no memory changes what is proved. The node
 solver of the shared-slope search (`dual.py`) keeps its own memory, 10, measured
 on its own problem.
 
+### The Shor root, measured and not built
+
+A size's root holds every design of that size. Once the first-order tiers leave it
+open, it solves the Shor relaxation, then the full relaxation with up to six
+rounds of triangle inequalities, and branches on the full relaxation's point. At 96
+candidate controls that is the most expensive step of a size: on the 100-geo group
+(4, 27, 33, 58), size 21, one Shor solve took 39.9 s, one full solve (18,434 rows)
+121.5 s, and the root with its triangle rounds 954 s, neither relaxation closing it.
+
+Stopping the root at the Shor relaxation and branching on its point
+(`results/shor_root.log`) cut the beds' full solves by 30% (827 to 575) for
+6% more nodes (4,710 to 4,970), and every group certified the same design. It did
+not cut their time. Under the same load:
+
+| bed | full-solve seconds | group seconds |
+| --- | --- | --- |
+| `s15_k3` | 2.9 → 1.7 | 44.2 → 42.9 |
+| `s20_k3` | 11.9 → 6.6 | 94.7 → 86.8 |
+| `s20_k4` | 3.7 → 2.8 | 36.4 → 35.8 |
+| `s30_k10` | 13.6 → 7.7 | 70.0 → 62.2 |
+| `s30_k4` | 58.5 → 36.7 | 253.3 → 267.3 |
+| all | 90.6 → 55.5 | 498.6 → 495.0 |
+
+The extra nodes' first-order work took what the cheaper roots saved. On the
+100-geo group, profiled side by side, sizes 21-23 (three to five nodes each) took
+1,894 s against 4,506 s, and size 24 reversed it:
+
+| | `main` | Shor root |
+| --- | --- | --- |
+| root branched on | control 17 | control 77 |
+| size 24 | closed, 7 nodes, 2,738 s | open after 24 nodes, 6,059 s |
+
+By 8,350 s into each run the Shor root had spent the 2,612 s it saved and was
+still inside size 24.
+
+The first explanation, that Shor's point is near-uniform and so carries no
+information about which control to branch on, measured wrong. At size 24's root
+Shor's u has 67 of 96 controls fractional and a standard deviation of 0.334
+against the full point's 0.345, and both points put the same eight controls
+nearest 1. Re-run alone, the full root does not pick 17 either: its first full
+solve picks 11, and its second triangle round raises `SolverError` after 123 s,
+which `size_certificate` turns into an open size branched on the first round's
+point. In the profile that solve succeeded, and the sixth round's point picked 17.
+On the beds the full point is integral at every branching root (227 of 227), so
+its nearest-a-half pick is a tie decided by rounding, and branching on Shor's
+point instead changed the beds' nodes by -0.9% to +1.6%.
+
+With the full relaxation still solved at the root and the incumbents held equal,
+the beds decompose the Shor root's extra nodes (4,718 to 4,994 at the five-pair
+dual memory) into three parts that add up: branching on Shor's point, +76;
+rounding the root's point from Shor's, +124; not solving the full relaxation at
+the root, +76. The root keeps the full relaxation.
+
 ### Branching on the parent's point
 
 A node of the branch and bound that the first-order tiers leave open goes to the
