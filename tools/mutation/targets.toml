@@ -12119,7 +12119,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_node_reuse.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -12207,6 +12207,60 @@ timeout = 900.0
   find = "        if b is not None and b <= 0:\n            return GroupResult(True, b, \"dual\", time.perf_counter() - t0, rung)\n"
   replace = "        if b is not None:\n            return GroupResult(True, b, \"dual\", time.perf_counter() - t0, rung)\n"
   models = "the dual tier's certificate taken whatever its sign, so a group holding a design below the ceiling is screened out"
+
+  [[target.mutant]]
+  id = "a-node-never-refreshes-its-point"
+  find = "    relax = depth % every == 0 or parent_u is None\n"
+  replace = "    relax = depth == 0 or parent_u is None\n"
+  models = "the relaxations solved at the root of a size only, every deeper node branching on the root's point: on the test bed that left more groups open at the depth limit"
+
+  [[target.mutant]]
+  id = "every-node-solves-the-relaxations"
+  find = "    relax = depth % every == 0 or parent_u is None\n"
+  replace = "    relax = True\n"
+  models = "the refresh rate ignored, so every node pays the Clarabel solve that on the test bed closed none of them"
+
+  [[target.mutant]]
+  id = "a-node-without-a-parent-point-inherits-nothing"
+  find = "    relax = depth % every == 0 or parent_u is None\n"
+  replace = "    relax = depth % every == 0\n"
+  models = "a child of a node whose solve failed skipping the relaxations, so it branches on no point at all, the first free control"
+
+  [[target.mutant]]
+  id = "an-inherited-node-ignores-its-parents-point"
+  find = "    u = res.u if relax else parent_u\n"
+  replace = "    u = res.u\n"
+  models = "a node that skipped the relaxations branching on its own empty point, the first free control, which on the test bed more than doubled the tree"
+
+  [[target.mutant]]
+  id = "the-children-are-not-given-the-point"
+  find = "        _branch(c, G, out, m, cuts, fixes + [(j, v)], rounds, per_round, depth + 1, max_depth, inc, excluded,\n                parent_u=u)\n"
+  replace = "        _branch(c, G, out, m, cuts, fixes + [(j, v)], rounds, per_round, depth + 1, max_depth, inc, excluded,\n                parent_u=None)\n"
+  models = "the parent's point not passed down, so every child refreshes and no solve is saved"
+
+  [[target.mutant]]
+  id = "a-size-ignores-relaxations-false"
+  find = "    if not relaxations:\n        return SizeResult(False, None, 0, len(tri), time.perf_counter() - t0, None, tier=\"first-order\")\n"
+  replace = "    if False:\n        return SizeResult(False, None, 0, len(tri), time.perf_counter() - t0, None, tier=\"first-order\")\n"
+  models = "a node asked to skip the relaxations solving them anyway"
+
+  [[target.mutant]]
+  id = "the-refresh-rate-is-not-carried"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C)}\n"
+  models = "clarabel_every accepted and validated but never reaching the branch and bound, which runs the default"
+
+  [[target.mutant]]
+  id = "a-malformed-refresh-rate-is-taken"
+  find = "    if type(clarabel_every) is not int or clarabel_every < 1:\n"
+  replace = "    if False:\n"
+  models = "a zero or fractional refresh rate accepted, failing as a modulo by zero deep in the search or refreshing at no level"
+
+  [[target.mutant]]
+  id = "the-default-solves-every-node"
+  find = "CLARABEL_EVERY = 2\n"
+  replace = "CLARABEL_EVERY = 1\n"
+  models = "the measured default lost, so the search pays a solve at every node"
 
   [[target.mutant]]
   id = "a-size-tries-only-the-first-schedule"

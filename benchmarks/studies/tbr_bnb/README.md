@@ -736,6 +736,46 @@ Clarabel rounds of triangles (798 s), so it branches, at 148-249 s a node. A
 profile was cut short by a host restart after five nodes; cheaper nodes and the
 branching rule are its levers, not measured here.
 
+### Branching on the parent's point
+
+A node of the branch and bound that the first-order tiers leave open goes to the
+Shor and full relaxations, and on small simulated panels of the same form those
+solves almost never close it. On 21 branching groups of 20 simulated markets (four
+treated, 20 or 40 periods, enumeration turned off so every node is bounded), 127
+nodes reached the full relaxation and none closed there. The solve still buys the
+point the next control is branched on, the free control whose relaxed value is
+nearest a half, and no cheaper point did as well: branching on the dual's smoothed
+point instead took 1,029 nodes to the 487 of `main` and left eight groups at the
+depth limit; the most decided control, 1,243 nodes and 21 open; the first free
+control, 1,087 and 19.
+
+So a node now solves the relaxations only at depths that are multiples of
+`clarabel_every` (`CLARABEL_EVERY = 2`), and wherever the parent had no point; in
+between it runs the first-order tiers (`size_certificate(..., relaxations=False)`)
+and branches on its parent's point. What is proved does not change: a node is
+pruned by its own certificate, and the rule only picks the control. On the three
+beds (`results/node_reuse.log`):
+
+| bed | rate | nodes | Clarabel solves | open at the depth limit |
+| --- | --- | --- | --- | --- |
+| 20 markets, 4 treated, 21 groups | every node (`main`) | 487 | 128 | 0 |
+| | every second level | 523 | 78 | 0 |
+| | every third level | 619 | 80 | 1 |
+| | each size's root only | 607 | 28 | 3 |
+| 30 units, 10 treated, 20 periods, 13 groups | every node (`main`) | 783 | 296 | 2 |
+| | every second level | 871 | 193 | 3 |
+| | every third level | 883 | 145 | 4 |
+| 30 units, 4 treated, 20 periods, 25 groups | every node (`main`) | 1,450 | 492 | 3 |
+| | every second level | 1,524 | 293 | 2 |
+| | every third level | 1,660 | 247 | 6 |
+
+Every second level takes 35-40% fewer Clarabel solves for 5-11% more nodes, and
+no group that both runs certified has a different design. On these beds a solve
+costs about a second, so the wall time moves little (140 s to 129 s, 316 s to
+262 s); at 97 candidate controls a solve costs 100-145 s and a first-order node a
+few seconds, so the saving scales with the solves. Every third level saves few
+more solves and leaves more groups open.
+
 ## Several processes
 
 `certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
@@ -1150,11 +1190,11 @@ four and five geos that floor was not the least, and the bound did not change.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (682 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (698 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 310 mutants of the 24
+but for the lines marked `pragma: no cover`, each with its reason. The 319 mutants of the 24
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for five recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
