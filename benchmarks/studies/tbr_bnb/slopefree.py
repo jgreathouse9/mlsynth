@@ -835,7 +835,7 @@ CLARABEL_EVERY = 2
 #: Whether a size's root, once the first-order tiers leave it open, stops at the Shor
 #: relaxation and branches on its point. On the five test beds the full relaxation at
 #: a root closed almost nothing: with the root on Shor alone the beds took 30% fewer
-#: Clarabel solves (827 to 575) for 6% more nodes (4,682 to 4,970), and no group
+#: Clarabel solves (827 to 575) for 6% more nodes (4,710 to 4,970), and no group
 #: certified a different design. At 96 candidate controls (the 100-geo group
 #: (4, 27, 33, 58), size 21) one Shor solve took 39.9 s against 121.5 s for one full
 #: solve, and the root with its six triangle rounds 954 s.
