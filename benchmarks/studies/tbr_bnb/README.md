@@ -1222,13 +1222,48 @@ moves; the RSS descent with 50 restarts, then the key's descent, reaches it in t
 search above. The first version's bound also left out the start group's floor; at
 four and five geos that floor was not the least, and the bound did not change.
 
+## Progress reporting
+
+The search reports what it is doing at four levels (`progress.py`):
+
+| level | events |
+| --- | --- |
+| 1 | the treatment search and each treatment group, each gated round, the group screen, the hull, each size, each new incumbent (from a leaf, a priced subtree or rounding) |
+| 2 | every node of a size's branch and bound: its depth, the controls fixed in, its outcome (leaf, priced, pruned, open or branched), the tier that decided it and the control it branched on |
+| 3 | every first-order schedule, first-order triangle round, Shor or full relaxation solve, and priced subtree, each with its time |
+| 4 | adds Clarabel's own iteration log, on stdout in Clarabel's format |
+
+`certify_treatment`, `certify_gated`, `certify_slope_free` and `guided_treatment` take
+`verbose` (0-4: print to stderr, one line an event, indented by level and depth),
+`progress` (a function called with each `Event`) and `log` (a directory) with
+`log_level` (1-3, default 3). A log is a parquet dataset with one column per declared
+field; each process writes its own `part-<pid>-<run>-<n>.parquet` files, flushed every
+`FLUSH_EVERY = 20000` events and at the end of each treatment group, and `read_log`
+returns the whole run as one pandas DataFrame. Forked workers report through the
+same settings, and every group's events carry the group as the tag `treatment`.
+
+```python
+from benchmarks.studies.tbr_bnb.progress import read_log
+from benchmarks.studies.tbr_bnb.treatment import certify_treatment
+
+out = certify_treatment(M, 4, n_test=14, n_jobs=4, verbose=1, log="run_log")
+df = read_log("run_log")
+df[df.kind == "solve"].groupby("relaxation").seconds.describe()   # what the relaxations cost
+df[df.kind == "node"].groupby(["m", "outcome", "tier"]).size()    # how each size's tree closed
+```
+
+Without `verbose`, `progress` or `log` nothing is reported, and reporting never changes
+what is computed: a property test checks the certificate is the same at every level,
+and that the node events add up to the search's nodes. An event of a kind or with a
+field that is not declared raises, so a log's columns are fixed.
+
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (716 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (766 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 331 mutants of the 24
+but for the lines marked `pragma: no cover`, each with its reason. The 363 mutants of the 25
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -1341,6 +1376,7 @@ fixing is certified to the solver's value.
 - `brute.py`: enumeration, the truth the tests check against, the simulated AR(1) panels, and
   `treatment_optimum`, every treatment and control group of a small panel scored by the library's key.
 - `run.py`: `python -m benchmarks.studies.tbr_bnb.run certify` and `... lifts`.
+- `progress.py`: the search's progress events, `reporting`, the stderr printer, the parquet log and `read_log`.
 - `results/`: the logs of the runs above.
 
 ## Sources
