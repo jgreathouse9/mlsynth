@@ -12837,7 +12837,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "a-solve-is-not-reported"
   find = "    emit(\"solve\", relaxation=R.level, rows_eq=R.n_eq, rows_in=R.n_in, status=prob.status,\n         seconds=time.perf_counter() - t0)\n"
-  replace = ""
+  replace = "    pass\n"
   models = "a relaxation solve missing from the progress, the event that times the search's dearest step"
 
   [[target.mutant]]
@@ -12849,7 +12849,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "a-rounded-incumbent-is-not-reported"
   find = "            emit(\"incumbent\", ratio=r, controls=sorted(C), source=\"rounding\", m=m, depth=depth)\n"
-  replace = ""
+  replace = "            pass\n"
   models = "an incumbent found by rounding missing from the progress"
 
   [[target.mutant]]
@@ -12921,7 +12921,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "a-gated-round-is-not-reported"
   find = "        emit(\"gated-round\", round=len(out.rounds) - 1, controls=res.controls, rss=res.incumbent,\n             passing=all(gates), seconds=res.seconds)\n"
-  replace = ""
+  replace = "        pass\n"
   models = "a gated round missing from the progress"
 
   [[target.mutant]]
@@ -13369,7 +13369,7 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
   [[target.mutant]]
   id = "a-group-is-not-reported-done"
   find = "        emit(\"group-done\", treatment=tuple(T), certified=res.certified, passing=res.passing,\n             rounds=len(res.rounds), seconds=res.seconds)\n"
-  replace = ""
+  replace = "        pass\n"
   models = "a group's result missing from the progress"
 
   [[target.mutant]]
@@ -13627,7 +13627,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "a-guided-group-is-not-reported-done"
   find = "            emit(\"group-done\", treatment=tuple(T), certified=None, passing=g.key is not None, rounds=None,\n                 seconds=time.perf_counter() - t1)\n"
-  replace = ""
+  replace = "            pass\n"
   models = "a searched group missing from the guided search's progress"
 
   [[target.mutant]]
@@ -13669,7 +13669,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "an-inner-call-replaces-the-outer-reporter"
   find = "    if not verbose and progress is None and log is None:\n        yield\n        return\n"
-  replace = ""
+  replace = "    pass\n"
   models = "a nested search without settings replacing its caller's reporter"
 
   [[target.mutant]]
@@ -13711,7 +13711,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "the-log-never-flushes-early"
   find = "        if len(self.rows) >= FLUSH_EVERY or time.perf_counter() - self.last >= FLUSH_SECONDS:\n            self.flush()\n"
-  replace = ""
+  replace = "        pass\n"
   models = "a long run's log held in memory until the end"
 
   [[target.mutant]]
