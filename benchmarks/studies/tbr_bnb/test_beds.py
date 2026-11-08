@@ -79,13 +79,17 @@ def test_counting_restores_the_solver_after_an_error():
     assert slopefree.solve is real
 
 
-def test_every_node_bounded_sets_and_restores_the_price_limit():
-    before = slopefree.PRICE_LIMIT
+def test_every_node_bounded_sets_and_restores_the_price_limit(monkeypatch):
+    """A known limit going in, so a run earlier in the process that left 0 behind
+    cannot pass for a restore."""
+    monkeypatch.setattr(slopefree, "PRICE_LIMIT", 12345)
+    with every_node_bounded():
+        assert slopefree.PRICE_LIMIT == 0
+    assert slopefree.PRICE_LIMIT == 12345
     with pytest.raises(RuntimeError):
         with every_node_bounded():
-            assert slopefree.PRICE_LIMIT == 0
             raise RuntimeError("inside")
-    assert slopefree.PRICE_LIMIT == before
+    assert slopefree.PRICE_LIMIT == 12345
 
 
 def test_a_run_counts_what_the_search_did():
