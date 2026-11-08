@@ -104,7 +104,9 @@ def test_a_branched_node_names_its_control_and_its_children_follow(monkeypatch):
     assert all(e.fields["control"] is None for e in seen if e.kind == "node" and e.fields["outcome"] != "branched")
 
 
-def test_one_solve_event_per_relaxation_solved(monkeypatch):
+@pytest.mark.parametrize("face", [True, False])
+def test_one_solve_event_per_relaxation_solved(monkeypatch, face):
+    """On the face and off it: each is its own Clarabel call with its own event."""
     y, X = _branching()
     real = slopefree.solve
     calls = []
@@ -115,7 +117,7 @@ def test_one_solve_event_per_relaxation_solved(monkeypatch):
 
     monkeypatch.setattr(slopefree, "solve", spy)
     seen, kw = _collect(3)
-    certify_slope_free(y, X, restarts=5, **kw)
+    certify_slope_free(y, X, restarts=5, face=face, **kw)
     solves = [e.fields["relaxation"] for e in seen if e.kind == "solve"]
     assert calls and solves == calls
 

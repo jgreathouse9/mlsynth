@@ -12314,8 +12314,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-rounding-flag-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"face\": face}\n"
   models = "rounding=False accepted and ignored"
 
   [[target.mutant]]
@@ -12404,8 +12404,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-separated-triangles-are-not-in-the-rows"
-  find = "        Rt = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes)\n"
-  replace = "        Rt = Rows(c, m, cuts=cuts, fixes=fixes)\n"
+  find = "        Rt = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes, face=face)\n"
+  replace = "        Rt = Rows(c, m, cuts=cuts, fixes=fixes, face=face)\n"
   models = "triangles separated and counted but left out of the rows the round solves, so every round repeats the relaxation without them"
 
   [[target.mutant]]
@@ -12845,6 +12845,12 @@ timeout = 900.0
   find = "    emit(\"solve\", relaxation=R.level, rows_eq=R.n_eq, rows_in=R.n_in, status=prob.status,\n         seconds=time.perf_counter() - t0)\n"
   replace = "    pass\n"
   models = "a relaxation solve missing from the progress, the event that times the search's dearest step"
+
+  [[target.mutant]]
+  id = "a-face-solve-is-not-reported"
+  find = "    emit(\"solve\", relaxation=R.level, rows_eq=len(keep_e), rows_in=len(keep_i), status=prob.status,\n         seconds=time.perf_counter() - t0)\n"
+  replace = "    pass\n"
+  models = "a solve on the face missing from the progress, so the default path's dearest step goes untimed"
 
   [[target.mutant]]
   id = "clarabel-never-logs"
