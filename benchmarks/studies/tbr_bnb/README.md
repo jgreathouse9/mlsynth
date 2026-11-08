@@ -810,10 +810,25 @@ The extra nodes' first-order work took what the cheaper roots saved. On the
 | size 24 | closed, 7 nodes, 2,738 s | open after 24 nodes, 6,059 s |
 
 By 8,350 s into each run the Shor root had spent the 2,612 s it saved and was
-still inside size 24. Shor's point had all 96 controls fractional, so the control
-nearest a half carries little information about where the designs are; the full
-relaxation's point picked a control whose two subtrees closed at depth 2. The root
-keeps the full relaxation.
+still inside size 24.
+
+The first explanation, that Shor's point is near-uniform and so carries no
+information about which control to branch on, measured wrong. At size 24's root
+Shor's u has 67 of 96 controls fractional and a standard deviation of 0.334
+against the full point's 0.345, and both points put the same eight controls
+nearest 1. Re-run alone, the full root does not pick 17 either: its first full
+solve picks 11, and its second triangle round raises `SolverError` after 123 s,
+which `size_certificate` turns into an open size branched on the first round's
+point. In the profile that solve succeeded, and the sixth round's point picked 17.
+On the beds the full point is integral at every branching root (227 of 227), so
+its nearest-a-half pick is a tie decided by rounding, and branching on Shor's
+point instead changed the beds' nodes by -0.9% to +1.6%.
+
+With the full relaxation still solved at the root and the incumbents held equal,
+the beds decompose the Shor root's extra nodes (4,718 to 4,994 at the five-pair
+dual memory) into three parts that add up: branching on Shor's point, +76;
+rounding the root's point from Shor's, +124; not solving the full relaxation at
+the root, +76. The root keeps the full relaxation.
 
 ### Branching on the parent's point
 

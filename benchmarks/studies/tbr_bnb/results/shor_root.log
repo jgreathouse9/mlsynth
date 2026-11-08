@@ -54,5 +54,15 @@
    23           5      1675                    5       874.8
    24           7      2738 (closed)          24+     6059+ (open when stopped at about 8,350 s)
    size 24's root branched on control 17 (full relaxation's point) on main and on control 77 (Shor's point);
-   Shor's point had all 96 controls fractional. size 21's root: one Shor solve 39.9 s, one full solve 121.5 s
+   Shor's point had 67 of 96 controls fractional (std 0.334; the full point's 0.345); size 21's root: one Shor solve 39.9 s, one full solve 121.5 s
    (18,434 rows), the root with six triangle rounds 954 s; neither relaxation closed it.
+
+== Decomposition on the beds (main, DUAL_MEMORY = 5; the root solves the full relaxation and Shor beside it)
+   arm                                               nodes
+   full point for the root and for depth 1 (main)     4,718
+   Shor's point for the root and for depth 1           4,794   (+76, branching)
+   ... and the root rounded from Shor's point          4,918   (+124, rounding)
+   the Shor root as built (no full solve at the root)  4,994   (+76, the root's full solve)
+   full point integral at 227 of 227 branching roots; nearest-a-half tied within 1e-6 at 222 of them
+   100-geo size-24 root, re-run on main: the full point picks control 11; round 1 (400 triangles) raises
+   SolverError after 123 s and the size is returned open on round 0's point
