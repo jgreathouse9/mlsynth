@@ -1,0 +1,58 @@
+# The Shor root (#965), measured and not built: a size's root, once the first-order tiers leave it open,
+# solving the Shor relaxation only and branching on its point; deeper nodes unchanged. PRICE_LIMIT = 0, restarts 5.
+# Measured on main 8c48d402, before #1007 (the dual then stored twenty L-BFGS-B pairs).
+
+== The five beds, counts against the baseline (root on the full relaxation -> root on Shor)
+   s15_k3: 62 groups, nodes 1034, Clarabel 95, Shor 171, open nodes 0, uncertified 0, rounded 76, optimum missed 0, 58.47 s
+       nodes        baseline    974  now   1034  change +60
+       full         baseline    151  now     95  change -56
+       shor         baseline    149  now    171  change +22
+       open         baseline      0  now      0  change +0
+       uncertified  baseline      0  now      0  change +0
+   s20_k3: 45 groups, nodes 1148, Clarabel 133, Shor 195, open nodes 7, uncertified 4, rounded 67, optimum missed 0, 115.21 s
+       nodes        baseline   1122  now   1148  change +26
+       full         baseline    203  now    133  change -70
+       shor         baseline    192  now    195  change +3
+       open         baseline      7  now      7  change +0
+       uncertified  baseline      4  now      4  change +0
+   s20_k4: 21 groups, nodes 563, Clarabel 65, Shor 91, open nodes 1, uncertified 1, rounded 29, optimum missed 0, 49.04 s
+       nodes        baseline    525  now    563  change +38
+       full         baseline     79  now     65  change -14
+       shor         baseline     78  now     91  change +13
+       open         baseline      1  now      1  change +0
+       uncertified  baseline      1  now      1  change +0
+   s30_k10: 13 groups, nodes 691, Clarabel 96, Shor 124, open nodes 3, uncertified 3, rounded 26, optimum missed 0, 90.18 s
+       nodes        baseline    685  now    691  change +6
+       full         baseline    139  now     96  change -43
+       shor         baseline    125  now    124  change -1
+       open         baseline      4  now      3  change -1
+       uncertified  baseline      3  now      3  change +0
+   s30_k4: 25 groups, nodes 1534, Clarabel 186, Shor 242, open nodes 3, uncertified 2, rounded 54, optimum missed 0, 340.32 s
+       nodes        baseline   1404  now   1534  change +130
+       full         baseline    255  now    186  change -69
+       shor         baseline    217  now    242  change +25
+       open         baseline      3  now      3  change +0
+       uncertified  baseline      3  now      2  change -1
+
+== The five beds, paired wall clock (2 workers, both arms under the same load)
+   s15_k3 off {'wall': 23.6, 'group_seconds': 44.2, 'shor_s': 2.6, 'full_s': 2.9, 'nodes': 974, 'full': 151, 'shor': 149, 'uncertified': 0, 'missed': 0}
+   s15_k3 on  {'wall': 23.0, 'group_seconds': 42.9, 'shor_s': 2.8, 'full_s': 1.7, 'nodes': 1034, 'full': 95, 'shor': 171, 'uncertified': 0, 'missed': 0}
+   s20_k3 off {'wall': 79.3, 'group_seconds': 94.7, 'shor_s': 7.0, 'full_s': 11.9, 'nodes': 1122, 'full': 203, 'shor': 192, 'uncertified': 4, 'missed': 0}
+   s20_k3 on  {'wall': 74.8, 'group_seconds': 86.8, 'shor_s': 7.3, 'full_s': 6.6, 'nodes': 1148, 'full': 133, 'shor': 195, 'uncertified': 4, 'missed': 0}
+   s20_k4 off {'wall': 25.3, 'group_seconds': 36.4, 'shor_s': 2.5, 'full_s': 3.7, 'nodes': 525, 'full': 79, 'shor': 78, 'uncertified': 1, 'missed': 0}
+   s20_k4 on  {'wall': 24.9, 'group_seconds': 35.8, 'shor_s': 2.9, 'full_s': 2.8, 'nodes': 563, 'full': 65, 'shor': 91, 'uncertified': 1, 'missed': 0}
+   s30_k10 off {'wall': 37.0, 'group_seconds': 70.0, 'shor_s': 7.3, 'full_s': 13.6, 'nodes': 685, 'full': 139, 'shor': 125, 'uncertified': 3, 'missed': 0}
+   s30_k10 on  {'wall': 32.5, 'group_seconds': 62.2, 'shor_s': 7.1, 'full_s': 7.7, 'nodes': 691, 'full': 96, 'shor': 124, 'uncertified': 3, 'missed': 0}
+   s30_k4 off {'wall': 131.8, 'group_seconds': 253.3, 'shor_s': 29.4, 'full_s': 58.5, 'nodes': 1404, 'full': 255, 'shor': 217, 'uncertified': 3, 'missed': 0}
+   s30_k4 on  {'wall': 141.8, 'group_seconds': 267.3, 'shor_s': 34.9, 'full_s': 36.7, 'nodes': 1534, 'full': 186, 'shor': 242, 'uncertified': 2, 'missed': 0}
+   (shor_s / full_s: seconds inside Shor and full Clarabel solves)
+
+== 100-geo group (4, 27, 33, 58) of geo_panel(0, n=90, p=100), n_test 14, restarts 50, profiled side by side
+   size   main: nodes  seconds      Shor root: nodes  seconds
+   21           3      1344                    3       476.3
+   22           3      1487                    3       543.0
+   23           5      1675                    5       874.8
+   24           7      2738 (closed)          24+     6059+ (open when stopped at about 8,350 s)
+   size 24's root branched on control 17 (full relaxation's point) on main and on control 77 (Shor's point);
+   Shor's point had all 96 controls fractional. size 21's root: one Shor solve 39.9 s, one full solve 121.5 s
+   (18,434 rows), the root with six triangle rounds 954 s; neither relaxation closed it.
