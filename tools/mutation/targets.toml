@@ -12246,8 +12246,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-refresh-rate-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding, \"face\": face}\n"
   models = "clarabel_every accepted and validated but never reaching the branch and bound, which runs the default"
 
   [[target.mutant]]
@@ -12314,8 +12314,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-rounding-flag-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"face\": face}\n"
   models = "rounding=False accepted and ignored"
 
   [[target.mutant]]
@@ -12404,8 +12404,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-separated-triangles-are-not-in-the-rows"
-  find = "        Rt = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes)\n"
-  replace = "        Rt = Rows(c, m, cuts=cuts, fixes=fixes)\n"
+  find = "        Rt = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes, face=face)\n"
+  replace = "        Rt = Rows(c, m, cuts=cuts, fixes=fixes, face=face)\n"
   models = "triangles separated and counted but left out of the rows the round solves, so every round repeats the relaxation without them"
 
   [[target.mutant]]
@@ -12578,9 +12578,15 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "clarabel-starts-its-own-threads"
-  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())"
-  replace = "        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log())"
+  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())   # a thread pool"
+  replace = "        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log())   # a thread pool"
   models = "Clarabel left to its automatic threading, whose native thread pool a forked worker inherits without its threads, so certify_treatment(n_jobs > 1) hangs at its first Clarabel solve in a worker"
+
+  [[target.mutant]]
+  id = "the-face-solve-starts-its-own-threads"
+  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())   # one thread, as in solve()"
+  replace = "        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log())   # one thread, as in solve()"
+  models = "the face solve left to Clarabel's automatic threading, so a forked worker hangs at its first solve on a face"
 
   [[target.mutant]]
   id = "an-empty-node-is-searched"
@@ -12644,14 +12650,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-trace-bound-is-the-size"
-  find = "    return k + (1 + m) * max(Q(0), -low)\n"
-  replace = "    return k + m * max(Q(0), -low)\n"
+  find = "    full = k + (1 + m) * max(Q(0), -low)\n"
+  replace = "    full = k + m * max(Q(0), -low)\n"
   models = "the positive eigenvalue charged m times, though tr Z = 1 + m counts the constant entry"
 
   [[target.mutant]]
   id = "the-positive-eigenvalue-is-uncharged"
-  find = "    return k + (1 + m) * max(Q(0), -low)\n"
-  replace = "    return k + 0 * max(Q(0), -low)\n"
+  find = "    full = k + (1 + m) * max(Q(0), -low)\n"
+  replace = "    full = k + 0 * max(Q(0), -low)\n"
   models = "the Lagrangian's constant read as the bound, which holds only when S is negative semidefinite"
 
   [[target.mutant]]
@@ -12841,10 +12847,22 @@ timeout = 900.0
   models = "a relaxation solve missing from the progress, the event that times the search's dearest step"
 
   [[target.mutant]]
+  id = "a-face-solve-is-not-reported"
+  find = "    emit(\"solve\", relaxation=R.level, rows_eq=len(keep_e), rows_in=len(keep_i), status=prob.status,\n         seconds=time.perf_counter() - t0)\n"
+  replace = "    pass\n"
+  models = "a solve on the face missing from the progress, so the default path's dearest step goes untimed"
+
+  [[target.mutant]]
   id = "clarabel-never-logs"
-  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())"
-  replace = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=False)"
+  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())   # a thread pool"
+  replace = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=False)   # a thread pool"
   models = "verbose 4 accepted and Clarabel's iteration log never shown"
+
+  [[target.mutant]]
+  id = "the-face-solve-never-logs"
+  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())   # one thread, as in solve()"
+  replace = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=False)   # one thread, as in solve()"
+  models = "verbose 4 accepted and Clarabel's iteration log never shown for a solve on the face"
 
   [[target.mutant]]
   id = "a-rounded-incumbent-is-not-reported"
@@ -13863,3 +13881,171 @@ timeout = 900.0
   find = "    if progress is not None and not callable(progress):\n"
   replace = "    if False:\n"
   models = "a string given as progress, which fails at the first event instead of at the call"
+
+[[target]]
+name = "tbr-bnb-face"
+module-path = "benchmarks/studies/tbr_bnb/face.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_face.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-pivot-carries-one-less-than-the-size"
+  find = "        cols = [[(0, 1), (self.pivot + 1, self.q)] + [(o + 1, 1) for o in self.ones]]\n"
+  replace = "        cols = [[(0, 1), (self.pivot + 1, self.q - 1)] + [(o + 1, 1) for o in self.ones]]\n"
+  models = "the pivot's row written as (q - 1) e_0 - sum e_j, so a design's z is not in T's range"
+
+  [[target.mutant]]
+  id = "the-controls-fixed-in-are-mapped-to-zero"
+  find = "        cols = [[(0, 1), (self.pivot + 1, self.q)] + [(o + 1, 1) for o in self.ones]]\n"
+  replace = "        cols = [[(0, 1), (self.pivot + 1, self.q)]]\n"
+  models = "a control fixed in treated as fixed out, its row of T zero where it is e_0"
+
+  [[target.mutant]]
+  id = "the-trace-bound-is-q"
+  find = "        return 1 + self.q\n"
+  replace = "        return self.q\n"
+  models = "tr W bounded by q, forgetting W_00 = 1, so the face bound can fall below a design"
+
+  [[target.mutant]]
+  id = "the-slack-drops-the-coefficients"
+  find = "            return [sum((take(zi) * v for zi, v in col[1:]), take(col[0][0]) * col[0][1]) for col in cols]\n"
+  replace = "            return [sum((take(zi) for zi, v in col[1:]), take(col[0][0]) * col[0][1]) for col in cols]\n"
+  models = "T'ST built with every entry but each column's first at coefficient one, so the pivot's q and the -1s are lost (the first entry's coefficient is 1 in every column, so dropping it alone is equivalent, which a first run showed)"
+
+  [[target.mutant]]
+  id = "the-pivot-entries-stay-in-the-rows"
+  find = "    K_off = (sp.diags(off) @ K).tocsr()\n"
+  replace = "    K_off = K\n"
+  models = "the pivot row's entries substituted into the rows and carried by a as well, counted twice"
+
+  [[target.mutant]]
+  id = "the-pivot-row-has-one-triangle"
+  find = "    on_row = np.concatenate([r + np.arange(n) * n, np.arange(n) + r * n])      # vec indices of Z_rb and Z_br\n"
+  replace = "    on_row = np.concatenate([r + np.arange(n) * n, r + np.arange(n) * n])\n"
+  models = "only Z_rb moved to a, Z_br left substituted, so a row written on the lower triangle keeps a dense entry and the upper one is lost"
+
+  [[target.mutant]]
+  id = "the-slack-loses-its-exponent"
+  find = "        return Dyadic(M, D.e)\n"
+  replace = "        return Dyadic(M, 0)\n"
+  models = "T'NT read as integers, not N / 2**e, so the face bound scales by 2**e"
+
+  [[target.mutant]]
+  id = "a-control-fixed-both-ways-is-accepted"
+  find = "        if j in fx and fx[j] != v:\n"
+  replace = "        if False:\n"
+  models = "contradictory fixings taken as the last one given, a node with no design solved as if it had one"
+
+  [[target.mutant]]
+  id = "a-node-with-every-slot-fixed-in-gets-a-face"
+  find = "    if not free or q == 0:\n"
+  replace = "    if not free:\n"
+  models = "q = 0 given a face whose pivot row is - sum e_j, a one-design node solved as a relaxation"
+
+  [[target.mutant]]
+  id = "the-rows-are-not-symmetrised"
+  find = "    return ((K + K[:, perm]) / 2).tocsr()\n"
+  replace = "    return K.tocsr()\n"
+  models = "the reduced rows left on vec(W) unsymmetrised, so the products of sum u = m are not seen as 0 = 0"
+
+  [[target.mutant]]
+  id = "w00-is-dropped-as-a-constant"
+  find = "            constant[0] = False                               # Z_00 = 1 is W_00 = 1\n"
+  replace = "            pass                                              # Z_00 = 1 is W_00 = 1\n"
+  models = "Z_00 = 1 dropped as a row the face satisfies, leaving W unscaled"
+
+  [[target.mutant]]
+  id = "a-violated-row-on-the-face-is-dropped"
+  find = "            if (equality and const != b) or (not equality and const > b):\n"
+  replace = "            if False:\n"
+  models = "a structural row the face violates dropped with the satisfied ones, a node with no design solved"
+
+  [[target.mutant]]
+  id = "the-c-rows-are-not-scaled-on-the-face"
+  find = "    scale = np.ones(R.n_in); scale[list(R.c_rows)] = 1.0 / c_scale\n"
+  replace = "    scale = np.ones(R.n_in)\n"
+  models = "the rows carrying c solved unscaled while slopefree divides their multipliers by the scale"
+
+[[target]]
+name = "tbr-bnb-slope-free-face"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_face.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-pivot-row-is-not-defined"
+  find = "    prob = cp.Problem(cp.Maximize(cp.trace((T.T @ A0 @ T) @ W)), [W >> 0, ce, ci, cd])\n"
+  replace = "    prob = cp.Problem(cp.Maximize(cp.trace((T.T @ A0 @ T) @ W)), [W >> 0, ce, ci])\n"
+  models = "a, the pivot's row of Z, left free, so the rows that touch the pivot no longer constrain W"
+
+  [[target.mutant]]
+  id = "an-infeasible-face-solve-lifts-nothing"
+  find = "    Z = None if W.value is None else T @ W.value @ T.T   # no point when Clarabel finds none (an infeasible node), as off the face\n"
+  replace = "    Z = T @ W.value @ T.T\n"
+  models = "a node whose fixings leave no design with c'u >= 0 lifted from a point Clarabel did not return, a TypeError where the full space reports infeasible"
+
+  [[target.mutant]]
+  id = "the-rows-ignore-the-face-flag"
+  find = "        self.face = _face.face_of(p, m, fixes) if face else None   # Z = T W T' on it (face.py)\n"
+  replace = "        self.face = None\n"
+  models = "face=True accepted by Rows and the relaxation built in the full space"
+
+  [[target.mutant]]
+  id = "the-solve-ignores-the-face"
+  find = "    if R.face is not None:\n        return _solve_on_face(R, A0, s, cs)\n"
+  replace = "    if False:\n        return _solve_on_face(R, A0, s, cs)\n"
+  models = "a face built and the relaxation solved in the full space, without an interior"
+
+  [[target.mutant]]
+  id = "the-face-multipliers-keep-the-c-scale"
+  find = "    y_in[R.c_rows] /= cs\n    Z = None if W.value is None else T @ W.value @ T.T"
+  replace = "    Z = None if W.value is None else T @ W.value @ T.T"
+  models = "the face solve's c-row multipliers returned in the scaled rows' units"
+
+  [[target.mutant]]
+  id = "the-bound-ignores-the-face"
+  find = "    if R.face is not None:\n        t = _face.trace_term(R.face, D)\n"
+  replace = "    if False:\n        t = _face.trace_term(R.face, D)\n"
+  models = "the face bound never computed, so nodes it closes stay open"
+
+  [[target.mutant]]
+  id = "the-bound-is-the-face-alone"
+  find = "    return full if on_face is None else min(full, on_face)\n"
+  replace = "    return full if on_face is None else on_face\n"
+  models = "the face bound returned where the full-space bound is smaller (T is not orthonormal)"
+
+  [[target.mutant]]
+  id = "the-screen-ignores-the-face"
+  find = "    if R.face is None:\n        return full\n"
+  replace = "    return full\n"
+  models = "the float screen reading the full-space bound only, so it calls a face-closable node open"
+
+  [[target.mutant]]
+  id = "the-face-is-off-by-default"
+  find = "FACE = True\n"
+  replace = "FACE = False\n"
+  models = "the measured default reverted, every relaxation solved without an interior"
+
+  [[target.mutant]]
+  id = "the-size-certificate-ignores-its-face-argument"
+  find = "    face = FACE if face is None else face\n"
+  replace = "    face = FACE\n"
+  models = "size_certificate's face accepted and replaced by the default"
+
+  [[target.mutant]]
+  id = "the-search-drops-the-face"
+  find = "                           face=inc.get(\"face\", FACE))\n"
+  replace = "                           face=FACE)\n"
+  models = "certify_slope_free(face=False) accepted and the branches solved on the face anyway"
+  [[target.mutant]]
+  id = "an-infeasible-node-without-duals-has-a-point"
+  find = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status)\n"
+  replace = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((n, n)), prob.status)\n"
+  models = "a relaxation returned without duals (an infeasible node under some cvxpy versions) handed on with a zero matrix as its point, which rounding and triangle separation read"
+
+  [[target.mutant]]
+  id = "an-infeasible-face-node-without-duals-has-a-point"
+  find = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status, face=True)\n"
+  replace = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((R.n, R.n)), prob.status, face=True)\n"
+  models = "the same on the face"
+

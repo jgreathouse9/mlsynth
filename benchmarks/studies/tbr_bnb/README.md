@@ -904,6 +904,94 @@ in between gave the same counts. Re-checking a node at the new ratio after an
 improvement closed none of 72 nodes and cost up to a Clarabel solve each, so the
 build does not re-check.
 
+### The relaxation on its face
+
+Every point Z of a size's relaxation has null directions the rows force: v =
+(-m, 1, ..., 1), since sum u = m and its products say Zv = 0; e_j for a control
+fixed out; e_0 - e_j for one fixed in. So no point is positive definite, the
+relaxation has no interior (Burer 2012, Prop. 8.3, in the Handbook on Semidefinite,
+Conic and Polynomial Optimization), its dual's optimal set is unbounded, and an
+interior-point solver loses accuracy on it. On the beds Clarabel returned
+`optimal_inaccurate` on 539 of 766 Shor solves and 682 of 832 full solves.
+
+`face.py` writes Z = T W T' with T integer (Krislock and Wolkowicz, facial
+reduction, in the same Handbook): row 0 is e_0, a free control's row other than the
+pivot's is its unit vector, the pivot's row is q e_0 minus the other free controls',
+a control fixed in maps to e_0 and one fixed out to zero, with q = m less the
+controls fixed in. Clarabel solves for W >= 0, and the rows the face satisfies
+identically are dropped: sum u = m becomes m W_00 = m, its products become 0 = 0,
+and the fixings vanish. A structural row the face reduces to a constant it does not
+meet means the node holds no design; `reduce` raises `FaceError` naming the row and
+the fixings, since the search never builds such a node.
+
+The certificate stays exact and gains a second form. For any multipliers <S, Z> =
+<T'ST, W> and tr W = 1 + sum u_j over the free controls but the pivot, at most 1 + q,
+so every design is at most k + (1 + q) max(0, lambda_max(T'ST)). T'ST is `T'NT / 2**e`
+for the dyadic `S = N / 2**e`, computed in integers. T is not orthonormal, so at
+multipliers far from the face's this can exceed the full-space bound; `bound` takes
+the smaller of the two. The first build formed T'ST in Python fractions, which took
+2.9 s of every 3.7 s of the face's term and made five s30_k4 groups 8% slower than
+the full space (`results/face.log`); in integers they ran 2% faster.
+
+On the beds, both arms under the same load (`results/face.log`):
+
+| bed | nodes | full solves | Shor `optimal` | full `optimal` | solve seconds | uncertified |
+| --- | --- | --- | --- | --- | --- | --- |
+| `s15_k3` | 974 → 970 | 151 → 152 | 84 → 149 of 149 | 80 → 98 | 8.3 → 7.5 | 0 → 0 |
+| `s20_k3` | 1,122 → 1,100 | 203 → 194 | 64/192 → 185/185 | 39 → 72 | 27.7 → 21.7 | 4 → 5 |
+| `s20_k4` | 525 → 525 | 79 → 79 | 27/78 → 77/77 | 20 → 32 | 10.9 → 8.7 | 1 → 0 |
+| `s30_k10` | 691 → 679 | 139 → 132 | 29/125 → 122/122 | 5 → 36 | 31.7 → 24.6 | 3 → 4 |
+| `s30_k4` | 1,406 → 1,404 | 260 → 259 | 23/222 → 221/221 | 6 → 60 | 142.0 → 122.9 | 3 → 2 |
+| all | 4,718 → 4,678 | 832 → 816 | 227/766 → 754/754 | 150/832 → 298/816 | 220.6 → 185.4 | 11 → 11 |
+
+The table is the face with its substituted rows. With the sparse rows described below,
+the recorded baseline (`results/beds_baseline.json`) has 4,688 nodes, 816 full solves,
+11 uncertified groups and no optimum missed; each bed's node count is within 1.5% of
+the table's, as round-off breaks the branching ties differently.
+
+Every Shor solve on the face is `optimal`, and the face solve's multipliers certify
+its value: over 216 solves on panels of five to seven controls the exact bound at
+them is within 1e-7 relative of the solve's value. Solving takes 16% less time, the
+groups 4% less, and every group that certifies certifies the enumerated optimum.
+The full level stays mostly inaccurate, 298 of 816 `optimal`: its McCormick pair
+rows leave a second degeneracy at a rank-one optimum, which facial reduction does
+not touch. The uncertified count is unchanged and the groups in it move both ways
+between beds, each with a node left open at the depth limit. The full point is
+integral at every branching root of the beds (227 of 227, the Shor root above), so
+the most fractional control is a tie that round-off decides, and a more accurate
+solve breaks the ties differently. Group 0 of `s30_k10`,
+the node-rounding tests' former fixture, is one: on the face it stops at one open
+node of size 8 at depth 12 with and without rounding, so the tests moved to group
+10, which certifies both ways (112 nodes without rounding, 72 with).
+
+At 96 candidate controls the face costs time. At the size-21 and size-24 roots of
+the 100-geo group (4, 27, 33, 58), both arms at once (`results/face.log`):
+
+| root | Shor seconds | Shor status | full seconds | full status | full-level gap |
+| --- | --- | --- | --- | --- | --- |
+| size 21 | 35.6 → 42.3 | inaccurate → `optimal` | 118.9 → 149.6 | inaccurate → inaccurate | 6.2e-4 → 4.8e-6 |
+| size 24 | 37.9 → 50.3 | inaccurate → `optimal` | 107.9 → 137.8 | inaccurate → inaccurate | 3.3e-4 → 7.3e-5 |
+
+The gap is the exact bound at the solve's multipliers less the solve's value,
+relative to the value; neither root closes at either level, on or off the face.
+Substituted, the full level's pair rows that touch the pivot densify, since the
+pivot's row of T is q e_0 less every other free control: 262,300 nonzeros against
+73,825, 574 rows with more than 50 entries. So the solve carries that row as a
+vector a, a_b = Z_rb, with one definition row per entry, and every other entry of Z
+is one entry of W: no row grows past twice its nonzeros (155,146 in all, 27,649 of
+them in the definitions). It cut a full-level iteration from 3.08 s to 2.64 s, level
+with the full space's 2.63 s. What remains is the number of iterations: at the
+size-21 root 16 against 14 at the Shor level and 53 against 45 at the full level,
+at 2.5 to 3 s each, the cost of the 97 x 97 cone, on the face or off it. Clarabel's
+time at 100 geos is set by the cone and the iterations, not by the rows.
+
+A node whose fixings leave no design with c'u >= 0 has an infeasible relaxation.
+Off the face Clarabel reports it with no point; the face solve reports the same.
+`size_certificate` closes such a node at its dual tier before any solve.
+
+`FACE = True` is the default; `certify_slope_free(face=False)` solves in the full
+space.
+
 ## Several processes
 
 `certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
@@ -1389,11 +1477,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (814 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (858 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 382 mutants of the 26
+but for the lines marked `pragma: no cover`, each with its reason. The 411 mutants of the 28
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -1497,6 +1585,7 @@ fixing is certified to the solver's value.
 - `certificate.py`: every exact bound, the slope cap, fixings and the cut, and the float certificates of the hull and the joint lift.
 - `oracle.py`, `dual.py`: the certified dual and its maximisers.
 - `search.py`: the branch and bound on geos and `certify()`.
+- `face.py`: the face Z = T W T' of a size's relaxation, its reduced rows and its exact bound.
 - `slopefree.py`: the slope-free relaxation, its certificate, the cascade of certificates for one size
   (`size_certificate`) and `certify_slope_free()`.
 - `gated.py`: the reference key's four gates on the slope-free search, `certify_gated()`.

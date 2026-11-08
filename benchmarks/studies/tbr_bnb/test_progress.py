@@ -104,7 +104,9 @@ def test_a_branched_node_names_its_control_and_its_children_follow(monkeypatch):
     assert all(e.fields["control"] is None for e in seen if e.kind == "node" and e.fields["outcome"] != "branched")
 
 
-def test_one_solve_event_per_relaxation_solved(monkeypatch):
+@pytest.mark.parametrize("face", [True, False])
+def test_one_solve_event_per_relaxation_solved(monkeypatch, face):
+    """On the face and off it: each is its own Clarabel call with its own event."""
     y, X = _branching()
     real = slopefree.solve
     calls = []
@@ -115,7 +117,7 @@ def test_one_solve_event_per_relaxation_solved(monkeypatch):
 
     monkeypatch.setattr(slopefree, "solve", spy)
     seen, kw = _collect(3)
-    certify_slope_free(y, X, restarts=5, **kw)
+    certify_slope_free(y, X, restarts=5, face=face, **kw)
     solves = [e.fields["relaxation"] for e in seen if e.kind == "solve"]
     assert calls and solves == calls
 
@@ -162,7 +164,9 @@ def test_the_print_level_shows_only_its_events(capsys):
     assert " node " in err and " solve " in err
 
 
-def test_clarabel_logs_only_at_four(monkeypatch):
+@pytest.mark.parametrize("face", [True, False])
+def test_clarabel_logs_only_at_four(monkeypatch, face):
+    """On the face and off it: each solve passes its own verbose flag."""
     seen = []
     real = slopefree.cp.Problem.solve
 
@@ -172,10 +176,10 @@ def test_clarabel_logs_only_at_four(monkeypatch):
 
     monkeypatch.setattr(slopefree.cp.Problem, "solve", spy)
     y, X = _branching()
-    certify_slope_free(y, X, restarts=5, verbose=3)
+    certify_slope_free(y, X, restarts=5, verbose=3, face=face)
     assert seen and not any(seen)
     seen.clear()
-    certify_slope_free(y, X, restarts=5, verbose=4)
+    certify_slope_free(y, X, restarts=5, verbose=4, face=face)
     assert seen and all(seen)
 
 

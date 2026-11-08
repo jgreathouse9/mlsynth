@@ -216,6 +216,21 @@ def test_the_relaxation_is_solved_on_one_thread(monkeypatch):
     assert seen and all(k.get("max_threads") == 1 for k in seen)
 
 
+def test_the_face_solve_is_on_one_thread(monkeypatch):
+    """The face solve (face.py) is a Clarabel solve of its own, run in the same workers."""
+    import cvxpy as cp
+    from . import slopefree as sf
+    from .certificate import ExactData
+
+    M = geo_panel(11, n=20, p=9)
+    D = ExactData(M[:, 0], M[:, 1:])
+    seen = []
+    real = cp.Problem.solve
+    monkeypatch.setattr(cp.Problem, "solve", lambda self, *a, **k: seen.append(k) or real(self, *a, **k))
+    s = sf.solve(D.c, D.G, sf.dyadic_below(D.yy / 2), sf.Rows(D.c, 3, fixes=((0, 1),), level="shor", face=True))
+    assert s.face and seen and all(k.get("max_threads") == 1 for k in seen)
+
+
 def test_a_forked_worker_solves_after_the_parent_has():
     import os
     from concurrent.futures import TimeoutError as Timeout

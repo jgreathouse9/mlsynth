@@ -88,7 +88,9 @@ import scipy.sparse as sp
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
+from mlsynth.utils.marex_helpers.certify import Dyadic
 
+from . import face as _face
 from .certificate import ExactData, _dot_err, round_down
 from .progress import clarabel_log, emit, reporting
 
@@ -127,11 +129,13 @@ class Rows:
 
     def __init__(self, c: Sequence, m: Optional[int], cuts: Sequence[Set[int]] = (),
                  triangles: Sequence[Tuple[int, Tuple[int, int, int]]] = (),
-                 fixes: Sequence[Tuple[int, int]] = (), level: str = "full"):
+                 fixes: Sequence[Tuple[int, int]] = (), level: str = "full", face: bool = False):
         if level not in ("full", "shor"):
             raise ValueError(f"the rows' level is 'full' or 'shor', not {level!r}")
         p = len(c)
         self.p, self.n, self.m, self.level = p, p + 1, m, level
+        self.fixes = tuple(fixes)
+        self.face = _face.face_of(p, m, fixes) if face else None   # Z = T W T' on it (face.py)
         full = level == "full"
         self.eq: List[Dict] = []; self.beq: List = []
         self.ineq: List[Dict] = []; self.bin: List = []
@@ -213,8 +217,9 @@ class Solve:
     scale: float                 # the objective's scale: value * scale is in the data's units
     y_eq: np.ndarray             # multipliers in the data's units, for bound()
     y_in: np.ndarray
-    Z: np.ndarray
+    Z: Optional[np.ndarray]      # the point, None when the solve has none (an infeasible node)
     status: str
+    face: bool = False           # solved on the face Z = T W T' (face.py)
 
 
 def _pow2(x):
@@ -232,9 +237,11 @@ def solve(c, G, lam, R: Rows) -> Solve:
     its threads, so its next solve never returns."""
     A = np.asarray(objective(c, G, lam), dtype=float)
     s = _pow2(float(np.abs(A).max())); cs = _pow2(float(np.max(np.abs(np.asarray(c, dtype=float)))))
-    Me, Mi = R.matrices(cs)
     n = R.n
     A0 = np.zeros((n, n)); A0[1:, 1:] = A / s
+    if R.face is not None:
+        return _solve_on_face(R, A0, s, cs)
+    Me, Mi = R.matrices(cs)
     Z = cp.Variable((n, n), symmetric=True)
     z = cp.vec(Z, order="F")
     ce = Me @ z == np.asarray(R.beq, dtype=float)
@@ -249,18 +256,52 @@ def solve(c, G, lam, R: Rows) -> Solve:
         raise
     emit("solve", relaxation=R.level, rows_eq=R.n_eq, rows_in=R.n_in, status=prob.status,
          seconds=time.perf_counter() - t0)
-    if ce.dual_value is None:            # pragma: no cover - Clarabel returns duals whenever it returns
-        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((n, n)), prob.status)
+    if ce.dual_value is None:            # no duals (some cvxpy versions, at an infeasible node): no point either
+        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status)
     y_in = np.array(ci.dual_value, dtype=float) * s
     y_in[R.c_rows] /= cs
     return Solve(float(prob.value), s, np.array(ce.dual_value, dtype=float) * s, y_in, Z.value, prob.status)
 
 
-def bound(A, R: Rows, y_eq, y_in, m) -> Optional[Q]:
-    """k + (1 + m) max(0, lambda_max(S)) with S = [[0, 0], [0, A]] - sum_k y_k E_k and
-    k = sum_k y_k b_k, in rationals; the inequality multipliers clipped at zero. At
-    least the relaxation's maximum, and so every design's u'Au (module docstring).
-    None when the eigenvalue bound finds no factor."""
+def _solve_on_face(R: Rows, A0, s, cs) -> Solve:
+    """The relaxation in W, Z = T W T' (face.py): the rows the face satisfies
+    identically dropped, the multipliers of the rows kept returned at their places
+    in R (the dropped rows' are zero) and Z lifted back, so bound(), the triangle
+    separation and branching read the same Solve as off the face."""
+    F = R.face
+    red = _face.reduce(F, R, cs)
+    keep_e, keep_i = red.keep_e, red.keep_i
+    T = F.matrix()
+    k = T.shape[1]
+    W = cp.Variable((k, k), symmetric=True)
+    a = cp.Variable(R.n)                 # Z's pivot row, so the rows that touch it stay sparse (face.py)
+    x = cp.hstack([cp.vec(W, order="F"), a])
+    ce = red.eq @ x == red.beq
+    ci = red.ineq @ x <= red.bin
+    cd = red.define @ x == 0
+    prob = cp.Problem(cp.Maximize(cp.trace((T.T @ A0 @ T) @ W)), [W >> 0, ce, ci, cd])
+    t0 = time.perf_counter()
+    try:
+        prob.solve(solver="CLARABEL", max_threads=1, verbose=clarabel_log())   # one thread, as in solve()
+    except cp.error.SolverError:
+        emit("solve", relaxation=R.level, rows_eq=len(keep_e), rows_in=len(keep_i), status="error",
+             seconds=time.perf_counter() - t0)
+        raise
+    emit("solve", relaxation=R.level, rows_eq=len(keep_e), rows_in=len(keep_i), status=prob.status,
+         seconds=time.perf_counter() - t0)
+    n = R.n
+    if ce.dual_value is None:            # no duals (some cvxpy versions, at an infeasible node): no point either
+        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status, face=True)
+    y_eq = np.zeros(R.n_eq); y_eq[keep_e] = np.asarray(ce.dual_value, dtype=float) * s
+    y_in = np.zeros(R.n_in); y_in[keep_i] = np.asarray(ci.dual_value, dtype=float) * s
+    y_in[R.c_rows] /= cs
+    Z = None if W.value is None else T @ W.value @ T.T   # no point when Clarabel finds none (an infeasible node), as off the face
+    return Solve(float(prob.value), s, y_eq, y_in, Z, prob.status, face=True)
+
+
+def _slack(A, R: Rows, y_eq, y_in):
+    """S = [[0, 0], [0, A]] - sum_k y_k E_k and k = sum_k y_k b_k in rationals, the
+    inequality multipliers clipped at zero."""
     n = R.n
     S = np.full((n, n), Q(0), dtype=object)
     S[1:, 1:] = np.asarray(A, dtype=object)
@@ -279,13 +320,31 @@ def bound(A, R: Rows, y_eq, y_in, m) -> Optional[Q]:
                 else:
                     h = yq * Q(v) / 2
                     S[a, bb] -= h; S[bb, a] -= h
+    return S, k
+
+
+def bound(A, R: Rows, y_eq, y_in, m) -> Optional[Q]:
+    """k + (1 + m) max(0, lambda_max(S)) with S and k from _slack, in rationals. At
+    least the relaxation's maximum, and so every design's u'Au (module docstring).
+    On the face (R.face) also k + (1 + q) max(0, lambda_max(T'ST)) (face.py), and the
+    smaller of the two; the face's alone when it is already at most zero. None when
+    the eigenvalue bound finds no factor."""
+    S, k = _slack(A, R, y_eq, y_in)
     if any(q.denominator & (q.denominator - 1) for q in S.flat):
         raise ValueError("the certificate's matrix must be dyadic: pass lam through dyadic_below "
                          "(mlsynth's _from_fractions reads every entry as a dyadic rational)")
-    low = lambda_min_lower(_from_fractions((-S).tolist()))   # lambda_max(S) <= -low
+    D = _from_fractions(S.tolist())
+    on_face = None
+    if R.face is not None:
+        t = _face.trace_term(R.face, D)
+        on_face = None if t is None else k + t
+        if on_face is not None and on_face <= 0:
+            return on_face
+    low = lambda_min_lower(Dyadic(-D.N, D.e))   # lambda_max(S) <= -low
     if low is None:  # pragma: no cover - 40 quadrupled shifts factor any finite symmetric matrix, and S is finite
-        return None
-    return k + (1 + m) * max(Q(0), -low)
+        return on_face
+    full = k + (1 + m) * max(Q(0), -low)
+    return full if on_face is None else min(full, on_face)
 
 
 def separate_triangles(u, U, k=400, tol=1e-6):
@@ -337,7 +396,12 @@ def _screen(A, R: Rows, y_eq, y_in, m) -> float:
     E = (Me.T @ np.asarray(y_eq, dtype=float) + Mi.T @ y_in).reshape(n, n, order="F")
     S = np.zeros((n, n)); S[1:, 1:] = np.asarray(A, dtype=float); S -= (E + E.T) / 2
     k = float(np.dot(y_eq, np.asarray(R.beq, dtype=float)) + np.dot(y_in, np.asarray(R.bin, dtype=float)))
-    return k + (1 + m) * max(0.0, float(np.linalg.eigvalsh(S)[-1]))
+    full = k + (1 + m) * max(0.0, float(np.linalg.eigvalsh(S)[-1]))
+    if R.face is None:
+        return full
+    T = R.face.matrix()
+    M = T.T @ S @ T
+    return min(full, k + R.face.trace * max(0.0, float(np.linalg.eigvalsh((M + M.T) / 2)[-1])))
 
 
 def _capped(v, T):
@@ -429,6 +493,12 @@ DUAL_BUDGET = 400
 #: On the five test beds the dual took 24% less time (196.5 s to 149.6 s) for 8 more
 #: nodes of 4,710, and every group certified the same design (results/dual_memory.log).
 DUAL_MEMORY = 5
+
+#: Whether a size's relaxation is solved and certified on its face (face.py). Every
+#: point of the relaxation has the null directions sum u = m and the fixings force, so
+#: it has no interior: on s30_k4 Clarabel returned optimal_inaccurate on 199 of 222
+#: Shor solves and 254 of 260 full solves. On the face the forced directions are gone.
+FACE = True
 
 
 def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
@@ -522,7 +592,8 @@ def size_schedules(p: int) -> Tuple[Tuple[int, int, int], ...]:
 def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
                      warm: Optional[Multipliers] = None,
                      schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None,
-                     first_order_rounds: Optional[int] = None, relaxations: bool = True) -> SizeResult:
+                     first_order_rounds: Optional[int] = None, relaxations: bool = True,
+                     face: bool = None) -> SizeResult:
     """Whether no design of size m (within the fixings) has u'(cc' - lam G)u > 0,
     by the cheapest certificate of a cascade (module docstring): ``warm``, another
     size's multipliers, at this size's rows; then the Shor relaxation's; then the
@@ -539,8 +610,12 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     "first-order"), for a node that branches on its parent's point. Warm-starting a
     round from
     the last round's multipliers left three sizes of the 100-geo incumbent's group
-    open after six rounds that two rounds from zero closed."""
+    open after six rounds that two rounds from zero closed.
+
+    With ``face`` (FACE when None) every relaxation is solved and certified on its
+    face, Z = T W T' (face.py)."""
     t0 = time.perf_counter()
+    face = FACE if face is None else face
     schedules = size_schedules(len(c)) if schedules is None else _checked(schedules)
     if first_order_rounds is None:
         first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM else 0
@@ -549,13 +624,13 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     lam = dyadic_below(lam)
     A = objective(c, G, lam)
     if warm is not None:
-        R = Rows(c, m, cuts=cuts, fixes=fixes, level=warm.level)
+        R = Rows(c, m, cuts=cuts, fixes=fixes, face=face, level=warm.level)
         if len(warm.y_eq) == R.n_eq and len(warm.y_in) == R.n_in and \
                 _screen(A, R, warm.y_eq, warm.y_in, m) <= 0:
             b = bound(A, R, warm.y_eq, warm.y_in, m)
             if b is not None and b <= 0:
                 return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="reuse", multipliers=warm)
-    R = Rows(c, m, cuts=cuts, fixes=fixes)
+    R = Rows(c, m, cuts=cuts, fixes=fixes, face=face)
     point = None
     for rung, (maxfun, stages, budget) in enumerate(schedules):
         t1 = time.perf_counter()
@@ -577,7 +652,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
             break
         tri += new
         t1 = time.perf_counter()
-        Rt = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes)
+        Rt = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes, face=face)
         maxfun, stages, budget = schedules[-1]
         w, info = dual_multipliers(A, Rt, m, c, maxfun=maxfun, stages=stages, budget=budget)
         point = info.get("point") if info else None
@@ -588,7 +663,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
             return SizeResult(True, b, r, len(tri), time.perf_counter() - t0, tier="triangles")
     if not relaxations:
         return SizeResult(False, None, 0, len(tri), time.perf_counter() - t0, None, tier="first-order")
-    R = Rows(c, m, cuts=cuts, fixes=fixes, level="shor")
+    R = Rows(c, m, cuts=cuts, fixes=fixes, face=face, level="shor")
     try:
         sol = solve(c, G, lam, R)
     except cp.error.SolverError:
@@ -601,7 +676,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     tri: List = []
     u = None
     for r in range(rounds + 1):
-        R = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes)
+        R = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes, face=face)
         try:
             sol = solve(c, G, lam, R)
         except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved
@@ -908,7 +983,8 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     every = inc.get("every", CLARABEL_EVERY)
     relax = depth % every == 0 or parent_u is None
     res = size_certificate(c, G, inc["lam"], m, cuts=cuts, fixes=fixes, rounds=rounds, per_round=per_round,
-                           warm=None if fixes else inc.get("warm"), relaxations=relax)
+                           warm=None if fixes else inc.get("warm"), relaxations=relax,
+                           face=inc.get("face", FACE))
     out.tiers[res.tier] = out.tiers.get(res.tier, 0) + 1
     if res.certified:
         if not fixes and res.multipliers is not None:
@@ -979,7 +1055,8 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
                         start: Optional[Set[int]] = None,
                         group_screen: bool = True,
                         clarabel_every: int = CLARABEL_EVERY,
-                        rounding: bool = ROUND_NODES) -> SlopeFreeCertificate:
+                        rounding: bool = ROUND_NODES,
+                        face: bool = FACE) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -1011,7 +1088,8 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
     Within a size's branch and bound the Shor and full relaxations are solved every
     ``clarabel_every`` levels (_branch); 1 solves them at every node. With
     ``rounding`` an open node that solved them rounds its point to a design, which
-    replaces the incumbent when it is better (``rounded`` counts those).
+    replaces the incumbent when it is better (``rounded`` counts those). With ``face``
+    the relaxations are solved and certified on their faces (FACE, face.py).
     """
     from .search import hull_survivors, incumbent, pieces_to
 
@@ -1020,6 +1098,8 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
         raise MlsynthConfigError(f"clarabel_every is a number of levels, an int at least 1, not {clarabel_every!r}.")
     if type(rounding) is not bool:
         raise MlsynthConfigError(f"rounding is True or False, not {rounding!r}.")
+    if type(face) is not bool:
+        raise MlsynthConfigError(f"face is True or False, not {face!r}.")
     p = X.shape[1]
     excluded = [set(e) for e in exclude]
     C = set(incumbent(y, X, restarts=restarts, seed=seed)[1])
@@ -1059,7 +1139,7 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
         sizes = sorted({pc[2] for pc in s1})
         t_h = time.perf_counter() - t0
         emit("hull", sizes=sizes, seconds=t_h)
-    inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding}
+    inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding, "face": face}
     out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
                                hull_seconds=t_h, group_tier=None if screen is None else screen.tier,
                                group_seconds=0.0 if screen is None else screen.seconds)
