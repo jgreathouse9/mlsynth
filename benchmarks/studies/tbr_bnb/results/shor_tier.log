@@ -1,0 +1,43 @@
+# The Shor tier: every size certificate of every bed group (Clarabel, on the face, at 0b10280e), the Shor
+# solves it made and how many closed the size, with its seconds against the size certificates' total; then
+# certify_treatment on the GeoLift window at k = 4 (n_test 14, restarts 50, pass_restarts 10, n_jobs 1).
+bed       Shor solves  closed  Shor seconds  size-certificate seconds
+s15_k3            147       0           2.5                      25.9
+s20_k3            187       0           4.9                      60.8
+s20_k4             80       0           1.9                      23.9
+s30_k10           121       0           4.3                      52.7
+s30_k4            221       0          18.5                     204.1
+all               756       0          32.1                     367.3
+GeoLift k=4: 18 size certificates, 3 Shor solves, 0 closed; Shor 1.3 s, full 3.4 s; certified austin, dallas, minneapolis, reno in 36.4 s
+
+# The beds with the Shor tier off (at a3bf1a68, --workers 3), against the baseline recorded at 5cec50c3:
+s15_k3: 62 groups, nodes 960, Clarabel 149, Shor 0, open nodes 0, uncertified 0, rounded 76, optimum missed 0, 36.94 s
+    nodes        baseline    960  now    960  change +0
+    full         baseline    149  now    149  change +0
+    shor         baseline    147  now      0  change -147
+    open         baseline      0  now      0  change +0
+    uncertified  baseline      0  now      0  change +0
+s20_k3: 45 groups, nodes 1114, Clarabel 197, Shor 0, open nodes 7, uncertified 5, rounded 62, optimum missed 0, 72.38 s
+    nodes        baseline   1114  now   1114  change +0
+    full         baseline    197  now    197  change +0
+    shor         baseline    187  now      0  change -187
+    open         baseline      7  now      7  change +0
+    uncertified  baseline      5  now      5  change +0
+s20_k4: 21 groups, nodes 533, Clarabel 81, Shor 0, open nodes 1, uncertified 1, rounded 26, optimum missed 0, 27.94 s
+    nodes        baseline    533  now    533  change +0
+    full         baseline     81  now     81  change +0
+    shor         baseline     80  now      0  change -80
+    open         baseline      1  now      1  change +0
+    uncertified  baseline      1  now      1  change +0
+s30_k10: 13 groups, nodes 681, Clarabel 131, Shor 0, open nodes 4, uncertified 3, rounded 24, optimum missed 0, 48.37 s
+    nodes        baseline    681  now    681  change +0
+    full         baseline    131  now    131  change +0
+    shor         baseline    121  now      0  change -121
+    open         baseline      4  now      4  change +0
+    uncertified  baseline      3  now      3  change +0
+s30_k4: 25 groups, nodes 1400, Clarabel 258, Shor 0, open nodes 2, uncertified 2, rounded 48, optimum missed 0, 183.98 s
+    nodes        baseline   1400  now   1400  change +0
+    full         baseline    258  now    258  change +0
+    shor         baseline    221  now      0  change -221
+    open         baseline      2  now      2  change +0
+    uncertified  baseline      2  now      2  change +0

@@ -48,7 +48,9 @@ and the cuts and drops the bound products and the products of c'u; then the full
 relaxation with its rounds of triangles. On the 242 root sizes of the four-geo
 GeoLift search the first closed 43 of the 239 that had a previous size, the
 first-order method 240 of 242 at 0.04 s a size, the Shor relaxation 212 of 242 at
-0.37 s a solve, against 1.07 s for the full relaxation.
+0.37 s a solve, against 1.07 s for the full relaxation. Since the first-order method
+bounds the full rows, the Shor relaxation now closes nothing it leaves open (0 of 756
+sizes on the beds), so it is solved only when asked for (SHOR_TIER).
 
 The smoothing of T max(0, lambda_max(S)) is max {<Z, S> - a/2 ||Z||^2 : Z >= 0,
 tr Z <= T}, within a T^2 / 2 of it, with the maximiser given by projecting the
