@@ -1472,11 +1472,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (814 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (853 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 382 mutants of the 26
+but for the lines marked `pragma: no cover`, each with its reason. The 408 mutants of the 28
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers

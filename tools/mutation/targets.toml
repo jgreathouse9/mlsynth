@@ -12246,8 +12246,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-refresh-rate-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding, \"face\": face}\n"
   models = "clarabel_every accepted and validated but never reaching the branch and bound, which runs the default"
 
   [[target.mutant]]
@@ -12578,9 +12578,15 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "clarabel-starts-its-own-threads"
-  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())"
-  replace = "        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log())"
+  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())   # a thread pool"
+  replace = "        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log())   # a thread pool"
   models = "Clarabel left to its automatic threading, whose native thread pool a forked worker inherits without its threads, so certify_treatment(n_jobs > 1) hangs at its first Clarabel solve in a worker"
+
+  [[target.mutant]]
+  id = "the-face-solve-starts-its-own-threads"
+  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())   # one thread, as in solve()"
+  replace = "        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log())   # one thread, as in solve()"
+  models = "the face solve left to Clarabel's automatic threading, so a forked worker hangs at its first solve on a face"
 
   [[target.mutant]]
   id = "an-empty-node-is-searched"
@@ -12644,14 +12650,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-trace-bound-is-the-size"
-  find = "    return k + (1 + m) * max(Q(0), -low)\n"
-  replace = "    return k + m * max(Q(0), -low)\n"
+  find = "    full = k + (1 + m) * max(Q(0), -low)\n"
+  replace = "    full = k + m * max(Q(0), -low)\n"
   models = "the positive eigenvalue charged m times, though tr Z = 1 + m counts the constant entry"
 
   [[target.mutant]]
   id = "the-positive-eigenvalue-is-uncharged"
-  find = "    return k + (1 + m) * max(Q(0), -low)\n"
-  replace = "    return k + 0 * max(Q(0), -low)\n"
+  find = "    full = k + (1 + m) * max(Q(0), -low)\n"
+  replace = "    full = k + 0 * max(Q(0), -low)\n"
   models = "the Lagrangian's constant read as the bound, which holds only when S is negative semidefinite"
 
   [[target.mutant]]
@@ -12842,9 +12848,15 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "clarabel-never-logs"
-  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())"
-  replace = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=False)"
+  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())   # a thread pool"
+  replace = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=False)   # a thread pool"
   models = "verbose 4 accepted and Clarabel's iteration log never shown"
+
+  [[target.mutant]]
+  id = "the-face-solve-never-logs"
+  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())   # one thread, as in solve()"
+  replace = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=False)   # one thread, as in solve()"
+  models = "verbose 4 accepted and Clarabel's iteration log never shown for a solve on the face"
 
   [[target.mutant]]
   id = "a-rounded-incumbent-is-not-reported"
@@ -13926,8 +13938,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-rows-are-not-symmetrised"
-  find = "    K = (K + K[:, perm]) / 2\n"
-  replace = ""
+  find = "    return ((K + K[:, perm]) / 2).tocsr()\n"
+  replace = "    return K.tocsr()\n"
   models = "the reduced rows left on vec(W) unsymmetrised, so the products of sum u = m are not seen as 0 = 0"
 
   [[target.mutant]]
@@ -13944,8 +13956,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-c-rows-are-not-scaled-on-the-face"
-  find = "    scale = np.ones(Mi_r.shape[0]); scale[list(R.c_rows)] = 1.0 / c_scale\n"
-  replace = "    scale = np.ones(Mi_r.shape[0])\n"
+  find = "    scale = np.ones(R.n_in); scale[list(R.c_rows)] = 1.0 / c_scale\n"
+  replace = "    scale = np.ones(R.n_in)\n"
   models = "the rows carrying c solved unscaled while slopefree divides their multipliers by the scale"
 
 [[target]]
