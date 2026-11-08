@@ -233,6 +233,17 @@ def test_a_log_flushes_in_parts_and_reads_back_whole(tmp_path, monkeypatch):
     assert len(parts) > 1 and len(read_log(tmp_path / "log")) == len(seen)
 
 
+def test_each_sink_keeps_its_own_level(tmp_path, capsys):
+    """Printing at 1 beside a log at 3: the log holds the nodes and solves, the
+    printer none of them."""
+    y, X = _branching()
+    certify_slope_free(y, X, restarts=5, verbose=1, log=tmp_path / "log", log_level=3)
+    err = capsys.readouterr().err
+    kinds = set(read_log(tmp_path / "log")["kind"])
+    assert {"node", "solve"} <= kinds
+    assert " size " in err and " node " not in err and " solve " not in err
+
+
 def test_the_log_level_is_its_own():
     import tempfile
     from pathlib import Path
