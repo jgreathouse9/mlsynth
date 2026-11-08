@@ -90,6 +90,7 @@ from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 
 from .certificate import ExactData, _dot_err, round_down
+from .progress import clarabel_log, emit, reporting
 
 
 def dyadic_below(q) -> Q:
@@ -239,7 +240,15 @@ def solve(c, G, lam, R: Rows) -> Solve:
     ce = Me @ z == np.asarray(R.beq, dtype=float)
     ci = Mi @ z <= np.asarray(R.bin, dtype=float)
     prob = cp.Problem(cp.Maximize(cp.trace(A0 @ Z)), [Z >> 0, ce, ci])
-    prob.solve(solver="CLARABEL", max_threads=1)   # a thread pool would hang a worker forked after it
+    t0 = time.perf_counter()
+    try:
+        prob.solve(solver="CLARABEL", max_threads=1, verbose=clarabel_log())   # a thread pool would hang a worker forked after it
+    except cp.error.SolverError:
+        emit("solve", relaxation=R.level, rows_eq=R.n_eq, rows_in=R.n_in, status="error",
+             seconds=time.perf_counter() - t0)
+        raise
+    emit("solve", relaxation=R.level, rows_eq=R.n_eq, rows_in=R.n_in, status=prob.status,
+         seconds=time.perf_counter() - t0)
     if ce.dual_value is None:            # pragma: no cover - Clarabel returns duals whenever it returns
         return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((n, n)), prob.status)
     y_in = np.array(ci.dual_value, dtype=float) * s
@@ -539,13 +548,15 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     R = Rows(c, m, cuts=cuts, fixes=fixes)
     point = None
     for rung, (maxfun, stages, budget) in enumerate(schedules):
+        t1 = time.perf_counter()
         w, info = dual_multipliers(A, R, m, c, warm=warm if rung == 0 else None,
                                    maxfun=maxfun, stages=stages, budget=budget)
         point = info.get("point") if info else None
-        if w is not None:
-            b = bound(A, R, w.y_eq, w.y_in, m)
-            if b is not None and b <= 0:
-                return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="dual", multipliers=w)
+        b = bound(A, R, w.y_eq, w.y_in, m) if w is not None else None
+        closed = b is not None and b <= 0
+        emit("schedule", m=m, rung=rung, maxfun=maxfun, closed=closed, seconds=time.perf_counter() - t1)
+        if closed:
+            return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="dual", multipliers=w)
     tri: List = []
     for r in range(1, first_order_rounds + 1):
         if point is None:
@@ -555,14 +566,16 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
         if not new:
             break
         tri += new
+        t1 = time.perf_counter()
         Rt = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes)
         maxfun, stages, budget = schedules[-1]
         w, info = dual_multipliers(A, Rt, m, c, maxfun=maxfun, stages=stages, budget=budget)
         point = info.get("point") if info else None
-        if w is not None:
-            b = bound(A, Rt, w.y_eq, w.y_in, m)
-            if b is not None and b <= 0:
-                return SizeResult(True, b, r, len(tri), time.perf_counter() - t0, tier="triangles")
+        b = bound(A, Rt, w.y_eq, w.y_in, m) if w is not None else None
+        closed = b is not None and b <= 0
+        emit("triangles", m=m, round=r, triangles=len(tri), closed=closed, seconds=time.perf_counter() - t1)
+        if closed:
+            return SizeResult(True, b, r, len(tri), time.perf_counter() - t0, tier="triangles")
     if not relaxations:
         return SizeResult(False, None, 0, len(tri), time.perf_counter() - t0, None, tier="first-order")
     R = Rows(c, m, cuts=cuts, fixes=fixes, level="shor")
@@ -656,11 +669,13 @@ def group_certificate(c, G, lam, schedules: Optional[Tuple[Tuple[int, int, int],
     R = Rows(c, None)
     b = None
     for rung, (maxfun, stages, budget) in enumerate(schedules):
+        t1 = time.perf_counter()
         w, _ = dual_multipliers(A, R, R.p, c, maxfun=maxfun, stages=stages, budget=budget)
-        if w is None:
-            continue
-        b = group_bound(A, R, w.y_eq, w.y_in)
-        if b is not None and b <= 0:
+        if w is not None:
+            b = group_bound(A, R, w.y_eq, w.y_in)
+        closed = w is not None and b is not None and b <= 0
+        emit("schedule", m=None, rung=rung, maxfun=maxfun, closed=closed, seconds=time.perf_counter() - t1)
+        if closed:
             return GroupResult(True, b, "dual", time.perf_counter() - t0, rung)
     try:
         sol = solve(c, G, lam, R)
@@ -784,6 +799,7 @@ def price_subtree(c, G, out, m, fixes, inc, excluded):
     gen = itertools.combinations(range(len(F)), k)
     cands = []
     out.priced_nodes += 1
+    t0, priced0, exact0 = time.perf_counter(), out.priced, out.exact
     while True:
         chunk = list(itertools.islice(gen, per))
         if not chunk:
@@ -802,6 +818,9 @@ def price_subtree(c, G, out, m, fixes, inc, excluded):
         cu, r = _ratio(c, G, C)
         if cu > 0 and r > inc["lam"] and C not in excluded:
             inc.update(lam=r, C=C)
+            emit("incumbent", ratio=r, controls=sorted(C), source="price", m=m, depth=len(fixes))
+    emit("price", m=m, depth=len(fixes), designs=out.priced - priced0, exact=out.exact - exact0,
+         seconds=time.perf_counter() - t0)
 
 
 def rounded_design(u, fixes, m) -> Set[int]:
@@ -856,6 +875,12 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     if ones > m or len(fixes) - ones > p - m:
         return
     out.nodes += 1
+    t0 = time.perf_counter()
+
+    def node(outcome, tier=None, control=None):
+        emit("node", m=m, depth=depth, ones=ones, outcome=outcome, tier=tier, control=control,
+             seconds=time.perf_counter() - t0)
+
     if ones == m or len(fixes) - ones == p - m:   # the fixings leave one design: evaluate it
         C = {j for j, v in fixes if v}
         if ones < m:                              # every free geo is in
@@ -863,9 +888,12 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
         cu, r = _ratio(c, G, C)
         if cu > 0 and r > inc["lam"] and C not in excluded:
             inc.update(lam=r, C=C)
+            emit("incumbent", ratio=r, controls=sorted(C), source="leaf", m=m, depth=depth)
+        node("leaf")
         return
     if math.comb(p - len(fixes), m - ones) <= PRICE_LIMIT:   # cheaper_to_price at the cost model
         price_subtree(c, G, out, m, fixes, inc, excluded)
+        node("priced")
         return
     every = inc.get("every", CLARABEL_EVERY)
     relax = depth % every == 0 or parent_u is None
@@ -875,6 +903,7 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     if res.certified:
         if not fixes and res.multipliers is not None:
             inc["warm"] = res.multipliers       # the next size's first try
+        node("pruned", res.tier)
         return
     if res.u is not None and inc.get("round", ROUND_NODES):   # only a node that solved the relaxations has a point
         C = rounded_design(res.u, fixes, m)
@@ -882,12 +911,15 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
         if cu > 0 and r > inc["lam"] and C not in excluded:
             inc.update(lam=r, C=C)
             out.rounded += 1
+            emit("incumbent", ratio=r, controls=sorted(C), source="rounding", m=m, depth=depth)
     if depth >= max_depth:
         out.open.append((m, tuple(fixes)))
+        node("open", res.tier)
         return
     free = [j for j in range(p) if j not in dict(fixes)]
     u = res.u if relax else parent_u
     j = min(free, key=lambda j: abs(u[j] - 0.5)) if u is not None else free[0]
+    node("branched", res.tier, j)
     for v in (1, 0):
         _branch(c, G, out, m, cuts, fixes + [(j, v)], rounds, per_round, depth + 1, max_depth, inc, excluded,
                 parent_u=u)
@@ -918,14 +950,26 @@ def _best_neighbour(c, G, seeds, excluded):
     return None if best is None else best[1]
 
 
-def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed: int = 0,
-                       rounds: int = 6, per_round: int = 400, max_depth: int = 12,
-                       hull: bool = True, exclude: Sequence[Set[int]] = (),
-                       ceiling: Optional[Q] = None,
-                       start: Optional[Set[int]] = None,
-                       group_screen: bool = True,
-                       clarabel_every: int = CLARABEL_EVERY,
-                       rounding: bool = ROUND_NODES) -> SlopeFreeCertificate:
+def certify_slope_free(y: np.ndarray, X: np.ndarray, *, verbose: int = 0, progress=None, log=None,
+                       log_level: int = 3, **search) -> SlopeFreeCertificate:
+    """``_certify_slope_free`` (below) with its progress reported (progress.reporting):
+    ``verbose`` 1-4 prints the events to stderr, ``progress`` is called with each, and
+    ``log`` writes them to a parquet dataset."""
+    with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):
+        out = _certify_slope_free(y, X, **search)
+        emit("slope-free-done", certified=out.certified, nodes=out.nodes, ratio=out.ratio,
+             controls=out.controls, seconds=out.seconds)
+        return out
+
+
+def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed: int = 0,
+                        rounds: int = 6, per_round: int = 400, max_depth: int = 12,
+                        hull: bool = True, exclude: Sequence[Set[int]] = (),
+                        ceiling: Optional[Q] = None,
+                        start: Optional[Set[int]] = None,
+                        group_screen: bool = True,
+                        clarabel_every: int = CLARABEL_EVERY,
+                        rounding: bool = ROUND_NODES) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -986,9 +1030,11 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     test = lam
     if ceiling is not None and D.yy - ceiling > lam:
         test = D.yy - ceiling              # only a design below the ceiling matters
+    emit("slope-free", p=p, ratio=lam, test_ratio=test, excluded=len(excluded))
     screen = None
     if group_screen and test > lam:
         screen = group_certificate(c, G, test)
+        emit("screen", certified=screen.certified, tier=screen.tier, rung=screen.rung, seconds=screen.seconds)
         if screen.certified:               # no design of any size is below the ceiling
             return SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=[],
                                         certified=True, ceiling_held=True, group_tier=screen.tier,
@@ -1002,14 +1048,16 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
         s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - test)
         sizes = sorted({pc[2] for pc in s1})
         t_h = time.perf_counter() - t0
+        emit("hull", sizes=sizes, seconds=t_h)
     inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding}
     out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
                                hull_seconds=t_h, group_tier=None if screen is None else screen.tier,
                                group_seconds=0.0 if screen is None else screen.seconds)
     for m in sizes:                      # a size certified at a ratio stays certified at a larger one
-        t0 = time.perf_counter(); n0 = out.nodes
+        t0 = time.perf_counter(); n0 = out.nodes; o0 = len(out.open)
         _branch(c, G, out, m, excluded + [set(inc["C"])], [], rounds, per_round, 0, max_depth, inc, excluded)
         out.sizes[m] = dict(nodes=out.nodes - n0, seconds=time.perf_counter() - t0)
+        emit("size", m=m, nodes=out.nodes - n0, open=len(out.open) - o0, seconds=out.sizes[m]["seconds"])
     out.ceiling_held = inc["lam"] == test and test > lam
     if out.ceiling_held:                  # no design beat the ceiling: report the incumbent itself
         inc.update(lam=lam)
