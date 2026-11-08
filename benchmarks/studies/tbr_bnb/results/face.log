@@ -40,3 +40,27 @@
 == test_node_rounding's fixture: group 0 of s30_k10 (seed 0) on the face
    rounding off: not certified, one open node at size 8, q = 1, depth 12; rounding on: the same
    group 10 of s30_k10 (seed 31): rounding off 112 nodes, on 72, both certified on the face
+
+== The 100-geo group (4, 27, 33, 58) of geo_panel(0, n=90, p=100), restarts 50, at the profile's ratio: one Shor and
+   one full solve (no triangles) at the size-21 and size-24 roots, off and on the face, both arms at once
+   (beside one mutation-runner process); gap is (exact bound at the solve's multipliers - value) / value
+   size 21  shor  off   35.6 s  optimal_inaccurate  gap 6.4e-7  fractional 96 of 96  closes no
+   size 21  shor  face  42.3 s  optimal             gap 1.8e-7  fractional 96 of 96  closes no
+   size 21  full  off  118.9 s  optimal_inaccurate  gap 6.2e-4  fractional 91 of 96  closes no
+   size 21  full  face 149.6 s  optimal_inaccurate  gap 4.8e-6  fractional 72 of 96  closes no
+   size 24  shor  off   37.9 s  optimal_inaccurate  gap 4.3e-7  fractional 96 of 96  closes no
+   size 24  shor  face  50.3 s  optimal             gap 7.4e-8  fractional 96 of 96  closes no
+   size 24  full  off  107.9 s  optimal_inaccurate  gap 3.3e-4  fractional 91 of 96  closes no
+   size 24  full  face 137.8 s  optimal_inaccurate  gap 7.3e-5  fractional 77 of 96  closes no
+   the rows at size 21: Shor 195 rows, 9,697 nonzeros, on the face 98 rows, 9,693 nonzeros;
+   full 18,627 rows, 73,825 nonzeros, on the face 18,530 rows, 262,300 nonzeros, 574 rows with more than 50 entries
+   (the pair rows touching the pivot, whose row of T is q e_0 less every other free control)
+
+== A node with no design with c'u >= 0 (panel(17, p=6), size 3, control 0 fixed out)
+   off the face Clarabel reports infeasible with no point; the first build's face solve raised a TypeError lifting
+   the point that was not returned; it now reports infeasible with no point, as off the face. size_certificate
+   closes the node at its dual tier on and off the face, before any solve.
+   over 2,400 face solves on panel(seed, p), seeds 0-59, p 5-6, every size, four fixings: 13 such nodes (26 solves);
+   on the rest every Shor solve is optimal (1,187 of 1,187), full solves 1,137 optimal and 50 optimal_inaccurate,
+   and the gap between the exact bound at the solve's multipliers and its value is at most 3.1e-7 of the objective's
+   scale at either level and status

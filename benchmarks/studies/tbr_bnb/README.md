@@ -959,6 +959,25 @@ the node-rounding tests' former fixture, is one: on the face it stops at one ope
 node of size 8 at depth 12 with and without rounding, so the tests moved to group
 10, which certifies both ways (112 nodes without rounding, 72 with).
 
+At 96 candidate controls the face costs time. At the size-21 and size-24 roots of
+the 100-geo group (4, 27, 33, 58), both arms at once (`results/face.log`):
+
+| root | Shor seconds | Shor status | full seconds | full status | full-level gap |
+| --- | --- | --- | --- | --- | --- |
+| size 21 | 35.6 → 42.3 | inaccurate → `optimal` | 118.9 → 149.6 | inaccurate → inaccurate | 6.2e-4 → 4.8e-6 |
+| size 24 | 37.9 → 50.3 | inaccurate → `optimal` | 107.9 → 137.8 | inaccurate → inaccurate | 3.3e-4 → 7.3e-5 |
+
+The gap is the exact bound at the solve's multipliers less the solve's value,
+relative to the value; neither root closes at either level, on or off the face. The
+full level's pair rows that touch the pivot densify on the face, since the pivot's
+row of T is q e_0 less every other free control: 262,300 nonzeros against 73,825,
+574 rows with more than 50 entries. The Shor rows keep their nonzeros (9,693 against
+9,697), so their slower solves are not the density's.
+
+A node whose fixings leave no design with c'u >= 0 has an infeasible relaxation.
+Off the face Clarabel reports it with no point; the face solve reports the same.
+`size_certificate` closes such a node at its dual tier before any solve.
+
 `FACE = True` is the default; `certify_slope_free(face=False)` solves in the full
 space.
 

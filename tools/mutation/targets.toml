@@ -13943,6 +13943,12 @@ test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_face.py -q -p n
 timeout = 600.0
 
   [[target.mutant]]
+  id = "an-infeasible-face-solve-lifts-nothing"
+  find = "    Z = None if W.value is None else T @ W.value @ T.T   # no point when Clarabel finds none (an infeasible node), as off the face\n"
+  replace = "    Z = T @ W.value @ T.T\n"
+  models = "a node whose fixings leave no design with c'u >= 0 lifted from a point Clarabel did not return, a TypeError where the full space reports infeasible"
+
+  [[target.mutant]]
   id = "the-rows-ignore-the-face-flag"
   find = "        self.face = _face.face_of(p, m, fixes) if face else None   # Z = T W T' on it (face.py)\n"
   replace = "        self.face = None\n"
@@ -13956,8 +13962,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-face-multipliers-keep-the-c-scale"
-  find = "    y_in[R.c_rows] /= cs\n    return Solve(float(prob.value), s, y_eq, y_in, T @ W.value @ T.T, prob.status, face=True)\n"
-  replace = "    return Solve(float(prob.value), s, y_eq, y_in, T @ W.value @ T.T, prob.status, face=True)\n"
+  find = "    y_in[R.c_rows] /= cs\n    Z = None if W.value is None else T @ W.value @ T.T"
+  replace = "    Z = None if W.value is None else T @ W.value @ T.T"
   models = "the face solve's c-row multipliers returned in the scaled rows' units"
 
   [[target.mutant]]

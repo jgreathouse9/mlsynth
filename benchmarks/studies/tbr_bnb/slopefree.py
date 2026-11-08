@@ -292,7 +292,8 @@ def _solve_on_face(R: Rows, A0, s, cs) -> Solve:
     y_eq = np.zeros(R.n_eq); y_eq[keep_e] = np.asarray(ce.dual_value, dtype=float) * s
     y_in = np.zeros(R.n_in); y_in[keep_i] = np.asarray(ci.dual_value, dtype=float) * s
     y_in[R.c_rows] /= cs
-    return Solve(float(prob.value), s, y_eq, y_in, T @ W.value @ T.T, prob.status, face=True)
+    Z = None if W.value is None else T @ W.value @ T.T   # no point when Clarabel finds none (an infeasible node), as off the face
+    return Solve(float(prob.value), s, y_eq, y_in, Z, prob.status, face=True)
 
 
 def _slack(A, R: Rows, y_eq, y_in):

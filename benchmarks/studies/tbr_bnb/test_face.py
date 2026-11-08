@@ -285,11 +285,15 @@ def test_property_the_face_bound_is_never_below_a_design(seed, m, nfix, div, sca
 @given(seed=st.integers(0, 10_000), p=st.sampled_from([5, 6]), data=st.data())
 def test_property_the_face_solve_certifies_its_own_value(seed, p, data):
     """Strong duality on the face: the exact bound at the face solve's multipliers,
-    returned to the data's units, is the solve's value. Off the face the forced
-    null directions leave no interior and no such guarantee; on the beds' panels
-    the gap is under 1e-7 relative on every solve. Multipliers in the wrong units
-    (the rows carrying c unscaled, or scaled twice) open it by 3% to 600% at the
-    full level."""
+    returned to the data's units, is the solve's value to the solver's tolerance,
+    measured against the objective's scale (Clarabel's tolerances are relative to
+    the data). Over 2,400 solves on these panels the gap is at most 3.1e-7 of the
+    scale at both levels, `optimal_inaccurate` full solves included, and every Shor
+    solve is `optimal`; the full level is not always (its pair rows leave a second
+    degeneracy the face does not remove). Multipliers in the wrong units (the rows
+    carrying c unscaled, or scaled twice) open the gap by 3% to 600% of the value at
+    the full level. A node whose fixings leave no design with c'u >= 0 has an
+    infeasible relaxation, reported as such."""
     y, X = panel(seed % 60, p=p)
     D = ExactData(y, X)
     best, _ = positive_optimum(y, X)
@@ -297,14 +301,19 @@ def test_property_the_face_solve_certifies_its_own_value(seed, p, data):
     m = data.draw(st.integers(2, p - 2))
     j = data.draw(st.integers(0, p - 1))
     fixes = data.draw(st.sampled_from([(), ((j, 0),), ((j, 1),)]))
+    feasible = any(sum(D.c[i] for i in C) >= 0 for C in _designs(p, m, fixes))
     A = objective(D.c, D.G, lam)
     for level in ("shor", "full"):
         R = Rows(D.c, m, fixes=fixes, level=level, face=True)
         s = solve(D.c, D.G, lam, R)
-        assert s.face and s.status == "optimal"
+        assert s.face
+        if not feasible:
+            assert s.status in ("infeasible", "infeasible_inaccurate") and s.Z is None
+            continue
+        assert s.status == "optimal" if level == "shor" else s.status in ("optimal", "optimal_inaccurate")
         v = s.value * s.scale
         b = float(bound(A, R, s.y_eq, s.y_in, m))
-        assert abs(b - v) <= 1e-5 * max(1.0, abs(v)), (level, b, v)
+        assert abs(b - v) <= 1e-5 * s.scale, (level, s.status, b, v, s.scale)
 
 
 @settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -350,6 +359,27 @@ def test_one_free_control():
     assert T.shape == (5, 1)
     z = _lifted(4, (0, 3))
     assert np.array_equal(T.dot(z[list(F.index)]), z)
+
+
+def test_an_infeasible_node_is_reported_as_off_the_face():
+    """Fixings that leave no design with c'u >= 0 make the relaxation infeasible.
+    Off the face Clarabel reports it with no point; on the face the solve reports
+    the same, not an error from lifting a point that does not exist. The search
+    closes such a node at its dual tier before any solve (the size certificate is
+    the same on and off the face)."""
+    y, X = panel(17, p=6)
+    D = ExactData(y, X)
+    best, _ = positive_optimum(y, X)
+    lam = slopefree.dyadic_below(best * 0.99)
+    assert not any(sum(D.c[i] for i in C) >= 0 for C in _designs(6, 3, ((0, 0),)))
+    for level in ("shor", "full"):
+        on = solve(D.c, D.G, lam, Rows(D.c, 3, fixes=((0, 0),), level=level, face=True))
+        off = solve(D.c, D.G, lam, Rows(D.c, 3, fixes=((0, 0),), level=level))
+        assert off.status == "infeasible" and off.Z is None
+        assert on.face and on.status == off.status and on.Z is None and on.value == -np.inf
+    on = slopefree.size_certificate(D.c, D.G, lam, 3, fixes=[(0, 0)], face=True)
+    off = slopefree.size_certificate(D.c, D.G, lam, 3, fixes=[(0, 0)], face=False)
+    assert on.certified and off.certified and on.bound == off.bound
 
 
 # ---------------------------------------------------------------- failures
