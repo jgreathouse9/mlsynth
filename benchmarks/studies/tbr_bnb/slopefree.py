@@ -849,7 +849,8 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     incumbent replaces it, so the nodes after it are bounded at the higher ratio.
     Rounding prunes nothing by itself. On two beds of 30 simulated units (38 branching
     groups, every second level) it found 72 better incumbents and took 13% fewer nodes
-    and 6% fewer Clarabel solves; a node re-checked at the new ratio never closed."""
+    and 19% fewer Clarabel solves; in a prototype a node re-checked at the new ratio
+    never closed, so there is no re-check."""
     p = len(c)
     ones = sum(v for _, v in fixes)
     if ones > m or len(fixes) - ones > p - m:
