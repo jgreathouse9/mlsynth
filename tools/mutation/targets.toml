@@ -13863,3 +13863,135 @@ timeout = 900.0
   find = "    if progress is not None and not callable(progress):\n"
   replace = "    if False:\n"
   models = "a string given as progress, which fails at the first event instead of at the call"
+
+[[target]]
+name = "tbr-bnb-face"
+module-path = "benchmarks/studies/tbr_bnb/face.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_face.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-pivot-carries-one-less-than-the-size"
+  find = "        cols = [[(0, 1), (self.pivot + 1, self.q)] + [(o + 1, 1) for o in self.ones]]\n"
+  replace = "        cols = [[(0, 1), (self.pivot + 1, self.q - 1)] + [(o + 1, 1) for o in self.ones]]\n"
+  models = "the pivot's row written as (q - 1) e_0 - sum e_j, so a design's z is not in T's range"
+
+  [[target.mutant]]
+  id = "the-controls-fixed-in-are-mapped-to-zero"
+  find = "        cols = [[(0, 1), (self.pivot + 1, self.q)] + [(o + 1, 1) for o in self.ones]]\n"
+  replace = "        cols = [[(0, 1), (self.pivot + 1, self.q)]]\n"
+  models = "a control fixed in treated as fixed out, its row of T zero where it is e_0"
+
+  [[target.mutant]]
+  id = "the-trace-bound-is-q"
+  find = "        return 1 + self.q\n"
+  replace = "        return self.q\n"
+  models = "tr W bounded by q, forgetting W_00 = 1, so the face bound can fall below a design"
+
+  [[target.mutant]]
+  id = "the-slack-drops-the-pivot-coefficient"
+  find = "            return [sum((take(zi) * v for zi, v in col[1:]), take(col[0][0]) * col[0][1]) for col in cols]\n"
+  replace = "            return [sum((take(zi) * v for zi, v in col[1:]), take(col[0][0])) for col in cols]\n"
+  models = "T'ST built with the first entry of each column at coefficient one"
+
+  [[target.mutant]]
+  id = "the-slack-loses-its-exponent"
+  find = "        return Dyadic(M, D.e)\n"
+  replace = "        return Dyadic(M, 0)\n"
+  models = "T'NT read as integers, not N / 2**e, so the face bound scales by 2**e"
+
+  [[target.mutant]]
+  id = "a-control-fixed-both-ways-is-accepted"
+  find = "        if j in fx and fx[j] != v:\n"
+  replace = "        if False:\n"
+  models = "contradictory fixings taken as the last one given, a node with no design solved as if it had one"
+
+  [[target.mutant]]
+  id = "a-node-with-every-slot-fixed-in-gets-a-face"
+  find = "    if not free or q == 0:\n"
+  replace = "    if not free:\n"
+  models = "q = 0 given a face whose pivot row is - sum e_j, a one-design node solved as a relaxation"
+
+  [[target.mutant]]
+  id = "the-rows-are-not-symmetrised"
+  find = "    K = (K + K[:, perm]) / 2\n"
+  replace = ""
+  models = "the reduced rows left on vec(W) unsymmetrised, so the products of sum u = m are not seen as 0 = 0"
+
+  [[target.mutant]]
+  id = "w00-is-dropped-as-a-constant"
+  find = "            constant[0] = False                               # Z_00 = 1 is W_00 = 1\n"
+  replace = ""
+  models = "Z_00 = 1 dropped as a row the face satisfies, leaving W unscaled"
+
+  [[target.mutant]]
+  id = "a-violated-row-on-the-face-is-dropped"
+  find = "            if (equality and const != b) or (not equality and const > b):\n"
+  replace = "            if False:\n"
+  models = "a structural row the face violates dropped with the satisfied ones, a node with no design solved"
+
+  [[target.mutant]]
+  id = "the-c-rows-are-not-scaled-on-the-face"
+  find = "    scale = np.ones(Mi_r.shape[0]); scale[list(R.c_rows)] = 1.0 / c_scale\n"
+  replace = "    scale = np.ones(Mi_r.shape[0])\n"
+  models = "the rows carrying c solved unscaled while slopefree divides their multipliers by the scale"
+
+[[target]]
+name = "tbr-bnb-slope-free-face"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_face.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-rows-ignore-the-face-flag"
+  find = "        self.face = _face.face_of(p, m, fixes) if face else None   # Z = T W T' on it (face.py)\n"
+  replace = "        self.face = None\n"
+  models = "face=True accepted by Rows and the relaxation built in the full space"
+
+  [[target.mutant]]
+  id = "the-solve-ignores-the-face"
+  find = "    if R.face is not None:\n        return _solve_on_face(R, A0, s, cs)\n"
+  replace = ""
+  models = "a face built and the relaxation solved in the full space, without an interior"
+
+  [[target.mutant]]
+  id = "the-face-multipliers-keep-the-c-scale"
+  find = "    y_in[R.c_rows] /= cs\n    return Solve(float(prob.value), s, y_eq, y_in, T @ W.value @ T.T, prob.status, face=True)\n"
+  replace = "    return Solve(float(prob.value), s, y_eq, y_in, T @ W.value @ T.T, prob.status, face=True)\n"
+  models = "the face solve's c-row multipliers returned in the scaled rows' units"
+
+  [[target.mutant]]
+  id = "the-bound-ignores-the-face"
+  find = "    if R.face is not None:\n        t = _face.trace_term(R.face, D)\n"
+  replace = "    if False:\n        t = _face.trace_term(R.face, D)\n"
+  models = "the face bound never computed, so nodes it closes stay open"
+
+  [[target.mutant]]
+  id = "the-bound-is-the-face-alone"
+  find = "    return full if on_face is None else min(full, on_face)\n"
+  replace = "    return full if on_face is None else on_face\n"
+  models = "the face bound returned where the full-space bound is smaller (T is not orthonormal)"
+
+  [[target.mutant]]
+  id = "the-screen-ignores-the-face"
+  find = "    if R.face is None:\n        return full\n"
+  replace = "    return full\n"
+  models = "the float screen reading the full-space bound only, so it calls a face-closable node open"
+
+  [[target.mutant]]
+  id = "the-face-is-off-by-default"
+  find = "FACE = True\n"
+  replace = "FACE = False\n"
+  models = "the measured default reverted, every relaxation solved without an interior"
+
+  [[target.mutant]]
+  id = "the-size-certificate-ignores-its-face-argument"
+  find = "    face = FACE if face is None else face\n"
+  replace = "    face = FACE\n"
+  models = "size_certificate's face accepted and replaced by the default"
+
+  [[target.mutant]]
+  id = "the-search-drops-the-face"
+  find = "                           face=inc.get(\"face\", FACE))\n"
+  replace = "                           face=FACE)\n"
+  models = "certify_slope_free(face=False) accepted and the branches solved on the face anyway"

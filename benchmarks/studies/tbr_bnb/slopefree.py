@@ -88,6 +88,7 @@ import scipy.sparse as sp
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
+from mlsynth.utils.marex_helpers.certify import Dyadic
 
 from . import face as _face
 from .certificate import ExactData, _dot_err, round_down
@@ -328,13 +329,14 @@ def bound(A, R: Rows, y_eq, y_in, m) -> Optional[Q]:
     if any(q.denominator & (q.denominator - 1) for q in S.flat):
         raise ValueError("the certificate's matrix must be dyadic: pass lam through dyadic_below "
                          "(mlsynth's _from_fractions reads every entry as a dyadic rational)")
+    D = _from_fractions(S.tolist())
     on_face = None
     if R.face is not None:
-        t = _face.trace_term(R.face, S)
+        t = _face.trace_term(R.face, D)
         on_face = None if t is None else k + t
         if on_face is not None and on_face <= 0:
             return on_face
-    low = lambda_min_lower(_from_fractions((-S).tolist()))   # lambda_max(S) <= -low
+    low = lambda_min_lower(Dyadic(-D.N, D.e))   # lambda_max(S) <= -low
     if low is None:  # pragma: no cover - 40 quadrupled shifts factor any finite symmetric matrix, and S is finite
         return on_face
     full = k + (1 + m) * max(Q(0), -low)

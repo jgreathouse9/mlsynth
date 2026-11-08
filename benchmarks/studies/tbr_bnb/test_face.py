@@ -18,6 +18,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.utils.marex_helpers.certify import Dyadic
 
 from . import face as fc
 from . import slopefree
@@ -110,13 +111,36 @@ def test_the_basis_is_integer_with_one_dense_row():
     assert F.q == 3 - 1 and F.trace == 1 + F.q
 
 
+def _dyadic_slack(rng, p, e):
+    N = rng.integers(-9, 9, (p + 1, p + 1))
+    N = np.array(N + N.T, dtype=object)
+    return Dyadic(N, e), np.array([[Q(int(v), 1 << e) for v in row] for row in N], dtype=object)
+
+
 def test_the_slack_is_t_transpose_s_t():
-    rng = np.random.default_rng(0)
+    """T'ST in S's dyadic exponent, from integers: no rational arithmetic."""
     F = fc.face_of(6, 3, ((1, 1), (4, 0)))
     T = F.integer_basis()
-    S = np.array([[Q(int(v)) for v in row] for row in rng.integers(-9, 9, (7, 7))], dtype=object)
-    S = (S + S.T) / 2
-    assert np.array_equal(F.slack(S), T.T.dot(S).dot(T))
+    D, S = _dyadic_slack(np.random.default_rng(0), 6, 3)
+    M = F.slack(D)
+    assert isinstance(M, Dyadic) and M.e == D.e
+    assert all(isinstance(v, int) for v in M.N.flat)
+    assert np.array_equal(M.N / Q(1 << M.e), T.T.dot(S).dot(T))
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10_000), p=st.integers(2, 9), e=st.integers(0, 6), data=st.data())
+def test_property_the_slack_is_t_transpose_s_t(seed, p, e, data):
+    m = data.draw(st.integers(1, p))
+    js = data.draw(st.lists(st.integers(0, p - 1), unique=True, max_size=p))
+    ins = data.draw(st.integers(0, min(len(js), m)))
+    F = fc.face_of(p, m, [(j, int(i < ins)) for i, j in enumerate(js)])
+    if F is None:
+        return
+    T = F.integer_basis()
+    D, S = _dyadic_slack(np.random.default_rng(seed), p, e)
+    M = F.slack(D)
+    assert M.e == D.e and np.array_equal(M.N / Q(1 << M.e), T.T.dot(S).dot(T))
 
 
 def test_the_rows_the_face_satisfies_are_dropped():
@@ -178,7 +202,7 @@ def test_the_trace_on_the_face_is_one_plus_q():
     T = F.integer_basis()
     M = T.T.dot(T)
     lam_max = max(np.linalg.eigvalsh(np.array(M, dtype=float)))
-    got = fc.trace_term(F, np.eye(6, dtype=object) * Q(1))
+    got = fc.trace_term(F, Dyadic(np.eye(6, dtype=int).astype(object), 0))
     assert float(got) >= (1 + F.q) * lam_max * (1 - 1e-12)
     assert float(got) <= (1 + F.q) * lam_max * (1 + 1e-6)
 

@@ -33,9 +33,12 @@ def _bound_every_node(monkeypatch):
 
 @pytest.fixture(scope="module")
 def bed_group():
-    """30 simulated units, 20 periods, treatment (0, 6, 10, 15, 16, 18, 19, 22, 23, 28):
-    a group whose certificate branches and whose start design rounding improves."""
-    return _split(geo_panel(0, n=20, p=30), (0, 6, 10, 15, 16, 18, 19, 22, 23, 28))[:2]
+    """30 simulated units, 20 periods, treatment (1, 2, 10, 11, 13, 14, 17, 19, 20, 22),
+    group 10 of the s30_k10 bed: a group whose certificate branches and whose start
+    design rounding improves, 112 nodes without rounding and 72 with it. Group 0 of the
+    bed, used before the face (face.py), reaches the depth limit on the face with and
+    without rounding: one open node at size 8, q = 1, depth 12."""
+    return _split(geo_panel(31, n=20, p=30), (1, 2, 10, 11, 13, 14, 17, 19, 20, 22))[:2]
 
 
 # ---------------------------------------------------------------- smoke

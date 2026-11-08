@@ -37,9 +37,10 @@ Two uses.
   * The certificate (``face_bound``): for any multipliers, <S, Z> = <T'ST, W> and
     tr W = 1 + sum_{F - r} u_j <= 1 + q (u_r = U_rr >= 0), so every design's value is
     at most k + (1 + q) max(0, lambda_max(T'ST)), exactly, since T'ST is an integer
-    combination of S's dyadic entries. T is not orthonormal, so at multipliers far
-    from the face's this can exceed the full-space bound k + (1 + m)
-    max(0, lambda_max(S)); slopefree.bound takes the smaller of the two.
+    combination of S's dyadic entries, computed in S's exponent from integers. T is
+    not orthonormal, so at multipliers far from the face's this can exceed the
+    full-space bound k + (1 + m) max(0, lambda_max(S)); slopefree.bound takes the
+    smaller of the two.
 
 A structural row (every row but those carrying c) that reduces on the face to a
 constant it does not meet means the node holds no design: ``reduce`` raises
@@ -54,6 +55,8 @@ from typing import Optional, Sequence, Tuple
 
 import numpy as np
 import scipy.sparse as sp
+
+from mlsynth.utils.marex_helpers.certify import Dyadic
 
 
 class FaceError(ValueError):
@@ -96,17 +99,23 @@ class Face:
                 rows.append(zi); cols.append(k); vals.append(float(v))
         return sp.csr_matrix((vals, (rows, cols)), shape=(self.p + 1, len(self.index)))
 
-    def slack(self, S: np.ndarray) -> np.ndarray:
-        """T'ST from the rational S, by T's sparse columns: k^2 entries of a few terms
-        each, not a dense product."""
-        cols = self.columns()
-        X = [[sum((v * S[i, zi] for zi, v in col), Q(0)) for col in cols] for i in range(S.shape[0])]
+    def slack(self, D):
+        """T'ST for the dyadic S = D.N / 2**D.e, in the same exponent: T is integer, so
+        T'NT is integer, built from T's sparse columns (a few integer column and row
+        combinations each), not a product of rationals."""
+        N, cols = D.N, self.columns()
         k = len(cols)
+
+        def combine(take):
+            return [sum((take(zi) * v for zi, v in col[1:]), take(col[0][0]) * col[0][1]) for col in cols]
+
+        Y = np.empty((N.shape[0], k), dtype=object)
+        for a, y in enumerate(combine(lambda zi: N[:, zi])):
+            Y[:, a] = y
         M = np.empty((k, k), dtype=object)
-        for a, col in enumerate(cols):
-            for b in range(k):
-                M[a, b] = sum((v * X[zi][b] for zi, v in col), Q(0))
-        return M
+        for a, row in enumerate(combine(lambda zi: Y[zi, :])):
+            M[a, :] = row
+        return Dyadic(M, D.e)
 
     def kept(self, R) -> Tuple[np.ndarray, np.ndarray]:
         """The row indices the face solve keeps, and FaceError for a structural row
@@ -183,11 +192,11 @@ def reduce(F: Face, R, c_scale: float):
             Mi_r[keep_i].tocsr(), np.asarray(R.bin, dtype=float)[keep_i], keep_i)
 
 
-def trace_term(F: Face, S: np.ndarray) -> Q:
-    """(1 + q) max(0, lambda_max(T'ST)), bounded above exactly."""
-    from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
-    M = F.slack(S)
-    low = lambda_min_lower(_from_fractions((-M).tolist()))   # lambda_max(M) <= -low
+def trace_term(F: Face, D) -> Q:
+    """(1 + q) max(0, lambda_max(T'ST)) for the dyadic S = D, bounded above exactly."""
+    from mlsynth.utils.marex_helpers.branch import lambda_min_lower
+    M = F.slack(D)
+    low = lambda_min_lower(Dyadic(-M.N, M.e))   # lambda_max(M) <= -low
     if low is None:  # pragma: no cover - 40 quadrupled shifts factor any finite symmetric matrix
         return None
     return F.trace * max(Q(0), -low)
@@ -195,7 +204,8 @@ def trace_term(F: Face, S: np.ndarray) -> Q:
 
 def face_bound(A, R, y_eq, y_in) -> Optional[Q]:
     """The certificate on the face alone: k + (1 + q) max(0, lambda_max(T'ST))."""
+    from mlsynth.utils.marex_helpers.branch import _from_fractions
     from .slopefree import _slack
     S, k = _slack(A, R, y_eq, y_in)
-    t = trace_term(R.face, S)
+    t = trace_term(R.face, _from_fractions(S.tolist()))
     return None if t is None else k + t
