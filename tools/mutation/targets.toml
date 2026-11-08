@@ -13951,7 +13951,7 @@ timeout = 600.0
   [[target.mutant]]
   id = "w00-is-dropped-as-a-constant"
   find = "            constant[0] = False                               # Z_00 = 1 is W_00 = 1\n"
-  replace = ""
+  replace = "            pass                                              # Z_00 = 1 is W_00 = 1\n"
   models = "Z_00 = 1 dropped as a row the face satisfies, leaving W unscaled"
 
   [[target.mutant]]
@@ -13993,7 +13993,7 @@ timeout = 600.0
   [[target.mutant]]
   id = "the-solve-ignores-the-face"
   find = "    if R.face is not None:\n        return _solve_on_face(R, A0, s, cs)\n"
-  replace = ""
+  replace = "    if False:\n        return _solve_on_face(R, A0, s, cs)\n"
   models = "a face built and the relaxation solved in the full space, without an interior"
 
   [[target.mutant]]
