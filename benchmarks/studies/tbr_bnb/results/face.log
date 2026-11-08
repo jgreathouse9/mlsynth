@@ -64,3 +64,15 @@
    on the rest every Shor solve is optimal (1,187 of 1,187), full solves 1,137 optimal and 50 optimal_inaccurate,
    and the gap between the exact bound at the solve's multipliers and its value is at most 3.1e-7 of the objective's
    scale at either level and status
+
+== The sparse face: the pivot's row of Z carried by a, a_b = Z_rb, one definition row each (face.py, _reduce)
+   rows at size 21: Shor 98 kept rows, 479 nonzeros, + 97 definition rows, 27,649; full 18,530 kept rows,
+   127,497 nonzeros, + 97 definition rows, 27,649: 155,146 in all against 262,300 substituted and 73,825 in the full space
+   Clarabel at the size-21 root, iterations and seconds per iteration (cvxpy's solver_stats):
+     full space   shor 14 iterations 2.51 s each (optimal_inaccurate)   full 45 iterations 2.63 s each (optimal_inaccurate)
+     sparse face  shor 16 iterations 2.74 s each (optimal)              full 53 iterations 2.52 s each (optimal_inaccurate)
+   (those two arms at once); and the two faces at once:
+     dense face   shor 17 iterations 2.80 s each   full 51 iterations 3.08 s each, 157.1 s
+     sparse face  shor 16 iterations 2.97 s each   full 53 iterations 2.64 s each, 140.2 s
+   the time of an iteration is the PSD block's (a 97 x 97 or 101 x 101 cone), on the face or off it; the face's extra
+   time at 100 geos is the extra iterations it takes to its tolerance

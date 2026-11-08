@@ -269,14 +269,17 @@ def _solve_on_face(R: Rows, A0, s, cs) -> Solve:
     in R (the dropped rows' are zero) and Z lifted back, so bound(), the triangle
     separation and branching read the same Solve as off the face."""
     F = R.face
-    Me, beq, keep_e, Mi, bin_, keep_i = _face.reduce(F, R, cs)
+    red = _face.reduce(F, R, cs)
+    keep_e, keep_i = red.keep_e, red.keep_i
     T = F.matrix()
     k = T.shape[1]
     W = cp.Variable((k, k), symmetric=True)
-    w = cp.vec(W, order="F")
-    ce = Me @ w == beq
-    ci = Mi @ w <= bin_
-    prob = cp.Problem(cp.Maximize(cp.trace((T.T @ A0 @ T) @ W)), [W >> 0, ce, ci])
+    a = cp.Variable(R.n)                 # Z's pivot row, so the rows that touch it stay sparse (face.py)
+    x = cp.hstack([cp.vec(W, order="F"), a])
+    ce = red.eq @ x == red.beq
+    ci = red.ineq @ x <= red.bin
+    cd = red.define @ x == 0
+    prob = cp.Problem(cp.Maximize(cp.trace((T.T @ A0 @ T) @ W)), [W >> 0, ce, ci, cd])
     t0 = time.perf_counter()
     try:
         prob.solve(solver="CLARABEL", max_threads=1, verbose=clarabel_log())   # one thread, as in solve()

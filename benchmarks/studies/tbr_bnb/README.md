@@ -968,11 +968,17 @@ the 100-geo group (4, 27, 33, 58), both arms at once (`results/face.log`):
 | size 24 | 37.9 → 50.3 | inaccurate → `optimal` | 107.9 → 137.8 | inaccurate → inaccurate | 3.3e-4 → 7.3e-5 |
 
 The gap is the exact bound at the solve's multipliers less the solve's value,
-relative to the value; neither root closes at either level, on or off the face. The
-full level's pair rows that touch the pivot densify on the face, since the pivot's
-row of T is q e_0 less every other free control: 262,300 nonzeros against 73,825,
-574 rows with more than 50 entries. The Shor rows keep their nonzeros (9,693 against
-9,697), so their slower solves are not the density's.
+relative to the value; neither root closes at either level, on or off the face.
+Substituted, the full level's pair rows that touch the pivot densify, since the
+pivot's row of T is q e_0 less every other free control: 262,300 nonzeros against
+73,825, 574 rows with more than 50 entries. So the solve carries that row as a
+vector a, a_b = Z_rb, with one definition row per entry, and every other entry of Z
+is one entry of W: no row grows past twice its nonzeros (155,146 in all, 27,649 of
+them in the definitions). It cut a full-level iteration from 3.08 s to 2.64 s, level
+with the full space's 2.63 s. What remains is the number of iterations: at the
+size-21 root 16 against 14 at the Shor level and 53 against 45 at the full level,
+at 2.5 to 3 s each, the cost of the 97 x 97 cone, on the face or off it. Clarabel's
+time at 100 geos is set by the cone and the iterations, not by the rows.
 
 A node whose fixings leave no design with c'u >= 0 has an infeasible relaxation.
 Off the face Clarabel reports it with no point; the face solve reports the same.

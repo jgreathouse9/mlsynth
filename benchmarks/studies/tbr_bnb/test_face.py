@@ -13,6 +13,7 @@ import itertools
 from fractions import Fraction as Q
 
 import numpy as np
+import scipy.sparse as sp
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -154,6 +155,57 @@ def test_the_rows_the_face_satisfies_are_dropped():
     products = range(size_row + 1, size_row + 1 + R.p)
     fixings = range(size_row + 1 + R.p, R.n_eq)
     assert size_row not in keep_e and not set(products) & set(keep_e) and not set(fixings) & set(keep_e)
+
+
+def _eliminated(F, M):
+    """The rows M on vec(Z) with Z = T W T' substituted, symmetrised: the dense form."""
+    T = F.matrix()
+    k = T.shape[1]
+    K = sp.kron(T, T, format="csr")
+    perm = np.arange(k * k).reshape(k, k).T.ravel()
+    return (M @ ((K + K[:, perm]) / 2)).tocsr()
+
+
+def test_the_aux_rows_are_the_eliminated_rows():
+    """With a = (T W T')[pivot, :], the rows on [vec W; a] give what the rows on vec(Z)
+    give at Z = T W T', and the definition rows hold: the pivot's row of Z is carried
+    by a, not substituted into every row that touches it."""
+    y, X = panel(4, p=8)
+    D = ExactData(y, X)
+    rng = np.random.default_rng(1)
+    for level in ("shor", "full"):
+        for fixes in ((), ((0, 1),), ((1, 0), (5, 1))):
+            R = Rows(D.c, 4, fixes=fixes, level=level, face=True)
+            F = R.face
+            red = fc.reduce(F, R, 1.0)
+            T = F.integer_basis().astype(float)
+            B = rng.integers(-3, 4, (T.shape[1], T.shape[1]))
+            W = (B + B.T).astype(float)
+            Z = T @ W @ T.T
+            x = np.concatenate([W.ravel(order="F"), Z[F.pivot + 1, :]])
+            Me, Mi = R.matrices(1.0)
+            z = Z.ravel(order="F")
+            assert np.allclose(red.eq @ x, (Me @ z)[red.keep_e], rtol=0, atol=1e-9)
+            assert np.allclose(red.ineq @ x, (Mi @ z)[red.keep_i], rtol=0, atol=1e-9)
+            assert red.define.shape == (R.n, W.size + R.n)
+            assert np.allclose(red.define @ x, 0, rtol=0, atol=1e-9)
+
+
+def test_no_kept_row_grows_past_twice_its_nonzeros():
+    """Each entry of Z off the pivot's row is one entry of W (two, symmetrised) and each
+    entry on it is one of a, so a row keeps its sparsity; substituted, the rows that
+    touch the pivot carry every free control."""
+    y, X = panel(4, p=12)
+    D = ExactData(y, X)
+    R = Rows(D.c, 5, fixes=((0, 1), (7, 0)), level="full", face=True)
+    red = fc.reduce(R.face, R, 1.0)
+    Me, Mi = R.matrices(1.0)
+    for M, Mr, keep in ((Me, red.eq, red.keep_e), (Mi, red.ineq, red.keep_i)):
+        grown = np.diff(Mr.indptr) - 2 * np.diff(M[keep].tocsr().indptr)
+        assert grown.max() <= 0
+    dense = _eliminated(R.face, Mi)[red.keep_i]
+    assert (np.diff(dense.indptr) > 2 * np.diff(Mi[red.keep_i].tocsr().indptr)).any()   # the test has power
+    assert red.ineq.nnz < dense.nnz
 
 
 def test_the_face_solve_matches_the_full_space_value():

@@ -13895,6 +13895,18 @@ timeout = 600.0
   models = "T'ST built with every entry but each column's first at coefficient one, so the pivot's q and the -1s are lost (the first entry's coefficient is 1 in every column, so dropping it alone is equivalent, which a first run showed)"
 
   [[target.mutant]]
+  id = "the-pivot-entries-stay-in-the-rows"
+  find = "    K_off = (sp.diags(off) @ K).tocsr()\n"
+  replace = "    K_off = K\n"
+  models = "the pivot row's entries substituted into the rows and carried by a as well, counted twice"
+
+  [[target.mutant]]
+  id = "the-pivot-row-has-one-triangle"
+  find = "    on_row = np.concatenate([r + np.arange(n) * n, np.arange(n) + r * n])      # vec indices of Z_rb and Z_br\n"
+  replace = "    on_row = np.concatenate([r + np.arange(n) * n, r + np.arange(n) * n])\n"
+  models = "only Z_rb moved to a, Z_br left substituted, so a row written on the lower triangle keeps a dense entry and the upper one is lost"
+
+  [[target.mutant]]
   id = "the-slack-loses-its-exponent"
   find = "        return Dyadic(M, D.e)\n"
   replace = "        return Dyadic(M, 0)\n"
@@ -13941,6 +13953,12 @@ name = "tbr-bnb-slope-free-face"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_face.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-pivot-row-is-not-defined"
+  find = "    prob = cp.Problem(cp.Maximize(cp.trace((T.T @ A0 @ T) @ W)), [W >> 0, ce, ci, cd])\n"
+  replace = "    prob = cp.Problem(cp.Maximize(cp.trace((T.T @ A0 @ T) @ W)), [W >> 0, ce, ci])\n"
+  models = "a, the pivot's row of Z, left free, so the rows that touch the pivot no longer constrain W"
 
   [[target.mutant]]
   id = "an-infeasible-face-solve-lifts-nothing"

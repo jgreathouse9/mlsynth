@@ -51,7 +51,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from fractions import Fraction as Q
-from typing import Optional, Sequence, Tuple
+from typing import NamedTuple, Optional, Sequence, Tuple
 
 import numpy as np
 import scipy.sparse as sp
@@ -120,7 +120,8 @@ class Face:
     def kept(self, R) -> Tuple[np.ndarray, np.ndarray]:
         """The row indices the face solve keeps, and FaceError for a structural row
         the face violates."""
-        return _reduce(self, R)[2:]
+        out = _reduce(self, R)
+        return out[1], out[3]
 
 
 def face_of(p: int, m: Optional[int], fixes: Sequence[Tuple[int, int]]) -> Optional[Face]:
@@ -145,22 +146,46 @@ def face_of(p: int, m: Optional[int], fixes: Sequence[Tuple[int, int]]) -> Optio
     return Face(p=p, m=m, q=q, pivot=pivot, index=(0,) + tuple(j + 1 for j in free[1:]), ones=ones)
 
 
-def _reduce(F: Face, R):
-    """The rows in W's coordinates (column-major vec(W)) for the scaled solve, and
-    the indices kept."""
+class Reduced(NamedTuple):
+    """A size's rows on the face, on x = [vec(W); a] with a = Z's pivot row: the rows
+    kept (``eq`` = ``beq``, ``ineq`` <= ``bin``) at their indices in R, and the
+    definition rows ``define`` x = 0 that tie a to W."""
+    eq: sp.csr_matrix
+    beq: np.ndarray
+    keep_e: np.ndarray
+    ineq: sp.csr_matrix
+    bin: np.ndarray
+    keep_i: np.ndarray
+    define: sp.csr_matrix
+
+
+def _lift(F: Face) -> sp.csr_matrix:
+    """vec(Z) from vec(W), column-major and symmetrised: each row's coefficients on a
+    symmetric W, so a row the face satisfies identically (the products of sum u = m)
+    is exactly zero (halves of integers are exact in doubles)."""
     T = F.matrix()
     k = T.shape[1]
     K = sp.kron(T, T, format="csr")
-    # each row's coefficients on vec(W), symmetrised: the same constraint on a symmetric
-    # W, and a row the face satisfies identically (the products of sum u = m) is then
-    # exactly zero (halves of integers are exact in doubles)
     perm = np.arange(k * k).reshape(k, k).T.ravel()
-    K = (K + K[:, perm]) / 2
+    return ((K + K[:, perm]) / 2).tocsr()
+
+
+def _reduce(F: Face, R):
+    """The kept rows on [vec(W); a] and their indices, and the definition rows.
+
+    Substituting Z = T W T' into a row puts every free control into each entry on the
+    pivot's row, since that row of T is q e_0 less the others: at 96 controls the full
+    level's 73,825 nonzeros become 262,300. So the entries Z_rb = Z_br of the pivot's
+    row are carried by a_b, defined once by a_b = (T W T')_rb, and every other entry is
+    one entry of W; a row keeps its sparsity. Which rows the face satisfies identically
+    is read from the substituted form, so the redundant rows are still dropped."""
+    n = F.p + 1
+    K = _lift(F)
     Me, Mi = R.matrices(1.0)
-    Me_r, Mi_r = (Me @ K).tocsr(), (Mi @ K).tocsr()
     c_rows = set(R.c_rows)
 
     def keep(M, bs, equality):
+        M = (M @ K).tocsr()
         M.eliminate_zeros()
         nnz = np.diff(M.indptr)
         first = np.where(nnz > 0, M.indices[np.minimum(M.indptr[:-1], max(len(M.indices) - 1, 0))], -1)
@@ -179,17 +204,31 @@ def _reduce(F: Face, R):
                                 f"leave no design")
         return np.flatnonzero(~constant)
 
-    return Me_r, Mi_r, keep(Me_r, R.beq, True), keep(Mi_r, R.bin, False)
+    keep_e, keep_i = keep(Me, R.beq, True), keep(Mi, R.bin, False)
+    r = F.pivot + 1
+    on_row = np.concatenate([r + np.arange(n) * n, np.arange(n) + r * n])      # vec indices of Z_rb and Z_br
+    P = sp.csr_matrix((np.ones(2 * n), (on_row, np.concatenate([np.arange(n)] * 2))), shape=(n * n, n))
+    P.sum_duplicates(); P.data[:] = 1.0                                       # Z_rr is listed twice: one entry
+    off = np.ones(n * n); off[on_row] = 0.0
+    K_off = (sp.diags(off) @ K).tocsr()
+
+    def rows(M, kept):
+        M = M[kept]
+        return sp.hstack([M @ K_off, M @ P], format="csr")
+
+    define = sp.hstack([K[r + np.arange(n) * n], -sp.identity(n)], format="csr")
+    return rows(Me, keep_e), keep_e, rows(Mi, keep_i), keep_i, define
 
 
-def reduce(F: Face, R, c_scale: float):
-    """The kept rows in W's coordinates, the rows carrying c divided by ``c_scale``
-    as slopefree.solve scales them, with their right-hand sides and indices."""
-    Me_r, Mi_r, keep_e, keep_i = _reduce(F, R)
-    scale = np.ones(Mi_r.shape[0]); scale[list(R.c_rows)] = 1.0 / c_scale
-    Mi_r = sp.diags(scale) @ Mi_r
-    return (Me_r[keep_e], np.asarray(R.beq, dtype=float)[keep_e], keep_e,
-            Mi_r[keep_i].tocsr(), np.asarray(R.bin, dtype=float)[keep_i], keep_i)
+def reduce(F: Face, R, c_scale: float) -> Reduced:
+    """The kept rows on [vec(W); a], the rows carrying c divided by ``c_scale`` as
+    slopefree.solve scales them, with their right-hand sides, indices and the
+    definition rows."""
+    eq, keep_e, ineq, keep_i, define = _reduce(F, R)
+    scale = np.ones(R.n_in); scale[list(R.c_rows)] = 1.0 / c_scale
+    ineq = (sp.diags(scale[keep_i]) @ ineq).tocsr()
+    return Reduced(eq, np.asarray(R.beq, dtype=float)[keep_e], keep_e,
+                   ineq, np.asarray(R.bin, dtype=float)[keep_i], keep_i, define)
 
 
 def trace_term(F: Face, D) -> Q:
