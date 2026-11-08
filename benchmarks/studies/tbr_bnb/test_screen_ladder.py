@@ -15,7 +15,7 @@ from itertools import combinations
 
 import numpy as np
 import pytest
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
@@ -51,10 +51,13 @@ def _best_ratio(c, G):
 
 
 def _group(seed, T, f, n=20, p=30):
-    """A treatment group of a simulated panel, at the incumbent's ratio times f."""
+    """A treatment group of a simulated panel, at the incumbent's ratio times f. When
+    every c_j < 0 no design has a positive slope, the incumbent has no ratio, and the
+    group is tested at f: every design is below any positive ratio."""
     y, X, _ = _split(geo_panel(seed, n=n, p=p), T)
     D = ExactData(y, X)
-    return D.c, D.G, dyadic_below(_ratio(D, incumbent(y, X, restarts=5, seed=0)[1]) * f)
+    r = _ratio(D, incumbent(y, X, restarts=5, seed=0)[1])
+    return D.c, D.G, dyadic_below((Q(1) if r is None else r) * f)
 
 
 @pytest.fixture(scope="module")
@@ -181,6 +184,7 @@ def test_property_the_ladder_certifies_only_what_holds_and_all_the_first_rung_do
 
 @SETTINGS
 @given(seed=st.integers(0, 10_000), f=st.sampled_from([Q(999, 1000), Q(1001, 1000), Q(101, 100), Q(11, 10)]))
+@example(seed=6393, f=Q(999, 1000))   # panel 33, group (2, 6, 9, 11): every c_j < 0
 def test_property_on_geo_groups_no_design_is_above_a_certified_ratio(seed, f):
     """On simulated geo panels, eight candidate controls, every design enumerated."""
     rng = np.random.default_rng(seed)
