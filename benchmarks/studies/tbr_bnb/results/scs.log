@@ -1,0 +1,31 @@
+SCS against Clarabel at the roots of the 100-geo group (geo_panel(0, n=90, p=100), treated
+(4, 27, 33, 58), 96 candidate controls), sizes 21 to 26, at the ratio the search tests
+against the ceiling 1351.4767943671693. Clarabel solves on the face (the default), SCS
+in the full space at eps_abs = eps_rel = 1e-6 (SCS_EPS). Both arms ran at once on one
+thread each (OMP/OPENBLAS/MKL_NUM_THREADS=1), at 3c671a32.
+
+gap: the exact bound at the solve's multipliers less the solve's value, over the value.
+bound: SCS's exact bound over Clarabel's, less 1 (negative: SCS's is tighter). No root
+closes at either level with either solver.
+
+size level | clarabel s status                  gap |  scs s status        gap |    bound
+  21 shor  |      41.87 optimal             4.9e-07 |   0.33 optimal   8.5e-06 | +8.4e-06
+  21 full  |     127.92 optimal_inaccurate  5.4e-06 |  10.75 optimal   1.3e-04 | +7.3e-05
+  22 shor  |      43.97 optimal             1.5e-07 |   0.35 optimal   2.0e-05 | +1.9e-05
+  22 full  |     127.63 optimal_inaccurate  2.6e-05 |  12.20 optimal   5.3e-05 | +2.5e-05
+  23 shor  |      45.66 optimal             6.5e-07 |   0.43 optimal   2.8e-05 | +2.5e-05
+  23 full  |     118.45 optimal_inaccurate  4.7e-05 |  12.19 optimal   5.6e-05 | -2.9e-06
+  24 shor  |      46.25 optimal             5.4e-07 |   0.46 optimal   2.7e-05 | +3.5e-05
+  24 full  |     117.05 optimal_inaccurate  1.6e-05 |  10.79 optimal   7.5e-05 | +3.8e-05
+  25 shor  |      50.23 optimal             1.0e-07 |   0.45 optimal   2.9e-05 | +3.6e-05
+  25 full  |     117.29 optimal_inaccurate  3.7e-05 |   9.04 optimal   8.1e-05 | +3.6e-05
+  26 shor  |      46.48 optimal             1.1e-07 |   0.33 optimal   4.9e-05 | +5.6e-05
+  26 full  |     113.71 optimal_inaccurate  3.8e-05 |   9.75 optimal   8.5e-05 | +2.0e-05
+
+shor: Clarabel 274.5 s, SCS 2.4 s over the six sizes, 116.8 times
+full: Clarabel 722.0 s, SCS 64.7 s over the six sizes, 11.2 times
+
+Earlier, at the size-21 root only (results recorded during the solver review, 5a82702c):
+SCS at eps 1e-4 bounds 11.2% above its value at the full level (full space) and 51% on
+the face; at 1e-6, 1.3e-4 in the full space and 4.0e-3 on the face, where it took 44,525
+iterations (101 s) against 4,250 (11.5 s). So SCS solves in the full space.
