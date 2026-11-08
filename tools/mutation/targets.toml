@@ -12119,7 +12119,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_node_reuse.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_node_reuse.py benchmarks/studies/tbr_bnb/test_node_rounding.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -12246,8 +12246,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-refresh-rate-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C)}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding}\n"
   models = "clarabel_every accepted and validated but never reaching the branch and bound, which runs the default"
 
   [[target.mutant]]
@@ -12261,6 +12261,80 @@ timeout = 900.0
   find = "CLARABEL_EVERY = 2\n"
   replace = "CLARABEL_EVERY = 1\n"
   models = "the measured default lost, so the search pays a solve at every node"
+
+  [[target.mutant]]
+  id = "a-node-never-rounds"
+  find = "    if res.u is not None and inc.get(\"round\", ROUND_NODES):   # only a node that solved the relaxations has a point\n"
+  replace = "    if False:\n"
+  models = "the rounding written and never reached, so the search keeps the start's incumbent"
+
+  [[target.mutant]]
+  id = "a-rounded-design-at-the-incumbents-ratio-is-taken"
+  find = "        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n            inc.update(lam=r, C=C)\n            out.rounded += 1\n"
+  replace = "        if cu > 0 and r >= inc[\"lam\"] and C not in excluded:\n            inc.update(lam=r, C=C)\n            out.rounded += 1\n"
+  models = "a rounded design no better than the incumbent replaces it"
+
+  [[target.mutant]]
+  id = "an-excluded-rounded-design-is-taken"
+  find = "        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n            inc.update(lam=r, C=C)\n            out.rounded += 1\n"
+  replace = "        if cu > 0 and r > inc[\"lam\"]:\n            inc.update(lam=r, C=C)\n            out.rounded += 1\n"
+  models = "a design the caller excluded comes back as the incumbent through the rounding"
+
+  [[target.mutant]]
+  id = "a-negative-slope-rounded-design-is-taken"
+  find = "        if cu > 0 and r > inc[\"lam\"] and C not in excluded:\n            inc.update(lam=r, C=C)\n            out.rounded += 1\n"
+  replace = "        if r > inc[\"lam\"] and C not in excluded:\n            inc.update(lam=r, C=C)\n            out.rounded += 1\n"
+  models = "a rounded design with a negative slope taken, though its ratio is no RSS the slope-free search may claim"
+  expected = "survived"
+  accepted-because = "equivalent: _ratio scores a design without a positive slope 0, and the threshold it must beat is never negative (the incumbent's ratio, or y'y minus a ceiling only when that is larger), so the guard, kept to match the leaves, never decides"
+
+  [[target.mutant]]
+  id = "the-smallest-values-are-rounded-in"
+  find = "    return ones | set(sorted(free, key=lambda j: (-u[j], j))[:m - len(ones)])\n"
+  replace = "    return ones | set(sorted(free, key=lambda j: (u[j], j))[:m - len(ones)])\n"
+  models = "the rounding takes the free controls the relaxation leans out of"
+
+  [[target.mutant]]
+  id = "ties-go-to-the-higher-index"
+  find = "    return ones | set(sorted(free, key=lambda j: (-u[j], j))[:m - len(ones)])\n"
+  replace = "    return ones | set(sorted(free, key=lambda j: (-u[j], -j))[:m - len(ones)])\n"
+  models = "the tie rule reversed, so the rounded design depends on an order the docstring does not state"
+
+  [[target.mutant]]
+  id = "the-fixed-in-controls-are-dropped"
+  find = "    return ones | set(sorted(free, key=lambda j: (-u[j], j))[:m - len(ones)])\n"
+  replace = "    return set(sorted(free, key=lambda j: (-u[j], j))[:m - len(ones)])\n"
+  models = "the rounded design leaves out the controls the node fixed in, so it is neither of size m nor in the node"
+
+  [[target.mutant]]
+  id = "a-fixed-out-control-is-rounded-in"
+  find = "    free = [j for j in range(len(u)) if j not in fixed]\n    return ones"
+  replace = "    free = [j for j in range(len(u)) if j not in ones]\n    return ones"
+  models = "a control the node fixed out can be rounded in, so the design is not in the node's subtree"
+
+  [[target.mutant]]
+  id = "the-rounding-flag-is-not-carried"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every}\n"
+  models = "rounding=False accepted and ignored"
+
+  [[target.mutant]]
+  id = "a-malformed-rounding-flag-is-taken"
+  find = "    if type(rounding) is not bool:\n"
+  replace = "    if False:\n"
+  models = "a rounding flag of 0, 1 or a string accepted, read by truth value"
+
+  [[target.mutant]]
+  id = "the-default-does-not-round"
+  find = "ROUND_NODES = True\n"
+  replace = "ROUND_NODES = False\n"
+  models = "the measured default lost, so the search never rounds"
+
+  [[target.mutant]]
+  id = "the-rounding-count-is-not-kept"
+  find = "            out.rounded += 1\n"
+  replace = "            pass\n"
+  models = "the result reports no rounded incumbents whatever the search found"
 
   [[target.mutant]]
   id = "a-size-tries-only-the-first-schedule"

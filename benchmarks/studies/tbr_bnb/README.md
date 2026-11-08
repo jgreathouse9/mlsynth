@@ -776,6 +776,40 @@ costs about a second, so the wall time moves little (140 s to 129 s, 316 s to
 few seconds, so the saving scales with the solves. Every third level saves few
 more solves and leaves more groups open.
 
+### Rounding the relaxed point
+
+A node that solves the relaxations and stays open rounds its point to a design of
+its size (`rounded_design`): the controls it fixed in, and the free controls with
+the largest relaxed values, ties to the lower index. The design is evaluated
+exactly, and one better than the incumbent replaces it, so the nodes after it are
+bounded at the higher ratio. Huang et al. (SoCS 2025) fix a relaxation's most decided
+variables the same way (Relax-Search, Algorithm 2). Rounding prunes nothing by
+itself, and what is proved does not change. `certify_slope_free(rounding=True)` is
+the default, and the result's `rounded` counts the improvements.
+
+On the two 30-unit beds, with the relaxations every second level
+(`results/node_rounding.log`):
+
+| bed | rounding | nodes | Clarabel solves | open at the depth limit | better incumbents |
+| --- | --- | --- | --- | --- | --- |
+| 10 treated, 13 groups | off | 871 | 193 | 3 | |
+| | on | 685 | 139 | 3 | 24 |
+| 4 treated, 25 groups | off | 1,524 | 293 | 2 | |
+| | on | 1,404 | 255 | 3 | 48 |
+
+Together 13% fewer nodes and 19% fewer Clarabel solves, and no group that both runs
+certified has a different design. The start's local search often stops short of a
+group's optimum, and each improvement raises the ratio every later node is tested
+at. One group, seed 21 with treatment (8, 11, 18, 21), certified in 92 nodes without
+rounding and reached the depth limit in 74 with it: a different incumbent changes
+which control is branched on, and on these beds groups cross the depth limit both
+ways between settings.
+
+Two variants measured no better. Rounding the inherited parent's point at the nodes
+in between gave the same counts. Re-checking a node at the new ratio after an
+improvement closed none of 72 nodes and cost up to a Clarabel solve each, so the
+build does not re-check.
+
 ## Several processes
 
 `certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
@@ -1190,12 +1224,12 @@ four and five geos that floor was not the least, and the bound did not change.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (698 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (716 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 319 mutants of the 24
-`tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for five recorded as equivalent with their reasons. The first run
+but for the lines marked `pragma: no cover`, each with its reason. The 331 mutants of the 24
+`tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
 `lambda_min(S)` is near zero, so the trace barely moves the bound), a negative

@@ -699,6 +699,7 @@ class SlopeFreeCertificate:
     tiers: Dict[str, int] = field(default_factory=dict)   # sizes and nodes decided by each tier
     group_tier: Optional[str] = None      # the group screen's tier, None when it was not tried
     group_seconds: float = 0.0
+    rounded: int = 0                      # incumbents found by rounding a node's relaxed point
 
 
 #: The cost model of the choice between pricing a subtree and bounding it, as MAREX's
@@ -803,6 +804,17 @@ def price_subtree(c, G, out, m, fixes, inc, excluded):
             inc.update(lam=r, C=C)
 
 
+def rounded_design(u, fixes, m) -> Set[int]:
+    """The design of size m a node's relaxed point rounds to: the controls fixed in
+    and the m - ones free controls with the largest relaxed values, ties to the lower
+    index. Huang et al. (SoCS 2025) fix a relaxation's most decided variables the same
+    way (Relax-Search, Algorithm 2)."""
+    fixed = dict(fixes)
+    ones = {j for j, v in fixes if v}
+    free = [j for j in range(len(u)) if j not in fixed]
+    return ones | set(sorted(free, key=lambda j: (-u[j], j))[:m - len(ones)])
+
+
 #: A node solves the Shor and full relaxations every this many levels (the root of a
 #: size always), and in between branches on its parent's point. On 38 branching groups
 #: of 30 simulated units (20 periods; 4 and 10 treated, enumeration off) every second
@@ -811,6 +823,9 @@ def price_subtree(c, G, out, m, fixes, inc, excluded):
 #: open at the depth limit. On 21 groups of 20 markets none of the 127 nodes that
 #: reached the full relaxation closed there: the solve buys the branching point.
 CLARABEL_EVERY = 2
+
+#: Whether an open node that solved the relaxations rounds its point to a design.
+ROUND_NODES = True
 
 
 def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc, excluded, parent_u=None):
@@ -827,7 +842,15 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     (CLARABEL_EVERY when absent) and wherever the parent had no point; elsewhere the
     node runs the first-order tiers only and branches on ``parent_u``, its parent's
     point. Which control is branched on never changes what is proved: a pruned node
-    is pruned by its own certificate."""
+    is pruned by its own certificate.
+
+    A node that solved the relaxations and stays open rounds its point to a design of
+    size m (rounded_design) when ``inc["round"]`` is set, and one better than the
+    incumbent replaces it, so the nodes after it are bounded at the higher ratio.
+    Rounding prunes nothing by itself. On two beds of 30 simulated units (38 branching
+    groups, every second level) it found 72 better incumbents and took 13% fewer nodes
+    and 19% fewer Clarabel solves; in a prototype a node re-checked at the new ratio
+    never closed, so there is no re-check."""
     p = len(c)
     ones = sum(v for _, v in fixes)
     if ones > m or len(fixes) - ones > p - m:
@@ -853,6 +876,12 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
         if not fixes and res.multipliers is not None:
             inc["warm"] = res.multipliers       # the next size's first try
         return
+    if res.u is not None and inc.get("round", ROUND_NODES):   # only a node that solved the relaxations has a point
+        C = rounded_design(res.u, fixes, m)
+        cu, r = _ratio(c, G, C)
+        if cu > 0 and r > inc["lam"] and C not in excluded:
+            inc.update(lam=r, C=C)
+            out.rounded += 1
     if depth >= max_depth:
         out.open.append((m, tuple(fixes)))
         return
@@ -895,7 +924,8 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
                        ceiling: Optional[Q] = None,
                        start: Optional[Set[int]] = None,
                        group_screen: bool = True,
-                       clarabel_every: int = CLARABEL_EVERY) -> SlopeFreeCertificate:
+                       clarabel_every: int = CLARABEL_EVERY,
+                       rounding: bool = ROUND_NODES) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -925,13 +955,17 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
     the ceiling is held without the hull stage or a size.
 
     Within a size's branch and bound the Shor and full relaxations are solved every
-    ``clarabel_every`` levels (_branch); 1 solves them at every node.
+    ``clarabel_every`` levels (_branch); 1 solves them at every node. With
+    ``rounding`` an open node that solved them rounds its point to a design, which
+    replaces the incumbent when it is better (``rounded`` counts those).
     """
     from .search import hull_survivors, incumbent, pieces_to
 
     t_all = time.perf_counter()
     if type(clarabel_every) is not int or clarabel_every < 1:
         raise MlsynthConfigError(f"clarabel_every is a number of levels, an int at least 1, not {clarabel_every!r}.")
+    if type(rounding) is not bool:
+        raise MlsynthConfigError(f"rounding is True or False, not {rounding!r}.")
     p = X.shape[1]
     excluded = [set(e) for e in exclude]
     C = set(incumbent(y, X, restarts=restarts, seed=seed)[1])
@@ -968,7 +1002,7 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed
         s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - test)
         sizes = sorted({pc[2] for pc in s1})
         t_h = time.perf_counter() - t0
-    inc = {"lam": test, "C": set(C), "every": clarabel_every}
+    inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding}
     out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
                                hull_seconds=t_h, group_tier=None if screen is None else screen.tier,
                                group_seconds=0.0 if screen is None else screen.seconds)
