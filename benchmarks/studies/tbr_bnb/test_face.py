@@ -434,6 +434,30 @@ def test_an_infeasible_node_is_reported_as_off_the_face():
     assert on.certified and off.certified and on.bound == off.bound
 
 
+@pytest.mark.parametrize("face", [False, True])
+def test_an_infeasible_node_without_duals_has_no_point(monkeypatch, face):
+    """Some cvxpy versions return no duals for an infeasible relaxation (CI on Python
+    3.10 did, at panel(17, p=6)): the solve is still reported infeasible, with no
+    point, not a zero matrix the branching would read as a point."""
+    import cvxpy as cp
+
+    real = cp.Problem.solve
+
+    def no_duals(self, *a, **k):
+        out = real(self, *a, **k)
+        for con in self.constraints:
+            for d in con.dual_variables:
+                d.value = None
+        return out
+
+    monkeypatch.setattr(cp.Problem, "solve", no_duals)
+    y, X = panel(17, p=6)
+    D = ExactData(y, X)
+    best, _ = positive_optimum(y, X)
+    s = solve(D.c, D.G, slopefree.dyadic_below(best * 0.99), Rows(D.c, 3, fixes=((0, 0),), level="full", face=face))
+    assert s.status == "infeasible" and s.Z is None and s.value == -np.inf and s.face is face
+
+
 # ---------------------------------------------------------------- failures
 
 

@@ -217,7 +217,7 @@ class Solve:
     scale: float                 # the objective's scale: value * scale is in the data's units
     y_eq: np.ndarray             # multipliers in the data's units, for bound()
     y_in: np.ndarray
-    Z: np.ndarray
+    Z: Optional[np.ndarray]      # the point, None when the solve has none (an infeasible node)
     status: str
     face: bool = False           # solved on the face Z = T W T' (face.py)
 
@@ -256,8 +256,8 @@ def solve(c, G, lam, R: Rows) -> Solve:
         raise
     emit("solve", relaxation=R.level, rows_eq=R.n_eq, rows_in=R.n_in, status=prob.status,
          seconds=time.perf_counter() - t0)
-    if ce.dual_value is None:            # pragma: no cover - Clarabel returns duals whenever it returns
-        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((n, n)), prob.status)
+    if ce.dual_value is None:            # no duals (some cvxpy versions, at an infeasible node): no point either
+        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status)
     y_in = np.array(ci.dual_value, dtype=float) * s
     y_in[R.c_rows] /= cs
     return Solve(float(prob.value), s, np.array(ce.dual_value, dtype=float) * s, y_in, Z.value, prob.status)
@@ -290,8 +290,8 @@ def _solve_on_face(R: Rows, A0, s, cs) -> Solve:
     emit("solve", relaxation=R.level, rows_eq=len(keep_e), rows_in=len(keep_i), status=prob.status,
          seconds=time.perf_counter() - t0)
     n = R.n
-    if ce.dual_value is None:            # pragma: no cover - Clarabel returns duals whenever it returns
-        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((n, n)), prob.status, face=True)
+    if ce.dual_value is None:            # no duals (some cvxpy versions, at an infeasible node): no point either
+        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status, face=True)
     y_eq = np.zeros(R.n_eq); y_eq[keep_e] = np.asarray(ce.dual_value, dtype=float) * s
     y_in = np.zeros(R.n_in); y_in[keep_i] = np.asarray(ci.dual_value, dtype=float) * s
     y_in[R.c_rows] /= cs

@@ -14037,3 +14037,15 @@ timeout = 600.0
   find = "                           face=inc.get(\"face\", FACE))\n"
   replace = "                           face=FACE)\n"
   models = "certify_slope_free(face=False) accepted and the branches solved on the face anyway"
+  [[target.mutant]]
+  id = "an-infeasible-node-without-duals-has-a-point"
+  find = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status)\n"
+  replace = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((n, n)), prob.status)\n"
+  models = "a relaxation returned without duals (an infeasible node under some cvxpy versions) handed on with a zero matrix as its point, which rounding and triangle separation read"
+
+  [[target.mutant]]
+  id = "an-infeasible-face-node-without-duals-has-a-point"
+  find = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status, face=True)\n"
+  replace = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((R.n, R.n)), prob.status, face=True)\n"
+  models = "the same on the face"
+
