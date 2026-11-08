@@ -172,6 +172,31 @@ def test_the_cli_prints_the_bed_and_its_change(capsys):
     assert "s15_k3" in out and "nodes" in out and "baseline" in out
 
 
+@pytest.fixture
+def tiny(monkeypatch):
+    """A two-group bed, so a whole-bed run is cheap."""
+    monkeypatch.setitem(beds.BEDS, "tiny", beds.Bed("tiny", 15, 3, BEDS["s15_k3"].groups[:2]))
+    return "tiny"
+
+
+def test_a_whole_bed_runs_every_group_in_order(tiny):
+    out = run_bed(tiny)
+    assert [(r.seed, r.treated, r.periods) for r in out.runs] == list(BEDS[tiny].groups)
+
+
+def test_record_writes_every_run_as_the_baseline(tiny, tmp_path, monkeypatch):
+    path = tmp_path / "baseline.json"
+    monkeypatch.setattr(beds, "BASELINE", path)
+    monkeypatch.setattr(beds, "_head", lambda: "abc1234")
+    assert beds.main(["--bed", tiny, "--record"]) == 0
+    base = json.loads(path.read_text())
+    assert base["recorded_on"] == "abc1234" and set(base) == {"recorded_on", tiny}
+    assert [(r["seed"], tuple(r["treated"]), r["periods"]) for r in base[tiny]["groups"]] == list(BEDS[tiny].groups)
+    assert base[tiny]["totals"]["groups"] == 2
+    again = run_bed(tiny)
+    assert compare(again, base)["nodes"][2] == 0              # a recorded run reproduces
+
+
 def test_the_cli_fails_on_an_unsound_group(monkeypatch, capsys):
     real = slopefree.certify_slope_free
 
