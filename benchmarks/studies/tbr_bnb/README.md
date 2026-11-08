@@ -1222,6 +1222,41 @@ moves; the RSS descent with 50 restarts, then the key's descent, reaches it in t
 search above. The first version's bound also left out the start group's floor; at
 four and five geos that floor was not the least, and the bound did not change.
 
+## The test beds
+
+Every change to the search is measured first on five fixed beds of simulated
+panels (`beds.py`), not on the 100-geo panel: a certificate there runs for hours,
+and on panels of the same form, a few dozen units wide, the counts that decide a
+change move the same way in seconds. The form matters more than the size: groups with
+more candidate controls than periods branch the most.
+
+| bed | units | treated | periods | candidate controls | groups | checked against enumeration |
+| --- | --- | --- | --- | --- | --- | --- |
+| `s15_k3` | 15 | 3 | 20 | 12 | 62 | yes |
+| `s20_k3` | 20 | 3 | 20 | 17 | 45 | yes |
+| `s20_k4` | 20 | 4 | 20 or 40 | 16 | 21 | yes |
+| `s30_k10` | 30 | 10 | 20 | 20 | 13 | no |
+| `s30_k4` | 30 | 4 | 20 | 26 | 25 | no |
+
+Each bed holds the groups of a scan of random treatment groups whose certificates
+branch on `main` with every node bounded (`PRICE_LIMIT = 0`): `s15_k3` 62 of 600
+groups, `s20_k3` 45 of 320. A run certifies each group and counts nodes, Clarabel
+and Shor solves, nodes left open at the depth limit and incumbents found by rounding.
+Where a group has at most 17 candidate controls (`ENUMERATION_LIMIT`, 131,071
+designs) the design is checked against the enumerated optimum, and a group certified
+at any other design is reported unsound and fails the run.
+
+```bash
+python -m benchmarks.studies.tbr_bnb.beds --workers 4            # every bed, against the baseline
+python -m benchmarks.studies.tbr_bnb.beds --bed s15_k3 s20_k3    # the enumerated beds
+python -m benchmarks.studies.tbr_bnb.beds --record --workers 4   # on main, after a change merges
+```
+
+The baseline, `results/beds_baseline.json`, holds every group's counts on `main`,
+and a run prints each total against it. A change reports its bed tables in its pull
+request, and the baseline is re-recorded on `main` after it merges. Wall times are
+recorded too, but they depend on the machine and its load; the counts do not.
+
 ## Tests
 
 `pytest benchmarks/studies/tbr_bnb/` (716 tests, about 100 s with four workers) checks every bound
@@ -1341,6 +1376,7 @@ fixing is certified to the solver's value.
 - `brute.py`: enumeration, the truth the tests check against, the simulated AR(1) panels, and
   `treatment_optimum`, every treatment and control group of a small panel scored by the library's key.
 - `run.py`: `python -m benchmarks.studies.tbr_bnb.run certify` and `... lifts`.
+- `beds.py`: the five test beds, `run_bed`, and `python -m benchmarks.studies.tbr_bnb.beds`; the baseline in `results/beds_baseline.json`.
 - `results/`: the logs of the runs above.
 
 ## Sources

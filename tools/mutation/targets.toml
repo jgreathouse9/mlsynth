@@ -13545,3 +13545,93 @@ timeout = 900.0
   find = "        r = Q(out.key[4]) if out.key is not None else None\n        return _competes("
   replace = "        r = None\n        return _competes("
   models = "the screen read without the incumbent, so no group is ruled out"
+
+[[target]]
+name = "tbr-bnb-beds"
+module-path = "benchmarks/studies/tbr_bnb/beds.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_beds.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-solver-is-not-restored"
+  find = "    finally:\n        slopefree.solve = real\n"
+  replace = "    finally:\n        pass\n"
+  models = "the counting wrapper left in place after a run, so every later solve in the process is counted and wrapped again"
+
+  [[target.mutant]]
+  id = "a-level-is-not-counted"
+  find = "        n[R.level] += 1\n"
+  replace = "        n[\"full\"] += 1\n"
+  models = "Shor solves counted as Clarabel's, so a change that moves work between the two relaxations reads as none"
+
+  [[target.mutant]]
+  id = "the-price-limit-is-not-restored"
+  find = "    finally:\n        slopefree.PRICE_LIMIT = before\n"
+  replace = "    finally:\n        pass\n"
+  models = "a bed run leaves enumeration off for the rest of the process"
+
+  [[target.mutant]]
+  id = "the-subtrees-are-enumerated"
+  find = "    slopefree.PRICE_LIMIT = 0\n    try:\n"
+  replace = "    try:\n"
+  models = "the beds run with enumeration on, so small subtrees are priced and the node counts no longer measure the bounds"
+
+  [[target.mutant]]
+  id = "the-optimum-is-not-checked"
+  find = "        optimum = set(out.controls) == C and abs(float(out.incumbent) - best) <= 1e-9 * max(1.0, abs(best))\n"
+  replace = "        optimum = True\n"
+  models = "every design reported as the enumerated optimum, so a change that certifies a wrong design passes the beds"
+
+  [[target.mutant]]
+  id = "the-enumeration-limit-is-off-by-one"
+  find = "    if X.shape[1] <= ENUMERATION_LIMIT:\n"
+  replace = "    if X.shape[1] < ENUMERATION_LIMIT:\n"
+  models = "the 17-control bed left unchecked against enumeration"
+
+  [[target.mutant]]
+  id = "an-open-group-is-unsound"
+  find = "        return [r for r in self.runs if r.certified and r.optimum is False]\n"
+  replace = "        return [r for r in self.runs if r.optimum is False]\n"
+  models = "a group left open at the depth limit with a design short of the optimum reported as a soundness failure"
+
+  [[target.mutant]]
+  id = "a-wrong-certified-design-is-sound"
+  find = "        return [r for r in self.runs if r.certified and r.optimum is False]\n"
+  replace = "        return [r for r in self.runs if r.certified and r.optimum is None]\n"
+  models = "a certified design other than the optimum not reported"
+
+  [[target.mutant]]
+  id = "the-search-settings-are-dropped"
+  find = "        out = slopefree.certify_slope_free(y, X, **search)\n"
+  replace = "        out = slopefree.certify_slope_free(y, X, restarts=search[\"restarts\"])\n"
+  models = "a setting under test never reaches the search, so the bed measures main whatever is asked"
+
+  [[target.mutant]]
+  id = "a-group-outside-the-bed-is-taken"
+  find = "all(type(i) is int and 0 <= i < len(bed.groups) for i in groups)"
+  replace = "all(type(i) is int for i in groups)"
+  models = "an index past the bed's end, or a negative one, accepted and read from the other end"
+
+  [[target.mutant]]
+  id = "a-malformed-worker-count-is-taken"
+  find = "    if type(workers) is not int or workers < 1:\n"
+  replace = "    if False:\n"
+  models = "workers of 0, a float or a string accepted"
+
+  [[target.mutant]]
+  id = "the-comparison-has-the-wrong-sign"
+  find = "        out[key] = (b, now, now - b)\n"
+  replace = "        out[key] = (b, now, b - now)\n"
+  models = "a change that adds nodes reported as one that saves them"
+
+  [[target.mutant]]
+  id = "the-cli-passes-an-unsound-run"
+  find = "    return 1 if bad else 0\n"
+  replace = "    return 0\n"
+  models = "the command line exits clean when a group certified a wrong design"
+
+  [[target.mutant]]
+  id = "the-restarts-default-is-lost"
+  find = "    search.setdefault(\"restarts\", BED_RESTARTS)\n"
+  replace = "    pass\n"
+  models = "the beds run with the search's default 50 restarts, not the 5 the baseline was recorded with"
