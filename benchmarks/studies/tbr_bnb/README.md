@@ -736,6 +736,47 @@ Clarabel rounds of triangles (798 s), so it branches, at 148-249 s a node. A
 profile was cut short by a host restart after five nodes; cheaper nodes and the
 branching rule are its levers, not measured here.
 
+### The dual's memory
+
+At 96 candidate controls a first-order schedule costs tens of seconds, and the
+smoothed certificate it evaluates is the smaller part. Profiled on a size-24 root
+(18,627 multipliers), one schedule of 1,000 evaluations a stage took 27.8 s: 18.1 s
+(65%) in L-BFGS-B's own work per call (scipy's `setulb`), 7.6 s in the
+certificate and its gradient, 4.5 s of that the eigendecomposition. L-BFGS-B's work
+per call grows with the number of correction pairs it stores times the number of
+multipliers (Byrd, Lu, Nocedal and Zhu 1995), and the dual stored twenty.
+
+It now stores five (`DUAL_MEMORY`). On the three size-24 nodes of the 100-geo group
+(4, 27, 33, 58) that the first-order triangle rounds closed in the profile, each
+re-run alone at the profile's ratio (`results/dual_memory.log`):
+
+| correction pairs | node seconds | rounds to close |
+| --- | --- | --- |
+| 20 (before) | 118.0, 118.5, 120.7 | 1, 1, 1 |
+| 10 | 101.2, 89.8, 92.7 | 1, 1, 1 |
+| 5 | 63.7, 67.4, 66.6 | 1, 1, 1 |
+| 3 | 106.3, 74.7, 64.4 | 2, 1, 1 |
+
+At five pairs a node costs about 55% of what it did; at three the multipliers
+converge too slowly for one of the three, which takes a second round. On the five
+test beds, both memories under the same load:
+
+| bed | nodes | Clarabel solves | dual seconds | group seconds |
+| --- | --- | --- | --- | --- |
+| `s15_k3` | 974 → 974 | 151 → 151 | 22.1 → 16.9 | 64.0 → 53.8 |
+| `s20_k3` | 1,122 → 1,122 | 203 → 203 | 39.4 → 30.7 | 102.7 → 92.0 |
+| `s20_k4` | 525 → 525 | 79 → 79 | 13.2 → 10.9 | 35.5 → 32.7 |
+| `s30_k10` | 685 → 691 | 139 → 139 | 27.5 → 23.8 | 68.6 → 65.7 |
+| `s30_k4` | 1,404 → 1,406 | 255 → 260 | 94.3 → 67.3 | 252.7 → 222.3 |
+| all | 4,710 → 4,718 | 827 → 832 | 196.5 → 149.6 | 523.5 → 466.5 |
+
+The dual takes 24% less time and the beds 11% less, for 8 more nodes and 5 more
+Clarabel solves; every group certifies the same design. The memory steers only the
+search for multipliers: a size is certified by the exact bound at whatever
+multipliers that search returns, so no memory changes what is proved. The node
+solver of the shared-slope search (`dual.py`) keeps its own memory, 10, measured
+on its own problem.
+
 ### Branching on the parent's point
 
 A node of the branch and bound that the first-order tiers leave open goes to the
@@ -1295,11 +1336,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (806 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (814 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 379 mutants of the 26
+but for the lines marked `pragma: no cover`, each with its reason. The 382 mutants of the 26
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
