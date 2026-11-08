@@ -13889,10 +13889,10 @@ timeout = 600.0
   models = "tr W bounded by q, forgetting W_00 = 1, so the face bound can fall below a design"
 
   [[target.mutant]]
-  id = "the-slack-drops-the-pivot-coefficient"
+  id = "the-slack-drops-the-coefficients"
   find = "            return [sum((take(zi) * v for zi, v in col[1:]), take(col[0][0]) * col[0][1]) for col in cols]\n"
-  replace = "            return [sum((take(zi) * v for zi, v in col[1:]), take(col[0][0])) for col in cols]\n"
-  models = "T'ST built with the first entry of each column at coefficient one"
+  replace = "            return [sum((take(zi) for zi, v in col[1:]), take(col[0][0]) * col[0][1]) for col in cols]\n"
+  models = "T'ST built with every entry but each column's first at coefficient one, so the pivot's q and the -1s are lost (the first entry's coefficient is 1 in every column, so dropping it alone is equivalent, which a first run showed)"
 
   [[target.mutant]]
   id = "the-slack-loses-its-exponent"

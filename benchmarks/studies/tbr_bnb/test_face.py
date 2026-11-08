@@ -281,6 +281,32 @@ def test_property_the_face_bound_is_never_below_a_design(seed, m, nfix, div, sca
         assert b is None or b >= best
 
 
+@SETTINGS
+@given(seed=st.integers(0, 10_000), p=st.sampled_from([5, 6]), data=st.data())
+def test_property_the_face_solve_certifies_its_own_value(seed, p, data):
+    """Strong duality on the face: the exact bound at the face solve's multipliers,
+    returned to the data's units, is the solve's value. Off the face the forced
+    null directions leave no interior and no such guarantee; on the beds' panels
+    the gap is under 1e-7 relative on every solve. Multipliers in the wrong units
+    (the rows carrying c unscaled, or scaled twice) open it by 3% to 600% at the
+    full level."""
+    y, X = panel(seed % 60, p=p)
+    D = ExactData(y, X)
+    best, _ = positive_optimum(y, X)
+    lam = slopefree.dyadic_below(best * 0.99 if best > 0 else D.yy / 2)
+    m = data.draw(st.integers(2, p - 2))
+    j = data.draw(st.integers(0, p - 1))
+    fixes = data.draw(st.sampled_from([(), ((j, 0),), ((j, 1),)]))
+    A = objective(D.c, D.G, lam)
+    for level in ("shor", "full"):
+        R = Rows(D.c, m, fixes=fixes, level=level, face=True)
+        s = solve(D.c, D.G, lam, R)
+        assert s.face and s.status == "optimal"
+        v = s.value * s.scale
+        b = float(bound(A, R, s.y_eq, s.y_in, m))
+        assert abs(b - v) <= 1e-5 * max(1.0, abs(v)), (level, b, v)
+
+
 @settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(seed=st.integers(0, 10_000))
 def test_property_the_face_certifies_the_enumerated_optimum(seed):

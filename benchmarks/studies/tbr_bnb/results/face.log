@@ -1,0 +1,42 @@
+# The slope-free relaxation on its face (#965): face.py, FACE = True against the full space.
+# Every bed, both arms at once, two workers each on four cores (the same load), PRICE_LIMIT = 0, restarts 5.
+# Statuses are Clarabel's, counted per solve by relaxation level.
+
+== s15_k3
+   off   nodes   974  full  151  shor  149  open 0  uncertified 0  missed 0  shor optimal  84/149  full optimal  80/151  solve    8.3 s  groups   70.0 s
+   face  nodes   970  full  152  shor  149  open 0  uncertified 0  missed 0  shor optimal 149/149  full optimal  98/152  solve    7.5 s  groups   66.4 s
+
+== s20_k3
+   off   nodes  1122  full  203  shor  192  open 7  uncertified 4  missed 0  shor optimal  64/192  full optimal  39/203  solve   27.7 s  groups  139.9 s
+   face  nodes  1100  full  194  shor  185  open 6  uncertified 5  missed 0  shor optimal 185/185  full optimal  72/194  solve   21.7 s  groups  133.6 s
+
+== s20_k4
+   off   nodes   525  full   79  shor   78  open 1  uncertified 1  missed 0  shor optimal  27/ 78  full optimal  20/ 79  solve   10.9 s  groups   66.2 s
+   face  nodes   525  full   79  shor   77  open 0  uncertified 0  missed 0  shor optimal  77/ 77  full optimal  32/ 79  solve    8.7 s  groups   62.3 s
+
+== s30_k10
+   off   nodes   691  full  139  shor  125  open 4  uncertified 3  missed 0  shor optimal  29/125  full optimal   5/139  solve   31.7 s  groups  106.1 s
+   face  nodes   679  full  132  shor  122  open 5  uncertified 4  missed 0  shor optimal 122/122  full optimal  36/132  solve   24.6 s  groups  104.7 s
+
+== s30_k4
+   off   nodes  1406  full  260  shor  222  open 3  uncertified 3  missed 0  shor optimal  23/222  full optimal   6/260  solve  142.0 s  groups  373.1 s
+   face  nodes  1404  full  259  shor  221  open 2  uncertified 2  missed 0  shor optimal 221/221  full optimal  60/259  solve  122.9 s  groups  357.2 s
+
+== all beds
+   off   nodes 4718  full 832  shor 766  uncertified 11  shor optimal 227/766  full optimal 150/832  solve 220.6 s  groups 755.3 s
+   face  nodes 4678  full 816  shor 754  uncertified 11  shor optimal 754/754  full optimal 298/816  solve 185.4 s  groups 724.2 s
+
+== Where the face's certificate cost went, five s30_k4 groups (0-4) in one process, cProfile
+   T'ST in Python Fractions (first build): face 99.6 s, off 92.1 s; bound() 38.8 s against 29.2 s, Face.slack 2.9 s
+   of every 3.7 s of the face term
+   T'ST as T'NT / 2**e in integers (this build): face 79.8 s, off 81.3 s; bound() 25.7 s against 25.0 s
+   (the two pairs ran at different times; within each pair both arms ran together)
+
+== Strong duality on the face: the exact bound at a face solve's multipliers against its value
+   panel(seed, p) for seeds 0-11, p 5-7, every size 2..p-2, Shor and full, ratio 0.99 of the enumerated optimum
+   216 solves: the largest relative gap 9.9e-8
+   the rows carrying c solved unscaled (a mutant): every one of the 108 full-level solves opens a gap of 3.3% to 607%
+
+== test_node_rounding's fixture: group 0 of s30_k10 (seed 0) on the face
+   rounding off: not certified, one open node at size 8, q = 1, depth 12; rounding on: the same
+   group 10 of s30_k10 (seed 31): rounding off 112 nodes, on 72, both certified on the face
