@@ -176,6 +176,24 @@ def test_the_cli_prints_the_bed_and_its_change(capsys):
     assert "s15_k3" in out and "nodes" in out and "baseline" in out
 
 
+def test_the_cli_takes_a_solver(monkeypatch, capsys):
+    seen = []
+    real = slopefree.certify_slope_free
+
+    def spy(y, X, **k):
+        seen.append(k.get("solver"))
+        return real(y, X, **k)
+
+    monkeypatch.setattr(slopefree, "certify_slope_free", spy)
+    assert beds.main(["--bed", "s15_k3", "--groups", "0", "--solver", "scs"]) == 0
+    assert seen == ["scs"] and " full " in capsys.readouterr().out
+
+
+def test_the_cli_refuses_an_unknown_solver(capsys):
+    with pytest.raises(SystemExit):
+        beds.main(["--bed", "s15_k3", "--groups", "0", "--solver", "gurobi"])
+
+
 @pytest.fixture
 def tiny(monkeypatch):
     """A two-group bed, so a whole-bed run is cheap."""

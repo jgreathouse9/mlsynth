@@ -200,14 +200,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--groups", nargs="+", type=int, default=None, help="group indices, with one bed")
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--record", action="store_true", help="write the runs as the baseline")
+    ap.add_argument("--solver", choices=slopefree.SOLVERS, default=slopefree.SOLVER,
+                    help="the relaxations' solver (slopefree.solve)")
     a = ap.parse_args(argv)
     names = a.bed or sorted(BEDS)
     base = json.loads(BASELINE.read_text()) if BASELINE.exists() else {}
     recorded, bad = {}, 0
     for name in names:
-        run = run_bed(name, groups=a.groups, workers=a.workers)
+        run = run_bed(name, groups=a.groups, workers=a.workers, solver=a.solver)
         t = run.totals()
-        print(f"{name}: {t['groups']} groups, nodes {t['nodes']}, Clarabel {t['full']}, Shor {t['shor']}, "
+        print(f"{name}: {t['groups']} groups, nodes {t['nodes']}, full {t['full']}, Shor {t['shor']}, "
               f"open nodes {t['open']}, uncertified {t['uncertified']}, rounded {t['rounded']}, "
               f"optimum missed {t['optimum_missed']}, {t['seconds']} s", flush=True)
         for key, (b, now, d) in compare(run, base).items():
