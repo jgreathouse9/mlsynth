@@ -29,3 +29,34 @@ Earlier, at the size-21 root only (results recorded during the solver review, 5a
 SCS at eps 1e-4 bounds 11.2% above its value at the full level (full space) and 51% on
 the face; at 1e-6, 1.3e-4 in the full space and 4.0e-3 on the face, where it took 44,525
 iterations (101 s) against 4,250 (11.5 s). So SCS solves in the full space.
+
+The beds, both solvers at once (--workers 2 each), at 3c671a32:
+
+Clarabel (the default):
+s15_k3: 62 groups, nodes 960, full 149, Shor 147, open nodes 0, uncertified 0, rounded 76, optimum missed 0, 40.18 s
+s20_k3: 45 groups, nodes 1114, full 197, Shor 187, open nodes 7, uncertified 5, rounded 62, optimum missed 0, 80.78 s
+s20_k4: 21 groups, nodes 533, full 81, Shor 80, open nodes 1, uncertified 1, rounded 26, optimum missed 0, 32.28 s
+s30_k10: 13 groups, nodes 681, full 131, Shor 121, open nodes 4, uncertified 3, rounded 24, optimum missed 0, 56.35 s
+s30_k4: 25 groups, nodes 1400, full 258, Shor 221, open nodes 2, uncertified 2, rounded 48, optimum missed 0, 219.57 s
+
+SCS:
+s15_k3: 62 groups, nodes 1640, full 331, Shor 322, open nodes 0, uncertified 0, rounded 76, optimum missed 0, 202.9 s
+s20_k3: 45 groups, nodes 1528, full 326, Shor 307, open nodes 28, uncertified 20, rounded 62, optimum missed 0, 560.81 s
+s20_k4: 21 groups, nodes 785, full 165, Shor 158, open nodes 18, uncertified 17, rounded 26, optimum missed 0, 232.12 s
+s30_k10: 13 groups, nodes 795, full 185, Shor 163, open nodes 20, uncertified 13, rounded 24, optimum missed 0, 503.76 s
+s30_k4: 25 groups, nodes 1698, full 388, Shor 324, open nodes 41, uncertified 22, rounded 47, optimum missed 0, 2179.37 s
+
+All beds: nodes 4,688 -> 6,446, uncertified groups 11 -> 72, seconds 429.2 -> 3,679.0,
+optima missed 0 -> 0. SCS solves the beds' relaxations, it does not close more of them.
+
+Where the trees part (s20_k4 group 0: Clarabel 22 nodes, certified; SCS 46, one node open
+at the depth limit), each relaxation the SCS search solved, also by Clarabel:
+- the nodes that decide the search have relaxation values within about 0.1 of zero on an
+  objective scale of 8.4e6; neither solver's exact bound reaches 0 there (Clarabel's are
+  1e-3 to 0.2 above it, SCS's 4e-6 to 2.9), so both branch;
+- SCS's value at those nodes is off by up to 2.7 from Clarabel's, its sign flipped at four
+  of eleven, so its point (which branching and rounding read) is a different point;
+- three Shor solves at nodes with fixings took SCS 32,450 to 97,850 iterations (1.5 to
+  4.1 s), against about 0.02 s for Clarabel.
+So at 1e-6 relative to the scale SCS's point is too coarse for the branching on these
+beds, and some nodes are slow for it. Clarabel stays the default.
