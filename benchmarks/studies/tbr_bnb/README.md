@@ -944,6 +944,11 @@ On the beds, both arms under the same load (`results/face.log`):
 | `s30_k4` | 1,406 → 1,404 | 260 → 259 | 23/222 → 221/221 | 6 → 60 | 142.0 → 122.9 | 3 → 2 |
 | all | 4,718 → 4,678 | 832 → 816 | 227/766 → 754/754 | 150/832 → 298/816 | 220.6 → 185.4 | 11 → 11 |
 
+The table is the face with its substituted rows. With the sparse rows described below,
+the recorded baseline (`results/beds_baseline.json`) has 4,688 nodes, 816 full solves,
+11 uncertified groups and no optimum missed; each bed's node count is within 1.5% of
+the table's, as round-off breaks the branching ties differently.
+
 Every Shor solve on the face is `optimal`, and the face solve's multipliers certify
 its value: over 216 solves on panels of five to seven controls the exact bound at
 them is within 1e-7 relative of the solve's value. Solving takes 16% less time, the
@@ -1472,11 +1477,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (853 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (856 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 408 mutants of the 28
+but for the lines marked `pragma: no cover`, each with its reason. The 409 mutants of the 28
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
