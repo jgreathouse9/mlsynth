@@ -12119,7 +12119,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_node_reuse.py benchmarks/studies/tbr_bnb/test_node_rounding.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_node_reuse.py benchmarks/studies/tbr_bnb/test_node_rounding.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py benchmarks/studies/tbr_bnb/test_dual_memory.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -12869,6 +12869,24 @@ timeout = 900.0
   find = "    with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):\n        out = _certify_slope_free(y, X, **search)\n"
   replace = "    with reporting():\n        out = _certify_slope_free(y, X, **search)\n"
   models = "verbose, progress and log accepted by certify_slope_free and never used"
+
+  [[target.mutant]]
+  id = "the-dual-keeps-twenty-pairs"
+  find = "DUAL_MEMORY = 5\n"
+  replace = "DUAL_MEMORY = 20\n"
+  models = "the memory back at twenty pairs, where L-BFGS-B's own work was 65% of a schedule at 96 controls"
+
+  [[target.mutant]]
+  id = "the-dual-keeps-three-pairs"
+  find = "DUAL_MEMORY = 5\n"
+  replace = "DUAL_MEMORY = 3\n"
+  models = "a memory below the measured one, where a size-24 node of the 100-geo group took a second triangle round"
+
+  [[target.mutant]]
+  id = "the-memory-is-not-passed"
+  find = "options=dict(maxfun=maxfun, maxcor=DUAL_MEMORY)).x"
+  replace = "options=dict(maxfun=maxfun, maxcor=20)).x"
+  models = "the memory documented and pinned while L-BFGS-B runs at its old twenty pairs"
 
 [[target]]
 name = "tbr-bnb-gated"

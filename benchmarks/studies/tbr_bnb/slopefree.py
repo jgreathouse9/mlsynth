@@ -420,6 +420,16 @@ class _Dual:
 #: GeoLift search the 240 it closed took a median of 9, at most 309.
 DUAL_BUDGET = 400
 
+#: The correction pairs L-BFGS-B stores in the first-order dual (scipy's ``maxcor``).
+#: At 96 candidate controls its own work per call (setulb, linear in the pairs times
+#: the 18,627 multipliers) was 65% of a schedule's time at twenty pairs. With five,
+#: the three size-24 nodes of the 100-geo group (4, 27, 33, 58) that the first-order
+#: triangle rounds closed closed in the same round at 64-67 s, against 118-121 s for
+#: twenty and 90-101 s for ten; with three one of them took a second round (106 s).
+#: On the five test beds the dual took 24% less time (196.5 s to 149.6 s) for 8 more
+#: nodes of 4,710, and every group certified the same design (results/dual_memory.log).
+DUAL_MEMORY = 5
+
 
 def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
                      maxfun=150, stages=6, budget: Optional[int] = None):
@@ -474,7 +484,7 @@ def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
         for _ in range(stages):
             last = a
             y = minimize(fun, y, args=(a,), jac=True, method="L-BFGS-B", bounds=bounds,
-                         options=dict(maxfun=maxfun, maxcor=20)).x
+                         options=dict(maxfun=maxfun, maxcor=DUAL_MEMORY)).x
             a *= 0.1
     except _Closed:
         return Multipliers("full", *D.back(best[1])), info

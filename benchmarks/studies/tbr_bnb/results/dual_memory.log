@@ -1,0 +1,41 @@
+# The first-order dual's L-BFGS-B memory (#965): DUAL_MEMORY = 5 against the previous 20 correction pairs.
+# Where the time went: one schedule (1,000 evaluations a stage, 8 stages, 8,000 in all) on a 96-control size-24
+# root of geo_panel(3, n=20, p=100), cProfile: 27.8 s, of it scipy's setulb 18.1 s (65%), the smoothed certificate 7.6 s (eigh 4.5 s).
+
+== 100-geo group (4, 27, 33, 58) of geo_panel(0, n=90, p=100), n_test 14, restarts 50, ratio 134134.89:
+   the three size-24 nodes the first-order triangle rounds closed in the profile, size_certificate(relaxations=False)
+   one process each, beside three others on four cores
+   maxcor 20  fixes [[17, 1], [81, 1]]  certified True  tier triangles  rounds 1   118.0 s
+   maxcor 20  fixes [[17, 1], [81, 0]]  certified True  tier triangles  rounds 1   118.5 s
+   maxcor 20  fixes [[17, 0], [81, 1]]  certified True  tier triangles  rounds 1   120.7 s
+   maxcor 10  fixes [[17, 1], [81, 1]]  certified True  tier triangles  rounds 1   101.2 s
+   maxcor 10  fixes [[17, 1], [81, 0]]  certified True  tier triangles  rounds 1    89.8 s
+   maxcor 10  fixes [[17, 0], [81, 1]]  certified True  tier triangles  rounds 1    92.7 s
+   maxcor  5  fixes [[17, 1], [81, 1]]  certified True  tier triangles  rounds 1    63.7 s
+   maxcor  5  fixes [[17, 1], [81, 0]]  certified True  tier triangles  rounds 1    67.4 s
+   maxcor  5  fixes [[17, 0], [81, 1]]  certified True  tier triangles  rounds 1    66.6 s
+   maxcor  3  fixes [[17, 1], [81, 1]]  certified True  tier triangles  rounds 2   106.3 s
+   maxcor  3  fixes [[17, 1], [81, 0]]  certified True  tier triangles  rounds 1    74.7 s
+   maxcor  3  fixes [[17, 0], [81, 1]]  certified True  tier triangles  rounds 1    64.4 s
+
+== The same group's roots, sizes 19-24, the three schedules (none closes at any memory): seconds per schedule
+   maxcor 20  rung 0    2.1-  3.1 s  evaluations 401-401
+   maxcor 20  rung 1   24.8- 32.3 s  evaluations 5016-5405
+   maxcor 20  rung 2   42.1- 51.1 s  evaluations 8666-10155
+   maxcor  5  rung 0    1.2-  1.5 s  evaluations 401-401
+   maxcor  5  rung 1   15.3- 18.7 s  evaluations 5340-5518
+   maxcor  5  rung 2   30.5- 34.1 s  evaluations 11415-12001
+   (this table is from geo_panel(3, n=20, p=100), the same group's columns, 96 controls)
+
+== The five test beds, paired (3 workers, both memories under the same load), PRICE_LIMIT = 0, restarts 5
+   s15_k3   maxcor 20  nodes   974  full  151  shor  149  open 0  uncertified 0  missed 0  dual   22.1 s  groups   64.0 s
+   s15_k3   maxcor  5  nodes   974  full  151  shor  149  open 0  uncertified 0  missed 0  dual   16.9 s  groups   53.8 s
+   s20_k3   maxcor 20  nodes  1122  full  203  shor  192  open 7  uncertified 4  missed 0  dual   39.4 s  groups  102.7 s
+   s20_k3   maxcor  5  nodes  1122  full  203  shor  192  open 7  uncertified 4  missed 0  dual   30.7 s  groups   92.0 s
+   s20_k4   maxcor 20  nodes   525  full   79  shor   78  open 1  uncertified 1  missed 0  dual   13.2 s  groups   35.5 s
+   s20_k4   maxcor  5  nodes   525  full   79  shor   78  open 1  uncertified 1  missed 0  dual   10.9 s  groups   32.7 s
+   s30_k10  maxcor 20  nodes   685  full  139  shor  125  open 4  uncertified 3  missed 0  dual   27.5 s  groups   68.6 s
+   s30_k10  maxcor  5  nodes   691  full  139  shor  125  open 4  uncertified 3  missed 0  dual   23.8 s  groups   65.7 s
+   s30_k4   maxcor 20  nodes  1404  full  255  shor  217  open 3  uncertified 3  missed 0  dual   94.3 s  groups  252.7 s
+   s30_k4   maxcor  5  nodes  1406  full  260  shor  222  open 3  uncertified 3  missed 0  dual   67.3 s  groups  222.3 s
+   every group certified at both memories certified the same design; no group's certification changed
