@@ -61,7 +61,7 @@ KINDS: Dict[str, Tuple[int, Tuple[str, ...]]] = {
     "node": (2, ("m", "depth", "ones", "outcome", "tier", "control", "seconds")),
     "schedule": (3, ("m", "rung", "maxfun", "closed", "seconds")),
     "triangles": (3, ("m", "round", "triangles", "closed", "seconds")),
-    "solve": (3, ("relaxation", "rows_eq", "rows_in", "status", "seconds")),
+    "solve": (3, ("relaxation", "solver", "rows_eq", "rows_in", "status", "seconds")),
     "price": (3, ("m", "depth", "designs", "exact", "seconds")),
 }
 
@@ -73,7 +73,7 @@ FIELD_TYPES = {
     "survivors": _INT, "excluded": _INT,
     "ratio": _FLOAT, "test_ratio": _FLOAT, "rss": _FLOAT, "ceiling": _FLOAT, "seconds": _FLOAT,
     "certified": _BOOL, "passing": _BOOL, "closed": _BOOL,
-    "tier": _STR, "outcome": _STR, "source": _STR, "relaxation": _STR, "status": _STR, "treatment": _STR,
+    "tier": _STR, "outcome": _STR, "source": _STR, "relaxation": _STR, "solver": _STR, "status": _STR, "treatment": _STR,
     "controls": _INTS, "sizes": _INTS,
 }
 SCHEMA = pa.schema([("level", pa.int8()), ("kind", _STR), ("t", _FLOAT), ("pid", pa.int32())]

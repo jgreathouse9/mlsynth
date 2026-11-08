@@ -99,9 +99,9 @@ def counting():
     n = {"full": 0, "shor": 0}
     real = slopefree.solve
 
-    def solve(c, G, lam, R):
+    def solve(c, G, lam, R, solver=None):
         n[R.level] += 1
-        return real(c, G, lam, R)
+        return real(c, G, lam, R, solver=solver)
 
     slopefree.solve = solve
     try:

@@ -160,7 +160,7 @@ def test_the_slope_free_search_screens_with_the_ladder_of_its_size(monkeypatch):
     y, X = panel(0, p=6)
     best, _ = positive_optimum(y, X)
     out = slopefree.certify_slope_free(y, X, restarts=10, ceiling=Q(best) * Q(95, 100))
-    assert out.certified and out.ceiling_held and seen == [{}]
+    assert out.certified and out.ceiling_held and seen == [{"solver": "clarabel"}]   # no schedules: the ladder of its size
 
 
 # ---------------------------------------------------------------- properties

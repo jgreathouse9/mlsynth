@@ -111,9 +111,9 @@ def test_one_solve_event_per_relaxation_solved(monkeypatch, face):
     real = slopefree.solve
     calls = []
 
-    def spy(c, G, lam, R):
+    def spy(c, G, lam, R, solver=None):
         calls.append(R.level)
-        return real(c, G, lam, R)
+        return real(c, G, lam, R, solver=solver)
 
     monkeypatch.setattr(slopefree, "solve", spy)
     seen, kw = _collect(3)

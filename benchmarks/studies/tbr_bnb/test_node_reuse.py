@@ -45,9 +45,9 @@ def _count_solves(monkeypatch):
     real = slopefree.solve
     seen = []
 
-    def solve(c, G, lam, R):
+    def solve(c, G, lam, R, solver=None):
         seen.append(R.level)
-        return real(c, G, lam, R)
+        return real(c, G, lam, R, solver=solver)
 
     monkeypatch.setattr(slopefree, "solve", solve)
     return seen
@@ -158,12 +158,12 @@ def test_a_node_without_a_parent_point_solves_the_relaxations(monkeypatch, bed_g
     real = slopefree.solve
     calls = []
 
-    def solve(c, G, lam, R):                   # the root's first full solve fails
+    def solve(c, G, lam, R, solver=None):                   # the root's first full solve fails
         if R.level == "full":
             calls.append(1)
             if len(calls) == 1:
                 raise slopefree.cp.error.SolverError("injected")
-        return real(c, G, lam, R)
+        return real(c, G, lam, R, solver=solver)
 
     monkeypatch.setattr(slopefree, "solve", solve)
     monkeypatch.setattr(slopefree, "dual_multipliers", lambda *a, **k: (None, None))
