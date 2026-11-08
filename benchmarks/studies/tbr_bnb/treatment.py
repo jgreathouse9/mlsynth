@@ -85,6 +85,7 @@ from mlsynth.exceptions import MlsynthDataError
 from . import fastfloor
 from .certificate import box_bound_float, gram_lower, qarr
 from .gated import certify_gated, gates_of
+from .progress import emit, reporting, tagged
 
 #: Half a step of round(corr, 2), and the slack for the key's correlation being a double.
 EDGE = Q(5, 1000)
@@ -484,22 +485,38 @@ def _optimum_timed(M, T, n_test, restarts, ceiling=None, start=None):
 
 
 def _optimum(M, T, n_test, restarts, ceiling=None, start=None):
-    y, X, rest = _split(M, T)
-    kw = {} if start is None else {"start": set(start)}
-    res = certify_gated(y, X, n_test=n_test, restarts=restarts, ceiling=ceiling, **kw)
-    C = [rest[j] for j in res.controls] if res.passing else None
-    return res, C
+    with tagged(treatment=tuple(T)):
+        emit("group", treatment=tuple(T), ceiling=ceiling)
+        y, X, rest = _split(M, T)
+        kw = {} if start is None else {"start": set(start)}
+        res = certify_gated(y, X, n_test=n_test, restarts=restarts, ceiling=ceiling, **kw)
+        C = [rest[j] for j in res.controls] if res.passing else None
+        emit("group-done", treatment=tuple(T), certified=res.certified, passing=res.passing,
+             rounds=len(res.rounds), seconds=res.seconds)
+        return res, C
 
 
 def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] = None,
                       restarts: int = 50, pass_restarts: int = 10,
-                      n_jobs: int = 1) -> TreatmentCertificate:
+                      n_jobs: int = 1, verbose: int = 0, progress=None, log=None,
+                      log_level: int = 3) -> TreatmentCertificate:
     """The reference key's best design with ``k`` treatment geos over the columns of
     ``M`` (centred, periods by geos, every geo eligible for every role), certified
     (module docstring). ``pass_restarts`` random starts for the local search each
     surviving group gets before any is certified; 0 skips the pass. ``n_jobs``
     processes compute the floors, the pass and the certifications (module
-    docstring); 1 runs them in this process."""
+    docstring); 1 runs them in this process. ``verbose``, ``progress`` and ``log``
+    report the search's progress (progress.reporting), each group's events tagged
+    with the group, from the workers too."""
+    with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):
+        out = _certify_treatment_entry(M, k, n_test=n_test, start=start, restarts=restarts,
+                                       pass_restarts=pass_restarts, n_jobs=n_jobs)
+        emit("treatment-done", certified=out.certified, treatment=out.treatment, rss=out.rss,
+             passing=out.passing, survivors=len(out.survivors), seconds=out.seconds)
+        return out
+
+
+def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, n_jobs) -> TreatmentCertificate:
     t0 = time.perf_counter()
     M = np.asarray(M, dtype=float)
     p = M.shape[1]
@@ -510,6 +527,7 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
         raise MlsynthDataError(f"pass_restarts is {pass_restarts}; it cannot be negative.")
     if not isinstance(n_jobs, int) or n_jobs < 1:
         raise MlsynthDataError(f"n_jobs is {n_jobs!r}; it has to be a positive integer.")
+    emit("treatment", k=k, p=p, groups=comb(p, k), n_jobs=n_jobs)
     with (_pool(n_jobs) if n_jobs > 1 else nullcontext(None)) as pool:
         return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, pool, t0)
 

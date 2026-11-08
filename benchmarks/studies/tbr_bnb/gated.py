@@ -33,6 +33,7 @@ import numpy as np
 
 from mlsynth.utils.tbr_helpers.design.objective import score_split
 
+from .progress import emit, reporting
 from .slopefree import NoDesignLeft, certify_slope_free
 
 GATES = ("corr_test", "aa_test", "bb_test", "dw_test")
@@ -59,10 +60,17 @@ def gates_of(y, X, controls, n_test):
 
 
 def certify_gated(y: np.ndarray, X: np.ndarray, *, n_test: int, restarts: int = 50,
-                  max_rounds: int = 50, ceiling: Optional[Q] = None,
-                  **kw) -> GatedCertificate:
+                  max_rounds: int = 50, ceiling: Optional[Q] = None, verbose: int = 0, progress=None,
+                  log=None, log_level: int = 3, **kw) -> GatedCertificate:
     """The least-RSS positive-slope control group that passes the reference key's
-    four gates, certified, or a certificate that none does (module docstring)."""
+    four gates, certified, or a certificate that none does (module docstring).
+    ``verbose``, ``progress`` and ``log`` report the search's progress
+    (progress.reporting); each round is a ``gated-round`` event."""
+    with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):
+        return _certify_gated(y, X, n_test=n_test, restarts=restarts, max_rounds=max_rounds, ceiling=ceiling, **kw)
+
+
+def _certify_gated(y, X, *, n_test, restarts, max_rounds, ceiling, **kw) -> GatedCertificate:
     t0 = time.perf_counter()
     excluded: List[set] = []
     out = GatedCertificate(controls=None, rss=None, key=None, passing=False, certified=False)
@@ -79,6 +87,8 @@ def certify_gated(y: np.ndarray, X: np.ndarray, *, n_test: int, restarts: int = 
             break
         gates, key = gates_of(y, X, res.controls, n_test)
         out.rounds.append(dict(controls=res.controls, rss=res.incumbent, gates=gates, seconds=res.seconds))
+        emit("gated-round", round=len(out.rounds) - 1, controls=res.controls, rss=res.incumbent,
+             passing=all(gates), seconds=res.seconds)
         if all(gates):
             out.controls, out.rss, out.key, out.passing, out.certified = res.controls, res.incumbent, key, True, True
             break

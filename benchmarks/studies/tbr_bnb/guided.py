@@ -60,6 +60,7 @@ from mlsynth.utils.tbr_helpers.design.objective import score_split
 from mlsynth.utils.tbr_helpers.design.search import SearchOutcome
 
 from . import treatment
+from .progress import emit, reporting, tagged
 from .treatment import EDGE, SLACK, _competes, _design, _local, _ratio, _start, _yy, can_compete, gram_floor
 
 
@@ -136,10 +137,20 @@ def group_search(M, T: Sequence[int], n_test: int, restarts: int,
 
 
 def guided_treatment(M, k: int, *, n_test: int, restarts: int = 50,
-                     start: Optional[Sequence[int]] = None) -> GuidedResult:
+                     start: Optional[Sequence[int]] = None, verbose: int = 0, progress=None,
+                     log=None, log_level: int = 3) -> GuidedResult:
     """The floor-guided search's design with ``k`` treatment geos over the columns of
     ``M`` (centred, periods by geos, every geo eligible for every role), and the bound
-    the floors give on its distance from the optimum (module docstring)."""
+    the floors give on its distance from the optimum (module docstring). ``verbose``,
+    ``progress`` and ``log`` report each group searched (progress.reporting)."""
+    with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):
+        out = _guided_treatment(M, k, n_test=n_test, restarts=restarts, start=start)
+        emit("treatment-done", certified=out.proven, treatment=out.treatment, rss=out.rss,
+             passing=out.passing, survivors=out.searched, seconds=out.seconds)
+        return out
+
+
+def _guided_treatment(M, k, *, n_test, restarts, start) -> GuidedResult:
     t0 = time.perf_counter()
     M = np.asarray(M, dtype=float)
     p = M.shape[1]
@@ -153,8 +164,15 @@ def guided_treatment(M, k: int, *, n_test: int, restarts: int = 50,
     out = GuidedResult(k=k, treatment=None, controls=None, key=None, rss=None, passing=False,
                        groups=comb(p, k), screened_out=0, searched=0)
 
+    emit("treatment", k=k, p=p, groups=comb(p, k), n_jobs=1)
+
     def search(T, C=None):
-        g = group_search(M, T, n_test, restarts, start=C)
+        with tagged(treatment=tuple(T)):
+            emit("group", treatment=tuple(T), ceiling=None)
+            t1 = time.perf_counter()
+            g = group_search(M, T, n_test, restarts, start=C)
+            emit("group-done", treatment=tuple(T), certified=None, passing=g.key is not None, rounds=None,
+                 seconds=time.perf_counter() - t1)
         out.searched += 1
         out.searched_groups.append(tuple(T))
         if g.key is not None and (out.key is None or g.key > out.key):
