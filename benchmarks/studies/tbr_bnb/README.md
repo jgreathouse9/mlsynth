@@ -1222,6 +1222,41 @@ moves; the RSS descent with 50 restarts, then the key's descent, reaches it in t
 search above. The first version's bound also left out the start group's floor; at
 four and five geos that floor was not the least, and the bound did not change.
 
+## The test beds
+
+Every change to the search is measured first on five fixed beds of simulated
+panels (`beds.py`), not on the 100-geo panel: a certificate there runs for hours,
+and on panels of the same form, a few dozen units wide, the counts that decide a
+change move the same way in seconds. The form matters more than the size: groups with
+more candidate controls than periods branch the most.
+
+| bed | units | treated | periods | candidate controls | groups | checked against enumeration |
+| --- | --- | --- | --- | --- | --- | --- |
+| `s15_k3` | 15 | 3 | 20 | 12 | 62 | yes |
+| `s20_k3` | 20 | 3 | 20 | 17 | 45 | yes |
+| `s20_k4` | 20 | 4 | 20 or 40 | 16 | 21 | yes |
+| `s30_k10` | 30 | 10 | 20 | 20 | 13 | no |
+| `s30_k4` | 30 | 4 | 20 | 26 | 25 | no |
+
+Each bed holds the groups of a scan of random treatment groups whose certificates
+branch on `main` with every node bounded (`PRICE_LIMIT = 0`): `s15_k3` 62 of 600
+groups, `s20_k3` 45 of 320. A run certifies each group and counts nodes, Clarabel
+and Shor solves, nodes left open at the depth limit and incumbents found by rounding.
+Where a group has at most 17 candidate controls (`ENUMERATION_LIMIT`, 131,071
+designs) the design is checked against the enumerated optimum, and a group certified
+at any other design is reported unsound and fails the run.
+
+```bash
+python -m benchmarks.studies.tbr_bnb.beds --workers 4            # every bed, against the baseline
+python -m benchmarks.studies.tbr_bnb.beds --bed s15_k3 s20_k3    # the enumerated beds
+python -m benchmarks.studies.tbr_bnb.beds --record --workers 4   # on main, after a change merges
+```
+
+The baseline, `results/beds_baseline.json`, holds every group's counts on `main`,
+and a run prints each total against it. A change reports its bed tables in its pull
+request, and the baseline is re-recorded on `main` after it merges. Wall times are
+recorded too, but they depend on the machine and its load; the counts do not.
+
 ## Progress reporting
 
 The search reports what it is doing at four levels (`progress.py`):
@@ -1238,7 +1273,8 @@ The search reports what it is doing at four levels (`progress.py`):
 `progress` (a function called with each `Event`) and `log` (a directory) with
 `log_level` (1-3, default 3). A log is a parquet dataset with one column per declared
 field; each process writes its own `part-<pid>-<run>-<n>.parquet` files, flushed every
-`FLUSH_EVERY = 20000` events and at the end of each treatment group, and `read_log`
+`FLUSH_EVERY = 20000` events, every `FLUSH_SECONDS = 60` and at the end of each treatment
+group, so a long run can be read as it goes, and `read_log`
 returns the whole run as one pandas DataFrame. Forked workers report through the
 same settings, and every group's events carry the group as the tag `treatment`.
 
@@ -1259,11 +1295,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (766 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (806 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 363 mutants of the 25
+but for the lines marked `pragma: no cover`, each with its reason. The 379 mutants of the 26
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -1376,6 +1412,7 @@ fixing is certified to the solver's value.
 - `brute.py`: enumeration, the truth the tests check against, the simulated AR(1) panels, and
   `treatment_optimum`, every treatment and control group of a small panel scored by the library's key.
 - `run.py`: `python -m benchmarks.studies.tbr_bnb.run certify` and `... lifts`.
+- `beds.py`: the five test beds, `run_bed`, and `python -m benchmarks.studies.tbr_bnb.beds`; the baseline in `results/beds_baseline.json`.
 - `progress.py`: the search's progress events, `reporting`, the stderr printer, the parquet log and `read_log`.
 - `results/`: the logs of the runs above.
 
