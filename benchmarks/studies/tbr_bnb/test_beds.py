@@ -71,6 +71,19 @@ def test_counting_counts_each_level_and_restores_the_solver(monkeypatch):
     assert n["full"] > 0 and n["shor"] > 0 and set(n) == {"full", "shor"}
 
 
+def test_counting_counts_the_workspaces_full_solves(monkeypatch):
+    """Under the workspace a size's full relaxations go through Workspaces.solve, not
+    slopefree.solve: a bed run would report none."""
+    from .workspace import Workspaces
+    real = Workspaces.solve
+    with counting() as n:
+        y, X = BEDS["s15_k3"].panel(0)
+        with every_node_bounded():
+            slopefree.certify_slope_free(y, X, restarts=5, solver="workspace")
+    assert Workspaces.solve is real
+    assert n["full"] > 0
+
+
 def test_counting_restores_the_solver_after_an_error():
     real = slopefree.solve
     with pytest.raises(RuntimeError):

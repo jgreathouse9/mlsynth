@@ -14417,3 +14417,15 @@ timeout = 900.0
   find = "                           workspaces=inc.get(\"workspaces\"))\n"
   replace = "                           workspaces=None)\n"
   models = "a fresh Workspaces at every node: no workspace reused across nodes, and no pool carried between sizes"
+
+[[target]]
+name = "tbr-bnb-beds-counting"
+module-path = "benchmarks/studies/tbr_bnb/beds.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_beds.py -q -p no:cacheprovider -x -W ignore -k counting"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-workspace-solves-are-not-counted"
+  find = "    slopefree.solve, Workspaces.solve = solve, solve_ws\n"
+  replace = "    slopefree.solve = solve\n"
+  models = "a bed run under the workspace reporting no full relaxations, its solves gone past the counter"

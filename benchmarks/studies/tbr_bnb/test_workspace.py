@@ -183,6 +183,18 @@ def test_a_closed_chunk_ends_the_solve(monkeypatch):
     assert sol.bound == bound(A, _box_rows(D, 3), sol.y_eq, sol.y_in, 3)
 
 
+def test_the_certificate_closes_a_chunk_before_scs_converges(monkeypatch):
+    """With a tolerance SCS cannot meet, only the screen and the certificate can end
+    the solve: a node they close ends at its first chunk, not at the cap."""
+    monkeypatch.setattr(workspace, "EPS", 1e-15)
+    monkeypatch.setattr(workspace, "STAGES", ((dict(alpha=1.8), 3),))
+    monkeypatch.setattr(workspace, "CHUNK", 100)
+    D, _ = _pinned()
+    lam = slopefree.dyadic_below(D.yy * 4)
+    sol = Workspaces().solve(D.c, D.G, lam, _box_rows(D, 3))
+    assert sol.status == "certified" and sol.bound <= 0
+
+
 def test_the_multipliers_are_on_the_rows_of_r():
     D, lam = _pinned()
     R = _box_rows(D, 3, [(1, 1), (5, 0)])
@@ -204,6 +216,29 @@ def test_the_bound_is_as_tight_as_clarabels(fixes):
     b_cl = bound(A, Rows(D.c, 3, fixes=fixes, face=True), cl.y_eq, cl.y_in, 3)
     scale = float(np.abs(np.asarray(A, dtype=float)).max())
     assert abs(float(b_ws) - float(b_cl)) <= 1e-4 * scale
+
+
+def test_a_binding_fixing_reaches_the_relaxation():
+    """At y'y / 4 and size 3 the root is open and the node with the geo the root leans
+    on most fixed out closes under Clarabel. The workspace must close it too, after
+    solving the root: a fixing left out of the box rows' right-hand side solves the
+    root again, whose bound is above zero."""
+    D, _ = _pinned()
+    lam = slopefree.dyadic_below(D.yy / 4)
+    A = objective(D.c, D.G, lam)
+    R0 = Rows(D.c, 3, face=True)
+    root = slopefree.solve(D.c, D.G, lam, R0, solver="clarabel")
+    assert bound(A, R0, root.y_eq, root.y_in, 3) > 0               # the root is open
+    fixes = [(int(np.argmax(root.Z[0, 1:])), 0)]
+    R1 = Rows(D.c, 3, fixes=fixes, face=True)
+    cl = slopefree.solve(D.c, D.G, lam, R1, solver="clarabel")
+    assert bound(A, R1, cl.y_eq, cl.y_in, 3) <= 0                  # the node closes
+    ws = Workspaces()
+    ws.solve(D.c, D.G, lam, _box_rows(D, 3))
+    R = _box_rows(D, 3, fixes)
+    sol = ws.solve(D.c, D.G, lam, R)
+    b = sol.bound if sol.bound is not None else bound(A, R, sol.y_eq, sol.y_in, 3)
+    assert b <= 0
 
 
 def test_a_size_clarabel_closes_the_workspace_closes():
@@ -240,8 +275,10 @@ def test_the_pool_holds_the_active_triangles_of_the_last_root():
     y_tri = np.asarray(sol.y_in[R.n_in - 2 * len(D.c) - len(tri):R.n_in - 2 * len(D.c)], dtype=float)
     top = y_tri.max()
     assert set(ws.pool) == {t for t, v in zip(tri, y_tri) if top > 0 and v > workspace.ACTIVE * top}
+    marker = ((0, (0, 1, 2)),)
+    ws.pool = marker
     ws.solve(D.c, D.G, lam, Rows(D.c, 5, triangles=tri, fixes=[(0, 1)], face=True, box=True))
-    assert set(ws.pool) == {t for t, v in zip(tri, y_tri) if top > 0 and v > workspace.ACTIVE * top}
+    assert ws.pool == marker                                 # only a root sets the pool
 
 
 def test_size_certificate_starts_from_the_pool(monkeypatch):
@@ -340,6 +377,19 @@ def test_a_capped_search_still_certifies_only_what_holds(monkeypatch):
     a = certify_slope_free(y, X, restarts=5, solver="workspace")
     b = certify_slope_free(y, X, restarts=5, solver="clarabel")
     assert not a.certified or a.incumbent == b.incumbent
+
+
+def test_an_error_after_a_solve_clears_the_iterate(monkeypatch):
+    D, lam = _pinned()
+    ws = Workspaces()
+    ws.solve(D.c, D.G, lam, _box_rows(D, 3))
+    assert all(w.last is not None for w in ws.spaces.values())
+
+    def boom(self, *a, **k):
+        raise RuntimeError("scs failed")
+    monkeypatch.setattr(scs.SCS, "solve", boom)
+    ws.solve(D.c, D.G, lam, _box_rows(D, 3, [(0, 1)]))
+    assert all(w.last is None for w in ws.spaces.values())
 
 
 def test_an_scs_error_is_reported_and_clarabel_solves(monkeypatch):
