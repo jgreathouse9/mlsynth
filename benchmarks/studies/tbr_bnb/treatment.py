@@ -52,6 +52,18 @@ their turn still hold, since they were proved against ceilings at least as
 high. On GeoLift at k = 4 one group of 93 is left open on its turn and closes on
 its retry.
 
+The gap. With ``gap`` g above zero every screen and every ceiling reads a target
+RSS, the incumbent's RSS over (1 + g)^2, in place of the incumbent's own: a group is
+admitted and certified against ceiling(y'y, r_star, target). The ceiling's first
+term does not read the RSS, so a design that could round above the incumbent's class
+is still excluded exactly. A certified search then proves that every design whose
+key is above the reported design's is in its class with an RSS at least the target,
+so with a required impact at least the reported design's over 1 + g, the required
+impact being a constant times sqrt(RSS / (n - 2)): the reported design needs at most
+1 + g times the optimum's required impact (derived here). A group whose optimum is
+below the target replaces the incumbent and the target falls with it; what was
+proved against a higher target still holds. g = 0 is the exact search.
+
 With ``n_jobs`` above one the floors are computed in chunks over a pool of forked
 processes, and the pass and the certifications run in waves of ``n_jobs`` groups.
 A wave's groups are screened and given their ceilings from the incumbent as the
