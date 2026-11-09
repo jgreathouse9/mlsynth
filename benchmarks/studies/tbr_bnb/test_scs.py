@@ -125,18 +125,21 @@ def test_the_solve_event_names_its_solver():
     assert [e.fields["solver"] for e in events if e.kind == "solve"] == ["scs", "clarabel", "clarabel"]
 
 
-def test_the_size_certificate_passes_its_solver(monkeypatch):
+@pytest.mark.parametrize("shor", [False, True])
+def test_the_size_certificate_passes_its_solver(monkeypatch, shor):
+    """To every level it solves: the Shor level only when asked for (SHOR_TIER)."""
     seen = []
     real = slopefree.solve
 
     def spy(c, G, lam, R, solver=None):
-        seen.append(solver)
+        seen.append((R.level, solver))
         return real(c, G, lam, R, solver=solver)
 
     monkeypatch.setattr(slopefree, "solve", spy)
     D, lam = _pinned()
-    slopefree.size_certificate(D.c, D.G, lam, 3, schedules=(), solver="scs")
-    assert seen and all(s == "scs" for s in seen)
+    slopefree.size_certificate(D.c, D.G, lam, 3, schedules=(), solver="scs", shor=shor)
+    assert seen and all(s == "scs" for _, s in seen)
+    assert ("shor" in {lv for lv, _ in seen}) is shor
 
 
 def test_the_solver_reaches_every_solve_of_the_search(monkeypatch):

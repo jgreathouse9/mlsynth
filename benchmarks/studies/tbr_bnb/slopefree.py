@@ -48,7 +48,9 @@ and the cuts and drops the bound products and the products of c'u; then the full
 relaxation with its rounds of triangles. On the 242 root sizes of the four-geo
 GeoLift search the first closed 43 of the 239 that had a previous size, the
 first-order method 240 of 242 at 0.04 s a size, the Shor relaxation 212 of 242 at
-0.37 s a solve, against 1.07 s for the full relaxation.
+0.37 s a solve, against 1.07 s for the full relaxation. Since the first-order method
+bounds the full rows, the Shor relaxation now closes nothing it leaves open (0 of 756
+sizes on the beds), so it is solved only when asked for (SHOR_TIER).
 
 The smoothing of T max(0, lambda_max(S)) is max {<Z, S> - a/2 ||Z||^2 : Z >= 0,
 tr Z <= T}, within a T^2 / 2 of it, with the maximiser given by projecting the
@@ -557,6 +559,13 @@ SOLVER = "clarabel"
 #: of the 100-geo group bounds within 1.3e-4 of its value (results/scs.log).
 SCS_EPS = 1e-6
 
+#: Whether size_certificate solves the Shor relaxation between the dual tier and the
+#: full relaxation. The dual tier bounds the full rows, so a size the weaker Shor
+#: relaxation could close it closes first: over every bed group the Shor tier closed
+#: 0 of the 756 sizes it was asked to, and on the GeoLift window at k = 4 0 of 3, each
+#: solved again at the full level (results/shor_tier.log).
+SHOR_TIER = False
+
 
 def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
                      maxfun=150, stages=6, budget: Optional[int] = None):
@@ -650,11 +659,13 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
                      warm: Optional[Multipliers] = None,
                      schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None,
                      first_order_rounds: Optional[int] = None, relaxations: bool = True,
-                     face: bool = None, solver: Optional[str] = None) -> SizeResult:
+                     face: bool = None, solver: Optional[str] = None,
+                     shor: Optional[bool] = None) -> SizeResult:
     """Whether no design of size m (within the fixings) has u'(cc' - lam G)u > 0,
     by the cheapest certificate of a cascade (module docstring): ``warm``, another
-    size's multipliers, at this size's rows; then the Shor relaxation's; then the
-    full relaxation's, with up to ``rounds`` rounds of the ``per_round`` most violated
+    size's multipliers, at this size's rows; then the first-order tiers; with
+    ``shor`` (SHOR_TIER when None) the Shor relaxation's; then the full
+    relaxation's, with up to ``rounds`` rounds of the ``per_round`` most violated
     triangle inequalities where it is above zero.
 
     The first-order tier tries each of ``schedules`` in turn (size_schedules(p)
@@ -674,6 +685,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     t0 = time.perf_counter()
     face = FACE if face is None else face
     solver = _checked_solver(solver)
+    shor = SHOR_TIER if shor is None else shor
     schedules = size_schedules(len(c)) if schedules is None else _checked(schedules)
     if first_order_rounds is None:
         first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM else 0
@@ -721,11 +733,13 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
             return SizeResult(True, b, r, len(tri), time.perf_counter() - t0, tier="triangles")
     if not relaxations:
         return SizeResult(False, None, 0, len(tri), time.perf_counter() - t0, None, tier="first-order")
-    R = Rows(c, m, cuts=cuts, fixes=fixes, face=face, level="shor")
-    try:
-        sol = solve(c, G, lam, R, solver=solver)
-    except cp.error.SolverError:
-        sol = None                       # the full relaxation decides
+    sol = None
+    if shor:                             # SHOR_TIER: off unless asked for
+        R = Rows(c, m, cuts=cuts, fixes=fixes, face=face, level="shor")
+        try:
+            sol = solve(c, G, lam, R, solver=solver)
+        except cp.error.SolverError:
+            sol = None                   # the full relaxation decides
     if sol is not None:
         b = bound(A, R, sol.y_eq, sol.y_in, m)
         if b is not None and b <= 0:
@@ -1044,7 +1058,7 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     relax = depth % every == 0 or parent_u is None
     res = size_certificate(c, G, inc["lam"], m, cuts=cuts, fixes=fixes, rounds=rounds, per_round=per_round,
                            warm=None if fixes else inc.get("warm"), relaxations=relax,
-                           face=inc.get("face", FACE), solver=inc.get("solver", SOLVER))
+                           face=inc.get("face", FACE), solver=inc.get("solver", SOLVER), shor=inc.get("shor", SHOR_TIER))
     out.tiers[res.tier] = out.tiers.get(res.tier, 0) + 1
     if res.certified:
         if not fixes and res.multipliers is not None:
@@ -1117,7 +1131,8 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
                         clarabel_every: int = CLARABEL_EVERY,
                         rounding: bool = ROUND_NODES,
                         face: bool = FACE,
-                        solver: str = SOLVER) -> SlopeFreeCertificate:
+                        solver: str = SOLVER,
+                        shor: bool = SHOR_TIER) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -1151,7 +1166,8 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
     ``rounding`` an open node that solved them rounds its point to a design, which
     replaces the incumbent when it is better (``rounded`` counts those). With ``face``
     the relaxations are solved and certified on their faces (FACE, face.py). The
-    relaxations are solved by ``solver``, "clarabel" or "scs" (SOLVER, solve()).
+    relaxations are solved by ``solver``, "clarabel" or "scs" (SOLVER, solve()). With
+    ``shor`` the Shor relaxation is solved before the full one (SHOR_TIER).
     """
     from .search import hull_survivors, incumbent, pieces_to
 
@@ -1165,6 +1181,8 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
     if solver is None:
         raise MlsynthConfigError(f"solver is one of {SOLVERS}, not None.")
     _checked_solver(solver)
+    if type(shor) is not bool:
+        raise MlsynthConfigError(f"shor is True or False, not {shor!r}.")
     p = X.shape[1]
     excluded = [set(e) for e in exclude]
     C = set(incumbent(y, X, restarts=restarts, seed=seed)[1])
@@ -1204,7 +1222,7 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
         sizes = sorted({pc[2] for pc in s1})
         t_h = time.perf_counter() - t0
         emit("hull", sizes=sizes, seconds=t_h)
-    inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding, "face": face, "solver": solver}
+    inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding, "face": face, "solver": solver, "shor": shor}
     out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
                                hull_seconds=t_h, group_tier=None if screen is None else screen.tier,
                                group_seconds=0.0 if screen is None else screen.seconds)
