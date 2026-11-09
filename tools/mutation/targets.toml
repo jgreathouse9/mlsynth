@@ -14279,3 +14279,141 @@ timeout = 900.0
   find = "    if isinstance(gap, bool) or not isinstance(gap, (int, float, Q)):\n"
   replace = "    if not isinstance(gap, (int, float, Q)):\n"
   models = "gap=True read as a gap of 100%"
+
+[[target]]
+name = "tbr-bnb-workspace"
+module-path = "benchmarks/studies/tbr_bnb/workspace.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_workspace.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-fixing-multiplier-has-its-sign-flipped"
+  find = "        y_eq = np.concatenate([ye, [ybox[2 * j] - ybox[2 * j + 1] for j, _ in fixes]])\n"
+  replace = "        y_eq = np.concatenate([ye, [ybox[2 * j + 1] - ybox[2 * j] for j, _ in fixes]])\n"
+  models = "a fixing's multiplier read as y_lo - y_hi of its box rows: the certificate stays valid and loosens at every node with fixings"
+
+  [[target.mutant]]
+  id = "the-rows-carrying-c-keep-their-scale"
+  find = "        yi[self.c_rows] /= self.cs\n"
+  replace = "        pass\n"
+  models = "the multipliers of the rows carrying c left in the solver's units, so the certificate at them is loose"
+
+  [[target.mutant]]
+  id = "a-fixing-never-reaches-the-box-rows"
+  find = "            hi[j] = lo[j] = v\n"
+  replace = "            pass\n"
+  models = "every node solved as the root: the fixings left out of the right-hand side, the bound the size's, not the node's"
+
+  [[target.mutant]]
+  id = "the-stages-settings-are-dropped"
+  find = "            kw.update(self.stages[k][0])\n"
+  replace = "            pass\n"
+  models = "every stage at SCS's default scale and relaxation, the first stage's small dual scale lost"
+
+  [[target.mutant]]
+  id = "every-node-builds-its-own-workspace"
+  find = "            self._ws[k].update(b=b)\n"
+  replace = "            self._ws[k] = scs.SCS(dict(A=self.Ascs, b=b, c=self.cvec), self.cone, eps_abs=EPS, eps_rel=EPS, max_iters=self.chunk, verbose=False, **self.stages[k][0])\n"
+  models = "a fresh workspace and factorization at every node, the cvxpy path's cost the workspace exists to avoid"
+
+  [[target.mutant]]
+  id = "a-node-starts-from-zero"
+  find = "                    sol = ws.solve(warm_start=True, x=self.last[0], y=self.last[1], s=self.last[2])\n"
+  replace = "                    sol = ws.solve(warm_start=False)\n"
+  models = "every chunk and node started from zero: the iterate of the last chunk and node thrown away"
+
+  [[target.mutant]]
+  id = "a-closed-chunk-does-not-end-the-solve"
+  find = "                if b is not None and b <= 0:\n                    return Outcome(\"certified\""
+  replace = "                if False:\n                    return Outcome(\"certified\""
+  models = "a node the certificate closed after its first chunk run to SCS's own convergence"
+
+  [[target.mutant]]
+  id = "the-screen-is-skipped-until-convergence"
+  find = "if done or screen(y_eq, y_in) <= 0 else None\n"
+  replace = "if done else None\n"
+  models = "the exact certificate tried only once SCS converges, so a node closable at its first chunk runs every chunk"
+
+  [[target.mutant]]
+  id = "the-cap-is-reported-as-convergence"
+  find = "        return Outcome(\"converged\" if done else \"cap\","
+  replace = "        return Outcome(\"converged\","
+  models = "a solve that spent every stage's chunks reported as converged (agents_solvers.md, rules 1 and 7)"
+
+  [[target.mutant]]
+  id = "the-pool-keeps-every-triangle"
+  find = "if top > 0 and v > ACTIVE * top)\n"
+  replace = "if True)\n"
+  models = "the pool carries every triangle of the last root, active or not, so it grows with every size"
+
+  [[target.mutant]]
+  id = "a-node-with-fixings-sets-the-pool"
+  find = "        if not R.fixes and o.y_in is not None:\n"
+  replace = "        if o.y_in is not None:\n"
+  models = "the pool read from a node deep in the tree, whose active triangles hold only under its fixings' point"
+
+  [[target.mutant]]
+  id = "rows-without-box-rows-are-taken"
+  find = "        if not R.box:\n"
+  replace = "        if False:\n"
+  models = "rows without the box rows solved, the multipliers' layout off by two rows a free geo"
+
+  [[target.mutant]]
+  id = "new-triangle-rows-start-with-a-multiplier"
+  find = "np.zeros(hi - lo), y[lo:]]),\n"
+  replace = "np.ones(hi - lo), y[lo:]]),\n"
+  models = "a round's new triangle rows started at multiplier one, not zero, an infeasible warm start"
+
+  [[target.mutant]]
+  id = "a-failed-solve-leaves-its-iterate"
+  find = "            ws.last = None\n"
+  replace = "            pass\n"
+  models = "the iterate of an SCS solve that raised carried to the next node and round"
+
+[[target]]
+name = "tbr-bnb-workspace-plumbing"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_workspace.py benchmarks/studies/tbr_bnb/test_scs.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-workspace-starts-one-control-late"
+  find = "    return \"workspace\" if p >= WORKSPACE_FROM else SOLVER\n"
+  replace = "    return \"workspace\" if p > WORKSPACE_FROM else SOLVER\n"
+  models = "a group of exactly WORKSPACE_FROM candidate controls solved on Clarabel"
+
+  [[target.mutant]]
+  id = "a-size-ignores-the-pool"
+  find = "    tri: List = [] if ws is None else list(ws.pool)\n"
+  replace = "    tri: List = []\n"
+  models = "every size's relaxation starts without the triangles the size before it needed"
+
+  [[target.mutant]]
+  id = "the-box-rows-are-not-written"
+  find = "        if box:                                          # 0 <= u_j <= 1 for each free geo (workspace.py)\n"
+  replace = "        if False:                                          # 0 <= u_j <= 1 for each free geo (workspace.py)\n"
+  models = "Rows(box=True) without the box rows the workspace's multipliers are laid out for"
+
+  [[target.mutant]]
+  id = "one-relaxation-goes-to-the-workspace"
+  find = "    return \"clarabel\" if solver == \"workspace\" else solver\n"
+  replace = "    return solver\n"
+  models = "the group screen and the Shor tier handed 'workspace', which solve() refuses"
+
+  [[target.mutant]]
+  id = "the-workspace-takes-the-long-schedules"
+  find = "    if solver == \"workspace\":\n        return SCREEN_SCHEDULES[:1]\n"
+  replace = "    if solver == \"workspace\":\n        return SCREEN_SCHEDULES\n"
+  models = "the first-order ladder kept under the workspace, whose relaxation costs about what a long schedule does"
+
+  [[target.mutant]]
+  id = "the-workspace-takes-first-order-rounds"
+  find = "                                                   and ws is None) else 0\n"
+  replace = "                                                   ) else 0\n"
+  models = "first-order triangle rounds run before the workspace's relaxation when a long schedule is passed"
+
+  [[target.mutant]]
+  id = "each-node-makes-its-own-workspaces"
+  find = "                           workspaces=inc.get(\"workspaces\"))\n"
+  replace = "                           workspaces=None)\n"
+  models = "a fresh Workspaces at every node: no workspace reused across nodes, and no pool carried between sizes"

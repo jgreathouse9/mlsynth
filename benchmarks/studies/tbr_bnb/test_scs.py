@@ -325,7 +325,7 @@ def test_when_both_solvers_fail_the_error_is_raised_and_both_are_reported(monkey
     assert [(e.fields["solver"], e.fields["status"]) for e in events] == [("scs", "error"), ("clarabel", "error")]
 
 
-@pytest.mark.parametrize("bad", ["SCS", "gurobi", "", None, 1, True])
+@pytest.mark.parametrize("bad", ["SCS", "gurobi", "", 1, True])
 def test_a_malformed_solver_is_refused(monkeypatch, bad):
     """Before the search starts: the descent is never run on a bad flag."""
     from . import search
@@ -339,8 +339,18 @@ def test_a_malformed_solver_is_refused(monkeypatch, bad):
         mp.setattr(search, "incumbent", no_descent)
         with pytest.raises(MlsynthConfigError, match="solver"):
             certify_slope_free(y, X, restarts=3, solver=bad)
-    if bad is not None:                   # None is SOLVER in size_certificate() and solve()
-        with pytest.raises(MlsynthConfigError, match="solver"):
-            slopefree.size_certificate(D.c, D.G, lam, 3, solver=bad)
-        with pytest.raises(MlsynthConfigError, match="solver"):
-            solve(D.c, D.G, lam, Rows(D.c, 3, level="shor"), solver=bad)
+    with pytest.raises(MlsynthConfigError, match="solver"):
+        slopefree.size_certificate(D.c, D.G, lam, 3, solver=bad)
+    with pytest.raises(MlsynthConfigError, match="solver"):
+        solve(D.c, D.G, lam, Rows(D.c, 3, level="shor"), solver=bad)
+
+
+def test_no_solver_is_the_default_for_the_group(monkeypatch):
+    """None is default_solver(p) in certify_slope_free (test_workspace.py checks
+    which), and SOLVER in size_certificate() and solve()."""
+    seen = []
+    real = slopefree._branch
+    monkeypatch.setattr(slopefree, "_branch", lambda *a, **k: seen.append(a[10]["solver"]) or real(*a, **k))
+    y, X = panel(0, p=4)
+    certify_slope_free(y, X, restarts=3, solver=None)
+    assert set(seen) == {slopefree.default_solver(4)} == {slopefree.SOLVER}

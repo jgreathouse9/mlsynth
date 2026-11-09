@@ -124,6 +124,10 @@ class Rows:
     builds the solver's model and the certificate, so the certificate holds for the
     constraints written here whatever the solver did.
 
+    With ``box`` each free geo also has the rows u_j <= 1 and -u_j <= 0, last among the
+    inequalities: valid for every design, and the rows the SCS workspace turns into a
+    node's fixings (workspace.py).
+
     With ``m`` None the rows hold the designs of every size: sum u >= 1 and its
     products with 1 - u_i, (sum u - 1)(1 - u_i) >= 0, replace sum u = m and its
     products (the products with u_i follow from U_ii = u_i and U_ij >= 0), and the
@@ -131,12 +135,16 @@ class Rows:
 
     def __init__(self, c: Sequence, m: Optional[int], cuts: Sequence[Set[int]] = (),
                  triangles: Sequence[Tuple[int, Tuple[int, int, int]]] = (),
-                 fixes: Sequence[Tuple[int, int]] = (), level: str = "full", face: bool = False):
+                 fixes: Sequence[Tuple[int, int]] = (), level: str = "full", face: bool = False,
+                 box: bool = False):
         if level not in ("full", "shor"):
             raise ValueError(f"the rows' level is 'full' or 'shor', not {level!r}")
         p = len(c)
         self.p, self.n, self.m, self.level = p, p + 1, m, level
         self.fixes = tuple(fixes)
+        self.cuts = tuple(tuple(sorted(C)) for C in cuts)
+        self.triangles = tuple(triangles)
+        self.box = box
         self.face = _face.face_of(p, m, fixes) if face else None   # Z = T W T' on it (face.py)
         full = level == "full"
         self.eq: List[Dict] = []; self.beq: List = []
@@ -183,11 +191,19 @@ class Rows:
             le(row(*((U(i, j), c[j]) for j in range(p)), *((u(j), -c[j]) for j in range(p))), 0, True)
         for cut in cuts:
             le(row(*((u(j), 1 if j in cut else -1) for j in range(p))), len(cut) - 1)
+        t0 = len(self.ineq)
         for kind, (i, j, k) in triangles:
             if kind == 0:
                 le(row((U(i, j), 1), (U(i, k), 1), (U(j, k), -1), (u(i), -1)), 0)
             else:
                 le(row((u(i), 1), (u(j), 1), (u(k), 1), (U(i, j), -1), (U(i, k), -1), (U(j, k), -1)), 1)
+        self.triangle_rows = (t0, len(self.ineq))
+        if box:                                          # 0 <= u_j <= 1 for each free geo (workspace.py)
+            fixed = dict(fixes)
+            for j in range(p):
+                if j not in fixed:
+                    le(row((u(j), 1)), 1)
+                    le(row((u(j), -1)), 0)
         self.n_eq, self.n_in = len(self.eq), len(self.ineq)
         self.n_triangles = len(triangles)
 
@@ -223,6 +239,7 @@ class Solve:
     status: str
     face: bool = False           # solved on the face Z = T W T' (face.py)
     solver: str = "clarabel"     # the solver that answered (solve())
+    bound: Optional[Q] = None    # the exact certificate at these multipliers, when the solve computed it
 
 
 def _pow2(x):
@@ -261,6 +278,9 @@ def solve(c, G, lam, R: Rows, solver: Optional[str] = None) -> Solve:
     that (a worker of certify_treatment's pool) inherits the pool's state but not
     its threads, so its next solve never returns."""
     solver = _checked_solver(solver)
+    if solver == "workspace":
+        raise MlsynthConfigError("solve() takes 'clarabel' or 'scs'; the workspace solves through "
+                                 "workspace.Workspaces, which keeps it across a size's nodes.")
     A = np.asarray(objective(c, G, lam), dtype=float)
     s = _pow2(float(np.abs(A).max())); cs = _pow2(float(np.max(np.abs(np.asarray(c, dtype=float)))))
     n = R.n
@@ -436,18 +456,30 @@ class SizeResult:
 def _screen(A, R: Rows, y_eq, y_in, m) -> float:
     """bound() in doubles, unrounded: it decides only whether the exact bound is
     tried, never whether a size is certified."""
+    return _screener(A, R, m)(y_eq, y_in)
+
+
+def _screener(A, R: Rows, m):
+    """_screen for R with its matrices built once, for a solver that screens many
+    multipliers of one node (workspace.py)."""
     n = R.n
     Me, Mi = R.matrices(1.0)
-    y_in = np.maximum(np.asarray(y_in, dtype=float), 0.0)
-    E = (Me.T @ np.asarray(y_eq, dtype=float) + Mi.T @ y_in).reshape(n, n, order="F")
-    S = np.zeros((n, n)); S[1:, 1:] = np.asarray(A, dtype=float); S -= (E + E.T) / 2
-    k = float(np.dot(y_eq, np.asarray(R.beq, dtype=float)) + np.dot(y_in, np.asarray(R.bin, dtype=float)))
-    full = k + (1 + m) * max(0.0, float(np.linalg.eigvalsh(S)[-1]))
-    if R.face is None:
-        return full
-    T = R.face.matrix()
-    M = T.T @ S @ T
-    return min(full, k + R.face.trace * max(0.0, float(np.linalg.eigvalsh((M + M.T) / 2)[-1])))
+    MeT, MiT = Me.T.tocsr(), Mi.T.tocsr()
+    beq, bin_ = np.asarray(R.beq, dtype=float), np.asarray(R.bin, dtype=float)
+    A0 = np.zeros((n, n)); A0[1:, 1:] = np.asarray(A, dtype=float)
+    T = None if R.face is None else R.face.matrix()
+
+    def screen(y_eq, y_in) -> float:
+        y_in = np.maximum(np.asarray(y_in, dtype=float), 0.0)
+        E = (MeT @ np.asarray(y_eq, dtype=float) + MiT @ y_in).reshape(n, n, order="F")
+        S = A0 - (E + E.T) / 2
+        k = float(np.dot(y_eq, beq) + np.dot(y_in, bin_))
+        full = k + (1 + m) * max(0.0, float(np.linalg.eigvalsh(S)[-1]))
+        if T is None:
+            return full
+        M = T.T @ S @ T
+        return min(full, k + R.face.trace * max(0.0, float(np.linalg.eigvalsh((M + M.T) / 2)[-1])))
+    return screen
 
 
 def _capped(v, T):
@@ -551,8 +583,24 @@ FACE = True
 #: Chu, Parikh and Boyd 2016) is ADMM on the homogeneous self-dual embedding: an
 #: iteration projects onto the cone and solves one sparse system. Its multipliers go
 #: to the same exact certificate as Clarabel's.
-SOLVERS = ("clarabel", "scs")
+SOLVERS = ("clarabel", "scs", "workspace")
 SOLVER = "clarabel"
+
+#: From this many candidate controls certify_slope_free solves a size's full
+#: relaxations on the SCS workspace (workspace.py) unless a solver is named.
+WORKSPACE_FROM = 40
+
+
+def default_solver(p: int) -> str:
+    """The relaxations' solver for a group of ``p`` candidate controls."""
+    return "workspace" if p >= WORKSPACE_FROM else SOLVER
+
+
+def _one_relaxation(solver: str) -> str:
+    """The solver of a relaxation solved once, outside a size's search (the group
+    screen, the Shor tier): the workspace pays for itself across a size's nodes, so
+    those go to Clarabel."""
+    return "clarabel" if solver == "workspace" else solver
 
 #: SCS's absolute and relative tolerances. The certificate at SCS's multipliers is
 #: loosened by at most (1 + m) times its dual residual, so at 1e-6 the size-21 root
@@ -650,8 +698,12 @@ FIRST_ORDER_ROUNDS = 3
 SIZE_LADDER_FROM = 90
 
 
-def size_schedules(p: int) -> Tuple[Tuple[int, int, int], ...]:
-    """The schedules a size of a group with ``p`` candidate controls tries."""
+def size_schedules(p: int, solver: Optional[str] = None) -> Tuple[Tuple[int, int, int], ...]:
+    """The schedules a size of a group with ``p`` candidate controls tries. With the
+    workspace the first only: a relaxation on it costs about what a longer schedule
+    does, and closes more."""
+    if solver == "workspace":
+        return SCREEN_SCHEDULES[:1]
     return SCREEN_SCHEDULES if p >= SIZE_LADDER_FROM else SCREEN_SCHEDULES[:1]
 
 
@@ -660,7 +712,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
                      schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None,
                      first_order_rounds: Optional[int] = None, relaxations: bool = True,
                      face: bool = None, solver: Optional[str] = None,
-                     shor: Optional[bool] = None) -> SizeResult:
+                     shor: Optional[bool] = None, workspaces=None) -> SizeResult:
     """Whether no design of size m (within the fixings) has u'(cc' - lam G)u > 0,
     by the cheapest certificate of a cascade (module docstring): ``warm``, another
     size's multipliers, at this size's rows; then the first-order tiers; with
@@ -681,14 +733,25 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     open after six rounds that two rounds from zero closed.
 
     With ``face`` (FACE when None) every relaxation is solved and certified on its
-    face, Z = T W T' (face.py)."""
+    face, Z = T W T' (face.py).
+
+    With ``solver`` "workspace" the full relaxations are solved on ``workspaces``
+    (workspace.Workspaces; a new one when None), every one starting from its
+    triangle pool, with the box rows that carry the fixings; the first-order tier
+    takes size_schedules' first schedule and no triangle rounds. A certificate the
+    solve already computed (Solve.bound) is not computed again."""
     t0 = time.perf_counter()
     face = FACE if face is None else face
     solver = _checked_solver(solver)
     shor = SHOR_TIER if shor is None else shor
-    schedules = size_schedules(len(c)) if schedules is None else _checked(schedules)
+    ws = None
+    if solver == "workspace":
+        from .workspace import Workspaces
+        ws = Workspaces() if workspaces is None else workspaces
+    schedules = size_schedules(len(c), solver) if schedules is None else _checked(schedules)
     if first_order_rounds is None:
-        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM else 0
+        first_order_rounds = FIRST_ORDER_ROUNDS if (len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM
+                                                   and ws is None) else 0
     elif type(first_order_rounds) is not int or first_order_rounds < 0:
         raise MlsynthConfigError(f"first_order_rounds is a count of rounds, an int at least 0, not {first_order_rounds!r}.")
     lam = dyadic_below(lam)
@@ -737,7 +800,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     if shor:                             # SHOR_TIER: off unless asked for
         R = Rows(c, m, cuts=cuts, fixes=fixes, face=face, level="shor")
         try:
-            sol = solve(c, G, lam, R, solver=solver)
+            sol = solve(c, G, lam, R, solver=_one_relaxation(solver))
         except cp.error.SolverError:
             sol = None                   # the full relaxation decides
     if sol is not None:
@@ -745,15 +808,15 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
         if b is not None and b <= 0:
             return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="shor",
                               multipliers=Multipliers("shor", sol.y_eq, sol.y_in))
-    tri: List = []
+    tri: List = [] if ws is None else list(ws.pool)
     u = None
     for r in range(rounds + 1):
-        R = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes, face=face)
+        R = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes, face=face, box=ws is not None)
         try:
-            sol = solve(c, G, lam, R, solver=solver)
+            sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R)
         except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved
             return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)
-        b = bound(A, R, sol.y_eq, sol.y_in, m)
+        b = sol.bound if sol.bound is not None else bound(A, R, sol.y_eq, sol.y_in, m)
         u = None if sol.Z is None else np.asarray(sol.Z)[0, 1:]
         if b is not None and b <= 0:
             w = Multipliers("full", sol.y_eq, sol.y_in) if not tri else None
@@ -837,7 +900,7 @@ def group_certificate(c, G, lam, schedules: Optional[Tuple[Tuple[int, int, int],
         if closed:
             return GroupResult(True, b, "dual", time.perf_counter() - t0, rung)
     try:
-        sol = solve(c, G, lam, R, solver=solver)
+        sol = solve(c, G, lam, R, solver=_one_relaxation(solver))
     except cp.error.SolverError:        # pragma: no cover - Clarabel solves the size-free rows of every test panel
         return GroupResult(False, b, "open", time.perf_counter() - t0)
     b = group_bound(A, R, sol.y_eq, sol.y_in)
@@ -1069,7 +1132,8 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     relax = depth % every == 0 or parent_u is None
     res = size_certificate(c, G, inc["lam"], m, cuts=cuts, fixes=fixes, rounds=rounds, per_round=per_round,
                            warm=None if fixes else inc.get("warm"), relaxations=relax,
-                           face=inc.get("face", FACE), solver=inc.get("solver", SOLVER), shor=inc.get("shor", SHOR_TIER))
+                           face=inc.get("face", FACE), solver=inc.get("solver", SOLVER), shor=inc.get("shor", SHOR_TIER),
+                           workspaces=inc.get("workspaces"))
     out.tiers[res.tier] = out.tiers.get(res.tier, 0) + 1
     if res.certified:
         if not fixes and res.multipliers is not None:
@@ -1142,7 +1206,7 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
                         clarabel_every: int = CLARABEL_EVERY,
                         rounding: bool = ROUND_NODES,
                         face: bool = FACE,
-                        solver: str = SOLVER,
+                        solver: Optional[str] = None,
                         shor: bool = SHOR_TIER) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
@@ -1177,8 +1241,9 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
     ``rounding`` an open node that solved them rounds its point to a design, which
     replaces the incumbent when it is better (``rounded`` counts those). With ``face``
     the relaxations are solved and certified on their faces (FACE, face.py). The
-    relaxations are solved by ``solver``, "clarabel" or "scs" (SOLVER, solve()). With
-    ``shor`` the Shor relaxation is solved before the full one (SHOR_TIER).
+    relaxations are solved by ``solver``, "clarabel", "scs" (solve()) or "workspace"
+    (workspace.py, one Workspaces for the whole search); None takes default_solver(p).
+    With ``shor`` the Shor relaxation is solved before the full one (SHOR_TIER).
     """
     from .search import hull_survivors, incumbent, pieces_to
 
@@ -1189,12 +1254,12 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
         raise MlsynthConfigError(f"rounding is True or False, not {rounding!r}.")
     if type(face) is not bool:
         raise MlsynthConfigError(f"face is True or False, not {face!r}.")
-    if solver is None:
-        raise MlsynthConfigError(f"solver is one of {SOLVERS}, not None.")
-    _checked_solver(solver)
+    if solver is not None:
+        _checked_solver(solver)
     if type(shor) is not bool:
         raise MlsynthConfigError(f"shor is True or False, not {shor!r}.")
     p = X.shape[1]
+    solver = default_solver(p) if solver is None else solver
     excluded = [set(e) for e in exclude]
     C = set(incumbent(y, X, restarts=restarts, seed=seed)[1])
     D = ExactData(y, X)
@@ -1234,6 +1299,9 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
         t_h = time.perf_counter() - t0
         emit("hull", sizes=sizes, seconds=t_h)
     inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding, "face": face, "solver": solver, "shor": shor}
+    if solver == "workspace":
+        from .workspace import Workspaces
+        inc["workspaces"] = Workspaces()     # one search's workspaces and triangle pool
     out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
                                hull_seconds=t_h, group_tier=None if screen is None else screen.tier,
                                group_seconds=0.0 if screen is None else screen.seconds)
