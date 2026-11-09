@@ -1,0 +1,5 @@
+# One-move neighbours of the hard 100-geo group's optimum and pairwise symmetry of the controls.
+# rss: min over b >= 0 of ||y - b X u||^2. within: neighbours at most that percent above the
+# optimum. swap distance: ||x_i - x_j|| / max(||x_i||, ||x_j||).
+{"case": "geo_panel(0, n=90, p=100), treated (4, 27, 33, 58)", "controls": 96, "optimum_size": 29, "optimum_rss": 1336.1568, "pairs": 4560, "max_corr": 0.9283, "over_099": 0, "min_swap_distance": 0.3809, "one_moves": 2039, "below_optimum": 0, "within": {"0.1": 3, "0.25": 3, "0.5": 9, "1": 37, "2": 106}, "closest_percent": 0.0146}
+{"case": "GeoLift centred window, treated (0, 1, 2, 3)", "controls": 36, "pairs": 630, "max_corr": 0.9878, "over_099": 0, "min_swap_distance": 0.2126}

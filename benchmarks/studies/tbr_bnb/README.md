@@ -1551,6 +1551,66 @@ are paid in every group: on the 60-geo panel at four treated geos, `restarts=500
 took 380.1 s against 241.4 s with 50, its slowest group 184.6 s against 202.2 s, with
 the same design and survivors (`results/gap.log`).
 
+### Pentagonal cuts, measured and not built
+
+With `s = 2u - 1`, every design is a vector of signs, and the full relaxation is a
+relaxation of the cut polytope. Beside the triangle inequalities it already carries,
+the next family of that polytope's valid inequalities is the pentagonal one (a
+hypermetric inequality on five points, Deza and Laurent 1997, ch. 28): for any five
+geos and any signs `b` on them, `sum_{a<c} b_a b_c s_a s_c >= -2`. In the lift each
+is a linear row in `Z`, valid for every design, so its multiplier enters the exact
+certificate like any other row. They were separated by a local search over signed
+five-sets of the relaxed point (`results/pentagons.log`).
+
+At the roots they close what triangles do not. On the hard 100-geo group, at the
+optimum's own ratio with the optimum cut out, sizes 28 and 29 stayed open after 1,200
+triangles; 400 pentagons closed size 28, and 738 closed size 29. Size 26 under SCS
+closed with 400 after 1,200 triangles. The size-free screen at the 1% gap's target
+needed no pentagons: it closed with 800 triangles.
+
+End to end, with pentagons added from the second round of a size's relaxation, they
+changed nothing at the gap the search would be run at:
+
+| case | gap | without | with | nodes |
+| --- | --- | --- | --- | --- |
+| hard 100-geo group | 1% | 643.7 s | 655.7 s | 47, 47 |
+| `geo_panel(0)`, 60 geos, 4 treated | 0 | 140.1 s | 138.7 s | |
+| `geo_panel(0)`, 60 geos, 4 treated | 1% | 85.5 s | 85.7 s | |
+
+On the hard group at 1% every node closed before the rounds that add them: 33 at the
+first-order dual, 9 at triangles, 2 by reuse. On the 60-geo search they were added at
+ten sizes, which closed in the same round with or without them. The exact certificate
+on the hard group, where the roots say they would bind, ran past two hours in both
+arms with four processes on four cores and was stopped, so that comparison is open.
+Every pair certified the same design.
+
+### Near-ties, not symmetry
+
+A certificate branches where designs other than the optimum come within the
+relaxation's slack of it. On the hard 100-geo group the optimum has 29 controls and
+RSS 1,336.16, and of its 2,039 neighbours one move away (one control dropped, added
+or swapped), none is better and 3 are within 0.1%, 9 within 0.5%, 37 within 1% and 106
+within 2%; the closest is 0.0146% above it (`results/near_ties.log`).
+
+These are not symmetric copies of the optimum. Symmetry handling in branch and bound
+(orbital fixing and isomorphism pruning, as in Linderoth, Margot and Thain 2007, and
+for semidefinite relaxations Hojny and Pfetsch 2022) needs a permutation of the
+variables that leaves the problem unchanged; almost-symmetry detection (Knueven,
+Ostrowski and Pokutta 2018) needs one that leaves it nearly unchanged. Here a swap of
+controls `i` and `j` is a symmetry only if their series are equal, and none are close:
+
+| group | control pairs | largest correlation | pairs above 0.99 | smallest swap distance |
+| --- | --- | --- | --- | --- |
+| hard 100-geo group | 4,560 | 0.928 | 0 | 0.381 |
+| GeoLift, treated (0, 1, 2, 3) | 630 | 0.988 | 0 | 0.213 |
+
+The swap distance is `||x_i - x_j|| / max(||x_i||, ||x_j||)`. The near-ties come from
+the sum: a design's series adds about 29 controls, so one move changes it by about a
+29th of the two series' difference, and different moves land at nearly the same RSS
+for no structural reason. Nothing in the data gives an orbit to prune. The levers are
+the ones above: a gap, so the search stops separating designs it cannot tell apart,
+and a tighter relaxation, so fewer of them survive a node.
+
 ## The test beds
 
 Every change to the search is measured first on five fixed beds of simulated
@@ -1837,3 +1897,13 @@ fixing is certified to the solver's value.
 - Ferrez, J.-A., Fukuda, K. and Liebling, T. M. (2005). Solving the fixed rank
   convex quadratic maximization in binary variables by a parallel zonotope
   construction algorithm. Eur. J. Oper. Res. 166, 35-50. Table 1.
+- Deza, M. M. and Laurent, M. (1997). Geometry of Cuts and Metrics. Springer.
+  Ch. 28, hypermetric inequalities; the pentagonal inequality is the
+  five-point case.
+- Linderoth, J., Margot, F. and Thain, G. (2007). Improving bounds on the
+  football pool problem via symmetry reduction and high-throughput computing.
+  Technical report.
+- Hojny, C. and Pfetsch, M. E. (2022). Handling symmetries in mixed-integer
+  semidefinite programs. Preprint.
+- Knueven, B., Ostrowski, J. and Pokutta, S. (2018). Detecting almost
+  symmetries of graphs. Math. Program. Comput. 10, 143-185.
