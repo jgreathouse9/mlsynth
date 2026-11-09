@@ -1560,7 +1560,6 @@ timeout = 900.0
   replace = "    if accelerate and J >= BATCH_ACCEL_MIN_DONORS:\n        warm_start = fista_warm_start_batch(G)"
   models = "the accelerator overwriting a seed the caller supplied. The placebo chain hands on the previous draw's certified solution, which is strictly better information than a cold first-order pass, and both the chain's benefit and the pass's cost are invisible in the answer"
 
-
 [[target]]
 name = "nsc-penalty-scaling"
 module-path = "mlsynth/utils/nsc_helpers/optimization.py"
@@ -3644,7 +3643,6 @@ timeout = 300.0
   replace = "        selected_units=[],"
   models = "a named split whose design slots come back empty. The estimate on ``report`` is correct, so a caller reading the effect sees nothing wrong and a caller reading who was treated off the design sees an empty experiment"
 
-
 [[target]]
 name = "tbr-merged-config"
 module-path = "mlsynth/utils/tbr_helpers/config.py"
@@ -4001,12 +3999,10 @@ def _shipped_graph(root: Path) -> Dict[str, FrozenSet[str]] | None:
     return import_graph(root)"""
   replace = """_memo: list = []
 
-
 def _shipped_graph(root: Path) -> Dict[str, FrozenSet[str]] | None:
     if not _memo:
         _memo.append(import_graph(root))
     return _memo[0]
-
 
 _shipped_graph.cache_clear = _memo.clear"""
   models = "the cache #983 tripped over: the first graph read is kept whatever tree it was read from, so a test that reads a temporary tree's graph first leaves {} for the shipped one in that worker"
@@ -4665,7 +4661,6 @@ timeout = 900.0
   find = "        if row[\"r\"] > 1:"
   replace = "        if row[\"r\"] >= 1:"
   models = "the one-factor cell folded into the multi-factor bound, which is the one cell expected to attain nominal coverage. It raises the bound toward nominal and so weakens the very contrast the case exists to measure"
-
 
 [[target]]
 name = "marex-exact-search"
@@ -10853,7 +10848,6 @@ timeout = 1200.0
   replace = "        return False, max(kt, kc)"
   models = "the cost model charging the one block at the larger side's size"
 
-
 [[target]]
 name = "simplex-qp-units"
 module-path = "mlsynth/utils/solvers/active_set.py"
@@ -11735,7 +11729,6 @@ timeout = 900.0
   replace = "        if B < 0:                # hi = 0: the set is the origin\n"
   models = "the band [0, 0] scaled by its own zero end, caps of 0 / 0, where the set is the origin and the value y'y"
 
-
   [[target.mutant]]
   id = "the-rounding-reaches-the-solver"
   find = "        while upper.sum() < 1.0:\n"
@@ -12124,8 +12117,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-full-solve-failure-ends-the-search"
-  find = "        try:\n            sol = solve(c, G, lam, R, solver=solver)\n        except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved\n            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)\n"
-  replace = "        sol = solve(c, G, lam, R, solver=solver)\n"
+  find = "        try:\n            sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R)\n        except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved\n            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)\n"
+  replace = "        sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R)\n"
   models = "Clarabel's failure on the full relaxation raised out of the certificate, ending the treatment search (the 100-geo incident)"
 
   [[target.mutant]]
@@ -12356,7 +12349,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-size-ignores-the-size-rule"
-  find = "    schedules = size_schedules(len(c)) if schedules is None else _checked(schedules)\n"
+  find = "    schedules = size_schedules(len(c), solver) if schedules is None else _checked(schedules)\n"
   replace = "    schedules = SCREEN_SCHEDULES if schedules is None else _checked(schedules)\n"
   models = "the long schedules and the rounds run on every size of every group, where on small groups a schedule that does not close costs more than Clarabel's solve"
 
@@ -12374,20 +12367,20 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "no-first-order-triangle-rounds"
-  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM else 0\n"
+  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if (len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM\n                                                   and ws is None) else 0\n"
   replace = "        first_order_rounds = 0\n"
   models = "the triangle rounds defined and never run by default, so a size of a large group that needs triangles always goes to Clarabel"
 
   [[target.mutant]]
   id = "triangle-rounds-without-the-ladder"
-  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM else 0\n"
-  replace = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(c) >= SIZE_LADDER_FROM else 0\n"
+  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if (len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM\n                                                   and ws is None) else 0\n"
+  replace = "        first_order_rounds = FIRST_ORDER_ROUNDS if (len(c) >= SIZE_LADDER_FROM\n                                                   and ws is None) else 0\n"
   models = "the rounds run when only the size certificates' schedule is given, so a caller asking for the old cascade gets the rounds too"
 
   [[target.mutant]]
   id = "triangle-rounds-below-their-size"
-  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM else 0\n"
-  replace = "        first_order_rounds = FIRST_ORDER_ROUNDS if len(schedules) > 1 else 0\n"
+  find = "        first_order_rounds = FIRST_ORDER_ROUNDS if (len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM\n                                                   and ws is None) else 0\n"
+  replace = "        first_order_rounds = FIRST_ORDER_ROUNDS if (len(schedules) > 1\n                                                   and ws is None) else 0\n"
   models = "the rounds run from the schedules' 48 controls, where at 76 they made the incumbent's group slower (479 s against 439 s)"
 
   [[target.mutant]]
@@ -13680,14 +13673,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-solver-is-not-restored"
-  find = "    finally:\n        slopefree.solve = real\n"
-  replace = "    finally:\n        pass\n"
+  find = "    finally:\n        slopefree.solve, Workspaces.solve = real, real_ws\n"
+  replace = "    finally:\n        Workspaces.solve = real_ws\n"
   models = "the counting wrapper left in place after a run, so every later solve in the process is counted and wrapped again"
 
   [[target.mutant]]
   id = "a-level-is-not-counted"
-  find = "        n[R.level] += 1\n"
-  replace = "        n[\"full\"] += 1\n"
+  find = "    def solve(c, G, lam, R, solver=None):\n        n[R.level] += 1\n"
+  replace = "    def solve(c, G, lam, R, solver=None):\n        n[\"full\"] += 1\n"
   models = "Shor solves counted as Clarabel's, so a change that moves work between the two relaxations reads as none"
 
   [[target.mutant]]
@@ -14016,8 +14009,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-screen-ignores-the-face"
-  find = "    if R.face is None:\n        return full\n"
-  replace = "    return full\n"
+  find = "        if T is None:\n            return full\n"
+  replace = "        return full\n"
   models = "the float screen reading the full-space bound only, so it calls a face-closable node open"
 
   [[target.mutant]]
@@ -14034,8 +14027,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-search-drops-the-face"
-  find = "                           face=inc.get(\"face\", FACE), solver=inc.get(\"solver\", SOLVER), shor=inc.get(\"shor\", SHOR_TIER))\n"
-  replace = "                           face=FACE, solver=inc.get(\"solver\", SOLVER), shor=inc.get(\"shor\", SHOR_TIER))\n"
+  find = "                           face=inc.get(\"face\", FACE), solver=inc.get(\"solver\", SOLVER), shor=inc.get(\"shor\", SHOR_TIER),\n"
+  replace = "                           face=FACE, solver=inc.get(\"solver\", SOLVER), shor=inc.get(\"shor\", SHOR_TIER),\n"
   models = "certify_slope_free(face=False) accepted and the branches solved on the face anyway"
   [[target.mutant]]
   id = "an-infeasible-node-without-duals-has-a-point"
@@ -14048,7 +14041,6 @@ timeout = 600.0
   find = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status, face=True)\n"
   replace = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((R.n, R.n)), prob.status, face=True)\n"
   models = "the same on the face"
-
 
 [[target]]
 name = "tbr-bnb-slope-free-scs"
@@ -14106,14 +14098,14 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-shor-level-drops-the-solver"
-  find = "            sol = solve(c, G, lam, R, solver=solver)\n        except cp.error.SolverError:\n            sol = None                   # the full relaxation decides"
+  find = "            sol = solve(c, G, lam, R, solver=_one_relaxation(solver))\n        except cp.error.SolverError:\n            sol = None                   # the full relaxation decides"
   replace = "            sol = solve(c, G, lam, R)\n        except cp.error.SolverError:\n            sol = None                   # the full relaxation decides"
   models = "a size's Shor relaxation solved by the default solver whatever the size certificate was asked"
 
   [[target.mutant]]
   id = "the-full-level-drops-the-solver"
-  find = "            sol = solve(c, G, lam, R, solver=solver)\n        except cp.error.SolverError:    # no bound"
-  replace = "            sol = solve(c, G, lam, R)\n        except cp.error.SolverError:    # no bound"
+  find = "            sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R)\n        except cp.error.SolverError:    # no bound"
+  replace = "            sol = solve(c, G, lam, R) if ws is None else ws.solve(c, G, lam, R)\n        except cp.error.SolverError:    # no bound"
   models = "a size's full relaxation solved by the default solver whatever the size certificate was asked"
 
   [[target.mutant]]
@@ -14136,7 +14128,7 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-group-rows-drop-the-solver"
-  find = "        sol = solve(c, G, lam, R, solver=solver)\n    except cp.error.SolverError:        # pragma: no cover"
+  find = "        sol = solve(c, G, lam, R, solver=_one_relaxation(solver))\n    except cp.error.SolverError:        # pragma: no cover"
   replace = "        sol = solve(c, G, lam, R)\n    except cp.error.SolverError:        # pragma: no cover"
   models = "the size-free rows solved by the default solver whatever group_certificate was asked"
 
@@ -14145,12 +14137,6 @@ timeout = 600.0
   find = "    if type(solver) is not str or solver not in SOLVERS:\n"
   replace = "    if False:\n"
   models = "a misspelt solver ('SCS', 'gurobi') accepted and run as Clarabel"
-
-  [[target.mutant]]
-  id = "the-search-takes-a-none-solver"
-  find = "    if solver is None:\n        raise MlsynthConfigError(f\"solver is one of {SOLVERS}, not None.\")\n"
-  replace = "    if False:\n        raise MlsynthConfigError(f\"solver is one of {SOLVERS}, not None.\")\n"
-  models = "certify_slope_free(solver=None) read as the default, while every other flag of the search refuses None"
 
   [[target.mutant]]
   id = "the-solver-is-checked-after-the-descent"
@@ -14163,7 +14149,6 @@ timeout = 600.0
   find = "SOLVER = \"clarabel\"\n"
   replace = "SOLVER = \"scs\"\n"
   models = "the default solver changed without the measurement that decides it"
-
 
 [[target]]
 name = "tbr-bnb-shor-tier"
@@ -14191,8 +14176,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "a-node-drops-the-shor-flag"
-  find = "                           face=inc.get(\"face\", FACE), solver=inc.get(\"solver\", SOLVER), shor=inc.get(\"shor\", SHOR_TIER))\n"
-  replace = "                           face=inc.get(\"face\", FACE), solver=inc.get(\"solver\", SOLVER))\n"
+  find = "                           face=inc.get(\"face\", FACE), solver=inc.get(\"solver\", SOLVER), shor=inc.get(\"shor\", SHOR_TIER),\n"
+  replace = "                           face=inc.get(\"face\", FACE), solver=inc.get(\"solver\", SOLVER),\n"
   models = "the search's nodes solving with the default Shor tier whatever certify_slope_free was asked"
 
   [[target.mutant]]
@@ -14206,7 +14191,6 @@ timeout = 600.0
   find = "    if type(shor) is not bool:\n"
   replace = "    if False:\n"
   models = "shor=1 or shor='yes' accepted and read as a truth value"
-
 
 [[target]]
 name = "tbr-bnb-incumbent-cuts"
@@ -14417,6 +14401,12 @@ timeout = 900.0
   find = "                           workspaces=inc.get(\"workspaces\"))\n"
   replace = "                           workspaces=None)\n"
   models = "a fresh Workspaces at every node: no workspace reused across nodes, and no pool carried between sizes"
+
+  [[target.mutant]]
+  id = "none-is-not-the-groups-default"
+  find = "    solver = default_solver(p) if solver is None else solver\n"
+  replace = "    solver = SOLVER if solver is None else solver\n"
+  models = "certify_slope_free(solver=None) read as Clarabel at every size, so the workspace is never the default from WORKSPACE_FROM candidate controls"
 
 [[target]]
 name = "tbr-bnb-beds-counting"
