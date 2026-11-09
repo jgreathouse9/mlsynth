@@ -66,7 +66,7 @@ def test_counting_counts_each_level_and_restores_the_solver(monkeypatch):
     with counting() as n:
         y, X = BEDS["s15_k3"].panel(0)
         with every_node_bounded():
-            slopefree.certify_slope_free(y, X, restarts=5)
+            slopefree.certify_slope_free(y, X, restarts=5, shor=True)
     assert slopefree.solve is real
     assert n["full"] > 0 and n["shor"] > 0 and set(n) == {"full", "shor"}
 

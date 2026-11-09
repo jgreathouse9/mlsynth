@@ -1,5 +1,5 @@
 {
- "recorded_on": "5cec50c3",
+ "recorded_on": "a3bf1a68",
  "s15_k3": {
   "groups": [
    {
@@ -18,11 +18,11 @@
     "certified": true,
     "nodes": 16,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 0.95
+    "seconds": 0.86
    },
    {
     "seed": 4,
@@ -40,11 +40,11 @@
     "certified": true,
     "nodes": 14,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.78
+    "seconds": 0.9
    },
    {
     "seed": 120,
@@ -60,11 +60,11 @@
     "certified": true,
     "nodes": 6,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.66
+    "seconds": 0.62
    },
    {
     "seed": 123,
@@ -84,11 +84,11 @@
     "certified": true,
     "nodes": 39,
     "full": 9,
-    "shor": 8,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 1.66
+    "seconds": 1.3
    },
    {
     "seed": 124,
@@ -106,11 +106,11 @@
     "certified": true,
     "nodes": 19,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 0.72
+    "seconds": 0.65
    },
    {
     "seed": 129,
@@ -129,11 +129,11 @@
     "certified": true,
     "nodes": 19,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.7
+    "seconds": 0.61
    },
    {
     "seed": 136,
@@ -150,11 +150,11 @@
     "certified": true,
     "nodes": 10,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.43
+    "seconds": 0.44
    },
    {
     "seed": 139,
@@ -172,11 +172,11 @@
     "certified": true,
     "nodes": 17,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.86
+    "seconds": 0.87
    },
    {
     "seed": 150,
@@ -194,11 +194,11 @@
     "certified": true,
     "nodes": 15,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.68
+    "seconds": 0.7
    },
    {
     "seed": 152,
@@ -214,11 +214,11 @@
     "certified": true,
     "nodes": 6,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.4
+    "seconds": 0.34
    },
    {
     "seed": 155,
@@ -234,11 +234,11 @@
     "certified": true,
     "nodes": 9,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.4
+    "seconds": 0.39
    },
    {
     "seed": 156,
@@ -257,11 +257,11 @@
     "certified": true,
     "nodes": 21,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.81
+    "seconds": 0.83
    },
    {
     "seed": 157,
@@ -280,11 +280,11 @@
     "certified": true,
     "nodes": 29,
     "full": 6,
-    "shor": 6,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 0.95
+    "seconds": 0.85
    },
    {
     "seed": 165,
@@ -301,11 +301,11 @@
     "certified": true,
     "nodes": 11,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.47
+    "seconds": 0.41
    },
    {
     "seed": 177,
@@ -324,11 +324,11 @@
     "certified": true,
     "nodes": 17,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.59
+    "seconds": 0.53
    },
    {
     "seed": 179,
@@ -346,11 +346,11 @@
     "certified": true,
     "nodes": 12,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.52
+    "seconds": 0.57
    },
    {
     "seed": 15,
@@ -370,11 +370,11 @@
     "certified": true,
     "nodes": 19,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.73
+    "seconds": 0.68
    },
    {
     "seed": 16,
@@ -390,11 +390,11 @@
     "certified": true,
     "nodes": 10,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.42
+    "seconds": 0.35
    },
    {
     "seed": 18,
@@ -412,11 +412,11 @@
     "certified": true,
     "nodes": 16,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.67
+    "seconds": 0.53
    },
    {
     "seed": 22,
@@ -434,11 +434,11 @@
     "certified": true,
     "nodes": 14,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.59
+    "seconds": 0.49
    },
    {
     "seed": 28,
@@ -457,11 +457,11 @@
     "certified": true,
     "nodes": 21,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.71
+    "seconds": 0.73
    },
    {
     "seed": 29,
@@ -479,11 +479,11 @@
     "certified": true,
     "nodes": 14,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.46
+    "seconds": 0.45
    },
    {
     "seed": 181,
@@ -500,11 +500,11 @@
     "certified": true,
     "nodes": 11,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.4
+    "seconds": 0.35
    },
    {
     "seed": 182,
@@ -523,11 +523,11 @@
     "certified": true,
     "nodes": 19,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.8
+    "seconds": 0.69
    },
    {
     "seed": 182,
@@ -544,7 +544,7 @@
     "certified": true,
     "nodes": 11,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
@@ -564,7 +564,7 @@
     "certified": true,
     "nodes": 7,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
@@ -584,7 +584,7 @@
     "certified": true,
     "nodes": 10,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
@@ -606,11 +606,11 @@
     "certified": true,
     "nodes": 15,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.59
+    "seconds": 0.56
    },
    {
     "seed": 197,
@@ -627,11 +627,11 @@
     "certified": true,
     "nodes": 13,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 0.51
+    "seconds": 0.48
    },
    {
     "seed": 206,
@@ -648,11 +648,11 @@
     "certified": true,
     "nodes": 9,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.4
+    "seconds": 0.39
    },
    {
     "seed": 208,
@@ -670,11 +670,11 @@
     "certified": true,
     "nodes": 19,
     "full": 4,
-    "shor": 4,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 0.8
+    "seconds": 0.67
    },
    {
     "seed": 213,
@@ -690,11 +690,11 @@
     "certified": true,
     "nodes": 9,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.38
+    "seconds": 0.37
    },
    {
     "seed": 225,
@@ -712,11 +712,11 @@
     "certified": true,
     "nodes": 15,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.51
+    "seconds": 0.56
    },
    {
     "seed": 226,
@@ -735,11 +735,11 @@
     "certified": true,
     "nodes": 16,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.54
+    "seconds": 0.51
    },
    {
     "seed": 228,
@@ -760,11 +760,11 @@
     "certified": true,
     "nodes": 32,
     "full": 6,
-    "shor": 6,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 1.02
+    "seconds": 0.97
    },
    {
     "seed": 234,
@@ -781,11 +781,11 @@
     "certified": true,
     "nodes": 11,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.48
+    "seconds": 0.44
    },
    {
     "seed": 243,
@@ -802,11 +802,11 @@
     "certified": true,
     "nodes": 11,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.43
+    "seconds": 0.39
    },
    {
     "seed": 244,
@@ -825,11 +825,11 @@
     "certified": true,
     "nodes": 19,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.69
+    "seconds": 0.62
    },
    {
     "seed": 245,
@@ -848,11 +848,11 @@
     "certified": true,
     "nodes": 27,
     "full": 5,
-    "shor": 5,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 0.99
+    "seconds": 1.04
    },
    {
     "seed": 246,
@@ -870,11 +870,11 @@
     "certified": true,
     "nodes": 19,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.7
+    "seconds": 0.64
    },
    {
     "seed": 249,
@@ -890,7 +890,7 @@
     "certified": true,
     "nodes": 7,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
@@ -912,11 +912,11 @@
     "certified": true,
     "nodes": 13,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.49
+    "seconds": 0.51
    },
    {
     "seed": 258,
@@ -934,7 +934,7 @@
     "certified": true,
     "nodes": 17,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
@@ -956,11 +956,11 @@
     "certified": true,
     "nodes": 23,
     "full": 5,
-    "shor": 5,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 0.76
+    "seconds": 0.97
    },
    {
     "seed": 275,
@@ -977,7 +977,7 @@
     "certified": true,
     "nodes": 14,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
@@ -998,11 +998,11 @@
     "certified": true,
     "nodes": 10,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.38
+    "seconds": 0.41
    },
    {
     "seed": 281,
@@ -1020,11 +1020,11 @@
     "certified": true,
     "nodes": 14,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.57
+    "seconds": 0.71
    },
    {
     "seed": 33,
@@ -1041,11 +1041,11 @@
     "certified": true,
     "nodes": 12,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.45
+    "seconds": 0.49
    },
    {
     "seed": 34,
@@ -1062,11 +1062,11 @@
     "certified": true,
     "nodes": 12,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.54
+    "seconds": 0.47
    },
    {
     "seed": 41,
@@ -1087,11 +1087,11 @@
     "certified": true,
     "nodes": 33,
     "full": 8,
-    "shor": 7,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.24
+    "seconds": 1.18
    },
    {
     "seed": 43,
@@ -1107,11 +1107,11 @@
     "certified": true,
     "nodes": 6,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.39
+    "seconds": 0.37
    },
    {
     "seed": 47,
@@ -1129,11 +1129,11 @@
     "certified": true,
     "nodes": 15,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.55
+    "seconds": 0.53
    },
    {
     "seed": 60,
@@ -1151,11 +1151,11 @@
     "certified": true,
     "nodes": 20,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 0.69
+    "seconds": 0.75
    },
    {
     "seed": 66,
@@ -1174,11 +1174,11 @@
     "certified": true,
     "nodes": 34,
     "full": 6,
-    "shor": 6,
+    "shor": 0,
     "open": 0,
     "rounded": 3,
     "optimum": true,
-    "seconds": 1.14
+    "seconds": 1.18
    },
    {
     "seed": 70,
@@ -1194,11 +1194,11 @@
     "certified": true,
     "nodes": 5,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.32
+    "seconds": 0.37
    },
    {
     "seed": 74,
@@ -1220,7 +1220,7 @@
     "certified": true,
     "nodes": 24,
     "full": 4,
-    "shor": 4,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
@@ -1241,7 +1241,7 @@
     "certified": true,
     "nodes": 10,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
@@ -1262,11 +1262,11 @@
     "certified": true,
     "nodes": 9,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.41
+    "seconds": 0.4
    },
    {
     "seed": 84,
@@ -1285,11 +1285,11 @@
     "certified": true,
     "nodes": 21,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.65
+    "seconds": 0.66
    },
    {
     "seed": 87,
@@ -1306,11 +1306,11 @@
     "certified": true,
     "nodes": 11,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.51
+    "seconds": 0.47
    },
    {
     "seed": 107,
@@ -1326,11 +1326,11 @@
     "certified": true,
     "nodes": 10,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.35
+    "seconds": 0.33
    },
    {
     "seed": 113,
@@ -1348,24 +1348,24 @@
     "certified": true,
     "nodes": 13,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.51
+    "seconds": 0.47
    }
   ],
   "totals": {
    "groups": 62,
    "nodes": 960,
    "full": 149,
-   "shor": 147,
+   "shor": 0,
    "open": 0,
    "uncertified": 0,
    "rounded": 76,
    "optimum_missed": 0,
    "unsound": 0,
-   "seconds": 38.24
+   "seconds": 36.94
   }
  },
  "s20_k3": {
@@ -1385,11 +1385,11 @@
     "certified": true,
     "nodes": 13,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.4
+    "seconds": 1.16
    },
    {
     "seed": 1,
@@ -1407,11 +1407,11 @@
     "certified": true,
     "nodes": 19,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 1.59
+    "seconds": 1.49
    },
    {
     "seed": 3,
@@ -1429,11 +1429,11 @@
     "certified": true,
     "nodes": 19,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.51
+    "seconds": 1.49
    },
    {
     "seed": 4,
@@ -1450,11 +1450,11 @@
     "certified": true,
     "nodes": 10,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.01
+    "seconds": 0.76
    },
    {
     "seed": 13,
@@ -1473,11 +1473,11 @@
     "certified": true,
     "nodes": 20,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.3
+    "seconds": 1.22
    },
    {
     "seed": 14,
@@ -1494,11 +1494,11 @@
     "certified": true,
     "nodes": 14,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.87
+    "seconds": 0.92
    },
    {
     "seed": 17,
@@ -1518,11 +1518,11 @@
     "certified": true,
     "nodes": 27,
     "full": 4,
-    "shor": 4,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.4
+    "seconds": 1.35
    },
    {
     "seed": 25,
@@ -1543,11 +1543,11 @@
     "certified": true,
     "nodes": 38,
     "full": 6,
-    "shor": 6,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 2.26
+    "seconds": 1.93
    },
    {
     "seed": 27,
@@ -1570,11 +1570,11 @@
     "certified": false,
     "nodes": 56,
     "full": 12,
-    "shor": 11,
+    "shor": 0,
     "open": 1,
     "rounded": 2,
     "optimum": true,
-    "seconds": 3.33
+    "seconds": 3.38
    },
    {
     "seed": 32,
@@ -1590,11 +1590,11 @@
     "certified": true,
     "nodes": 14,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.01
+    "seconds": 0.91
    },
    {
     "seed": 37,
@@ -1611,11 +1611,11 @@
     "certified": true,
     "nodes": 16,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.97
+    "seconds": 0.9
    },
    {
     "seed": 38,
@@ -1631,11 +1631,11 @@
     "certified": true,
     "nodes": 11,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.71
+    "seconds": 0.65
    },
    {
     "seed": 127,
@@ -1658,11 +1658,11 @@
     "certified": false,
     "nodes": 104,
     "full": 31,
-    "shor": 27,
+    "shor": 0,
     "open": 3,
     "rounded": 4,
     "optimum": true,
-    "seconds": 7.58
+    "seconds": 7.06
    },
    {
     "seed": 129,
@@ -1683,11 +1683,11 @@
     "certified": true,
     "nodes": 44,
     "full": 9,
-    "shor": 8,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 2.83
+    "seconds": 2.42
    },
    {
     "seed": 137,
@@ -1705,11 +1705,11 @@
     "certified": true,
     "nodes": 19,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.28
+    "seconds": 1.29
    },
    {
     "seed": 141,
@@ -1730,11 +1730,11 @@
     "certified": true,
     "nodes": 47,
     "full": 9,
-    "shor": 9,
+    "shor": 0,
     "open": 0,
     "rounded": 3,
     "optimum": true,
-    "seconds": 3.02
+    "seconds": 2.75
    },
    {
     "seed": 142,
@@ -1752,11 +1752,11 @@
     "certified": true,
     "nodes": 18,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 1.54
+    "seconds": 1.18
    },
    {
     "seed": 148,
@@ -1775,11 +1775,11 @@
     "certified": true,
     "nodes": 16,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.95
+    "seconds": 0.98
    },
    {
     "seed": 154,
@@ -1796,11 +1796,11 @@
     "certified": true,
     "nodes": 15,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 1.36
+    "seconds": 1.24
    },
    {
     "seed": 42,
@@ -1818,11 +1818,11 @@
     "certified": true,
     "nodes": 19,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.21
+    "seconds": 1.15
    },
    {
     "seed": 42,
@@ -1839,11 +1839,11 @@
     "certified": true,
     "nodes": 10,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.81
+    "seconds": 0.87
    },
    {
     "seed": 43,
@@ -1866,11 +1866,11 @@
     "certified": false,
     "nodes": 35,
     "full": 7,
-    "shor": 7,
+    "shor": 0,
     "open": 1,
     "rounded": 1,
     "optimum": true,
-    "seconds": 2.15
+    "seconds": 2.04
    },
    {
     "seed": 45,
@@ -1887,11 +1887,11 @@
     "certified": true,
     "nodes": 11,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.73
+    "seconds": 0.77
    },
    {
     "seed": 48,
@@ -1908,11 +1908,11 @@
     "certified": true,
     "nodes": 20,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 1.32
+    "seconds": 1.34
    },
    {
     "seed": 50,
@@ -1931,11 +1931,11 @@
     "certified": true,
     "nodes": 29,
     "full": 6,
-    "shor": 6,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 1.96
+    "seconds": 2.16
    },
    {
     "seed": 52,
@@ -1954,11 +1954,11 @@
     "certified": true,
     "nodes": 19,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.31
+    "seconds": 1.5
    },
    {
     "seed": 58,
@@ -1978,11 +1978,11 @@
     "certified": true,
     "nodes": 21,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.41
+    "seconds": 1.42
    },
    {
     "seed": 62,
@@ -2000,11 +2000,11 @@
     "certified": true,
     "nodes": 18,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.04
+    "seconds": 1.12
    },
    {
     "seed": 65,
@@ -2020,11 +2020,11 @@
     "certified": true,
     "nodes": 11,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.77
+    "seconds": 0.8
    },
    {
     "seed": 68,
@@ -2042,11 +2042,11 @@
     "certified": true,
     "nodes": 16,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.25
+    "seconds": 0.99
    },
    {
     "seed": 69,
@@ -2064,11 +2064,11 @@
     "certified": true,
     "nodes": 12,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.0
+    "seconds": 0.99
    },
    {
     "seed": 77,
@@ -2085,11 +2085,11 @@
     "certified": true,
     "nodes": 12,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.8
+    "seconds": 0.89
    },
    {
     "seed": 80,
@@ -2107,11 +2107,11 @@
     "certified": true,
     "nodes": 18,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.08
+    "seconds": 0.96
    },
    {
     "seed": 86,
@@ -2131,11 +2131,11 @@
     "certified": true,
     "nodes": 24,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.68
+    "seconds": 1.62
    },
    {
     "seed": 88,
@@ -2155,11 +2155,11 @@
     "certified": true,
     "nodes": 24,
     "full": 4,
-    "shor": 4,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.93
+    "seconds": 1.49
    },
    {
     "seed": 98,
@@ -2177,11 +2177,11 @@
     "certified": true,
     "nodes": 14,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.04
+    "seconds": 1.09
    },
    {
     "seed": 101,
@@ -2203,11 +2203,11 @@
     "certified": true,
     "nodes": 33,
     "full": 7,
-    "shor": 6,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 2.61
+    "seconds": 2.18
    },
    {
     "seed": 104,
@@ -2225,11 +2225,11 @@
     "certified": true,
     "nodes": 18,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.31
+    "seconds": 1.16
    },
    {
     "seed": 107,
@@ -2248,11 +2248,11 @@
     "certified": true,
     "nodes": 23,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.74
+    "seconds": 1.63
    },
    {
     "seed": 108,
@@ -2275,11 +2275,11 @@
     "certified": false,
     "nodes": 38,
     "full": 9,
-    "shor": 8,
+    "shor": 0,
     "open": 1,
     "rounded": 1,
     "optimum": true,
-    "seconds": 2.83
+    "seconds": 2.61
    },
    {
     "seed": 109,
@@ -2297,11 +2297,11 @@
     "certified": true,
     "nodes": 22,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 1.62
+    "seconds": 1.27
    },
    {
     "seed": 110,
@@ -2318,11 +2318,11 @@
     "certified": true,
     "nodes": 13,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.99
+    "seconds": 0.86
    },
    {
     "seed": 115,
@@ -2341,11 +2341,11 @@
     "certified": true,
     "nodes": 20,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.42
+    "seconds": 1.23
    },
    {
     "seed": 116,
@@ -2366,11 +2366,11 @@
     "certified": true,
     "nodes": 37,
     "full": 7,
-    "shor": 7,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 2.29
+    "seconds": 2.14
    },
    {
     "seed": 119,
@@ -2394,24 +2394,24 @@
     "certified": false,
     "nodes": 77,
     "full": 19,
-    "shor": 17,
+    "shor": 0,
     "open": 1,
     "rounded": 3,
     "optimum": true,
-    "seconds": 5.78
+    "seconds": 5.02
    }
   ],
   "totals": {
    "groups": 45,
    "nodes": 1114,
    "full": 197,
-   "shor": 187,
+   "shor": 0,
    "open": 7,
    "uncertified": 5,
    "rounded": 62,
    "optimum_missed": 0,
    "unsound": 0,
-   "seconds": 78.0
+   "seconds": 72.38
   }
  },
  "s20_k4": {
@@ -2433,11 +2433,11 @@
     "certified": true,
     "nodes": 22,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 2.17
+    "seconds": 1.64
    },
    {
     "seed": 1,
@@ -2460,11 +2460,11 @@
     "certified": true,
     "nodes": 28,
     "full": 4,
-    "shor": 4,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 2.03
+    "seconds": 1.57
    },
    {
     "seed": 1,
@@ -2483,11 +2483,11 @@
     "certified": true,
     "nodes": 16,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.58
+    "seconds": 1.3
    },
    {
     "seed": 2,
@@ -2507,11 +2507,11 @@
     "certified": true,
     "nodes": 20,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.64
+    "seconds": 1.06
    },
    {
     "seed": 4,
@@ -2532,11 +2532,11 @@
     "certified": true,
     "nodes": 25,
     "full": 4,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.6
+    "seconds": 1.29
    },
    {
     "seed": 5,
@@ -2558,11 +2558,11 @@
     "certified": true,
     "nodes": 29,
     "full": 4,
-    "shor": 4,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.29
+    "seconds": 1.12
    },
    {
     "seed": 6,
@@ -2581,11 +2581,11 @@
     "certified": true,
     "nodes": 15,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.8
+    "seconds": 0.77
    },
    {
     "seed": 7,
@@ -2608,11 +2608,11 @@
     "certified": true,
     "nodes": 35,
     "full": 6,
-    "shor": 6,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.89
+    "seconds": 1.84
    },
    {
     "seed": 8,
@@ -2630,11 +2630,11 @@
     "certified": true,
     "nodes": 11,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.75
+    "seconds": 0.68
    },
    {
     "seed": 9,
@@ -2654,11 +2654,11 @@
     "certified": true,
     "nodes": 20,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.02
+    "seconds": 1.0
    },
    {
     "seed": 9,
@@ -2676,11 +2676,11 @@
     "certified": true,
     "nodes": 16,
     "full": 1,
-    "shor": 1,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.74
+    "seconds": 0.72
    },
    {
     "seed": 10,
@@ -2700,11 +2700,11 @@
     "certified": true,
     "nodes": 20,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.0
+    "seconds": 0.89
    },
    {
     "seed": 11,
@@ -2725,11 +2725,11 @@
     "certified": true,
     "nodes": 20,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.14
+    "seconds": 1.01
    },
    {
     "seed": 11,
@@ -2754,11 +2754,11 @@
     "certified": true,
     "nodes": 31,
     "full": 4,
-    "shor": 4,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.68
+    "seconds": 1.65
    },
    {
     "seed": 11,
@@ -2783,11 +2783,11 @@
     "certified": true,
     "nodes": 28,
     "full": 4,
-    "shor": 4,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.68
+    "seconds": 1.62
    },
    {
     "seed": 12,
@@ -2810,11 +2810,11 @@
     "certified": true,
     "nodes": 34,
     "full": 6,
-    "shor": 6,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 1.95
+    "seconds": 1.94
    },
    {
     "seed": 12,
@@ -2836,11 +2836,11 @@
     "certified": true,
     "nodes": 49,
     "full": 10,
-    "shor": 10,
+    "shor": 0,
     "open": 0,
     "rounded": 3,
     "optimum": true,
-    "seconds": 2.47
+    "seconds": 2.19
    },
    {
     "seed": 13,
@@ -2863,11 +2863,11 @@
     "certified": false,
     "nodes": 39,
     "full": 7,
-    "shor": 7,
+    "shor": 0,
     "open": 1,
     "rounded": 1,
     "optimum": true,
-    "seconds": 2.22
+    "seconds": 1.89
    },
    {
     "seed": 16,
@@ -2885,11 +2885,11 @@
     "certified": true,
     "nodes": 12,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": true,
-    "seconds": 0.81
+    "seconds": 0.78
    },
    {
     "seed": 17,
@@ -2909,11 +2909,11 @@
     "certified": true,
     "nodes": 32,
     "full": 5,
-    "shor": 5,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 1.79
+    "seconds": 1.45
    },
    {
     "seed": 18,
@@ -2933,24 +2933,24 @@
     "certified": true,
     "nodes": 31,
     "full": 5,
-    "shor": 5,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": true,
-    "seconds": 1.71
+    "seconds": 1.53
    }
   ],
   "totals": {
    "groups": 21,
    "nodes": 533,
    "full": 81,
-   "shor": 80,
+   "shor": 0,
    "open": 1,
    "uncertified": 1,
    "rounded": 26,
    "optimum_missed": 0,
    "unsound": 0,
-   "seconds": 31.96
+   "seconds": 27.94
   }
  },
  "s30_k10": {
@@ -2983,11 +2983,11 @@
     "certified": true,
     "nodes": 72,
     "full": 15,
-    "shor": 15,
+    "shor": 0,
     "open": 0,
     "rounded": 3,
     "optimum": null,
-    "seconds": 5.7
+    "seconds": 4.97
    },
    {
     "seed": 4,
@@ -3017,11 +3017,11 @@
     "certified": true,
     "nodes": 62,
     "full": 11,
-    "shor": 11,
+    "shor": 0,
     "open": 0,
     "rounded": 3,
     "optimum": null,
-    "seconds": 4.64
+    "seconds": 4.05
    },
    {
     "seed": 6,
@@ -3051,11 +3051,11 @@
     "certified": true,
     "nodes": 46,
     "full": 8,
-    "shor": 7,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 3.91
+    "seconds": 3.31
    },
    {
     "seed": 8,
@@ -3083,11 +3083,11 @@
     "certified": true,
     "nodes": 32,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 1.89
+    "seconds": 1.37
    },
    {
     "seed": 10,
@@ -3116,11 +3116,11 @@
     "certified": true,
     "nodes": 36,
     "full": 4,
-    "shor": 4,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 2.11
+    "seconds": 1.97
    },
    {
     "seed": 11,
@@ -3151,11 +3151,11 @@
     "certified": false,
     "nodes": 46,
     "full": 9,
-    "shor": 8,
+    "shor": 0,
     "open": 1,
     "rounded": 1,
     "optimum": null,
-    "seconds": 3.62
+    "seconds": 3.29
    },
    {
     "seed": 15,
@@ -3184,11 +3184,11 @@
     "certified": true,
     "nodes": 53,
     "full": 11,
-    "shor": 11,
+    "shor": 0,
     "open": 0,
     "rounded": 3,
     "optimum": null,
-    "seconds": 5.79
+    "seconds": 4.13
    },
    {
     "seed": 20,
@@ -3218,11 +3218,11 @@
     "certified": true,
     "nodes": 56,
     "full": 9,
-    "shor": 9,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": null,
-    "seconds": 4.97
+    "seconds": 3.85
    },
    {
     "seed": 24,
@@ -3251,11 +3251,11 @@
     "certified": true,
     "nodes": 52,
     "full": 9,
-    "shor": 9,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": null,
-    "seconds": 3.97
+    "seconds": 3.26
    },
    {
     "seed": 28,
@@ -3285,11 +3285,11 @@
     "certified": true,
     "nodes": 42,
     "full": 9,
-    "shor": 7,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 4.12
+    "seconds": 3.12
    },
    {
     "seed": 31,
@@ -3319,11 +3319,11 @@
     "certified": true,
     "nodes": 72,
     "full": 15,
-    "shor": 14,
+    "shor": 0,
     "open": 0,
     "rounded": 3,
     "optimum": null,
-    "seconds": 6.35
+    "seconds": 5.39
    },
    {
     "seed": 33,
@@ -3354,11 +3354,11 @@
     "certified": false,
     "nodes": 66,
     "full": 19,
-    "shor": 15,
+    "shor": 0,
     "open": 2,
     "rounded": 2,
     "optimum": null,
-    "seconds": 7.04
+    "seconds": 5.7
    },
    {
     "seed": 36,
@@ -3390,24 +3390,24 @@
     "certified": false,
     "nodes": 46,
     "full": 9,
-    "shor": 8,
+    "shor": 0,
     "open": 1,
     "rounded": 1,
     "optimum": null,
-    "seconds": 4.61
+    "seconds": 3.96
    }
   ],
   "totals": {
    "groups": 13,
    "nodes": 681,
    "full": 131,
-   "shor": 121,
+   "shor": 0,
    "open": 4,
    "uncertified": 3,
    "rounded": 24,
    "optimum_missed": 0,
    "unsound": 0,
-   "seconds": 58.72
+   "seconds": 48.37
   }
  },
  "s30_k4": {
@@ -3434,11 +3434,11 @@
     "certified": true,
     "nodes": 48,
     "full": 6,
-    "shor": 6,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 6.65
+    "seconds": 5.44
    },
    {
     "seed": 2,
@@ -3460,11 +3460,11 @@
     "certified": true,
     "nodes": 38,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 4.68
+    "seconds": 3.97
    },
    {
     "seed": 3,
@@ -3488,11 +3488,11 @@
     "certified": true,
     "nodes": 86,
     "full": 23,
-    "shor": 18,
+    "shor": 0,
     "open": 0,
     "rounded": 3,
     "optimum": null,
-    "seconds": 15.03
+    "seconds": 13.61
    },
    {
     "seed": 4,
@@ -3516,11 +3516,11 @@
     "certified": true,
     "nodes": 58,
     "full": 10,
-    "shor": 9,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": null,
-    "seconds": 8.07
+    "seconds": 7.17
    },
    {
     "seed": 4,
@@ -3542,11 +3542,11 @@
     "certified": true,
     "nodes": 52,
     "full": 7,
-    "shor": 7,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": null,
-    "seconds": 5.88
+    "seconds": 5.76
    },
    {
     "seed": 7,
@@ -3567,11 +3567,11 @@
     "certified": true,
     "nodes": 58,
     "full": 8,
-    "shor": 8,
+    "shor": 0,
     "open": 0,
     "rounded": 3,
     "optimum": null,
-    "seconds": 6.98
+    "seconds": 6.34
    },
    {
     "seed": 7,
@@ -3594,11 +3594,11 @@
     "certified": true,
     "nodes": 54,
     "full": 7,
-    "shor": 7,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": null,
-    "seconds": 6.38
+    "seconds": 5.71
    },
    {
     "seed": 10,
@@ -3619,11 +3619,11 @@
     "certified": true,
     "nodes": 56,
     "full": 10,
-    "shor": 8,
+    "shor": 0,
     "open": 0,
     "rounded": 4,
     "optimum": null,
-    "seconds": 7.39
+    "seconds": 6.78
    },
    {
     "seed": 13,
@@ -3648,11 +3648,11 @@
     "certified": true,
     "nodes": 86,
     "full": 20,
-    "shor": 17,
+    "shor": 0,
     "open": 0,
     "rounded": 3,
     "optimum": null,
-    "seconds": 13.6
+    "seconds": 11.3
    },
    {
     "seed": 15,
@@ -3673,11 +3673,11 @@
     "certified": true,
     "nodes": 56,
     "full": 8,
-    "shor": 8,
+    "shor": 0,
     "open": 0,
     "rounded": 3,
     "optimum": null,
-    "seconds": 7.67
+    "seconds": 5.91
    },
    {
     "seed": 16,
@@ -3701,11 +3701,11 @@
     "certified": true,
     "nodes": 66,
     "full": 18,
-    "shor": 13,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": null,
-    "seconds": 13.17
+    "seconds": 11.79
    },
    {
     "seed": 17,
@@ -3729,11 +3729,11 @@
     "certified": true,
     "nodes": 34,
     "full": 10,
-    "shor": 7,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 7.55
+    "seconds": 6.97
    },
    {
     "seed": 20,
@@ -3753,11 +3753,11 @@
     "certified": true,
     "nodes": 36,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 3.56
+    "seconds": 3.17
    },
    {
     "seed": 21,
@@ -3783,11 +3783,11 @@
     "certified": false,
     "nodes": 74,
     "full": 17,
-    "shor": 15,
+    "shor": 0,
     "open": 1,
     "rounded": 2,
     "optimum": null,
-    "seconds": 12.45
+    "seconds": 11.63
    },
    {
     "seed": 21,
@@ -3812,11 +3812,11 @@
     "certified": true,
     "nodes": 50,
     "full": 10,
-    "shor": 9,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 7.9
+    "seconds": 6.84
    },
    {
     "seed": 22,
@@ -3839,11 +3839,11 @@
     "certified": true,
     "nodes": 72,
     "full": 12,
-    "shor": 12,
+    "shor": 0,
     "open": 0,
     "rounded": 3,
     "optimum": null,
-    "seconds": 9.46
+    "seconds": 8.3
    },
    {
     "seed": 22,
@@ -3866,11 +3866,11 @@
     "certified": true,
     "nodes": 40,
     "full": 4,
-    "shor": 4,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 4.29
+    "seconds": 3.92
    },
    {
     "seed": 26,
@@ -3890,11 +3890,11 @@
     "certified": true,
     "nodes": 36,
     "full": 5,
-    "shor": 4,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 4.39
+    "seconds": 3.84
    },
    {
     "seed": 27,
@@ -3918,11 +3918,11 @@
     "certified": true,
     "nodes": 44,
     "full": 5,
-    "shor": 5,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 4.81
+    "seconds": 4.54
    },
    {
     "seed": 27,
@@ -3949,11 +3949,11 @@
     "certified": false,
     "nodes": 68,
     "full": 17,
-    "shor": 14,
+    "shor": 0,
     "open": 1,
     "rounded": 2,
     "optimum": null,
-    "seconds": 12.65
+    "seconds": 10.65
    },
    {
     "seed": 28,
@@ -3977,11 +3977,11 @@
     "certified": true,
     "nodes": 46,
     "full": 8,
-    "shor": 6,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 6.91
+    "seconds": 6.28
    },
    {
     "seed": 30,
@@ -4000,11 +4000,11 @@
     "certified": true,
     "nodes": 34,
     "full": 2,
-    "shor": 2,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 3.33
+    "seconds": 2.78
    },
    {
     "seed": 31,
@@ -4030,11 +4030,11 @@
     "certified": true,
     "nodes": 116,
     "full": 31,
-    "shor": 24,
+    "shor": 0,
     "open": 0,
     "rounded": 4,
     "optimum": null,
-    "seconds": 23.17
+    "seconds": 20.24
    },
    {
     "seed": 31,
@@ -4055,11 +4055,11 @@
     "certified": true,
     "nodes": 36,
     "full": 3,
-    "shor": 3,
+    "shor": 0,
     "open": 0,
     "rounded": 1,
     "optimum": null,
-    "seconds": 3.61
+    "seconds": 3.3
    },
    {
     "seed": 32,
@@ -4082,24 +4082,24 @@
     "certified": true,
     "nodes": 56,
     "full": 11,
-    "shor": 9,
+    "shor": 0,
     "open": 0,
     "rounded": 2,
     "optimum": null,
-    "seconds": 8.54
+    "seconds": 7.74
    }
   ],
   "totals": {
    "groups": 25,
    "nodes": 1400,
    "full": 258,
-   "shor": 221,
+   "shor": 0,
    "open": 2,
    "uncertified": 2,
    "rounded": 48,
    "optimum_missed": 0,
    "unsound": 0,
-   "seconds": 208.12
+   "seconds": 183.98
   }
  }
 }

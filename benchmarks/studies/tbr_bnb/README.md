@@ -992,6 +992,35 @@ Off the face Clarabel reports it with no point; the face solve reports the same.
 `FACE = True` is the default; `certify_slope_free(face=False)` solves in the full
 space.
 
+### The Shor tier, off
+
+The cascade was built as reuse, Shor, full, and the Shor relaxation then closed 212
+of the 242 recorded GeoLift sizes. The dual tier came after it and bounds the full
+rows, so a size the weaker Shor relaxation could close it closes first. Measured
+again on the face (`results/shor_tier.log`): over every bed group the Shor
+relaxation closed 0 of the 756 sizes it was asked to, and on the GeoLift window at
+k = 4 0 of 3; each went on to the full relaxation. The Shor solves were 32.1 s of the
+beds' 367.3 s in size certificates.
+
+`SHOR_TIER = False` is the default; `size_certificate(shor=True)` and
+`certify_slope_free(shor=True)` solve it. With it off the beds have the same nodes,
+full solves, open nodes and uncertified groups as the recorded baseline, and no
+Shor solve. At the 100-geo group's roots a Shor solve is about 40 s against about
+120 s for a full one.
+
+### The pair rows loosened, measured and not built
+
+At an integral point three of a pair's four McCormick rows are tight whatever u_i
+and u_j are: at 50 geos with 5 treated, 2,970 of the 4,051 rows (three for each of
+the 990 pairs) carry a multiplier at the full level's optimum. Loosening the four
+rows by eps removes that degeneracy, and any multipliers still certify the original
+rows. It does not pay (`results/pair_perturb.log`). At 50 geos the full solves took
+26 to 59 iterations loosened against 16 to 53 as they are, with bounds the same or
+looser. At the 100-geo size-21 root it took 48 iterations at eps = 1e-4 and 42 at
+1e-3 against 53 (118 s and 101 s against 128 s), but the exact bound rose 0.8% and
+15.6%: the bound loses about eps times the pair multipliers' sum, 1.7e11 there, which
+is more than the margin of the nodes that decide a search.
+
 ## Several processes
 
 `certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
@@ -1477,11 +1506,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (858 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (869 tests, about 100 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 411 mutants of the 28
+but for the lines marked `pragma: no cover`, each with its reason. The 417 mutants of the 29
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers

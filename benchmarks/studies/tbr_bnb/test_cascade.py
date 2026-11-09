@@ -240,10 +240,10 @@ def test_multipliers_of_another_shape_are_not_reused(monkeypatch):
 def test_a_size_the_shor_relaxation_closes_solves_nothing_more(monkeypatch):
     _no_dual(monkeypatch)
     c, G, lam, C = _at_optimum(0)
-    tiers = {m: size_certificate(c, G, lam, m, cuts=[C]).tier for m in range(1, 7)}
+    tiers = {m: size_certificate(c, G, lam, m, cuts=[C], shor=True).tier for m in range(1, 7)}
     m = next(m for m, t in tiers.items() if t == "shor")
     seen = _solves_by_level(monkeypatch)
-    res = size_certificate(c, G, lam, m, cuts=[C])
+    res = size_certificate(c, G, lam, m, cuts=[C], shor=True)
     assert res.tier == "shor" and seen == ["shor"]
 
 
@@ -253,7 +253,7 @@ def test_a_shor_bound_above_zero_goes_on_to_the_full_relaxation(monkeypatch):
     real = sf.bound
     monkeypatch.setattr(sf, "bound", lambda A, R, *a, **k: Q(1) if R.level == "shor" else real(A, R, *a, **k))
     seen = _solves_by_level(monkeypatch)
-    res = size_certificate(c, G, lam, 2, cuts=[C])
+    res = size_certificate(c, G, lam, 2, cuts=[C], shor=True)
     assert res.certified and res.tier == "full" and seen[:2] == ["shor", "full"]
 
 
@@ -272,7 +272,7 @@ def test_a_shor_solver_failure_goes_on_to_the_full_relaxation(monkeypatch):
         return real(c_, G_, lam_, R)
 
     monkeypatch.setattr(sf, "solve", solve)
-    res = size_certificate(c, G, lam, 2, cuts=[C])
+    res = size_certificate(c, G, lam, 2, cuts=[C], shor=True)
     assert res.certified and res.tier == "full"
 
 
@@ -413,7 +413,7 @@ def test_a_dual_that_gives_up_hands_the_size_on(monkeypatch):
     monkeypatch.setattr(sf, "dual_multipliers", lambda *a, **k: (None, {"evals": 5}))
     seen = _solves_by_level(monkeypatch)
     res = size_certificate(c, G, lam, 2, cuts=[C])
-    assert res.certified and res.tier in ("shor", "full") and seen[0] == "shor"
+    assert res.certified and res.tier == "full" and seen[0] == "full"     # the Shor tier is off (SHOR_TIER)
 
 
 def test_the_dual_reads_the_c_rows_at_the_solvers_scale():

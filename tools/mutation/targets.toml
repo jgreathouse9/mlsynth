@@ -12246,8 +12246,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-refresh-rate-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding, \"face\": face}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face, \"shor\": shor}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding, \"face\": face, \"shor\": shor}\n"
   models = "clarabel_every accepted and validated but never reaching the branch and bound, which runs the default"
 
   [[target.mutant]]
@@ -12314,8 +12314,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-rounding-flag-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"face\": face}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face, \"shor\": shor}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"face\": face, \"shor\": shor}\n"
   models = "rounding=False accepted and ignored"
 
   [[target.mutant]]
@@ -12620,8 +12620,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-shor-failure-raises"
-  find = "    except cp.error.SolverError:\n        sol = None                       # the full relaxation decides\n"
-  replace = "    except ZeroDivisionError:\n        sol = None                       # the full relaxation decides\n"
+  find = "        except cp.error.SolverError:\n            sol = None                   # the full relaxation decides\n"
+  replace = "        except ZeroDivisionError:\n            sol = None                   # the full relaxation decides\n"
   models = "a solver failure on the Shor relaxation ending the search, though the full relaxation could still decide the size"
 
   [[target.mutant]]
@@ -14034,8 +14034,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-search-drops-the-face"
-  find = "                           face=inc.get(\"face\", FACE))\n"
-  replace = "                           face=FACE)\n"
+  find = "                           face=inc.get(\"face\", FACE), shor=inc.get(\"shor\", SHOR_TIER))\n"
+  replace = "                           face=FACE, shor=inc.get(\"shor\", SHOR_TIER))\n"
   models = "certify_slope_free(face=False) accepted and the branches solved on the face anyway"
   [[target.mutant]]
   id = "an-infeasible-node-without-duals-has-a-point"
@@ -14049,3 +14049,45 @@ timeout = 600.0
   replace = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((R.n, R.n)), prob.status, face=True)\n"
   models = "the same on the face"
 
+
+[[target]]
+name = "tbr-bnb-shor-tier"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_shor_tier.py benchmarks/studies/tbr_bnb/test_cascade.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-shor-tier-is-on-by-default"
+  find = "SHOR_TIER = False\n"
+  replace = "SHOR_TIER = True\n"
+  models = "the Shor relaxation solved at every size the first-order tiers leave open, though it closed none of 756 on the beds"
+
+  [[target.mutant]]
+  id = "the-shor-flag-is-ignored"
+  find = "    if shor:                             # SHOR_TIER: off unless asked for\n"
+  replace = "    if True:                             # SHOR_TIER: off unless asked for\n"
+  models = "shor=False accepted and the Shor relaxation solved anyway"
+
+  [[target.mutant]]
+  id = "an-asked-for-shor-tier-is-dropped"
+  find = "    shor = SHOR_TIER if shor is None else shor\n"
+  replace = "    shor = SHOR_TIER\n"
+  models = "size_certificate(shor=True) accepted and the default used"
+
+  [[target.mutant]]
+  id = "a-node-drops-the-shor-flag"
+  find = "                           face=inc.get(\"face\", FACE), shor=inc.get(\"shor\", SHOR_TIER))\n"
+  replace = "                           face=inc.get(\"face\", FACE))\n"
+  models = "the search's nodes solving with the default Shor tier whatever certify_slope_free was asked"
+
+  [[target.mutant]]
+  id = "the-search-forgets-the-shor-flag"
+  find = "\"face\": face, \"shor\": shor}"
+  replace = "\"face\": face}"
+  models = "shor accepted by certify_slope_free and never handed to the branch and bound"
+
+  [[target.mutant]]
+  id = "a-malformed-shor-flag-is-accepted"
+  find = "    if type(shor) is not bool:\n"
+  replace = "    if False:\n"
+  models = "shor=1 or shor='yes' accepted and read as a truth value"
