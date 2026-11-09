@@ -52,6 +52,18 @@ their turn still hold, since they were proved against ceilings at least as
 high. On GeoLift at k = 4 one group of 93 is left open on its turn and closes on
 its retry.
 
+The gap. With ``gap`` g above zero every screen and every ceiling reads a target
+RSS, the incumbent's RSS over (1 + g)^2, in place of the incumbent's own: a group is
+admitted and certified against ceiling(y'y, r_star, target). The ceiling's first
+term does not read the RSS, so a design that could round above the incumbent's class
+is still excluded exactly. A certified search then proves that every design whose
+key is above the reported design's is in its class with an RSS at least the target,
+so with a required impact at least the reported design's over 1 + g, the required
+impact being a constant times sqrt(RSS / (n - 2)): the reported design needs at most
+1 + g times the optimum's required impact (derived here). A group whose optimum is
+below the target replaces the incumbent and the target falls with it; what was
+proved against a higher target still holds. g = 0 is the exact search.
+
 With ``n_jobs`` above one the floors are computed in chunks over a pool of forked
 processes, and the pass and the certifications run in waves of ``n_jobs`` groups.
 A wave's groups are screened and given their ceilings from the incumbent as the
@@ -352,6 +364,7 @@ class TreatmentCertificate:
     searched: int = 0                       # groups given a local search before certification
     pass_key: Optional[tuple] = None        # the incumbent's key when the pass ends
     retried: int = 0                        # open groups certified again at the final ceiling
+    gap: Q = Q(0)                           # the relative gap in required impact the certificate holds at
     survivors: List[dict] = field(default_factory=list)
     seconds: float = 0.0
 
@@ -496,27 +509,42 @@ def _optimum(M, T, n_test, restarts, ceiling=None, start=None):
         return res, C
 
 
+def _checked_gap(gap) -> Q:
+    """``gap`` as an exact rational: a finite nonnegative int, Fraction or float (a
+    float is read at its exact binary value), else MlsynthDataError."""
+    if isinstance(gap, bool) or not isinstance(gap, (int, float, Q)):
+        raise MlsynthDataError(f"gap is a nonnegative number, not {gap!r}.")
+    if isinstance(gap, float) and not math.isfinite(gap):
+        raise MlsynthDataError(f"gap is a finite number, not {gap!r}.")
+    if gap < 0:
+        raise MlsynthDataError(f"gap is {gap!r}; it cannot be negative.")
+    return Q(gap)
+
+
 def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] = None,
-                      restarts: int = 50, pass_restarts: int = 10,
+                      restarts: int = 50, pass_restarts: int = 10, gap=0,
                       n_jobs: int = 1, verbose: int = 0, progress=None, log=None,
                       log_level: int = 3) -> TreatmentCertificate:
     """The reference key's best design with ``k`` treatment geos over the columns of
     ``M`` (centred, periods by geos, every geo eligible for every role), certified
     (module docstring). ``pass_restarts`` random starts for the local search each
-    surviving group gets before any is certified; 0 skips the pass. ``n_jobs``
+    surviving group gets before any is certified; 0 skips the pass. With ``gap`` g
+    above zero the certificate holds within g (module docstring, "The gap"): every
+    design that beats the reported one is in its correlation class and needs a
+    required impact above 1 / (1 + g) of the reported design's. ``n_jobs``
     processes compute the floors, the pass and the certifications (module
     docstring); 1 runs them in this process. ``verbose``, ``progress`` and ``log``
     report the search's progress (progress.reporting), each group's events tagged
     with the group, from the workers too."""
     with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):
         out = _certify_treatment_entry(M, k, n_test=n_test, start=start, restarts=restarts,
-                                       pass_restarts=pass_restarts, n_jobs=n_jobs)
+                                       pass_restarts=pass_restarts, gap=gap, n_jobs=n_jobs)
         emit("treatment-done", certified=out.certified, treatment=out.treatment, rss=out.rss,
              passing=out.passing, survivors=len(out.survivors), seconds=out.seconds)
         return out
 
 
-def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, n_jobs) -> TreatmentCertificate:
+def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, gap, n_jobs) -> TreatmentCertificate:
     t0 = time.perf_counter()
     M = np.asarray(M, dtype=float)
     p = M.shape[1]
@@ -527,12 +555,13 @@ def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, n_
         raise MlsynthDataError(f"pass_restarts is {pass_restarts}; it cannot be negative.")
     if not isinstance(n_jobs, int) or n_jobs < 1:
         raise MlsynthDataError(f"n_jobs is {n_jobs!r}; it has to be a positive integer.")
+    g = _checked_gap(gap)
     emit("treatment", k=k, p=p, groups=comb(p, k), n_jobs=n_jobs)
     with (_pool(n_jobs) if n_jobs > 1 else nullcontext(None)) as pool:
-        return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, pool, t0)
+        return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0)
 
 
-def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, pool, t0):
+def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0):
     if start is not None and len(set(start)) != k:
         raise MlsynthDataError(f"the start treatment group has {len(set(start))} geos, not {k}.")
     if start is not None:
@@ -542,7 +571,8 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, 
         T0, Cs = _start(M, k, n_test, restarts)
         C0, key0, rss0, rest0 = _design(M, T0, Cs, n_test)
     out = TreatmentCertificate(k=k, treatment=None, controls=None, key=None, rss=None, passing=False,
-                               certified=True, groups=comb(p, k), screened_out=0)
+                               certified=True, groups=comb(p, k), screened_out=0, gap=g)
+    shrink = (1 + g) ** 2                   # the target RSS is the incumbent's over this
 
     def take(T, res, C):
         out.treatment, out.controls, out.rss, out.passing = list(T), sorted(C), res.rss, True
@@ -567,11 +597,11 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, n_jobs, 
 
     held = [None, None, (None, None)]
 
-    def class_of():                         # the incumbent's class, rebuilt when it changes
+    def class_of():                         # the incumbent's class and target RSS, rebuilt when it changes
         if out.key is None:
             return (None, None)
         if held[0] is not out.key or held[1] is not out.rss:
-            held[0], held[1], held[2] = out.key, out.rss, (Q(out.key[4]), out.rss)
+            held[0], held[1], held[2] = out.key, out.rss, (Q(out.key[4]), out.rss / shrink if g else out.rss)
         return held[2]
 
     def competes(row):

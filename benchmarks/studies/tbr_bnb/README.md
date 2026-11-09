@@ -1510,6 +1510,47 @@ moves; the RSS descent with 50 restarts, then the key's descent, reaches it in t
 search above. The first version's bound also left out the start group's floor; at
 four and five geos that floor was not the least, and the bound did not change.
 
+## A certificate within a gap
+
+The groups the floors leave are certified one by one, and on large panels one or two
+of them take most of the time. They are the groups whose own optimum is close to the
+incumbent, so close that a relaxation cannot separate them from it without branching
+deep. A group that holds the optimum, or a near-tie, cannot be screened out by any
+floor.
+
+`certify_treatment(..., gap=g)` asks a weaker question. Every screen and every
+ceiling reads a target RSS, the incumbent's RSS over (1 + g)^2, in place of the
+incumbent's own. A certified search then proves that the reported design needs at
+most 1 + g times the optimum's required impact: every design with a larger key is in
+the reported design's correlation class, with an RSS at least the target, and the
+required impact is a constant times the square root of the RSS (derived in
+`treatment.py`'s docstring). A design that could round above the class is still
+excluded exactly, since the ceiling's first term does not read the RSS. With `g = 0`
+the search is the exact one. `test_gap.py` checks the claim against enumeration.
+
+At 1% (`results/gap.log`, four processes, each run alone):
+
+| panel | treated geos | groups | exact | gap 1% | survivors | slowest group | design |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| GeoLift | 4 | 91,390 | 21.1 s | 14.7 s | 32, 25 | 8.1 s, 1.9 s | the certified optimum |
+| GeoLift | 5 | 658,008 | 44.9 s | 38.7 s | 71, 51 | 15.1 s, 15.1 s | the certified optimum |
+| `geo_panel(0)`, 60 geos | 4 | 487,635 | 241.4 s | 68.6 s | 15, 15 | 202.2 s, 26.7 s | the certified optimum |
+
+Each pair reported the same design, the optimum. On the 60-geo panel the gap screened
+out no more groups; the time came out of the one group that took 202.2 s, which closed
+in 26.7 s.
+
+### More restarts, measured and not built
+
+A stronger start in each group shortens its certificate: on the hard 100-geo group
+the RSS descent with 50 restarts stopped at an RSS above the group's ceiling, and with
+500 it found the group's optimum in 1.7 s, where the branch and bound reached it by
+rounding late in the search. The certificate still branched, since the near-ties
+around the optimum are what it has to separate. Across a whole search the restarts
+are paid in every group: on the 60-geo panel at four treated geos, `restarts=500`
+took 380.1 s against 241.4 s with 50, its slowest group 184.6 s against 202.2 s, with
+the same design and survivors (`results/gap.log`).
+
 ## The test beds
 
 Every change to the search is measured first on five fixed beds of simulated
@@ -1583,11 +1624,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (911 tests, about 155 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (928 tests, about 155 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 438 mutants of the 31
+but for the lines marked `pragma: no cover`, each with its reason. The 445 mutants of the 32
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
