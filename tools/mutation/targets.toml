@@ -14231,3 +14231,51 @@ timeout = 600.0
   find = "        cuts = list(cuts) + [set(inc[\"C\"])]\n"
   replace = "        cuts = [set(inc[\"C\"])]\n"
   models = "the new cut dropping the caller's, so an excluded design (a gate's no-good cut) can be certified again"
+
+[[target]]
+name = "tbr-bnb-gap"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_gap.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-gap-is-ignored"
+  find = "(Q(out.key[4]), out.rss / shrink if g else out.rss)"
+  replace = "(Q(out.key[4]), out.rss)"
+  models = "the gap accepted and reported while every screen and ceiling reads the incumbent's own RSS, so the search is the exact one at the gap's name"
+
+  [[target.mutant]]
+  id = "the-gap-scales-the-rss-not-its-square"
+  find = "    shrink = (1 + g) ** 2                   # the target RSS is the incumbent's over this\n"
+  replace = "    shrink = 1 + g                   # the target RSS is the incumbent's over this\n"
+  models = "the gap read as a gap in RSS, so a design whose required impact is up to (1 + g) times the optimum's is certified at a gap of sqrt(1 + g) - 1"
+
+  [[target.mutant]]
+  id = "the-gap-raises-the-target"
+  find = "(Q(out.key[4]), out.rss / shrink if g else out.rss)"
+  replace = "(Q(out.key[4]), out.rss * shrink if g else out.rss)"
+  models = "the target RSS above the incumbent's, a weaker prune that claims nothing about the gap"
+
+  [[target.mutant]]
+  id = "the-gap-is-not-reported"
+  find = "screened_out=0, gap=g)"
+  replace = "screened_out=0)"
+  models = "a gap certificate reported at gap 0, so a reader takes a design within the gap for the optimum"
+
+  [[target.mutant]]
+  id = "a-negative-gap-is-accepted"
+  find = "    if gap < 0:\n"
+  replace = "    if gap < -1:\n"
+  models = "a negative gap accepted, a target RSS above the incumbent's that certifies a claim stronger than optimality and false"
+
+  [[target.mutant]]
+  id = "a-non-finite-gap-is-accepted"
+  find = "    if isinstance(gap, float) and not math.isfinite(gap):\n"
+  replace = "    if False:\n"
+  models = "an infinite or nan gap reaching Fraction, which raises its own error, not the study's"
+
+  [[target.mutant]]
+  id = "a-boolean-gap-is-accepted"
+  find = "    if isinstance(gap, bool) or not isinstance(gap, (int, float, Q)):\n"
+  replace = "    if not isinstance(gap, (int, float, Q)):\n"
+  models = "gap=True read as a gap of 100%"
