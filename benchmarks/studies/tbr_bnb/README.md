@@ -670,6 +670,43 @@ does not close costs its whole budget: on five 30-geo groups (26 controls, 20
 periods) the two longer schedules spent 1.9-4.6 s, where the whole screen with
 Clarabel took 0.35-0.71 s. Below 48 controls the screen is unchanged.
 
+### The screen's last tier
+
+When no schedule closes, the screen solves the size-free relaxation with Clarabel.
+That relaxation is looser than any one size's, since a fractional point can blend
+designs of different sizes, and at 96 and 98 candidate controls its solve costs
+more than the sizes' own certificates. From `SCREEN_SOLVE_BELOW` (90) candidate
+controls the screen ends open after its schedules and the sizes decide
+(`screen_solves`; `group_certificate(..., final_solve=...)` overrides it).
+
+On the hard group of the 100-geo, four-treated search, (4, 27, 33, 58) of
+`brute.geo_panel(0, n=90, p=100)`, at the ceiling of a 1% gap, the screen spent
+1.3, 15.2 and 26.5 s on its three schedules and 129.3 s on the solve, and closed
+nothing; every size then closed at its root. Run alone at the ceilings of 3%, 10%
+and 30% gaps the screen closed at its third or second schedule in 43.2, 5.6 and
+5.3 s, so it proves an RSS floor of 1,273.9 and not one of 1,324.8, against the
+group's optimum of 1,336.16 (`results/screen_solve.log`).
+
+With and without the solve, four processes, each run alone
+(`results/screen_solve.log`):
+
+| case | candidate controls | with the solve | without | what the solve did |
+| --- | --- | --- | --- | --- |
+| GeoLift, 4 treated, exact | 36 | 21.8 s | 24.0 s | closed 7 screens, 11.8 s |
+| GeoLift, 4 treated, gap 1% | 36 | 14.0 s | 18.6 s | closed 6 screens, 9.6 s |
+| GeoLift, 5 treated, exact | 35 | 45.3 s | 50.1 s | closed 10 screens, 14.9 s |
+| GeoLift, 5 treated, gap 1% | 35 | 39.4 s | 43.8 s | closed 5 screens, 8.1 s |
+| `geo_panel(0)`, 60 geos, 4 treated, exact | 56 | 219.9 s | 219.4 s | never reached |
+| `geo_panel(0)`, 60 geos, 4 treated, gap 1% | 56 | 60.4 s | 65.6 s | closed 1 screen, 25.1 s |
+| `geo_panel(0)`, 100 geos, 2 treated, gap 1% | 98 | 327.5 s | 208.8 s | closed 1 screen, 204.4 s |
+| the hard 100-geo group, gap 1% | 96 | 299.5 s | 180.3 s | closed nothing, 120.9 s |
+
+Every pair certified the same design. The hard group's runs solved the sizes on the
+SCS workspace of the step 2 spike, which is not in this repository. Below 90
+controls the solve pays for itself and stays; at 98 it closed its screen in 204.4 s
+where the sizes took 45 s; and on the 19 groups of the 100-geo, four-treated search
+measured for the schedules (above) it closed none the schedules left open.
+
 ### The sizes' schedules and first-order triangle rounds
 
 What the screen cannot close is a different kind of hard. Profiled alone, the
@@ -1701,11 +1738,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (970 tests, about 335 s with two workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (992 tests, about 230 s with three workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 467 mutants of the 35
+but for the lines marked `pragma: no cover`, each with its reason. The 474 mutants of the 36
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers

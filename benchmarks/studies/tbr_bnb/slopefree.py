@@ -859,6 +859,24 @@ def screen_schedules(p: int) -> Tuple[Tuple[int, int, int], ...]:
     return SCREEN_SCHEDULES if p >= SCREEN_LADDER_FROM else SCREEN_SCHEDULES[:1]
 
 
+#: The group screen ends with the size-free relaxation solved by Clarabel only below
+#: this many candidate controls; from here it ends open after its schedules and the
+#: sizes decide. Where the solve closed a screen it took 1.6-1.8 s a group at 36
+#: controls (GeoLift) and 25 s at 56, less than the sizes' certificates it spared. At
+#: 96 controls it took 129-163 s and closed nothing (the hard group of the 100-geo,
+#: four-treated search, exact and at a 1% gap), and at 98 it closed the one survivor
+#: of the 100-geo, two-treated search at 1% in 204 s, where the sizes took 45 s; on
+#: the 19 groups of the 100-geo, four-treated search it took 78-140 s a group and
+#: closed none the schedules left open (README, "The screen's last tier").
+SCREEN_SOLVE_BELOW = 90
+
+
+def screen_solves(p: int) -> bool:
+    """Whether the group screen ends with the relaxation solve for ``p`` candidate
+    controls (SCREEN_SOLVE_BELOW)."""
+    return p < SCREEN_SOLVE_BELOW
+
+
 def _checked(schedules) -> Tuple[Tuple[int, int, int], ...]:
     if not isinstance(schedules, tuple):
         raise MlsynthConfigError(f"the screen's schedules are a tuple of (maxfun, stages, budget), not {schedules!r}.")
@@ -875,17 +893,22 @@ def group_bound(A, R: Rows, y_eq, y_in) -> Optional[Q]:
 
 
 def group_certificate(c, G, lam, schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None,
-                      solver: Optional[str] = None) -> GroupResult:
+                      solver: Optional[str] = None, final_solve: Optional[bool] = None) -> GroupResult:
     """Whether no design of any size has u'(cc' - lam G)u > 0 (with c'u >= 0), by the
     size-free rows' certificate: the first-order multipliers of each schedule in turn
     (screen_schedules(p) when ``schedules`` is None), then the relaxation's own
-    (Clarabel). Certified at lam' = dyadic_below(lam) <= lam, so no design's ratio
-    exceeds lam' either."""
+    (Clarabel) when ``final_solve`` is set (screen_solves(p) when it is None); without the
+    solve a screen no schedule closes ends open. Certified at lam' =
+    dyadic_below(lam) <= lam, so no design's ratio exceeds lam' either."""
     t0 = time.perf_counter()
     if len(c) == 0:
         raise MlsynthDataError("the group screen needs a candidate control: there is no candidate control.")
     schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)
     solver = _checked_solver(solver)
+    if final_solve is not None and type(final_solve) is not bool:
+        raise MlsynthConfigError(f"final_solve is True, False or None, not {final_solve!r}.")
+    if final_solve is None:
+        final_solve = screen_solves(len(c))
     lam = dyadic_below(lam)
     A = objective(c, G, lam)
     R = Rows(c, None)
@@ -899,6 +922,8 @@ def group_certificate(c, G, lam, schedules: Optional[Tuple[Tuple[int, int, int],
         emit("schedule", m=None, rung=rung, maxfun=maxfun, closed=closed, seconds=time.perf_counter() - t1)
         if closed:
             return GroupResult(True, b, "dual", time.perf_counter() - t0, rung)
+    if not final_solve:                 # the sizes decide what no schedule closed
+        return GroupResult(False, b, "open", time.perf_counter() - t0)
     try:
         sol = solve(c, G, lam, R, solver=_one_relaxation(solver))
     except cp.error.SolverError:        # pragma: no cover - Clarabel solves the size-free rows of every test panel
