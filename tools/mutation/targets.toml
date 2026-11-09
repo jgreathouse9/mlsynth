@@ -12470,14 +12470,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-screen-ignores-the-size-rule"
-  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n    solver = _checked_solver(solver)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
-  replace = "    schedules = SCREEN_SCHEDULES[:1] if schedules is None else _checked(schedules)\n    solver = _checked_solver(solver)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
+  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n"
+  replace = "    schedules = SCREEN_SCHEDULES[:1] if schedules is None else _checked(schedules)\n"
   models = "the screen's default schedules fixed, not chosen by the group's number of controls"
 
   [[target.mutant]]
   id = "a-malformed-schedule-is-taken"
-  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n    solver = _checked_solver(solver)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
-  replace = "    schedules = screen_schedules(len(c)) if schedules is None else schedules\n    solver = _checked_solver(solver)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
+  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n"
+  replace = "    schedules = screen_schedules(len(c)) if schedules is None else schedules\n"
   models = "a schedule with a zero or missing entry passed to the optimiser, which fails or runs nothing instead of the caller being told"
 
   [[target.mutant]]
@@ -14279,3 +14279,51 @@ timeout = 900.0
   find = "    if isinstance(gap, bool) or not isinstance(gap, (int, float, Q)):\n"
   replace = "    if not isinstance(gap, (int, float, Q)):\n"
   models = "gap=True read as a gap of 100%"
+
+[[target]]
+name = "tbr-bnb-screen-solve"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_group_screen.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-screen-solves-only-at-scale"
+  find = "    return p < SCREEN_SOLVE_BELOW\n"
+  replace = "    return p >= SCREEN_SOLVE_BELOW\n"
+  models = "the threshold reversed, so small groups lose the solve that closes their screens and large ones pay 130-200 s for one"
+
+  [[target.mutant]]
+  id = "ninety-controls-still-solve"
+  find = "    return p < SCREEN_SOLVE_BELOW\n"
+  replace = "    return p <= SCREEN_SOLVE_BELOW\n"
+  models = "the boundary moved by one, so a group of exactly SCREEN_SOLVE_BELOW candidate controls still solves"
+
+  [[target.mutant]]
+  id = "the-skip-is-ignored"
+  find = "    if not final_solve:                 # the sizes decide what no schedule closed\n"
+  replace = "    if False:                 # the sizes decide what no schedule closed\n"
+  models = "final_solve accepted and documented while every screen still ends with the solve"
+
+  [[target.mutant]]
+  id = "the-default-always-solves"
+  find = "        final_solve = screen_solves(len(c))\n"
+  replace = "        final_solve = True\n"
+  models = "the threshold defined but never read, so the default screen is main's at every size"
+
+  [[target.mutant]]
+  id = "a-skipped-screen-is-certified"
+  find = "    if not final_solve:                 # the sizes decide what no schedule closed\n        return GroupResult(False, b, \"open\", time.perf_counter() - t0)\n"
+  replace = "    if not final_solve:                 # the sizes decide what no schedule closed\n        return GroupResult(True, b, \"open\", time.perf_counter() - t0)\n"
+  models = "a screen that ended without a proof reported as certified, so every size is skipped on no evidence"
+
+  [[target.mutant]]
+  id = "a-malformed-final-solve-is-accepted"
+  find = "    if final_solve is not None and type(final_solve) is not bool:\n"
+  replace = "    if False:\n"
+  models = "final_solve=1 or 'yes' read by truth value, not refused"
+
+  [[target.mutant]]
+  id = "the-threshold-moves"
+  find = "SCREEN_SOLVE_BELOW = 90\n"
+  replace = "SCREEN_SOLVE_BELOW = 48\n"
+  models = "the threshold moved below the measured 56-control screens the solve closes in 25 s"
