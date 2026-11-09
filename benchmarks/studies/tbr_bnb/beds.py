@@ -95,19 +95,27 @@ class BedRun:
 
 @contextmanager
 def counting():
-    """Count slopefree.solve's calls by relaxation level, restoring it on exit."""
+    """Count the relaxations solved, by level, restoring the solvers on exit: through
+    slopefree.solve, and on the SCS workspace through Workspaces.solve (a workspace
+    solve that fails and goes to Clarabel counts twice, once a solver)."""
+    from .workspace import Workspaces
+
     n = {"full": 0, "shor": 0}
-    real = slopefree.solve
+    real, real_ws = slopefree.solve, Workspaces.solve
 
     def solve(c, G, lam, R, solver=None):
         n[R.level] += 1
         return real(c, G, lam, R, solver=solver)
 
-    slopefree.solve = solve
+    def solve_ws(self, c, G, lam, R):
+        n[R.level] += 1
+        return real_ws(self, c, G, lam, R)
+
+    slopefree.solve, Workspaces.solve = solve, solve_ws
     try:
         yield n
     finally:
-        slopefree.solve = real
+        slopefree.solve, Workspaces.solve = real, real_ws
 
 
 @contextmanager
