@@ -1098,6 +1098,57 @@ leaves one open at the depth limit, where Clarabel certifies it in 22. Three of
 its Shor solves at nodes with fixings took SCS 32,450 to 97,850 iterations (1.5
 to 4.1 s), against about 0.02 s for Clarabel. So `SOLVER = "clarabel"`.
 
+### The SCS workspace
+
+Through cvxpy, SCS factors its linear system again at every node and starts every
+node from zero. `workspace.py` calls SCS directly and changes three things:
+
+1. One workspace for a size, its cuts and its triangle rows. A node's fixing
+   `u_j = v` is two box rows, `u_j <= hi_j` and `-u_j <= -lo_j` with
+   `lo_j = hi_j = v`; a free geo has `lo_j = 0` and `hi_j = 1`, which every design
+   satisfies (`Rows(box=True)`). Fixings change only the right-hand side, so every
+   node of a size reuses one factorization and starts from the last node's iterate.
+2. Two stages, a small dual scale (`scale=0.01`) for two chunks and then SCS's
+   default, each node running both from its warm start.
+3. A certificate after every chunk of 200 iterations: the float screen, and when it
+   passes, the exact certificate on the node's own rows. The first chunk that
+   closes the node ends the solve.
+
+SCS's stopping test decides nothing that is proved. Each solve reports one of
+`certified`, `converged`, `cap` (every stage spent its chunks) or `infeasible`, and
+an SCS error is reported and the node solved by Clarabel.
+
+A triangle round builds a workspace with the new rows and starts it from the last
+round's iterate, the new rows' multipliers at zero. Every size starts from a pool,
+the triangle rows active at the last root solved (a multiplier above 1e-7 of the
+largest); `Workspaces` holds one search's workspaces and its pool. In the spike the
+pool was module state, and on the beds a group with fewer controls, run after a
+larger one in the same process, read triangle indices past its matrix
+(`test_two_groups_in_one_process_do_not_share_a_pool`). The triangles were valid
+rows, only of another group.
+
+Under the workspace a size takes the first first-order schedule and no first-order
+triangle rounds: a relaxation on it costs about what a longer schedule does and
+closes more. The group screen and the Shor tier solve one relaxation each, so they
+stay on Clarabel. `certify_slope_free(solver=None)` takes `default_solver(p)`: the
+workspace from `WORKSPACE_FROM = 40` candidate controls, Clarabel below.
+
+Measured on `geo_panel(0, n=90, p=100)` with the code of this branch, both arms of a
+row at once, four processes on four cores (`results/workspace.log`):
+
+| group | question | Clarabel | workspace | nodes | design |
+| --- | --- | --- | --- | --- | --- |
+| (4, 35, 58, 60) | exact | 1,122.3 s | 225.3 s | 41, 41 | the same |
+| (4, 27, 33, 58) | below RSS 1,324.85 (the 1% gap's target) | 833.4 s | 377.1 s | 47, 47 | the same |
+
+Both rows include the group screen, whose Clarabel solve at 96 candidate controls
+takes 129-163 s in either arm; #1015 drops that solve from 90 candidate controls.
+
+On the five test beds (15 to 30 units) the spike of this design certified every group
+at the enumerated optimum with nearly the same nodes and time as Clarabel (616, 590,
+285, 307 and 786 nodes against 616, 588, 285, 307 and 774), so below 40 candidate
+controls Clarabel stays the default.
+
 ## Several processes
 
 `certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
@@ -1624,11 +1675,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (928 tests, about 155 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (970 tests, about 335 s with two workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 445 mutants of the 32
+but for the lines marked `pragma: no cover`, each with its reason. The 467 mutants of the 35
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -1735,6 +1786,8 @@ fixing is certified to the solver's value.
 - `face.py`: the face Z = T W T' of a size's relaxation, its reduced rows and its exact bound.
 - `slopefree.py`: the slope-free relaxation, its certificate, the cascade of certificates for one size
   (`size_certificate`) and `certify_slope_free()`.
+- `workspace.py`: a size's full relaxation on one SCS workspace, and `Workspaces`, one search's
+  workspaces and triangle pool.
 - `gated.py`: the reference key's four gates on the slope-free search, `certify_gated()`.
 - `treatment.py`: the search over treatment groups, `certify_treatment()`.
 - `guided.py`: the floor-guided search without certificates, `guided_treatment()`, and its bound.

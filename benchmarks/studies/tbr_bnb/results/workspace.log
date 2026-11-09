@@ -1,0 +1,7 @@
+# certify_slope_free on geo_panel(0, n=90, p=100) groups, this branch's code, both arms at once,
+# four processes on four cores. arm default: the solver certify picks (default_solver(p));
+# clarabel: solver='clarabel'. hard_1pct: ceiling 1324.8473623832656 (the incumbent's RSS over 1.01^2).
+{"case": "g4356_exact", "arm": "default", "solver": "workspace", "controls_p": 96, "seconds": 225.3, "certified": true, "nodes": 41, "ceiling_held": false, "design": [0, 11, 15, 24, 26, 29, 33, 34, 37, 44, 51, 53, 54, 56, 58, 61, 62, 63, 76, 80, 82, 85, 89, 94, 95], "rss": 1413.4440079016492}
+{"case": "hard_1pct", "arm": "default", "solver": "workspace", "controls_p": 96, "seconds": 377.1, "certified": true, "nodes": 47, "ceiling_held": true, "design": [0, 9, 18, 21, 23, 27, 36, 44, 46, 51, 53, 54, 55, 60, 61, 63, 64, 65, 66, 77, 79, 85, 86, 90, 92, 94], "rss": 1359.6457159996967}
+{"case": "hard_1pct", "arm": "clarabel", "solver": "clarabel", "controls_p": 96, "seconds": 833.4, "certified": true, "nodes": 47, "ceiling_held": true, "design": [0, 9, 18, 21, 23, 27, 36, 44, 46, 51, 53, 54, 55, 60, 61, 63, 64, 65, 66, 77, 79, 85, 86, 90, 92, 94], "rss": 1359.6457159996967}
+{"case": "g4356_exact", "arm": "clarabel", "solver": "clarabel", "controls_p": 96, "seconds": 1122.3, "certified": true, "nodes": 41, "ceiling_held": false, "design": [0, 11, 15, 24, 26, 29, 33, 34, 37, 44, 51, 53, 54, 56, 58, 61, 62, 63, 76, 80, 82, 85, 89, 94, 95], "rss": 1413.4440079016492}
