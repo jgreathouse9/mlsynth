@@ -904,6 +904,45 @@ in between gave the same counts. Re-checking a node at the new ratio after an
 improvement closed none of 72 nodes and cost up to a Clarabel solve each, so the
 build does not re-check.
 
+### A cut for every incumbent
+
+The search cut the start design from every size's relaxation with its no-good
+cut, and no design adopted after it, by rounding, at a leaf or by pricing. The node
+whose subtree holds an adopted design bounds that design at the ratio it set, so its
+certificate cannot fall below zero, and the path to the design runs to the depth
+limit. On `main`, every node bounded, 10 of the 14 nodes left open at the depth limit
+on the beds held the final incumbent, and 10 of the 11 uncertified groups had one
+(`results/incumbent_cuts.log`). The two variants above that measured no better are
+this defect: the group of seed 21 that reached the depth limit with rounding, group
+13 of `s30_k4`, held its final incumbent at the open node, and a re-check at the new ratio could not close a node that
+still held the design that set it.
+
+Each bounded node now cuts the incumbent it is bounded against, beside the caller's
+cuts (`_branch`). A cut design is the incumbent or one it replaced, whose ratio is
+below the incumbent's, so no design the claim is about is cut. Against a ceiling the
+nodes are bounded at `y'y - ceiling`, above the incumbent's ratio, and its cut
+excludes a design the claim does not need. On the beds:
+
+| bed | nodes | full relaxations | open at the depth limit | uncertified |
+| --- | --- | --- | --- | --- |
+| `s15_k3` | 960 → 616 | 149 → 79 | 0 → 0 | 0 → 0 |
+| `s20_k3` | 1,114 → 588 | 197 → 76 | 7 → 0 | 5 → 0 |
+| `s20_k4` | 533 → 285 | 81 → 27 | 1 → 0 | 1 → 0 |
+| `s30_k10` | 681 → 307 | 131 → 40 | 4 → 0 | 3 → 0 |
+| `s30_k4` | 1,400 → 774 | 258 → 113 | 2 → 0 | 2 → 0 |
+| all | 4,688 → 2,570 | 816 → 335 | 14 → 0 | 11 → 0 |
+
+Every group certifies, and every group of the enumerated beds at the enumerated
+optimum. The group seconds went from 369.6 to 253.9, the first on three workers and
+the second on four, so the time comparison is indicative; the counts do not depend
+on the machine.
+
+With the cut, a re-check closes nodes. Bounding the node whose rounding adopted a
+design again, under the design's cut, took 2,068 nodes against 2,570 and 397 full
+relaxations against 335, in 259 s against 287 s on the same machine. At 100 geos a
+full relaxation costs 100-145 s and a first-order node a few seconds, so the extra
+solves cost more than the nodes save, and the build does not re-check.
+
 ### The relaxation on its face
 
 Every point Z of a size's relaxation has null directions the rows force: v =
@@ -1544,11 +1583,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (906 tests, about 150 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (911 tests, about 155 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 435 mutants of the 30
+but for the lines marked `pragma: no cover`, each with its reason. The 438 mutants of the 31
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers

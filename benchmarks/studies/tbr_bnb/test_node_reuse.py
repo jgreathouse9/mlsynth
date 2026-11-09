@@ -36,9 +36,11 @@ def _bound_every_node(monkeypatch):
 
 @pytest.fixture(scope="module")
 def bed_group():
-    """30 simulated units, 20 periods, treatment (0, 4, 13, 17): 26 candidate controls,
-    a group whose certificate branches."""
-    return _split(geo_panel(22, n=20, p=30), (0, 4, 13, 17))[:2]
+    """30 simulated units, 20 periods, treatment (2, 14, 25, 28), group 22 of s30_k4:
+    26 candidate controls, a group whose certificate branches (46 nodes, 16 full
+    relaxations). The group used before, treatment (0, 4, 13, 17) of seed 22, needs
+    one full relaxation once every incumbent is cut (test_incumbent_cuts.py)."""
+    return _split(geo_panel(31, n=20, p=30), (2, 14, 25, 28))[:2]
 
 
 def _count_solves(monkeypatch):

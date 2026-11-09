@@ -14206,3 +14206,28 @@ timeout = 600.0
   find = "    if type(shor) is not bool:\n"
   replace = "    if False:\n"
   models = "shor=1 or shor='yes' accepted and read as a truth value"
+
+
+[[target]]
+name = "tbr-bnb-incumbent-cuts"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_incumbent_cuts.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "an-adopted-incumbent-is-not-cut"
+  find = "    if set(inc[\"C\"]) not in cuts:     # an incumbent adopted since: cut it, or the node holding it cannot close\n"
+  replace = "    if False:     # an incumbent adopted since: cut it, or the node holding it cannot close\n"
+  models = "only the start design cut, so the node holding a design adopted by rounding, at a leaf or by pricing bounds it at its own ratio and its subtree runs to the depth limit"
+
+  [[target.mutant]]
+  id = "the-incumbent-is-cut-only-at-a-sizes-root"
+  find = "    if set(inc[\"C\"]) not in cuts:     # an incumbent adopted since: cut it, or the node holding it cannot close\n"
+  replace = "    if depth == 0 and set(inc[\"C\"]) not in cuts:     # an incumbent adopted since: cut it, or the node holding it cannot close\n"
+  models = "the incumbent cut where a size starts and not at the nodes after an adoption within it"
+
+  [[target.mutant]]
+  id = "the-incumbents-cut-replaces-the-callers"
+  find = "        cuts = list(cuts) + [set(inc[\"C\"])]\n"
+  replace = "        cuts = [set(inc[\"C\"])]\n"
+  models = "the new cut dropping the caller's, so an excluded design (a gate's no-good cut) can be certified again"

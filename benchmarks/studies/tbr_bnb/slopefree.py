@@ -1016,6 +1016,14 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     before it were pruned at a smaller ratio, the stronger claim, and no other node
     holds the new design, since the fixings partition the designs.
 
+    Every node cuts the incumbent it is bounded against, with the no-good cut of
+    Balas and Jeroslow (1972), beside the caller's ``cuts``. The node holding a design
+    adopted during the search (by rounding, at a leaf or by pricing) bounds that
+    design at the ratio it set, so without its cut the certificate cannot fall below
+    zero and the subtree runs to the depth limit: on the beds 10 of the 14 nodes left
+    open there held the final incumbent. A cut design is the incumbent or one it
+    replaced, so no design the claim is about is cut.
+
     The relaxations are solved at depths that are multiples of ``inc["every"]``
     (CLARABEL_EVERY when absent) and wherever the parent had no point; elsewhere the
     node runs the first-order tiers only and branches on ``parent_u``, its parent's
@@ -1027,12 +1035,15 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     incumbent replaces it, so the nodes after it are bounded at the higher ratio.
     Rounding prunes nothing by itself. On two beds of 30 simulated units (38 branching
     groups, every second level) it found 72 better incumbents and took 13% fewer nodes
-    and 19% fewer Clarabel solves; in a prototype a node re-checked at the new ratio
-    never closed, so there is no re-check."""
+    and 19% fewer Clarabel solves. The node whose rounding adopted a design is not
+    bounded again under the design's cut: on the beds that re-check took 20% fewer
+    nodes and 19% more full relaxations (results/incumbent_cuts.log)."""
     p = len(c)
     ones = sum(v for _, v in fixes)
     if ones > m or len(fixes) - ones > p - m:
         return
+    if set(inc["C"]) not in cuts:     # an incumbent adopted since: cut it, or the node holding it cannot close
+        cuts = list(cuts) + [set(inc["C"])]
     out.nodes += 1
     t0 = time.perf_counter()
 
