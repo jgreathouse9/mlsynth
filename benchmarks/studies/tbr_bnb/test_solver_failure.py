@@ -37,12 +37,12 @@ def _fail_full(monkeypatch, which=None, error=None):
     real = slopefree.solve
     calls = []
 
-    def solve(c, G, lam, R):
+    def solve(c, G, lam, R, solver=None):
         if R.level == "full":
             calls.append(1)
             if which is None or len(calls) in which:
                 raise (error or cp.error.SolverError("injected"))
-        return real(c, G, lam, R)
+        return real(c, G, lam, R, solver=solver)
 
     monkeypatch.setattr(slopefree, "solve", solve)
     return calls
@@ -53,10 +53,10 @@ def _no_cheap_tier(monkeypatch):
     monkeypatch.setattr(slopefree, "dual_multipliers", lambda *a, **k: (None, None))
     real = slopefree.solve
 
-    def solve(c, G, lam, R):
+    def solve(c, G, lam, R, solver=None):
         if R.level == "shor":
             raise cp.error.SolverError("injected")
-        return real(c, G, lam, R)
+        return real(c, G, lam, R, solver=solver)
 
     monkeypatch.setattr(slopefree, "solve", solve)
 
@@ -89,15 +89,15 @@ def test_a_later_failed_round_keeps_the_last_solved_point(monkeypatch):
     seen, points = [], []
     real_solve = slopefree.solve
 
-    def solve(c, G, lam, R):
+    def solve(c, G, lam, R, solver=None):
         if R.level == "full":
             seen.append(1)
             if len(seen) == 2:
                 raise cp.error.SolverError("injected")
-            sol = real_solve(c, G, lam, R)
+            sol = real_solve(c, G, lam, R, solver=solver)
             points.append(np.asarray(sol.Z)[0, 1:].copy())
             return sol
-        return real_solve(c, G, lam, R)
+        return real_solve(c, G, lam, R, solver=solver)
 
     monkeypatch.setattr(slopefree, "solve", solve)
     tris = iter([[(1.0, 0, (0, 1, 2))], [(1.0, 0, (0, 1, 3))]])

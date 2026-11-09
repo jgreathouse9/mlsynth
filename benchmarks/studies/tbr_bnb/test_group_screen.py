@@ -200,7 +200,7 @@ def test_a_screen_that_does_not_close_leaves_the_sizes_to_decide(monkeypatch):
     y, X = panel(0, p=6)
     best, _ = positive_optimum(y, X)
     monkeypatch.setattr(slopefree, "group_certificate",
-                        lambda c, G, lam: slopefree.GroupResult(False, None, "open", 0.0))
+                        lambda c, G, lam, solver=None: slopefree.GroupResult(False, None, "open", 0.0))
     out = certify_slope_free(y, X, restarts=10, ceiling=Q(best) * Q(95, 100))
     assert out.certified and out.ceiling_held and out.group_tier == "open" and out.sizes
 

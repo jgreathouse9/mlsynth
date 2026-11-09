@@ -222,27 +222,65 @@ class Solve:
     Z: Optional[np.ndarray]      # the point, None when the solve has none (an infeasible node)
     status: str
     face: bool = False           # solved on the face Z = T W T' (face.py)
+    solver: str = "clarabel"     # the solver that answered (solve())
 
 
 def _pow2(x):
     return 2.0 ** round(math.log2(x)) if x > 0 else 1.0
 
 
-def solve(c, G, lam, R: Rows) -> Solve:
-    """The relaxation by Clarabel in scaled units: the objective divided by a power
-    of two near its largest entry and the rows carrying c by one near max |c|, both
-    exact, so the multipliers return to the data's units by those two factors.
+def _checked_solver(solver):
+    """The solver's name, SOLVER when None; anything else is refused."""
+    if solver is None:
+        return SOLVER
+    if type(solver) is not str or solver not in SOLVERS:
+        raise MlsynthConfigError(f"solver is one of {SOLVERS}, not {solver!r}.")
+    return solver
+
+
+def _scs_answered(status: str) -> bool:
+    """Whether SCS's status answers the relaxation: a point with its multipliers, or
+    an infeasibility (a node holding no design). A limit, an error or an unbounded
+    relaxation (impossible, since tr Z bounds Z) is solved again by Clarabel."""
+    return status in ("optimal", "optimal_inaccurate", "infeasible", "infeasible_inaccurate")
+
+
+def solve(c, G, lam, R: Rows, solver: Optional[str] = None) -> Solve:
+    """The relaxation in scaled units: the objective divided by a power of two near
+    its largest entry and the rows carrying c by one near max |c|, both exact, so
+    the multipliers return to the data's units by those two factors.
+
+    ``solver`` (SOLVER when None) is "clarabel" or "scs". Clarabel solves on the
+    face when the rows have one (_solve_on_face). SCS solves in the full space,
+    where its iterations are fewer (results/face.log); the rows keep their face, so
+    bound() still takes the face's certificate. A solve SCS does not answer
+    (_scs_answered) or that raises is reported and solved again by Clarabel.
 
     Clarabel runs on one thread. Its automatic threading starts a native thread
     pool on a relaxation of the GeoLift groups' size, and a process forked after
     that (a worker of certify_treatment's pool) inherits the pool's state but not
     its threads, so its next solve never returns."""
+    solver = _checked_solver(solver)
     A = np.asarray(objective(c, G, lam), dtype=float)
     s = _pow2(float(np.abs(A).max())); cs = _pow2(float(np.max(np.abs(np.asarray(c, dtype=float)))))
     n = R.n
     A0 = np.zeros((n, n)); A0[1:, 1:] = A / s
+    if solver == "scs":
+        try:
+            out = _solve_in_full_space(R, A0, s, cs, "scs")
+        except cp.error.SolverError:     # reported; Clarabel solves it
+            out = None
+        if out is not None:
+            return out
     if R.face is not None:
         return _solve_on_face(R, A0, s, cs)
+    return _solve_in_full_space(R, A0, s, cs, "clarabel")
+
+
+def _solve_in_full_space(R: Rows, A0, s, cs, solver: str) -> Optional[Solve]:
+    """The relaxation in Z by ``solver``, reported as a solve event. None when SCS
+    does not answer (_scs_answered); a SolverError is reported and raised."""
+    n = R.n
     Me, Mi = R.matrices(cs)
     Z = cp.Variable((n, n), symmetric=True)
     z = cp.vec(Z, order="F")
@@ -251,18 +289,24 @@ def solve(c, G, lam, R: Rows) -> Solve:
     prob = cp.Problem(cp.Maximize(cp.trace(A0 @ Z)), [Z >> 0, ce, ci])
     t0 = time.perf_counter()
     try:
-        prob.solve(solver="CLARABEL", max_threads=1, verbose=clarabel_log())   # a thread pool would hang a worker forked after it
+        if solver == "scs":
+            prob.solve(solver="SCS", eps_abs=SCS_EPS, eps_rel=SCS_EPS, verbose=clarabel_log())
+        else:
+            prob.solve(solver="CLARABEL", max_threads=1, verbose=clarabel_log())   # a thread pool would hang a worker forked after it
     except cp.error.SolverError:
-        emit("solve", relaxation=R.level, rows_eq=R.n_eq, rows_in=R.n_in, status="error",
+        emit("solve", relaxation=R.level, solver=solver, rows_eq=R.n_eq, rows_in=R.n_in, status="error",
              seconds=time.perf_counter() - t0)
         raise
-    emit("solve", relaxation=R.level, rows_eq=R.n_eq, rows_in=R.n_in, status=prob.status,
+    emit("solve", relaxation=R.level, solver=solver, rows_eq=R.n_eq, rows_in=R.n_in, status=prob.status,
          seconds=time.perf_counter() - t0)
+    if solver == "scs" and not _scs_answered(prob.status):
+        return None
     if ce.dual_value is None:            # no duals (some cvxpy versions, at an infeasible node): no point either
-        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status)
+        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status, solver=solver)
     y_in = np.array(ci.dual_value, dtype=float) * s
     y_in[R.c_rows] /= cs
-    return Solve(float(prob.value), s, np.array(ce.dual_value, dtype=float) * s, y_in, Z.value, prob.status)
+    return Solve(float(prob.value), s, np.array(ce.dual_value, dtype=float) * s, y_in, Z.value, prob.status,
+                 solver=solver)
 
 
 def _solve_on_face(R: Rows, A0, s, cs) -> Solve:
@@ -286,10 +330,10 @@ def _solve_on_face(R: Rows, A0, s, cs) -> Solve:
     try:
         prob.solve(solver="CLARABEL", max_threads=1, verbose=clarabel_log())   # one thread, as in solve()
     except cp.error.SolverError:
-        emit("solve", relaxation=R.level, rows_eq=len(keep_e), rows_in=len(keep_i), status="error",
+        emit("solve", relaxation=R.level, solver="clarabel", rows_eq=len(keep_e), rows_in=len(keep_i), status="error",
              seconds=time.perf_counter() - t0)
         raise
-    emit("solve", relaxation=R.level, rows_eq=len(keep_e), rows_in=len(keep_i), status=prob.status,
+    emit("solve", relaxation=R.level, solver="clarabel", rows_eq=len(keep_e), rows_in=len(keep_i), status=prob.status,
          seconds=time.perf_counter() - t0)
     n = R.n
     if ce.dual_value is None:            # no duals (some cvxpy versions, at an infeasible node): no point either
@@ -502,6 +546,19 @@ DUAL_MEMORY = 5
 #: Shor solves and 254 of 260 full solves. On the face the forced directions are gone.
 FACE = True
 
+#: The relaxations' solvers. Clarabel is an interior-point method: each iteration
+#: factors the cone's block, 2.5 to 3 s at 96 candidate controls. SCS (O'Donoghue,
+#: Chu, Parikh and Boyd 2016) is ADMM on the homogeneous self-dual embedding: an
+#: iteration projects onto the cone and solves one sparse system. Its multipliers go
+#: to the same exact certificate as Clarabel's.
+SOLVERS = ("clarabel", "scs")
+SOLVER = "clarabel"
+
+#: SCS's absolute and relative tolerances. The certificate at SCS's multipliers is
+#: loosened by at most (1 + m) times its dual residual, so at 1e-6 the size-21 root
+#: of the 100-geo group bounds within 1.3e-4 of its value (results/scs.log).
+SCS_EPS = 1e-6
+
 #: Whether size_certificate solves the Shor relaxation between the dual tier and the
 #: full relaxation. The dual tier bounds the full rows, so a size the weaker Shor
 #: relaxation could close it closes first: over every bed group the Shor tier closed
@@ -602,7 +659,8 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
                      warm: Optional[Multipliers] = None,
                      schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None,
                      first_order_rounds: Optional[int] = None, relaxations: bool = True,
-                     face: bool = None, shor: Optional[bool] = None) -> SizeResult:
+                     face: bool = None, solver: Optional[str] = None,
+                     shor: Optional[bool] = None) -> SizeResult:
     """Whether no design of size m (within the fixings) has u'(cc' - lam G)u > 0,
     by the cheapest certificate of a cascade (module docstring): ``warm``, another
     size's multipliers, at this size's rows; then the first-order tiers; with
@@ -626,6 +684,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     face, Z = T W T' (face.py)."""
     t0 = time.perf_counter()
     face = FACE if face is None else face
+    solver = _checked_solver(solver)
     shor = SHOR_TIER if shor is None else shor
     schedules = size_schedules(len(c)) if schedules is None else _checked(schedules)
     if first_order_rounds is None:
@@ -678,7 +737,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     if shor:                             # SHOR_TIER: off unless asked for
         R = Rows(c, m, cuts=cuts, fixes=fixes, face=face, level="shor")
         try:
-            sol = solve(c, G, lam, R)
+            sol = solve(c, G, lam, R, solver=solver)
         except cp.error.SolverError:
             sol = None                   # the full relaxation decides
     if sol is not None:
@@ -691,7 +750,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     for r in range(rounds + 1):
         R = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes, face=face)
         try:
-            sol = solve(c, G, lam, R)
+            sol = solve(c, G, lam, R, solver=solver)
         except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved
             return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)
         b = bound(A, R, sol.y_eq, sol.y_in, m)
@@ -752,7 +811,8 @@ def group_bound(A, R: Rows, y_eq, y_in) -> Optional[Q]:
     return bound(A, R, y_eq, y_in, R.p)
 
 
-def group_certificate(c, G, lam, schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None) -> GroupResult:
+def group_certificate(c, G, lam, schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None,
+                      solver: Optional[str] = None) -> GroupResult:
     """Whether no design of any size has u'(cc' - lam G)u > 0 (with c'u >= 0), by the
     size-free rows' certificate: the first-order multipliers of each schedule in turn
     (screen_schedules(p) when ``schedules`` is None), then the relaxation's own
@@ -762,6 +822,7 @@ def group_certificate(c, G, lam, schedules: Optional[Tuple[Tuple[int, int, int],
     if len(c) == 0:
         raise MlsynthDataError("the group screen needs a candidate control: there is no candidate control.")
     schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)
+    solver = _checked_solver(solver)
     lam = dyadic_below(lam)
     A = objective(c, G, lam)
     R = Rows(c, None)
@@ -776,7 +837,7 @@ def group_certificate(c, G, lam, schedules: Optional[Tuple[Tuple[int, int, int],
         if closed:
             return GroupResult(True, b, "dual", time.perf_counter() - t0, rung)
     try:
-        sol = solve(c, G, lam, R)
+        sol = solve(c, G, lam, R, solver=solver)
     except cp.error.SolverError:        # pragma: no cover - Clarabel solves the size-free rows of every test panel
         return GroupResult(False, b, "open", time.perf_counter() - t0)
     b = group_bound(A, R, sol.y_eq, sol.y_in)
@@ -997,7 +1058,7 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     relax = depth % every == 0 or parent_u is None
     res = size_certificate(c, G, inc["lam"], m, cuts=cuts, fixes=fixes, rounds=rounds, per_round=per_round,
                            warm=None if fixes else inc.get("warm"), relaxations=relax,
-                           face=inc.get("face", FACE), shor=inc.get("shor", SHOR_TIER))
+                           face=inc.get("face", FACE), solver=inc.get("solver", SOLVER), shor=inc.get("shor", SHOR_TIER))
     out.tiers[res.tier] = out.tiers.get(res.tier, 0) + 1
     if res.certified:
         if not fixes and res.multipliers is not None:
@@ -1070,6 +1131,7 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
                         clarabel_every: int = CLARABEL_EVERY,
                         rounding: bool = ROUND_NODES,
                         face: bool = FACE,
+                        solver: str = SOLVER,
                         shor: bool = SHOR_TIER) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
@@ -1103,7 +1165,8 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
     ``clarabel_every`` levels (_branch); 1 solves them at every node. With
     ``rounding`` an open node that solved them rounds its point to a design, which
     replaces the incumbent when it is better (``rounded`` counts those). With ``face``
-    the relaxations are solved and certified on their faces (FACE, face.py). With
+    the relaxations are solved and certified on their faces (FACE, face.py). The
+    relaxations are solved by ``solver``, "clarabel" or "scs" (SOLVER, solve()). With
     ``shor`` the Shor relaxation is solved before the full one (SHOR_TIER).
     """
     from .search import hull_survivors, incumbent, pieces_to
@@ -1115,6 +1178,9 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
         raise MlsynthConfigError(f"rounding is True or False, not {rounding!r}.")
     if type(face) is not bool:
         raise MlsynthConfigError(f"face is True or False, not {face!r}.")
+    if solver is None:
+        raise MlsynthConfigError(f"solver is one of {SOLVERS}, not None.")
+    _checked_solver(solver)
     if type(shor) is not bool:
         raise MlsynthConfigError(f"shor is True or False, not {shor!r}.")
     p = X.shape[1]
@@ -1140,7 +1206,7 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
     emit("slope-free", p=p, ratio=lam, test_ratio=test, excluded=len(excluded))
     screen = None
     if group_screen and test > lam:
-        screen = group_certificate(c, G, test)
+        screen = group_certificate(c, G, test, solver=solver)
         emit("screen", certified=screen.certified, tier=screen.tier, rung=screen.rung, seconds=screen.seconds)
         if screen.certified:               # no design of any size is below the ceiling
             return SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=[],
@@ -1156,7 +1222,7 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
         sizes = sorted({pc[2] for pc in s1})
         t_h = time.perf_counter() - t0
         emit("hull", sizes=sizes, seconds=t_h)
-    inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding, "face": face, "shor": shor}
+    inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding, "face": face, "solver": solver, "shor": shor}
     out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
                                hull_seconds=t_h, group_tier=None if screen is None else screen.tier,
                                group_seconds=0.0 if screen is None else screen.seconds)

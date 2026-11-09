@@ -58,9 +58,9 @@ def _solves_by_level(monkeypatch):
     seen = []
     real = sf.solve
 
-    def wrapped(c, G, lam, R):
+    def wrapped(c, G, lam, R, solver=None):
         seen.append(R.level)
-        return real(c, G, lam, R)
+        return real(c, G, lam, R, solver=solver)
 
     monkeypatch.setattr(sf, "solve", wrapped)
     return seen
@@ -266,10 +266,10 @@ def test_a_shor_solver_failure_goes_on_to_the_full_relaxation(monkeypatch):
     c, G, lam, C = _at_optimum(0)
     real = sf.solve
 
-    def solve(c_, G_, lam_, R):
+    def solve(c_, G_, lam_, R, solver=None):
         if R.level == "shor":
             raise cp.error.SolverError("Solver 'CLARABEL' failed.")
-        return real(c_, G_, lam_, R)
+        return real(c_, G_, lam_, R, solver=solver)
 
     monkeypatch.setattr(sf, "solve", solve)
     res = size_certificate(c, G, lam, 2, cuts=[C], shor=True)

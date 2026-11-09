@@ -233,7 +233,7 @@ def test_a_node_without_a_point_rounds_nothing(monkeypatch):
     calls = []
     monkeypatch.setattr(slopefree, "rounded_design", lambda *a: calls.append(a) or set())
 
-    def fail(c, G, lam, R):
+    def fail(c, G, lam, R, solver=None):
         raise slopefree.cp.error.SolverError("injected")
 
     monkeypatch.setattr(slopefree, "solve", fail)

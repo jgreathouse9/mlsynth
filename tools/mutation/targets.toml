@@ -12124,8 +12124,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-full-solve-failure-ends-the-search"
-  find = "        try:\n            sol = solve(c, G, lam, R)\n        except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved\n            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)\n"
-  replace = "        sol = solve(c, G, lam, R)\n"
+  find = "        try:\n            sol = solve(c, G, lam, R, solver=solver)\n        except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved\n            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)\n"
+  replace = "        sol = solve(c, G, lam, R, solver=solver)\n"
   models = "Clarabel's failure on the full relaxation raised out of the certificate, ending the treatment search (the 100-geo incident)"
 
   [[target.mutant]]
@@ -12246,8 +12246,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-refresh-rate-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face, \"shor\": shor}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding, \"face\": face, \"shor\": shor}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face, \"solver\": solver, \"shor\": shor}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding, \"face\": face, \"solver\": solver, \"shor\": shor}\n"
   models = "clarabel_every accepted and validated but never reaching the branch and bound, which runs the default"
 
   [[target.mutant]]
@@ -12314,8 +12314,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-rounding-flag-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face, \"shor\": shor}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"face\": face, \"shor\": shor}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face, \"solver\": solver, \"shor\": shor}\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"face\": face, \"solver\": solver, \"shor\": shor}\n"
   models = "rounding=False accepted and ignored"
 
   [[target.mutant]]
@@ -12470,14 +12470,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-screen-ignores-the-size-rule"
-  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
-  replace = "    schedules = SCREEN_SCHEDULES[:1] if schedules is None else _checked(schedules)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
+  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n    solver = _checked_solver(solver)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
+  replace = "    schedules = SCREEN_SCHEDULES[:1] if schedules is None else _checked(schedules)\n    solver = _checked_solver(solver)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
   models = "the screen's default schedules fixed, not chosen by the group's number of controls"
 
   [[target.mutant]]
   id = "a-malformed-schedule-is-taken"
-  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
-  replace = "    schedules = screen_schedules(len(c)) if schedules is None else schedules\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
+  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n    solver = _checked_solver(solver)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
+  replace = "    schedules = screen_schedules(len(c)) if schedules is None else schedules\n    solver = _checked_solver(solver)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
   models = "a schedule with a zero or missing entry passed to the optimiser, which fails or runs nothing instead of the caller being told"
 
   [[target.mutant]]
@@ -12842,13 +12842,13 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-solve-is-not-reported"
-  find = "    emit(\"solve\", relaxation=R.level, rows_eq=R.n_eq, rows_in=R.n_in, status=prob.status,\n         seconds=time.perf_counter() - t0)\n"
+  find = "    emit(\"solve\", relaxation=R.level, solver=solver, rows_eq=R.n_eq, rows_in=R.n_in, status=prob.status,\n         seconds=time.perf_counter() - t0)\n"
   replace = "    pass\n"
   models = "a relaxation solve missing from the progress, the event that times the search's dearest step"
 
   [[target.mutant]]
   id = "a-face-solve-is-not-reported"
-  find = "    emit(\"solve\", relaxation=R.level, rows_eq=len(keep_e), rows_in=len(keep_i), status=prob.status,\n         seconds=time.perf_counter() - t0)\n"
+  find = "    emit(\"solve\", relaxation=R.level, solver=\"clarabel\", rows_eq=len(keep_e), rows_in=len(keep_i), status=prob.status,\n         seconds=time.perf_counter() - t0)\n"
   replace = "    pass\n"
   models = "a solve on the face missing from the progress, so the default path's dearest step goes untimed"
 
@@ -14034,13 +14034,13 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-search-drops-the-face"
-  find = "                           face=inc.get(\"face\", FACE), shor=inc.get(\"shor\", SHOR_TIER))\n"
-  replace = "                           face=FACE, shor=inc.get(\"shor\", SHOR_TIER))\n"
+  find = "                           face=inc.get(\"face\", FACE), solver=inc.get(\"solver\", SOLVER), shor=inc.get(\"shor\", SHOR_TIER))\n"
+  replace = "                           face=FACE, solver=inc.get(\"solver\", SOLVER), shor=inc.get(\"shor\", SHOR_TIER))\n"
   models = "certify_slope_free(face=False) accepted and the branches solved on the face anyway"
   [[target.mutant]]
   id = "an-infeasible-node-without-duals-has-a-point"
-  find = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status)\n"
-  replace = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((n, n)), prob.status)\n"
+  find = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status, solver=solver)\n"
+  replace = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((n, n)), prob.status, solver=solver)\n"
   models = "a relaxation returned without duals (an infeasible node under some cvxpy versions) handed on with a zero matrix as its point, which rounding and triangle separation read"
 
   [[target.mutant]]
@@ -14048,6 +14048,121 @@ timeout = 600.0
   find = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status, face=True)\n"
   replace = "        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), np.zeros((R.n, R.n)), prob.status, face=True)\n"
   models = "the same on the face"
+
+
+[[target]]
+name = "tbr-bnb-slope-free-scs"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_scs.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "scs-runs-at-its-default-tolerance"
+  find = "            prob.solve(solver=\"SCS\", eps_abs=SCS_EPS, eps_rel=SCS_EPS, verbose=clarabel_log())\n"
+  replace = "            prob.solve(solver=\"SCS\", verbose=clarabel_log())\n"
+  models = "SCS left at its default tolerance of 1e-4, whose multipliers loosen the certificate at the 100-geo root by 11% at the full level (results/scs.log)"
+
+  [[target.mutant]]
+  id = "the-scs-choice-is-ignored"
+  find = "    if solver == \"scs\":\n        try:\n"
+  replace = "    if False:\n        try:\n"
+  models = "solver='scs' accepted and validated while Clarabel solves every relaxation"
+
+  [[target.mutant]]
+  id = "an-unanswered-scs-solve-is-taken"
+  find = "    if solver == \"scs\" and not _scs_answered(prob.status):\n        return None\n"
+  replace = "    if False:\n        return None\n"
+  models = "an SCS solve stopped at its iteration or time limit read as an answer, its multipliers taken without a Clarabel solve"
+
+  [[target.mutant]]
+  id = "an-scs-error-ends-the-solve"
+  find = "        except cp.error.SolverError:     # reported; Clarabel solves it\n"
+  replace = "        except ZeroDivisionError:     # reported; Clarabel solves it\n"
+  models = "an SCS SolverError raised to the caller, so the size is left open where Clarabel would have bounded it"
+
+  [[target.mutant]]
+  id = "an-infeasible-node-goes-to-clarabel"
+  find = "    return status in (\"optimal\", \"optimal_inaccurate\", \"infeasible\", \"infeasible_inaccurate\")\n"
+  replace = "    return status in (\"optimal\", \"optimal_inaccurate\")\n"
+  models = "SCS's report that a node holds no design discarded and the node solved again by Clarabel"
+
+  [[target.mutant]]
+  id = "the-fallback-leaves-the-face"
+  find = "    if R.face is not None:\n        return _solve_on_face(R, A0, s, cs)\n    return _solve_in_full_space(R, A0, s, cs, \"clarabel\")\n"
+  replace = "    return _solve_in_full_space(R, A0, s, cs, \"clarabel\")\n"
+  models = "the Clarabel fallback (and every Clarabel solve) off the face, where it loses accuracy"
+
+  [[target.mutant]]
+  id = "every-solve-is-reported-as-clarabel"
+  find = "    emit(\"solve\", relaxation=R.level, solver=solver, rows_eq=R.n_eq, rows_in=R.n_in, status=prob.status,\n"
+  replace = "    emit(\"solve\", relaxation=R.level, solver=\"clarabel\", rows_eq=R.n_eq, rows_in=R.n_in, status=prob.status,\n"
+  models = "the solve event naming Clarabel for an SCS solve, so a log cannot tell the two apart or count the fallbacks"
+
+  [[target.mutant]]
+  id = "the-solve-does-not-name-its-solver"
+  find = "    return Solve(float(prob.value), s, np.array(ce.dual_value, dtype=float) * s, y_in, Z.value, prob.status,\n                 solver=solver)\n"
+  replace = "    return Solve(float(prob.value), s, np.array(ce.dual_value, dtype=float) * s, y_in, Z.value, prob.status)\n"
+  models = "an SCS answer reported on the Solve as Clarabel's"
+
+  [[target.mutant]]
+  id = "the-shor-level-drops-the-solver"
+  find = "            sol = solve(c, G, lam, R, solver=solver)\n        except cp.error.SolverError:\n            sol = None                   # the full relaxation decides"
+  replace = "            sol = solve(c, G, lam, R)\n        except cp.error.SolverError:\n            sol = None                   # the full relaxation decides"
+  models = "a size's Shor relaxation solved by the default solver whatever the size certificate was asked"
+
+  [[target.mutant]]
+  id = "the-full-level-drops-the-solver"
+  find = "            sol = solve(c, G, lam, R, solver=solver)\n        except cp.error.SolverError:    # no bound"
+  replace = "            sol = solve(c, G, lam, R)\n        except cp.error.SolverError:    # no bound"
+  models = "a size's full relaxation solved by the default solver whatever the size certificate was asked"
+
+  [[target.mutant]]
+  id = "a-node-drops-the-solver"
+  find = "face=inc.get(\"face\", FACE), solver=inc.get(\"solver\", SOLVER), shor="
+  replace = "face=inc.get(\"face\", FACE), shor="
+  models = "the search's nodes solved by the default solver whatever certify_slope_free was asked"
+
+  [[target.mutant]]
+  id = "the-search-forgets-the-solver"
+  find = "\"face\": face, \"solver\": solver, \"shor\""
+  replace = "\"face\": face, \"shor\""
+  models = "solver accepted by certify_slope_free and never handed to the branch and bound"
+
+  [[target.mutant]]
+  id = "the-group-screen-drops-the-solver"
+  find = "        screen = group_certificate(c, G, test, solver=solver)\n"
+  replace = "        screen = group_certificate(c, G, test)\n"
+  models = "the group screen against a ceiling solved by the default solver"
+
+  [[target.mutant]]
+  id = "the-group-rows-drop-the-solver"
+  find = "        sol = solve(c, G, lam, R, solver=solver)\n    except cp.error.SolverError:        # pragma: no cover"
+  replace = "        sol = solve(c, G, lam, R)\n    except cp.error.SolverError:        # pragma: no cover"
+  models = "the size-free rows solved by the default solver whatever group_certificate was asked"
+
+  [[target.mutant]]
+  id = "any-solver-name-is-accepted"
+  find = "    if type(solver) is not str or solver not in SOLVERS:\n"
+  replace = "    if False:\n"
+  models = "a misspelt solver ('SCS', 'gurobi') accepted and run as Clarabel"
+
+  [[target.mutant]]
+  id = "the-search-takes-a-none-solver"
+  find = "    if solver is None:\n        raise MlsynthConfigError(f\"solver is one of {SOLVERS}, not None.\")\n"
+  replace = "    if False:\n        raise MlsynthConfigError(f\"solver is one of {SOLVERS}, not None.\")\n"
+  models = "certify_slope_free(solver=None) read as the default, while every other flag of the search refuses None"
+
+  [[target.mutant]]
+  id = "the-solver-is-checked-after-the-descent"
+  find = "    _checked_solver(solver)\n    if type(shor) is not bool:\n"
+  replace = "    if type(shor) is not bool:\n"
+  models = "a bad solver refused only at the first relaxation, after the descent and the hull stage have run"
+
+  [[target.mutant]]
+  id = "scs-is-the-default"
+  find = "SOLVER = \"clarabel\"\n"
+  replace = "SOLVER = \"scs\"\n"
+  models = "the default solver changed without the measurement that decides it"
 
 
 [[target]]
@@ -14076,14 +14191,14 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "a-node-drops-the-shor-flag"
-  find = "                           face=inc.get(\"face\", FACE), shor=inc.get(\"shor\", SHOR_TIER))\n"
-  replace = "                           face=inc.get(\"face\", FACE))\n"
+  find = "                           face=inc.get(\"face\", FACE), solver=inc.get(\"solver\", SOLVER), shor=inc.get(\"shor\", SHOR_TIER))\n"
+  replace = "                           face=inc.get(\"face\", FACE), solver=inc.get(\"solver\", SOLVER))\n"
   models = "the search's nodes solving with the default Shor tier whatever certify_slope_free was asked"
 
   [[target.mutant]]
   id = "the-search-forgets-the-shor-flag"
-  find = "\"face\": face, \"shor\": shor}"
-  replace = "\"face\": face}"
+  find = "\"solver\": solver, \"shor\": shor}"
+  replace = "\"solver\": solver}"
   models = "shor accepted by certify_slope_free and never handed to the branch and bound"
 
   [[target.mutant]]

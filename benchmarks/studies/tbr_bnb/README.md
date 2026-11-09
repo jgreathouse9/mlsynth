@@ -1021,6 +1021,44 @@ looser. At the 100-geo size-21 root it took 48 iterations at eps = 1e-4 and 42 a
 15.6%: the bound loses about eps times the pair multipliers' sum, 1.7e11 there, which
 is more than the margin of the nodes that decide a search.
 
+### SCS, an option, not the default
+
+At 100 geos Clarabel's time is the 97 x 97 cone's factorization at each
+interior-point iteration. SCS (O'Donoghue, Chu, Parikh and Boyd 2016) splits the
+cone from the rows by ADMM on the homogeneous self-dual embedding, so an
+iteration is one projection onto the cone and one sparse solve. Its multipliers
+go to the same exact certificate. `solve(solver="scs")` and
+`certify_slope_free(solver="scs")` use it, in the full space at
+`SCS_EPS = 1e-6`: on the face the auxiliary rows slowed it (44,525 iterations
+against 4,250 at the 100-geo size-21 root). A solve SCS does not answer (a limit,
+an error) is reported and solved again by Clarabel, and every solve event and
+`Solve` names the solver that answered. `beds --solver scs` runs a bed under it.
+
+At the 100-geo group's roots, sizes 21 to 26, both arms at once
+(`results/scs.log`), SCS solved the Shor level 117 times faster (2.4 s against
+274.5 s over the six sizes) and the full level 11 times faster (64.7 s against
+722.0 s), every solve `optimal`, with an exact bound at most 7.3e-5 above
+Clarabel's. No root closes either way. With the Shor tier off by default (above),
+only the full level's comparison applies to a search; the bed runs below were
+measured with it on.
+
+On the beds it is worse on every count:
+
+| | Clarabel | SCS |
+| --- | --- | --- |
+| nodes | 4,688 | 6,446 |
+| uncertified groups | 11 | 72 |
+| group seconds | 429.2 | 3,679.0 |
+| optima missed | 0 | 0 |
+
+The nodes that decide a search sit within about 0.1 of zero on an objective
+scale near 1e7 (on `s20_k4` group 0, 8.4e6). There SCS's value is off by up to
+2.7 from Clarabel's, with its sign flipped at four of eleven, so its point, which
+branching and rounding read, is a different point: that group takes 46 nodes and
+leaves one open at the depth limit, where Clarabel certifies it in 22. Three of
+its Shor solves at nodes with fixings took SCS 32,450 to 97,850 iterations (1.5
+to 4.1 s), against about 0.02 s for Clarabel. So `SOLVER = "clarabel"`.
+
 ## Several processes
 
 `certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
@@ -1506,11 +1544,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (869 tests, about 100 s with four workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (906 tests, about 150 s with four workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 417 mutants of the 29
+but for the lines marked `pragma: no cover`, each with its reason. The 435 mutants of the 30
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
