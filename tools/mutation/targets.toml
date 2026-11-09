@@ -31,6 +31,280 @@
 # outcomes are recorded, never silently tolerated.
 
 [[target]]
+name = "specification-sensitivity"
+module-path = "mlsynth/sensitivity.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity.py -q -p no:cacheprovider --disable-warnings"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "att-uses-all-post-periods"
+  find = '"att": mean(map(float, gap.loc[self._post]))'
+  replace = '"att": mean(map(float, gap.loc[gap.index >= self._treatment_time]))'
+  models = "the requested ATT period is replaced by every post-treatment observation, changing the estimand while leaving full-window examples unchanged"
+
+  [[target.mutant]]
+  id = "failures-disappear-from-the-registry-summary"
+  find = "            summaries.append(row)"
+  replace = "            if row['status'] != 'failed':\n                summaries.append(row)"
+  models = "failed designs remain in an exception log but disappear from attempted-design counts and the default specification curve"
+
+  [[target.mutant]]
+  id = "post-period-fit-bound-is-silently-clipped"
+  find = "if window[0] > window[1] or window[1] >= self._treatment_time:"
+  replace = "if window[0] > window[1]:"
+  models = "post-treatment window bounds are admitted and the estimator silently clips them, so the executed design differs from the registered design"
+
+  [[target.mutant]]
+  id = "warning-fits-appear-successful"
+  find = 'status="warning" if caught or solver_warnings else "ok"'
+  replace = 'status="ok"'
+  models = "nonconverged finite fits retain their estimates but lose the visible warning status in the summary and curve"
+
+  [[target.mutant]]
+  id = "native-solver-warnings-ignored"
+  find = '"solver_warnings", []'
+  replace = '"ignored_solver_warnings", []'
+  models = "the native estimator captures primary-solver warnings internally, and the runner fails to surface them even though its outer warning handler works"
+
+  [[target.mutant]]
+  id = "donor-restriction-ignored"
+  find = 'donors = list(all_donors if design["donors"] is None else design["donors"])'
+  replace = "donors = list(all_donors)"
+  models = "the requested donor pool is ignored, including when the requested subset is needed to exclude a contaminated or incomplete donor"
+
+  [[target.mutant]]
+  id = "scalar-exclusions-are-split-into-characters"
+  find = "if isinstance(excluded_donors, (str, bytes)):"
+  replace = "if False:"
+  models = "a scalar string is treated as several donor identifiers instead of rejecting a malformed exclusion declaration"
+
+  [[target.mutant]]
+  id = "unknown-exclusions-are-silently-ignored"
+  find = "if not excluded_set.issubset(frame[cfg.unitid].unique()):"
+  replace = "if False:"
+  models = "a misspelled or wrongly typed contaminated donor identifier silently leaves the donor eligible"
+
+  [[target.mutant]]
+  id = "batch-fits-display-and-save-plots"
+  find = 'update={"backend": backend, "display_graphs": False, "save": False}'
+  replace = 'update={"backend": backend}'
+  models = "native presentation defaults open figures or overwrite the same output file for every specification"
+
+  [[target.mutant]]
+  id = "missing-distribution-metadata-discards-study"
+  find = "except PackageNotFoundError:\n            package_version = None"
+  replace = "except PackageNotFoundError:\n            raise"
+  models = "a source checkout without installed distribution metadata cannot return an otherwise valid sensitivity study"
+
+  [[target.mutant]]
+  id = "native-open-window-endpoints-are-rejected"
+  find = "bound if bound is not None else limit"
+  replace = "bound"
+  models = "None endpoints accepted by VanillaSC fail runner comparisons instead of resolving to the pre-treatment boundaries"
+
+  [[target.mutant]]
+  id = "unrelated-units-expand-the-trajectory"
+  find = "self._times = sorted(treated_frame[cfg.time].unique())"
+  replace = "self._times = sorted(frame[cfg.time].unique())"
+  models = "observations outside the treated unit's timeline make every selected design appear incomplete"
+
+  [[target.mutant]]
+  id = "donor-only-periods-enter-estimation"
+  find = "& frame[cfg.time].isin(periods)"
+  replace = ""
+  models = "donor observations outside the fixed treated timeline enter the native estimator or fail a valid design's balance check"
+
+  [[target.mutant]]
+  id = "finite-gaps-overflow-att"
+  find = '"att": mean(map(float, gap.loc[self._post]))'
+  replace = '"att": float(gap.loc[self._post].mean())'
+  models = "ordinary summation overflows on finite large gaps even when their mean is representable"
+
+[[target]]
+name = "specification-sensitivity-numerics"
+module-path = "mlsynth/utils/sensitivity_helpers/numerics.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity.py -q -p no:cacheprovider --disable-warnings -k 'extreme or rms or dispersion or large_pre'"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "rms-squares-unscaled-gaps"
+  find = "return float(scale * np.sqrt(np.mean((values / scale) ** 2))) if scale else 0.0"
+  replace = "return float(np.sqrt(np.mean(values ** 2)))"
+  models = "squaring finite large or tiny gaps overflows or underflows before taking the root"
+
+  [[target.mutant]]
+  id = "median-overflows-central-pair"
+  find = "mean([float(median_low(values)), float(median_high(values))])"
+  replace = "float(np.median(values))"
+  models = "averaging the two central finite estimates overflows although the median is representable"
+
+  [[target.mutant]]
+  id = "unrepresentable-standard-deviation-looks-valid"
+  find = "return value if np.isfinite(value) else np.nan"
+  replace = "return value"
+  models = "an unrepresentable standard deviation is reported as infinity rather than an explicitly missing statistic"
+
+[[target]]
+name = "specification-sensitivity-warnings"
+module-path = "mlsynth/utils/vanillasc_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity.py -k suppressed -q -p no:cacheprovider --disable-warnings"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "primary-solver-warnings-discarded"
+  find = '"solver_warnings": ['
+  replace = '"discarded_solver_warnings": ['
+  models = "primary solver warnings are captured but omitted from the native result contract, preventing the sensitivity summary from flagging nonconvergence"
+
+[[target]]
+name = "specification-sensitivity-paths"
+module-path = "mlsynth/utils/sensitivity_helpers/results.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity.py -k invalid_estimator_output -q -p no:cacheprovider --disable-warnings"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "overflowed-gaps-become-estimates"
+  find = "if not np.isfinite(gap).all():"
+  replace = "if False:"
+  models = "finite observed and synthetic levels can overflow when subtracted; admitting that gap produces an infinite ATT instead of a failed specification"
+
+[[target]]
+name = "sensitivity-validation"
+module-path = "mlsynth/utils/sensitivity_helpers/validation.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity_validation.py -q -p no:cacheprovider --disable-warnings"
+timeout = 180.0
+
+  [[target.mutant]]
+  id = "heldout-periods-enter-training"
+  find = "effective, fit_periods, train, window[0], treated"
+  replace = "effective, fit_periods, train + window, window[-1], treated"
+  models = "moving the forecast origin into the held-out window lets held-out outcomes and covariates affect fitted weights"
+
+  [[target.mutant]]
+  id = "empty-fitting-window-falls-back-to-default"
+  find = '(fitted[0], fitted[-1]) if fitted else ()'
+  replace = '(fitted[0], fitted[-1]) if fitted else (train[0], train[-1])'
+  models = "a design with no eligible early fitting periods silently substitutes the native default window and reports a score"
+
+  [[target.mutant]]
+  id = "empty-covariate-window-falls-back-to-training"
+  find = '(periods[0], periods[-1]) if periods else ()'
+  replace = '(periods[0], periods[-1]) if periods else (train[0], train[-1])'
+  models = "an unavailable required predictor window is replaced with different training periods instead of failing the fold"
+
+  [[target.mutant]]
+  id = "fit-exclusions-outside-training-retained"
+  find = '[t for t in (cfg.get("fit_exclude") or []) if t < cutoff]'
+  replace = 'cfg.get("fit_exclude") or []'
+  models = "original exclusions outside the early history reach the native fold configuration and reject an otherwise valid fold"
+
+  [[target.mutant]]
+  id = "partial-fold-failure-hidden"
+  find = '(folds.status == "failed").any()'
+  replace = '(folds.status == "failed").all()'
+  models = "an aggregate validation score is reported using only the easier surviving folds after another fold fails"
+
+  [[target.mutant]]
+  id = "fold-rmse-averaged-without-period-weights"
+  find = 'scores.append(np.nan if failed else rms(gaps))'
+  replace = 'scores.append(np.nan if failed else float(folds.rmse.mean()))'
+  models = "unequal fold sizes receive equal weight and the mean of roots replaces the root of pooled squared prediction errors"
+
+  [[target.mutant]]
+  id = "failed-folds-disappear"
+  find = '            rows.append(row)'
+  replace = "            if row['status'] != 'failed':\n                rows.append(row)"
+  models = "failed attempted folds are omitted from the validation table and can no longer invalidate aggregate scores"
+
+  [[target.mutant]]
+  id = "native-fold-solver-warnings-discarded"
+  find = '"solver_warnings", []'
+  replace = '"ignored_solver_warnings", []'
+  models = "native solver warnings do not reach fold status, aggregate validation status, or the warning log"
+
+  [[target.mutant]]
+  id = "overlapping-validation-windows-accepted"
+  find = 'or seen.intersection(window)'
+  replace = ''
+  models = "the same scoring period enters more than one fold, changing its weight in the pooled prediction error"
+
+  [[target.mutant]]
+  id = "malformed-window-error-not-translated"
+  find = '''        raise MlsynthConfigError(
+            "validation_windows must contain iterable windows of comparable periods."
+        ) from exc'''
+  replace = '        raise'
+  models = "an accidentally flat window declaration exposes a Python TypeError instead of the public configuration error"
+
+  [[target.mutant]]
+  id = "malformed-threshold-types-admitted"
+  find = '''            not isinstance(limit, Real)
+            or isinstance(limit, bool)
+            or not np.isfinite(limit)'''
+  replace = '            not np.isfinite(limit)'
+  models = "boolean thresholds are accepted and string or complex thresholds expose low-level NumPy errors"
+
+  [[target.mutant]]
+  id = "empty-covariate-window-reaches-estimator"
+  find = 'if not bounds:'
+  replace = 'if False:'
+  models = "an empty required covariate window reaches native tuple unpacking instead of producing an explicit configuration failure"
+
+  [[target.mutant]]
+  id = "unhashable-period-errors-not-translated"
+  find = '        period_sets = [set(window) for window in result]'
+  replace = '        period_sets = (set(window) for window in result)'
+  models = "window elements are hashed outside the existing error translation boundary"
+
+  [[target.mutant]]
+  id = "ambiguous-period-errors-not-translated"
+  find = 'except (TypeError, ValueError) as exc:'
+  replace = 'except TypeError as exc:'
+  models = "nested array periods expose NumPy ambiguous-truth ValueError instead of a configuration error"
+
+  [[target.mutant]]
+  id = "overflowing-threshold-errors-not-translated"
+  find = '''    except (TypeError, OverflowError):
+        invalid_limit = True'''
+  replace = '''    except (TypeError, OverflowError):
+        raise'''
+  models = "an integer beyond NumPy scalar range exposes TypeError instead of a configuration error"
+
+[[target]]
+name = "sensitivity-validation-donors"
+module-path = "mlsynth/sensitivity.py"
+test-command = "python -m pytest mlsynth/tests/test_sensitivity_validation.py -k 'canonical or invalid_donor or exclusion_types or scalar_string' -q -p no:cacheprovider --disable-warnings"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "resolved-donor-order-varies"
+  find = 'donors = sorted(donors, key=repr)'
+  replace = 'donors = list(donors)'
+  models = "equivalent donor pools leave different resolved registries, including hash-dependent order for default string IDs"
+
+  [[target.mutant]]
+  id = "unhashable-donor-errors-not-translated"
+  find = '''raise MlsynthConfigError(
+                "Donors must be an iterable of hashable unit identifiers."
+            ) from exc'''
+  replace = 'raise'
+  models = "an invalid nested donor identifier exposes TypeError in the failure table instead of the public configuration error"
+
+  [[target.mutant]]
+  id = "scalar-string-splits-into-donors"
+  find = 'if isinstance(design["donors"], (str, bytes)):'
+  replace = 'if False:'
+  models = "a scalar string AB selects donors A and B instead of rejecting a malformed pool declaration"
+
+  [[target.mutant]]
+  id = "malformed-exclusion-errors-not-translated"
+  find = '''raise MlsynthConfigError(
+                "excluded_donors must be a collection of hashable unit IDs."
+            ) from exc'''
+  replace = 'raise'
+  models = "a scalar or nested exclusion declaration exposes TypeError before fitting instead of the public configuration error"
+
+[[target]]
 name = "effect-primitives"
 module-path = "mlsynth/utils/effectutils.py"
 test-command = "python -m pytest mlsynth/tests/test_effect_primitives_properties.py -q -p no:cacheprovider"
