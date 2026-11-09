@@ -1133,21 +1133,47 @@ closes more. The group screen and the Shor tier solve one relaxation each, so th
 stay on Clarabel. `certify_slope_free(solver=None)` takes `default_solver(p)`: the
 workspace from `WORKSPACE_FROM = 40` candidate controls, Clarabel below.
 
-Measured on `geo_panel(0, n=90, p=100)` with the code of this branch, both arms of a
-row at once, four processes on four cores (`results/workspace.log`):
+Measured with the code of this branch, both arms of a row at once, four processes on
+four cores (`results/workspace.log`); every pair certified the same design.
 
-| group | question | Clarabel | workspace | nodes | design |
+| case | candidate controls | question | Clarabel | workspace | nodes |
 | --- | --- | --- | --- | --- | --- |
-| (4, 35, 58, 60) | exact | 1,122.3 s | 225.3 s | 41, 41 | the same |
-| (4, 27, 33, 58) | below RSS 1,324.85 (the 1% gap's target) | 833.4 s | 377.1 s | 47, 47 | the same |
+| `geo_panel(0, n=90, p=100)`, treated (4, 35, 58, 60) | 96 | exact | 1,122.3 s | 225.3 s | 41, 41 |
+| the same panel, treated (4, 27, 33, 58) | 96 | below RSS 1,324.85, the 1% gap's target | 833.4 s | 377.1 s | 47, 47 |
+| six `geo_panel(s, n=90, p=50)` groups, 5 treated | 45 | exact | 105.0 s | 65.4 s | the same |
+| `geo_panel(0, n=90, p=60)`, `certify_treatment` at 4 treated | 56 | exact | 244.7 s | 117.5 s | |
+| the same search | 56 | 1% gap | 68.9 s | 70.2 s | |
 
-Both rows include the group screen, whose Clarabel solve at 96 candidate controls
-takes 129-163 s in either arm; #1015 drops that solve from 90 candidate controls.
+The two 100-geo rows include the group screen, whose Clarabel solve at 96 candidate
+controls takes 129-163 s in either arm; #1015 drops that solve from 90 candidate
+controls. On the 50-geo groups the workspace was faster in all six (6.4 to 15.3 s
+against 6.6 to 31.5 s). In the treatment search the time is the one group that
+branches: 75.4 s against 206.4 s exact. At the 1% gap that group closes in about 28 s
+either way, and the rest is the floors and the screens.
 
-On the five test beds (15 to 30 units) the spike of this design certified every group
-at the enumerated optimum with nearly the same nodes and time as Clarabel (616, 590,
-285, 307 and 786 nodes against 616, 588, 285, 307 and 774), so below 40 candidate
-controls Clarabel stays the default.
+On the five test beds (15 to 30 units, below the default's threshold), with
+`solver="workspace"` forced, every group was certified at the enumerated optimum, as
+under Clarabel:
+
+| bed | Clarabel nodes | workspace nodes | Clarabel | workspace |
+| --- | --- | --- | --- | --- |
+| `s15_k3` | 616 | 616 | 35.9 s | 39.0 s |
+| `s20_k3` | 588 | 594 | 64.7 s | 68.7 s |
+| `s20_k4` | 285 | 285 | 21.1 s | 21.6 s |
+| `s30_k10` | 307 | 307 | 27.1 s | 28.3 s |
+| `s30_k4` | 774 | 786 | 113.9 s | 103.8 s |
+
+The two are even there, 262.7 s against 261.3 s in all, and the workspace pays from
+the 45 controls of the 50-geo groups; the threshold of 40 sits between them. SCS
+through cvxpy, on the same beds, left 72 groups uncertified (above).
+
+The first mutation run left four of the workspace's fourteen mutants alive, each for
+an assertion too weak to see it: the fixings dropped from the box rows (the tightness
+test's fixings never bound the relaxation), the certificate tried only once SCS
+converges (on the easy instance SCS converged in its first chunk), the pool set at a
+node with fixings (its active triangles matched the root's), and the iterate of a
+failed solve kept (the error came at the first solve, when there was none). Each test
+now has a case the mutant changes, and all fourteen are killed.
 
 ## Several processes
 

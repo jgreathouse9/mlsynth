@@ -1,7 +1,39 @@
-# certify_slope_free on geo_panel(0, n=90, p=100) groups, this branch's code, both arms at once,
-# four processes on four cores. arm default: the solver certify picks (default_solver(p));
-# clarabel: solver='clarabel'. hard_1pct: ceiling 1324.8473623832656 (the incumbent's RSS over 1.01^2).
+# The SCS workspace against Clarabel, this branch's code, both arms of a row at once, four processes
+# on four cores. Groups: certify_slope_free; arm default is default_solver(p), clarabel is
+# solver='clarabel'. hard_1pct: ceiling 1324.8473623832656. g50_s<s>: geo_panel(s, n=90, p=50), 5 treated
+# drawn by numpy's default_rng(s), restarts=20.
 {"case": "g4356_exact", "arm": "default", "solver": "workspace", "controls_p": 96, "seconds": 225.3, "certified": true, "nodes": 41, "ceiling_held": false, "design": [0, 11, 15, 24, 26, 29, 33, 34, 37, 44, 51, 53, 54, 56, 58, 61, 62, 63, 76, 80, 82, 85, 89, 94, 95], "rss": 1413.4440079016492}
 {"case": "hard_1pct", "arm": "default", "solver": "workspace", "controls_p": 96, "seconds": 377.1, "certified": true, "nodes": 47, "ceiling_held": true, "design": [0, 9, 18, 21, 23, 27, 36, 44, 46, 51, 53, 54, 55, 60, 61, 63, 64, 65, 66, 77, 79, 85, 86, 90, 92, 94], "rss": 1359.6457159996967}
 {"case": "hard_1pct", "arm": "clarabel", "solver": "clarabel", "controls_p": 96, "seconds": 833.4, "certified": true, "nodes": 47, "ceiling_held": true, "design": [0, 9, 18, 21, 23, 27, 36, 44, 46, 51, 53, 54, 55, 60, 61, 63, 64, 65, 66, 77, 79, 85, 86, 90, 92, 94], "rss": 1359.6457159996967}
 {"case": "g4356_exact", "arm": "clarabel", "solver": "clarabel", "controls_p": 96, "seconds": 1122.3, "certified": true, "nodes": 41, "ceiling_held": false, "design": [0, 11, 15, 24, 26, 29, 33, 34, 37, 44, 51, 53, 54, 56, 58, 61, 62, 63, 76, 80, 82, 85, 89, 94, 95], "rss": 1413.4440079016492}
+{"case": "g50_s1", "arm": "default", "solver": "workspace", "controls_p": 45, "seconds": 12.5, "certified": true, "nodes": 27, "ceiling_held": false, "design": [0, 2, 4, 6, 15, 16, 18, 22, 32, 33, 35, 44], "rss": 14859.14565517965}
+{"case": "g50_s1", "arm": "clarabel", "solver": "clarabel", "controls_p": 45, "seconds": 16.7, "certified": true, "nodes": 27, "ceiling_held": false, "design": [0, 2, 4, 6, 15, 16, 18, 22, 32, 33, 35, 44], "rss": 14859.14565517965}
+{"case": "g50_s2", "arm": "default", "solver": "workspace", "controls_p": 45, "seconds": 6.9, "certified": true, "nodes": 22, "ceiling_held": false, "design": [2, 4, 5, 15, 16, 27, 30, 31, 32, 33, 35, 38, 40, 42, 43], "rss": 21948.963861071334}
+{"case": "g50_s2", "arm": "clarabel", "solver": "clarabel", "controls_p": 45, "seconds": 7.7, "certified": true, "nodes": 22, "ceiling_held": false, "design": [2, 4, 5, 15, 16, 27, 30, 31, 32, 33, 35, 38, 40, 42, 43], "rss": 21948.963861071334}
+{"case": "g50_s3", "arm": "default", "solver": "workspace", "controls_p": 45, "seconds": 6.4, "certified": true, "nodes": 23, "ceiling_held": false, "design": [1, 2, 5, 7, 9, 10, 12, 16, 21, 22, 32, 35, 36, 40, 42], "rss": 20161.17968253526}
+{"case": "g50_s3", "arm": "clarabel", "solver": "clarabel", "controls_p": 45, "seconds": 6.6, "certified": true, "nodes": 23, "ceiling_held": false, "design": [1, 2, 5, 7, 9, 10, 12, 16, 21, 22, 32, 35, 36, 40, 42], "rss": 20161.17968253526}
+{"case": "g50_s4", "arm": "default", "solver": "workspace", "controls_p": 45, "seconds": 9.5, "certified": true, "nodes": 23, "ceiling_held": false, "design": [0, 4, 14, 16, 19, 21, 23, 24, 25, 30, 33, 36, 37, 38, 43], "rss": 18766.654024219464}
+{"case": "g50_s4", "arm": "clarabel", "solver": "clarabel", "controls_p": 45, "seconds": 16.7, "certified": true, "nodes": 23, "ceiling_held": false, "design": [0, 4, 14, 16, 19, 21, 23, 24, 25, 30, 33, 36, 37, 38, 43], "rss": 18766.654024219464}
+{"case": "g50_s5", "arm": "default", "solver": "workspace", "controls_p": 45, "seconds": 14.8, "certified": true, "nodes": 26, "ceiling_held": false, "design": [0, 3, 8, 10, 14, 22, 27, 29, 30, 31, 35, 36, 37, 39, 40], "rss": 29789.655658247273}
+{"case": "g50_s6", "arm": "default", "solver": "workspace", "controls_p": 45, "seconds": 15.3, "certified": true, "nodes": 26, "ceiling_held": false, "design": [3, 5, 9, 12, 15, 16, 22, 24, 27, 29, 30, 37, 39, 43, 44], "rss": 17691.141374294515}
+{"case": "g50_s5", "arm": "clarabel", "solver": "clarabel", "controls_p": 45, "seconds": 31.5, "certified": true, "nodes": 26, "ceiling_held": false, "design": [0, 3, 8, 10, 14, 22, 27, 29, 30, 31, 35, 36, 37, 39, 40], "rss": 29789.655658247273}
+{"case": "g50_s6", "arm": "clarabel", "solver": "clarabel", "controls_p": 45, "seconds": 25.8, "certified": true, "nodes": 26, "ceiling_held": false, "design": [3, 5, 9, 12, 15, 16, 22, 24, 27, 29, 30, 37, 39, 43, 44], "rss": 17691.141374294515}
+# certify_treatment(geo_panel(0, n=90, p=60), 4, n_test=14, restarts=50, pass_restarts=10, n_jobs=4),
+# each run alone; clarabel: WORKSPACE_FROM set above every group.
+{"panel": "sim:60:0", "k": 4, "gap": "0", "arm": "default", "wall": 117.5, "certified": true, "treatment": [5, 6, 26, 28], "impact": 102.04, "survivors": 15, "slowest": [75.4, 2.3, 2.1]}
+{"panel": "sim:60:0", "k": 4, "gap": "0", "arm": "clarabel", "wall": 244.7, "certified": true, "treatment": [5, 6, 26, 28], "impact": 102.04, "survivors": 15, "slowest": [206.4, 2.5, 2.3]}
+{"panel": "sim:60:0", "k": 4, "gap": "1/100", "arm": "default", "wall": 70.2, "certified": true, "treatment": [5, 6, 26, 28], "impact": 102.04, "survivors": 15, "slowest": [29.1, 2.7, 2.6]}
+{"panel": "sim:60:0", "k": 4, "gap": "1/100", "arm": "clarabel", "wall": 68.9, "certified": true, "treatment": [5, 6, 26, 28], "impact": 102.04, "survivors": 15, "slowest": [27.4, 2.3, 2.3]}
+# The five beds, python -m benchmarks.studies.tbr_bnb.beds --solver <solver>, the two solvers at once.
+# --solver workspace
+s15_k3: 62 groups, nodes 616, full 79, Shor 0, open nodes 0, uncertified 0, rounded 76, optimum missed 0, 38.96 s
+s20_k3: 45 groups, nodes 594, full 72, Shor 0, open nodes 0, uncertified 0, rounded 62, optimum missed 0, 68.7 s
+s20_k4: 21 groups, nodes 285, full 27, Shor 0, open nodes 0, uncertified 0, rounded 26, optimum missed 0, 21.61 s
+s30_k10: 13 groups, nodes 307, full 38, Shor 0, open nodes 0, uncertified 0, rounded 24, optimum missed 0, 28.25 s
+s30_k4: 25 groups, nodes 786, full 99, Shor 0, open nodes 0, uncertified 0, rounded 48, optimum missed 0, 103.78 s
+# --solver clarabel
+s15_k3: 62 groups, nodes 616, full 79, Shor 0, open nodes 0, uncertified 0, rounded 76, optimum missed 0, 35.9 s
+s20_k3: 45 groups, nodes 588, full 76, Shor 0, open nodes 0, uncertified 0, rounded 62, optimum missed 0, 64.72 s
+s20_k4: 21 groups, nodes 285, full 27, Shor 0, open nodes 0, uncertified 0, rounded 26, optimum missed 0, 21.13 s
+s30_k10: 13 groups, nodes 307, full 40, Shor 0, open nodes 0, uncertified 0, rounded 24, optimum missed 0, 27.11 s
+s30_k4: 25 groups, nodes 774, full 113, Shor 0, open nodes 0, uncertified 0, rounded 48, optimum missed 0, 113.86 s
