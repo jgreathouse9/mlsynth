@@ -14283,7 +14283,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-screen-solve"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_screen_solve.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_group_screen.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
   [[target.mutant]]
