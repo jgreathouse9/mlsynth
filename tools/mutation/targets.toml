@@ -12470,14 +12470,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-screen-ignores-the-size-rule"
-  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n    solver = _checked_solver(solver)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
-  replace = "    schedules = SCREEN_SCHEDULES[:1] if schedules is None else _checked(schedules)\n    solver = _checked_solver(solver)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
+  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n"
+  replace = "    schedules = SCREEN_SCHEDULES[:1] if schedules is None else _checked(schedules)\n"
   models = "the screen's default schedules fixed, not chosen by the group's number of controls"
 
   [[target.mutant]]
   id = "a-malformed-schedule-is-taken"
-  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n    solver = _checked_solver(solver)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
-  replace = "    schedules = screen_schedules(len(c)) if schedules is None else schedules\n    solver = _checked_solver(solver)\n    lam = dyadic_below(lam)\n    A = objective(c, G, lam)\n    R = Rows(c, None)\n"
+  find = "    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)\n"
+  replace = "    schedules = screen_schedules(len(c)) if schedules is None else schedules\n"
   models = "a schedule with a zero or missing entry passed to the optimiser, which fails or runs nothing instead of the caller being told"
 
   [[target.mutant]]
