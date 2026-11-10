@@ -1,0 +1,18 @@
+certify_treatment on geo_panel(0, n=150, p=80): k=4, n_test=14, restarts=50, pass_restarts=10, gap=1/100, n_jobs=4.
+Two alternating rounds on one host (4 cores). The first round shared the host with a short test run; the second ran alone.
+floors = claude/tbr-floor-nnls c34c9d78 merged with claude/tbr-floor-screen 12c228dd; floors + pooled start = the same with claude/tbr-parallel-start 601334e0.
+Stage times are wall seconds in the parent.
+
+floors                 wall 90.1s  _start 51.2s _screened_floor_rows 28.3s
+       certified True treatment [6, 32, 43, 68] controls [1, 7, 11, 12, 22, 25, 31, 44, 47, 53, 54, 70, 74, 77] key ['1', '1', '1', '1', '0.99', '0.028788863848090523'] searched 7 screened_out 1581572 survivors 8 replaced 0
+floors + pooled start  wall 52.6s  _start 17.2s _screened_floor_rows 26.8s
+       certified True treatment [6, 32, 43, 68] controls [1, 7, 11, 12, 22, 25, 31, 44, 47, 53, 54, 70, 74, 77] key ['1', '1', '1', '1', '0.99', '0.028788863848090523'] searched 7 screened_out 1581572 survivors 8 replaced 0
+floors                 wall 83.3s  _start 49.0s _screened_floor_rows 24.9s
+       certified True treatment [6, 32, 43, 68] controls [1, 7, 11, 12, 22, 25, 31, 44, 47, 53, 54, 70, 74, 77] key ['1', '1', '1', '1', '0.99', '0.028788863848090523'] searched 7 screened_out 1581572 survivors 8 replaced 0
+floors + pooled start  wall 49.8s  _start 15.8s _screened_floor_rows 24.7s
+       certified True treatment [6, 32, 43, 68] controls [1, 7, 11, 12, 22, 25, 31, 44, 47, 53, 54, 70, 74, 77] key ['1', '1', '1', '1', '0.99', '0.028788863848090523'] searched 7 screened_out 1581572 survivors 8 replaced 0
+
+The start alone (greedy 1.1 s, then local_search with 50 restarts), one process against four, three panels:
+geo_panel(0, n=150, p=80), k=4: 53.4 s against 15.5 s, the same design
+geo_panel(1, n=150, p=60), k=3: 20.2 s against 5.4 s, the same design
+geo_panel(2, n=150, p=40), k=4: 4.6 s against 1.5 s, the same design

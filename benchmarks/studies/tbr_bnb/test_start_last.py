@@ -209,7 +209,7 @@ def test_a_library_design_that_fails_the_gates_is_not_the_incumbent(monkeypatch)
             break
     assert failing is not None
     assert treatment._design(M, *failing, N_TEST)[1] is None
-    monkeypatch.setattr(treatment, "_start", lambda M_, k, n_test, restarts: failing)
+    monkeypatch.setattr(treatment, "_start", lambda M_, k, n_test, restarts, pool=None: failing)
     seen = _spy_ceilings(monkeypatch)
     key, T, _ = _opt(M, 2, N_TEST)
     out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, pass_restarts=0)

@@ -369,16 +369,50 @@ class TreatmentCertificate:
     seconds: float = 0.0
 
 
-def _start(M, k, n_test, restarts):
+def _start(M, k, n_test, restarts, pool=None):
     """The library's greedy search and local search (#964), every geo eligible for
-    every role: the first incumbent's treatment and control groups at size k."""
-    from mlsynth.utils.tbr_helpers.design.local import local_search
+    every role: the first incumbent's treatment and control groups at size k.
+
+    With a pool, local_search's restarts run on it. Its draws come from one generator
+    seeded 0 and each descent depends only on its draw, so the draws are made here in
+    local_search's order, descended on the pool (_descend), and the best taken in
+    draw order with the greedy's descent first, an earlier one keeping a tie as
+    local_search's strict comparison does: local_search's design."""
+    from mlsynth.utils.tbr_helpers.design import local as lib_local
     from mlsynth.utils.tbr_helpers.design.search import greedy_search
 
     roles = [frozenset({"treatment", "control", "unassigned"})] * M.shape[1]
     out = greedy_search(M, roles, max_treatment_size=k, n_test=n_test, objective="reference")
-    best = local_search(M, roles, out[-1], n_test=n_test, restarts=restarts, seed=0)
-    return sorted(best.treatment), sorted(best.control)
+    if pool is None:
+        best = lib_local.local_search(M, roles, out[-1], n_test=n_test, restarts=restarts, seed=0)
+        return sorted(best.treatment), sorted(best.control)
+    if restarts < 0:
+        raise MlsynthDataError(f"restarts is {restarts}; it cannot be negative.")
+    first = lib_local.local_search(M, roles, out[-1], n_test=n_test, restarts=0, seed=0)
+    best = (first.score.key, first.treatment, first.control)
+    rng = np.random.default_rng(0)
+    draws = [d for d in (lib_local._random_design(rng, roles, out[-1].k) for _ in range(restarts))
+             if d is not None]
+    if draws:
+        for key, T, C in _map(pool, _descend, [(M, roles, T, sorted(C), n_test) for T, C in draws]):
+            if key > best[0]:
+                best = (key, T, C)
+    return sorted(best[1]), sorted(best[2])
+
+
+def _descend(M, roles, T, C, n_test):
+    """local_search's descent from the design (T, C), as one of its restarts runs it:
+    (key, treatment, control) of the design it ends at."""
+    from mlsynth.utils.tbr_helpers.design.local import local_search
+    from mlsynth.utils.tbr_helpers.design.objective import score_split
+    from mlsynth.utils.tbr_helpers.design.search import SearchOutcome
+
+    score = score_split(M[:, sorted(T)].sum(axis=1), M[:, sorted(C)].sum(axis=1),
+                        objective="reference", n_test=n_test)
+    start = SearchOutcome(k=len(T), treatment=sorted(T), control=sorted(C), unassigned=[], score=score,
+                          trace=[], converged=True, evaluations=0)
+    best = local_search(M, roles, start, n_test=n_test, restarts=0, seed=0)
+    return best.score.key, best.treatment, best.control
 
 
 def _design(M, T, C, n_test):
@@ -568,7 +602,7 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
         T0 = sorted(start)
         C0, key0, rss0, rest0 = _local(M, T0, n_test, restarts)
     else:                                   # the library's design, which its own search scored
-        T0, Cs = _start(M, k, n_test, restarts)
+        T0, Cs = _start(M, k, n_test, restarts, pool)
         C0, key0, rss0, rest0 = _design(M, T0, Cs, n_test)
     out = TreatmentCertificate(k=k, treatment=None, controls=None, key=None, rss=None, passing=False,
                                certified=True, groups=comb(p, k), screened_out=0, gap=g)
