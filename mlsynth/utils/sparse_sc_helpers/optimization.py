@@ -48,7 +48,9 @@ The outer V-objective window is controlled by ``outer_loss_window``:
 
 from __future__ import annotations
 
-from typing import Any, Optional, Tuple
+import warnings
+from types import SimpleNamespace
+from typing import Any, Callable, Optional, Tuple
 
 import numpy as np
 from scipy.optimize import minimize
@@ -63,6 +65,53 @@ from .objective import outer_loss, outer_loss_and_grad, selection_mse
 # Calibrated on the Vives k=40 California spec: 2.0 reaches the basin the
 # author's stored V sits in, 1.0 is too timid to leave the cold start's.
 _RESTART_LOG_SD = 2.0
+
+# Rounds of the settle pass (#1037). Each round re-solves only grid points that
+# another grid point's V beats, and every accepted replacement strictly lowers a
+# grid point's outer objective; on the restart tests' panels and the Proposition
+# 99 specification the path settled within a few rounds. A sweep that is still
+# moving after this many says so (agents_solvers.md, rule 7).
+_SETTLE_ROUNDS = 10
+
+
+def _settle(lambda_grid: np.ndarray, v_path: np.ndarray, outer_curve: np.ndarray,
+            score: Callable[[np.ndarray, float], float],
+            resolve: Callable[[int, np.ndarray], Tuple[Optional[np.ndarray], float]],
+            rounds: int) -> list:
+    """Make every grid point's V the lowest the sweep has, at that point's lambda.
+
+    For each grid point, every grid point's V is scored at its lambda (one inner
+    solve each). Where another is lower by more than ``1e-9`` of the value, the
+    outer problem is solved again from it and the result, start included, replaces
+    the point's V only if it is lower still. Repeated until a round changes nothing
+    or ``rounds`` is spent. Returns the indices replaced, in order; ``v_path`` and
+    ``outer_curve`` are updated in place, and a sweep still moving at the cap warns.
+    """
+    changed_any: list = []
+    for _ in range(int(rounds)):
+        changed = False
+        for i, lam in enumerate(lambda_grid):
+            if not np.isfinite(outer_curve[i]):
+                continue
+            vals = [score(v_path[j, 1:], float(lam)) if j != i else outer_curve[i]
+                    for j in range(lambda_grid.size)]
+            j = int(np.argmin(vals))
+            if not vals[j] < outer_curve[i] * (1.0 - 1e-9):
+                continue
+            x, f = resolve(i, v_path[j, 1:].copy())
+            if x is not None and f < outer_curve[i] * (1.0 - 1e-9):
+                v_path[i, :] = np.concatenate([[1.0], x])
+                outer_curve[i] = f
+                changed = True
+                changed_any.append(i)
+        if not changed:
+            return changed_any
+    if rounds > 0:
+        warnings.warn(
+            f"SparseSC: the lambda sweep's settle pass was still improving grid points "
+            f"after {rounds} rounds; some grid point may hold a V that another grid "
+            f"point's V beats at its lambda.", RuntimeWarning, stacklevel=3)
+    return changed_any
 
 
 def default_lambda_grid(size: int = 51) -> np.ndarray:
@@ -267,8 +316,21 @@ def sweep_lambda(
         belongs to the point being described, so each candidate is rescored
         with one extra inner QP.
         """
-        best_res, best_f = None, np.inf
+        best_x, best_f = None, np.inf
+        finished = False
         for x0 in starts:
+            # The start is a candidate too (#1037): L-BFGS-B can end above it, and
+            # after a failed line search scipy returns x from another iterate. It
+            # counts only beside a run that finished: a lambda where every run
+            # raised is a failure, reported below, not a fit of an untouched start.
+            x_start = np.clip(np.asarray(x0, dtype=float), 0.0, None)
+            try:
+                f_start = outer_loss(x_start, X1, X0, Z1_outer, Z0_outer, float(lam),
+                                     solver=solver)
+            except (ValueError, ArithmeticError, np.linalg.LinAlgError):
+                f_start = np.inf
+            if np.isfinite(f_start) and f_start < best_f:
+                best_x, best_f = x_start, float(f_start)
             try:
                 res = _minimize_outer(
                     x0=x0, X1=X1, X0=X0, Z1_outer=Z1_outer, Z0_outer=Z0_outer,
@@ -291,9 +353,12 @@ def sweep_lambda(
                 # with the reason kept for the message if nothing survives.
                 _failures.append(f"{type(exc).__name__}: {exc}")
                 continue
+            finished = True
             if np.isfinite(f_true) and f_true < best_f:
-                best_res, best_f = res, float(f_true)
-        return best_res, best_f
+                best_x, best_f = x, float(f_true)
+        if not finished:
+            return None, np.inf
+        return (None if best_x is None else SimpleNamespace(x=best_x)), best_f
 
     # ---- Forward pass (ascending lambda) ------------------------------------
     # Multi-start: try several deterministic init points and keep the one with
@@ -352,6 +417,21 @@ def sweep_lambda(
                 v_path[idx, :] = np.concatenate([[1.0], v2_hat])
                 if val_curve[idx] <= np.nanmin(val_curve):
                     champion_v2 = v2_hat.copy()
+
+        # ---- Settle pass (#1037) --------------------------------------------
+        # The passes above try a few starts per grid point; none compares a grid
+        # point against the V's found at the others. Settle the path so that no
+        # grid point's V is beaten at its own lambda by another's.
+        def _score(v2, lam):
+            return float(outer_loss(v2, X1, X0, Z1_outer, Z0_outer, lam, solver=solver))
+
+        def _resolve(i, v2):
+            res, f = _solve(float(lambda_grid[i]), [v2])
+            return (None if res is None else np.clip(res.x, 0.0, None)), f
+
+        for i in sorted(set(_settle(lambda_grid, v_path, outer_curve, _score, _resolve,
+                                    _SETTLE_ROUNDS))):
+            val_curve[i] = selection_mse(v_path[i, 1:], X1, X0, Z1_val, Z0_val, solver=solver)
 
     if np.all(np.isnan(val_curve)):
         raise MlsynthEstimationError(_no_lambda_solved(lambda_grid, _failures))

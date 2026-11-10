@@ -311,6 +311,18 @@ upstream can move a later one into a different basin. The guarantee is
 per solve, and the sweep still minimises validation MSE over the whole
 grid.
 
+The robust sweep (``robust_selection=True``, the default) then settles the
+path. Each start is scored as a candidate beside the point L-BFGS-B returns,
+since the run can end above its start. After the forward and backward
+passes, every grid point's V is scored at every other grid point's
+:math:`\lambda`. Wherever another V is lower, the outer problem is solved
+again from it, until no grid point is beaten at its own :math:`\lambda`.
+Without this pass, 17 of 40 factor panels returned a grid point that another
+grid point's V beat by up to 60 percent of the outer objective. On the
+Proposition 99 specification it was 16 of 50 grid points, and the selected
+:math:`\lambda` followed whichever path the search took. The pass is capped
+at 10 rounds and warns if it is still improving there.
+
 Gradient computation
 ~~~~~~~~~~~~~~~~~~~~
 

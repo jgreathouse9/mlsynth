@@ -14961,3 +14961,39 @@ timeout = 600.0
   find = "        T0, Cs = _start(M, k, n_test, restarts, pool)"
   replace = "        T0, Cs = _start(M, k, n_test, restarts)"
   models = "certify_treatment runs the start's restarts in one process though it has a pool: the same design, four times slower on four jobs"
+
+[[target]]
+name = "sparse-sc-sweep-settled"
+module-path = "mlsynth/utils/sparse_sc_helpers/optimization.py"
+test-command = "python -m pytest mlsynth/tests/test_sparse_sc_sweep_settled.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "settle-pass-skipped"
+  find = "_SETTLE_ROUNDS = 10"
+  replace = "_SETTLE_ROUNDS = 0"
+  models = "#1037: the sweep as it was, with grid points beaten at their own lambda by another grid point's V (17 of 40 restart-test panels, up to 60 percent)"
+
+  [[target.mutant]]
+  id = "start-not-a-candidate"
+  find = "            if np.isfinite(f_start) and f_start < best_f:"
+  replace = "            if False:"
+  models = "#1037: a start never scored, so a run that ends above its start discards the better point"
+
+  # Recorded, not carried: dropping the improvement check on a settle step's
+  # re-solve ("if x is not None:") is an equivalent mutant. The re-solve scores
+  # its start, which is already lower than the grid point's value by more than
+  # 1e-9 of it, so whatever it returns passes the check; only a run that raises
+  # returns None, and that branch is unchanged.
+
+  [[target.mutant]]
+  id = "settled-v-keeps-stale-validation"
+  find = "            val_curve[i] = selection_mse(v_path[i, 1:], X1, X0, Z1_val, Z0_val, solver=solver)"
+  replace = "            val_curve[i] = val_curve[i]"
+  models = "a settled V selected on the validation MSE of the V it replaced"
+
+  [[target.mutant]]
+  id = "settle-cap-silent"
+  find = "    if rounds > 0:\n        warnings.warn("
+  replace = "    if False:\n        warnings.warn("
+  models = "rule 7: a settle pass that stops at its cap still improving, and says nothing"
