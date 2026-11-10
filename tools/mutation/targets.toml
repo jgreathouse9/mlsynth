@@ -14539,3 +14539,39 @@ timeout = 600.0
   find = "bound_lower(af, R, y_eq, y_in, m) > 0:\n"
   replace = "bound_lower(af, R, y_eq, y_in, m) <= 0:\n"
   models = "the lower bound's test reversed, so a size bound() would close is reported open with the float bound"
+
+[[target]]
+name = "beast-fista"
+module-path = "mlsynth/utils/beast_helpers/estimator.py"
+test-command = "python -m pytest mlsynth/tests/test_beast_fista.py -q -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "the-previous-objective-is-taken-at-the-momentum-point"
+  find = "b_o, f_o = beta, f_beta"
+  replace = "b_o, f_o = beta, obj(v)"
+  models = "a carried objective read at the extrapolated point v, not the previous iterate, so the stopping rule compares two different points"
+
+  [[target.mutant]]
+  id = "the-carried-objective-is-never-refreshed"
+  find = "        f_beta = obj(beta)                 # the previous iterate's objective is f_o"
+  replace = "        f_beta = obj(beta) if f_o is None else f_o"
+  models = "an objective carried once and never recomputed, so the stopping rule sees no change and stops after one iteration"
+
+  [[target.mutant]]
+  id = "the-residual-sum-stands-for-the-mean"
+  find = "return float(_reduce((yw - Xw @ b) ** 2) / n + lam * l1)"
+  replace = "return float(_reduce((yw - Xw @ b) ** 2) + lam * l1)"
+  models = "the squared residuals summed, not averaged, which rescales the fit term against the penalty in the stopping rule"
+
+  [[target.mutant]]
+  id = "the-penalty-loses-its-absolute-value"
+  find = "l1 = _reduce(np.abs(b[pen])) if pen.size else 0.0"
+  replace = "l1 = _reduce(b[pen]) if pen.size else 0.0"
+  models = "an l1 penalty summed over signed coefficients, so opposite signs cancel in the objective the stopping rule reads"
+
+  [[target.mutant]]
+  id = "the-stopping-rule-drops-the-absolute-value"
+  find = "if abs(f_beta - f_o) < tol:"
+  replace = "if f_beta - f_o < tol:"
+  models = "a stopping rule that stops at any decrease, which FISTA (not monotone) makes at almost every iteration"
