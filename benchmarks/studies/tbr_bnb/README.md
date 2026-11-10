@@ -1743,7 +1743,20 @@ strictly greater, which is `local_search`'s own rule. The result is
 this process, at fixed panels and as a property over panels, sizes and restart
 counts, together with the tie rule and the draw that is no design.
 
-TIMING
+On four processes the start takes 15.5 s against 53.4 s on 80 geos at k = 4, 5.4 s
+against 20.2 s on 60 geos at k = 3, and 1.5 s against 4.6 s on 40 geos at k = 4,
+each time with the same design. End to end on 80 geos, 150 periods, k = 4, a 1% gap
+and four jobs, with the lean NNLS and the worker screen in place
+(`results/parallel_start.log`, two alternating rounds):
+
+| | the floors' two changes | with the pooled start |
+| --- | --- | --- |
+| wall | 90.1 s, 83.3 s | 52.6 s, 49.8 s |
+| the start | 51.2 s, 49.0 s | 17.2 s, 15.8 s |
+| the floors | 28.3 s, 24.9 s | 26.8 s, 24.7 s |
+
+Every run certifies the same treatment, controls and key. The floors are now half of
+the run.
 
 Mutants (`tbr-bnb-parallel-start`): 8, all killed.
 
