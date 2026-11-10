@@ -13416,7 +13416,7 @@ timeout = 600.0
 [[target]]
 name = "tbr-bnb-fastfloor"
 module-path = "benchmarks/studies/tbr_bnb/fastfloor.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastfloor.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastfloor.py benchmarks/studies/tbr_bnb/test_lean_nnls.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
   [[target.mutant]]
