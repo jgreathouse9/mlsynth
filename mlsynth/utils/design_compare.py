@@ -486,8 +486,8 @@ def compare_methods(
             if syndes_holdout_frac is not None and top_K >= 2:
                 sk["holdout_frac"] = syndes_holdout_frac
             else:
-                # syndes_holdout_frac=None (or a single design): SYNDES's own
-                # default, the in-sample rule, stated explicitly.
+                # SYNDES now holdout-validates pools by default, so to honour
+                # syndes_holdout_frac=None (disable) we ask for in-sample.
                 sk["selection"] = "in_sample"
         sk.update(constraints)
         sk.update(syn_over)
