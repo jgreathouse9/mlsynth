@@ -1,0 +1,31 @@
+# Item 3 of #965: inside the SCS workspace. Four processes on four cores, one BLAS thread each.
+# Groups: certify_slope_free(geo_panel(0, n=90, p=100) split at the treated set, restarts=50);
+# '1%' is ceiling 1324.8473623832656. Spike runs patched SizeWorkspace.solve on main 36d1032f.
+# spike: end a round after K chunks when separate_triangles(Z, k=1, tol=VTOL) finds a violation
+{"run": "e10_g", "K": 10, "vtol": 0.01, "total": 125.46771296299994, "certified": true, "nodes": 41}
+{"run": "e10_h", "K": 10, "vtol": 0.01, "total": 148.05299116000015, "certified": true, "nodes": 47}
+{"run": "e10b_g", "K": 10, "vtol": 0.001, "total": 135.51919342400015, "certified": true, "nodes": 41}
+{"run": "e10b_h", "K": 10, "vtol": 0.001, "total": 148.18584085699968, "certified": true, "nodes": 47}
+{"run": "e5_g", "K": 5, "vtol": 0.001, "total": 145.25149192399977, "certified": true, "nodes": 47}
+{"run": "e5_h", "K": 5, "vtol": 0.001, "total": 136.63381728000013, "certified": true, "nodes": 47}
+{"run": "e5b_g", "K": 5, "vtol": 0.01, "total": 108.2308730359996, "certified": true, "nodes": 41}
+{"run": "e5b_h", "K": 5, "vtol": 0.01, "total": 137.22155815299993, "certified": true, "nodes": 47}
+{"run": "g_base", "mode": "base", "total": 176.62613607799994, "certified": true, "nodes": 41}
+{"run": "g_warm", "mode": "warm", "total": 167.4699019640002, "certified": true, "nodes": 41}
+{"run": "h_base", "mode": "base", "total": 167.73383970900022, "certified": true, "nodes": 47}
+{"run": "h_warm", "mode": "warm", "total": 194.21493432199986, "certified": true, "nodes": 47}
+# spike: SCS's Anderson acceleration memory (acceleration_lookback) at K=5, VTOL=1e-2; -10 is type I, stopped after 12.5 min
+{"run": "aa0_g", "K": 5, "vtol": 0.01, "total": 109.45521220599994, "certified": true, "nodes": 41}
+{"run": "aa0_h", "K": 5, "vtol": 0.01, "total": 138.023263003, "certified": true, "nodes": 47}
+{"run": "aa20_g", "K": 5, "vtol": 0.01, "total": 108.99432051599979, "certified": true, "nodes": 41}
+{"run": "aa20_h", "K": 5, "vtol": 0.01, "total": 139.58717301100023, "certified": true, "nodes": 47}
+{"run": "aa5_g", "K": 5, "vtol": 0.01, "total": 113.98394331599957, "certified": true, "nodes": 41}
+{"run": "aa5_h", "K": 5, "vtol": 0.01, "total": 139.34329363000006, "certified": true, "nodes": 47}
+# built (claude/tbr-early-triangles) against its base (claude/tbr-float-bound), both at once
+{"run": "base_g", "T": [4, 35, 58, 60], "total": 160.8, "certified": true, "nodes": 41, "scs_iters": 42600, "statuses": {"certified": 15, "converged": 3}}
+{"run": "base_h", "T": [4, 27, 33, 58], "total": 150.2, "certified": true, "nodes": 47, "scs_iters": 17925, "statuses": {"certified": 20, "converged": 1}}
+{"run": "early_g", "T": [4, 35, 58, 60], "total": 94.3, "certified": true, "nodes": 41, "scs_iters": 13000, "statuses": {"certified": 15, "separate": 7}}
+{"run": "early_h", "T": [4, 27, 33, 58], "total": 124.3, "certified": true, "nodes": 47, "scs_iters": 6000, "statuses": {"certified": 20, "separate": 2}}
+# certify_treatment(geo_panel(0, n=90, p=60), 4, n_test=14, restarts=50, pass_restarts=10, n_jobs=4), each alone
+{"run": "sixty_base", "wall": 101.7, "certified": true, "treatment": [5, 6, 26, 28]}
+{"run": "sixty_early", "wall": 84.9, "certified": true, "treatment": [5, 6, 26, 28]}
