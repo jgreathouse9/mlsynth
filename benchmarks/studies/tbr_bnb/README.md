@@ -1356,6 +1356,29 @@ the slack's error is a few units in the last place and the rounding term covers 
 A property now checks the face against every matrix within `E` of the slack, with
 `E` as wide as the slack, and kills it.
 
+### The rows by index arithmetic
+
+`Rows` built its table of rows as dicts of exact coefficients at every construction,
+and `Rows.matrices` turned the table into sparse matrices entry by entry. On the 100-geo
+group (4, 35, 58, 60) the search built `Rows` 102 times (17.3 s) and called
+`matrices` 101 times (4.5 s). The solvers and the float certificate read only the
+counts, the right-hand sides, the rows that carry `c` and the sparse matrices, so
+`Rows` now computes those directly from the row families' index patterns: a build
+takes about 0.1 ms and the matrices under 2 ms. The dict table, which the exact
+certificate (`_slack`) and `holds` read, is built the first time something asks for it.
+`test_fast_rows.py` pins the two paths equal: every count, right-hand side and row
+index, and the matrices bit for bit at any scale of the `c` rows, as a hypothesis
+property over sizes, levels, cuts, triangles, fixings and the box rows.
+
+Against main, both at once (`results/fast_rows.log`):
+
+| group | main | fast rows | |
+| --- | --- | --- | --- |
+| (4, 35, 58, 60), exact | 158.9 s | 139.6 s | 42,600 SCS iterations and 41 nodes each |
+| (4, 27, 33, 58), 1% | 148.6 s | 128.0 s | 17,925 SCS iterations and 47 nodes each |
+
+Both certified the same designs.
+
 ### Ending a triangle round early
 
 The full tier solves a size's relaxation on the SCS workspace, separates the most
@@ -2036,11 +2059,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (1,046 tests, about 165 s with four workers and one BLAS thread each) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (1,071 tests, about 165 s with four workers and one BLAS thread each) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 495 mutants of the 39
+but for the lines marked `pragma: no cover`, each with its reason. The 503 mutants of the 40
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers

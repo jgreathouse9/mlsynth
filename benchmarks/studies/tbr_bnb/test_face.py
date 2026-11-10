@@ -477,8 +477,18 @@ def test_a_row_the_face_shows_violated_is_reported(monkeypatch):
     means the node holds no design; the solve raises and names the row, never
     returning a value for an empty set."""
     D, lam = _pinned()
+    import scipy.sparse as sp
     R = Rows(D.c, 3, fixes=[(0, 1)], level="shor", face=True)
-    R.ineq.append({(0, 1): 1}); R.bin.append(Q(0)); R.n_in += 1           # u_0 <= 0, with u_0 fixed at 1
+    real = R.matrices
+    extra = sp.csr_matrix(([1.0], ([0], [R.n])), shape=(1, R.n * R.n))   # u_0 = Z_01 at column 0 + n * 1
+    n_in = R.n_in
+
+    def matrices(c_scale):
+        Me, Mi = real(c_scale)
+        return Me, sp.vstack([Mi[:n_in], extra]).tocsr()
+
+    R.matrices = matrices
+    R.bin.append(Q(0)); R.n_in += 1                                     # u_0 <= 0, with u_0 fixed at 1
     with pytest.raises(fc.FaceError, match=f"row {R.n_in - 1}"):
         solve(D.c, D.G, lam, R)
 
