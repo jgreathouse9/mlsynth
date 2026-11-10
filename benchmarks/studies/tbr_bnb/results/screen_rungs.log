@@ -1,0 +1,192 @@
+# The group screen's rungs, each run on its own at every screen of a search (#965).
+# group_certificate wrapped to also run every schedule independently (main 554ac148 / c01d5a2e):
+# closed = that rung's certificate at most zero; s = its seconds; tier/rung = what the screen itself did.
+# Simulated brute.geo_panel(0, n=90, p) panels and the GeoLift window; gap 1%.
+
+## certify_treatment, geo_panel(0, n=90, p=60), 4 treated, gap 1%, n_jobs=1: 15 screens
+p= 56 tier=full  rung=None final_solve=True  screen=  24.89s | r0:-/0.45s r1:-/5.14s r2:-/11.12s
+p= 56 tier=dual  rung=1    final_solve=True  screen=   1.69s | r0:-/0.46s r1:C/1.12s r2:C/3.00s
+p= 56 tier=dual  rung=0    final_solve=True  screen=   0.66s | r0:C/0.46s r1:C/1.16s r2:C/2.93s
+p= 56 tier=dual  rung=1    final_solve=True  screen=   1.54s | r0:-/0.45s r1:C/1.18s r2:C/2.97s
+p= 56 tier=dual  rung=0    final_solve=True  screen=   0.73s | r0:C/0.46s r1:C/1.10s r2:C/3.00s
+p= 56 tier=dual  rung=0    final_solve=True  screen=   0.33s | r0:C/0.35s r1:C/1.13s r2:C/3.22s
+p= 56 tier=dual  rung=0    final_solve=True  screen=   0.52s | r0:C/0.45s r1:C/1.14s r2:C/2.98s
+p= 56 tier=dual  rung=1    final_solve=True  screen=   1.79s | r0:-/0.44s r1:C/1.14s r2:C/2.32s
+p= 56 tier=dual  rung=0    final_solve=True  screen=   0.51s | r0:C/0.55s r1:C/1.19s r2:C/3.07s
+p= 56 tier=dual  rung=0    final_solve=True  screen=   0.40s | r0:C/0.37s r1:C/1.26s r2:C/3.23s
+p= 56 tier=dual  rung=1    final_solve=True  screen=   1.83s | r0:-/0.47s r1:C/1.22s r2:C/3.30s
+p= 56 tier=dual  rung=1    final_solve=True  screen=   1.89s | r0:-/0.50s r1:C/1.47s r2:C/3.48s
+p= 56 tier=dual  rung=0    final_solve=True  screen=   0.39s | r0:C/0.32s r1:C/1.27s r2:C/3.09s
+p= 56 tier=dual  rung=0    final_solve=True  screen=   0.62s | r0:C/0.36s r1:C/1.28s r2:C/3.15s
+p= 56 tier=dual  rung=0    final_solve=True  screen=   0.37s | r0:C/0.32s r1:C/1.22s r2:C/3.04s
+# per rung: r0 closed 9/15 in 6.4 s; r1 closed 14/15 in 22.0 s; r2 closed 14/15 in 53.9 s; the screen itself 38.2 s
+
+## certify_treatment, GeoLift window, 4 treated, gap 1%, n_jobs=1: 25 screens
+p= 36 tier=full  rung=None final_solve=True  screen=   1.55s | r0:-/0.21s
+p= 36 tier=full  rung=None final_solve=True  screen=   1.49s | r0:-/0.21s
+p= 36 tier=full  rung=None final_solve=True  screen=   1.77s | r0:-/0.22s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.32s | r0:C/0.26s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.18s | r0:C/0.20s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.26s | r0:C/0.26s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.51s | r0:C/0.15s
+p= 36 tier=full  rung=None final_solve=True  screen=   2.30s | r0:-/0.37s
+p= 36 tier=full  rung=None final_solve=True  screen=   1.75s | r0:-/0.25s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.20s | r0:C/0.16s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.19s | r0:C/0.20s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.16s | r0:C/0.14s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.16s | r0:C/0.15s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.24s | r0:C/0.22s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.20s | r0:C/0.15s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.18s | r0:C/0.15s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.16s | r0:C/0.15s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.16s | r0:C/0.14s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.15s | r0:C/0.32s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.16s | r0:C/0.15s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.17s | r0:C/0.14s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.20s | r0:C/0.15s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.20s | r0:C/0.17s
+p= 36 tier=full  rung=None final_solve=True  screen=   1.91s | r0:-/0.30s
+p= 36 tier=dual  rung=0    final_solve=True  screen=   0.15s | r0:C/0.13s
+# per rung: r0 closed 19/25 in 5.0 s; the screen itself 14.7 s
+
+## certify_slope_free, geo_panel(0, n=90, p=100), group (4, 27, 33, 58), 1% ceiling: 1 screens
+p= 96 tier=open  rung=None final_solve=False screen=  47.24s | r0:-/1.22s r1:-/14.92s r2:-/27.74s
+# per rung: r0 closed 0/1 in 1.2 s; r1 closed 0/1 in 14.9 s; r2 closed 0/1 in 27.7 s; the screen itself 47.2 s
+
+## certify_treatment, geo_panel(0, n=90, p=80), 4 treated, gap 1%, n_jobs=3 (cut off by a container restart after 135 screens): 135 screens
+p= 76 tier=dual  rung=1    final_solve=True  screen=   3.01s | r0:-/0.83s r1:C/2.13s r2:C/4.99s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   5.53s | r0:-/0.77s r1:C/4.59s r2:C/6.82s
+p= 76 tier=dual  rung=2    final_solve=True  screen=  26.18s | r0:-/0.77s r1:-/8.96s r2:C/16.38s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.73s | r0:-/0.74s r1:C/1.88s r2:C/5.16s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.98s | r0:-/0.77s r1:C/1.90s r2:C/4.89s
+p= 76 tier=open  rung=None final_solve=True  screen=  64.76s | r0:-/0.77s r1:-/8.16s r2:-/17.43s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.77s | r0:-/0.76s r1:C/2.03s r2:C/4.94s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.97s | r0:-/0.76s r1:C/1.89s r2:C/5.07s
+p= 76 tier=full  rung=None final_solve=True  screen=  56.35s | r0:-/0.76s r1:-/7.93s r2:-/15.99s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.96s | r0:-/0.73s r1:C/1.97s r2:C/4.89s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.94s | r0:-/0.73s r1:C/1.98s r2:C/4.92s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.72s | r0:-/0.95s r1:C/1.98s r2:C/4.90s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.93s | r0:-/0.75s r1:C/1.87s r2:C/4.89s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.71s | r0:-/0.77s r1:C/2.03s r2:C/4.98s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   3.08s | r0:-/0.72s r1:C/1.95s r2:C/4.99s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.72s | r0:-/0.75s r1:C/1.85s r2:C/4.96s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   3.08s | r0:-/0.77s r1:C/1.88s r2:C/4.96s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   5.24s | r0:-/0.76s r1:C/3.87s r2:C/5.62s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.82s | r0:-/0.75s r1:C/1.85s r2:C/4.82s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.88s | r0:-/0.76s r1:C/1.88s r2:C/4.90s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.67s | r0:-/0.74s r1:C/1.96s r2:C/4.94s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.82s | r0:-/0.74s r1:C/1.87s r2:C/4.82s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.81s | r0:-/0.73s r1:C/1.86s r2:C/4.83s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.70s | r0:-/0.74s r1:C/2.01s r2:C/4.86s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.69s | r0:-/0.73s r1:C/1.84s r2:C/4.79s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.91s | r0:-/0.74s r1:C/1.83s r2:C/4.81s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   3.04s | r0:-/0.74s r1:C/1.93s r2:C/4.78s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.76s | r0:-/0.73s r1:C/1.81s r2:C/4.90s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.95s | r0:-/0.76s r1:C/1.86s r2:C/4.88s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.98s | r0:-/0.74s r1:C/1.86s r2:C/4.93s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.62s | r0:-/0.72s r1:C/1.92s r2:C/4.62s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.84s | r0:-/0.73s r1:C/1.82s r2:C/4.86s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.89s | r0:-/0.72s r1:C/1.87s r2:C/4.98s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.63s | r0:-/0.73s r1:C/1.88s r2:C/4.91s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.92s | r0:-/0.73s r1:C/1.86s r2:C/4.99s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   4.30s | r0:-/0.72s r1:C/3.43s r2:C/4.93s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.92s | r0:-/0.73s r1:C/1.82s r2:C/4.88s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.77s | r0:-/0.74s r1:C/1.93s r2:C/4.80s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.92s | r0:-/0.75s r1:C/1.91s r2:C/4.87s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.94s | r0:-/0.73s r1:C/1.83s r2:C/4.79s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.91s | r0:-/0.76s r1:C/1.86s r2:C/4.85s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.90s | r0:-/0.74s r1:C/1.92s r2:C/4.74s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.88s | r0:-/0.73s r1:C/1.86s r2:C/4.89s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.87s | r0:-/0.73s r1:C/1.85s r2:C/4.96s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   4.75s | r0:-/0.74s r1:C/3.65s r2:C/5.28s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.92s | r0:-/0.76s r1:C/2.00s r2:C/4.89s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.91s | r0:-/0.75s r1:C/1.92s r2:C/5.02s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   3.46s | r0:-/0.76s r1:C/2.71s r2:C/5.12s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.76s | r0:-/0.75s r1:C/2.02s r2:C/5.00s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   3.07s | r0:-/0.74s r1:C/2.07s r2:C/5.01s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   4.42s | r0:-/0.74s r1:C/3.53s r2:C/4.98s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.79s | r0:-/0.74s r1:C/1.89s r2:C/4.93s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.69s | r0:-/0.76s r1:C/1.97s r2:C/4.76s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   4.34s | r0:-/0.76s r1:C/3.31s r2:C/4.96s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.68s | r0:-/0.74s r1:C/1.87s r2:C/4.85s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.69s | r0:-/0.75s r1:C/1.90s r2:C/5.03s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   4.39s | r0:-/0.75s r1:C/3.38s r2:C/5.06s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.65s | r0:-/0.75s r1:C/1.83s r2:C/4.75s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.90s | r0:-/0.74s r1:C/1.87s r2:C/4.82s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.88s | r0:-/0.74s r1:C/1.87s r2:C/4.98s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.84s | r0:-/0.73s r1:C/1.80s r2:C/4.66s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.64s | r0:-/0.74s r1:C/1.81s r2:C/4.80s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   3.41s | r0:-/0.74s r1:C/2.38s r2:C/4.78s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.62s | r0:-/0.70s r1:C/1.85s r2:C/4.78s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.99s | r0:-/0.73s r1:C/2.13s r2:C/4.80s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   3.14s | r0:-/0.72s r1:C/2.26s r2:C/4.89s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.58s | r0:-/0.73s r1:C/1.82s r2:C/4.79s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.83s | r0:-/0.75s r1:C/1.83s r2:C/4.68s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.79s | r0:-/0.74s r1:C/1.82s r2:C/4.72s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.58s | r0:-/0.74s r1:C/1.80s r2:C/4.71s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.76s | r0:-/0.72s r1:C/1.80s r2:C/4.79s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.83s | r0:-/0.72s r1:C/1.84s r2:C/4.76s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.60s | r0:-/0.73s r1:C/1.79s r2:C/4.74s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.60s | r0:-/0.72s r1:C/1.76s r2:C/4.66s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   4.57s | r0:-/0.74s r1:C/4.03s r2:C/5.65s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.56s | r0:-/0.74s r1:C/1.81s r2:C/4.65s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.61s | r0:-/0.73s r1:C/1.81s r2:C/4.69s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   4.60s | r0:-/0.74s r1:C/3.47s r2:C/5.80s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.79s | r0:-/0.74s r1:C/1.83s r2:C/4.72s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.70s | r0:-/0.73s r1:C/1.87s r2:C/4.79s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.72s | r0:-/0.75s r1:C/1.91s r2:C/4.71s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.61s | r0:-/0.73s r1:C/1.83s r2:C/4.73s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.78s | r0:-/0.75s r1:C/1.98s r2:C/4.77s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   3.24s | r0:-/0.75s r1:C/2.18s r2:C/4.81s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.62s | r0:-/0.72s r1:C/1.80s r2:C/4.66s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.63s | r0:-/0.73s r1:C/1.81s r2:C/4.69s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.72s | r0:-/0.74s r1:C/1.89s r2:C/4.72s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.64s | r0:-/0.69s r1:C/1.78s r2:C/4.74s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.64s | r0:-/0.70s r1:C/1.84s r2:C/4.81s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.65s | r0:-/0.72s r1:C/1.86s r2:C/4.89s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.55s | r0:-/0.72s r1:C/1.81s r2:C/4.65s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.68s | r0:-/0.72s r1:C/1.83s r2:C/4.78s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.76s | r0:-/0.72s r1:C/1.80s r2:C/4.75s
+p= 76 tier=dual  rung=0    final_solve=True  screen=   0.85s | r0:C/0.80s r1:C/1.93s r2:C/4.83s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.81s | r0:-/0.73s r1:C/1.83s r2:C/4.74s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.56s | r0:-/0.76s r1:C/2.04s r2:C/4.90s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.57s | r0:-/0.74s r1:C/1.83s r2:C/4.94s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.59s | r0:-/0.73s r1:C/1.81s r2:C/4.82s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.63s | r0:-/0.78s r1:C/1.90s r2:C/4.88s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.61s | r0:-/0.72s r1:C/1.83s r2:C/4.83s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.62s | r0:-/0.73s r1:C/1.82s r2:C/4.88s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.71s | r0:-/0.76s r1:C/1.88s r2:C/4.82s
+p= 76 tier=dual  rung=0    final_solve=True  screen=   1.02s | r0:C/0.79s r1:C/1.91s r2:C/4.74s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.58s | r0:-/0.73s r1:C/1.91s r2:C/4.69s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.57s | r0:-/0.74s r1:C/1.86s r2:C/4.81s
+p= 76 tier=dual  rung=0    final_solve=True  screen=   0.95s | r0:C/0.82s r1:C/1.88s r2:C/5.06s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.83s | r0:-/0.72s r1:C/1.86s r2:C/5.14s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.93s | r0:-/0.73s r1:C/1.86s r2:C/5.22s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.73s | r0:-/0.78s r1:C/1.85s r2:C/4.87s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.78s | r0:-/0.80s r1:C/1.90s r2:C/4.80s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.73s | r0:-/0.79s r1:C/1.89s r2:C/4.89s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.65s | r0:-/0.74s r1:C/1.84s r2:C/4.78s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.63s | r0:-/0.74s r1:C/1.83s r2:C/4.83s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.68s | r0:-/0.82s r1:C/1.87s r2:C/4.83s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.66s | r0:-/0.73s r1:C/1.84s r2:C/4.76s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.65s | r0:-/0.74s r1:C/1.83s r2:C/4.83s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   4.04s | r0:-/0.74s r1:C/3.24s r2:C/4.90s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.63s | r0:-/0.73s r1:C/1.84s r2:C/4.68s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.69s | r0:-/0.73s r1:C/1.84s r2:C/4.69s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.90s | r0:-/0.74s r1:C/1.82s r2:C/4.72s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.81s | r0:-/0.73s r1:C/1.84s r2:C/4.72s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.65s | r0:-/0.73s r1:C/1.83s r2:C/4.76s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.83s | r0:-/0.74s r1:C/1.86s r2:C/4.73s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.63s | r0:-/0.74s r1:C/1.85s r2:C/4.81s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.61s | r0:-/0.75s r1:C/1.87s r2:C/4.67s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.82s | r0:-/0.74s r1:C/2.05s r2:C/4.64s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.71s | r0:-/0.72s r1:C/1.72s r2:C/4.78s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.64s | r0:-/0.71s r1:C/1.80s r2:C/4.79s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.69s | r0:-/0.71s r1:C/1.79s r2:C/4.92s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.69s | r0:-/0.73s r1:C/1.96s r2:C/4.90s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.85s | r0:-/0.73s r1:C/1.92s r2:C/4.89s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.75s | r0:-/0.74s r1:C/1.87s r2:C/4.91s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.75s | r0:-/0.72s r1:C/1.81s r2:C/4.74s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.64s | r0:-/0.71s r1:C/1.81s r2:C/4.75s
+p= 76 tier=dual  rung=1    final_solve=True  screen=   2.67s | r0:-/0.72s r1:C/1.85s r2:C/4.86s
+# per rung: r0 closed 3/135 in 100.3 s; r1 closed 132/135 in 292.3 s; r2 closed 133/135 in 693.8 s; the screen itself 526.9 s

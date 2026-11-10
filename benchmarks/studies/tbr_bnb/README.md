@@ -707,6 +707,36 @@ controls the solve pays for itself and stays; at 98 it closed its screen in 204.
 where the sizes took 45 s; and on the 19 groups of the 100-geo, four-treated search
 measured for the schedules (above) it closed none the schedules left open.
 
+### Skipping a rung, measured and not built
+
+Each rung of the screen pays only when it closes what a later rung would close at
+more cost. To see where a rung never pays, every screen of four runs was repeated
+with each rung run on its own (`results/screen_rungs.log`, gap 1%):
+
+| case | candidate controls | screens | rung 0 closes | rung 1 closes | rung 2 closes | the screen |
+| --- | --- | --- | --- | --- | --- | --- |
+| GeoLift, 4 treated | 36 | 25 | 19 (5.0 s) | not run | not run | 14.7 s |
+| `geo_panel(0)`, 60 geos, 4 treated | 56 | 15 | 9 (6.4 s) | 14 (22.0 s) | 14 (53.9 s) | 38.2 s |
+| `geo_panel(0)`, 80 geos, 4 treated | 76 | 135 | 3 (100.3 s) | 132 (292.3 s) | 133 (693.8 s) | 526.9 s |
+| the hard 100-geo group | 96 | 1 | 0 (1.2 s) | 0 (14.9 s) | 0 (27.7 s) | 47.2 s |
+
+Rung 2 closed one screen rung 1 left open, at 76 controls; below 90 the
+Clarabel solve after the rungs would close it too, at 23-47 s against rung 2's
+8 s, so dropping rung 2 there costs more than it saves. Rung 0 never pays at 76
+controls: skipping it there saves its 0.74 s on the 132 screens rung 1 closes and
+costs rung 1's 2.2 s on the 3 it closed, about 91 CPU-seconds of the search. At 36
+and 56 controls it closes most screens, and at 96 (4 of the 19 groups of the
+100-geo search, above) it breaks even.
+
+So the closure rate of rung 0 is a property of the panel, not of the number of
+controls, and a rule fixed by `p` would misfire. The rule that fits is adaptive:
+a rung tried some number of times in a search that closed few of them is skipped
+for the rest of it, a skip changing what the screen costs and never what is
+certified. Kept deterministic across worker counts, it needs the counts carried
+between processes wave by wave, through `treatment.py`, `gated.py` and
+`slopefree.py`, for about 6% of the 80-geo search and nothing on the other three.
+Not built; the logs are here for the case that changes the balance.
+
 ### The sizes' schedules and first-order triangle rounds
 
 What the screen cannot close is a different kind of hard. Profiled alone, the
