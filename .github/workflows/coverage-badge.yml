@@ -63,7 +63,7 @@ jobs:
 
       - name: Run tests with coverage
         if: steps.guard.outputs.run == 'true'
-        run: PYTHONPATH="$(pwd)" pytest -n auto --cov=mlsynth --cov-report=term-missing --tb=short
+        run: PYTHONPATH="$(pwd)" pytest -n auto --dist loadgroup --cov=mlsynth --cov-report=term-missing --tb=short
 
       - name: Regenerate + commit badge (only if it changed)
         if: steps.guard.outputs.run == 'true'

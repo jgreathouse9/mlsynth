@@ -38,8 +38,8 @@ from mlsynth.utils.vanillasc_helpers.scpi import (
 _BASE = pathlib.Path(__file__).resolve().parents[2] / "basedata"
 _GERMANY = _BASE / "scpi_germany.csv"
 
-pytestmark = pytest.mark.skipif(not _GERMANY.exists(),
-                                reason="scpi Germany data absent")
+pytestmark = [pytest.mark.skipif(not _GERMANY.exists(), reason="scpi Germany data absent"),
+              pytest.mark.xdist_group("scpi_constraints")]
 
 # --- pre-generalization simplex band (seed 8894, sims 400, gaussian, levels) ---
 _SIMPLEX_CF_LOWER = np.array(
@@ -77,13 +77,21 @@ def germany():
     return _germany()
 
 
+#: One run per distinct constraint: the bands are deterministic in the seed, and
+#: eight tests read the same five, so each is computed once a process.
+_RUNS = {}
+
+
 def _run(germany, **kw):
-    y, Y0, pre, W = germany
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        return scpi_intervals(y, Y0, pre, W, sims=400, u_alpha=0.05,
-                              e_alpha=0.05, e_method="gaussian",
-                              cointegrated=False, seed=8894, **kw)
+    key = repr(sorted(kw.items()))
+    if key not in _RUNS:
+        y, Y0, pre, W = germany
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            _RUNS[key] = scpi_intervals(y, Y0, pre, W, sims=400, u_alpha=0.05,
+                                        e_alpha=0.05, e_method="gaussian",
+                                        cointegrated=False, seed=8894, **kw)
+    return _RUNS[key]
 
 
 # ----------------------------------------------------------------------

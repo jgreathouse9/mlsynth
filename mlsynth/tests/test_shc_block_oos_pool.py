@@ -32,11 +32,16 @@ from mlsynth.utils.shc_helpers.inference import (
 from mlsynth.utils.shc_helpers.orchestration import solve_shc, summarize_effects
 from mlsynth.utils.shc_helpers.setup import prepare_shc_inputs
 from mlsynth.utils.shc_helpers.simulation import simulate_shc_panel
+from mlsynth.tests._memo import memo
+
+#: The fits are deterministic in the seed and shared across tests (_memo).
+pytestmark = pytest.mark.xdist_group("shc_block_oos_pool")
 
 _M, _N = 25, 4
 _LEVELS = (0.01, 0.05, 0.10)
 
 
+@memo
 def _fitted(seed=0, m=_M, n=_N):
     df, _info = simulate_shc_panel(m=m, h=4, n=n, seed=seed)
     with warnings.catch_warnings():
@@ -48,6 +53,7 @@ def _fitted(seed=0, m=_M, n=_N):
     return inputs, design, obs, cf
 
 
+@memo
 def _fit(seed=0, **extra):
     df, _info = simulate_shc_panel(m=_M, h=4, n=_N, seed=seed)
     cfg = {"df": df, "outcome": "y", "treat": "treated", "unitid": "unit",

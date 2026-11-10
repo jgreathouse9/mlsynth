@@ -23,7 +23,8 @@ _DATA = pathlib.Path(__file__).resolve().parents[2] / "basedata" / "augmented_ca
 _COVS = ["loginc", "p_cig", "pct15-24", "pc_beer"]
 _LAGS = [1975, 1980, 1988]
 
-pytestmark = pytest.mark.skipif(not _DATA.exists(), reason="Prop 99 covariate panel absent")
+pytestmark = [pytest.mark.skipif(not _DATA.exists(), reason="Prop 99 covariate panel absent"),
+              pytest.mark.xdist_group("beast")]   # the immunized fit (about 90 s) is built once
 
 
 def _panel():
@@ -122,9 +123,17 @@ def test_non_immunized_runs(res):
 # ----------------------------------------------------------------------
 # plotting smoke
 # ----------------------------------------------------------------------
-def test_plot_runs(monkeypatch):
+def test_plot_runs(monkeypatch, res):
+    """fit() with display_graphs plots its results: the estimation is the fixture's,
+    so the test pays for the plot, not a second immunized fit."""
     import matplotlib
     matplotlib.use("Agg")
+    import mlsynth.estimators.beast as beast_mod
+    plotted = []
+    real_plot = beast_mod.plot_beast
     monkeypatch.setattr("matplotlib.pyplot.show", lambda *a, **k: None)
+    monkeypatch.setattr(beast_mod, "run_beast", lambda config: res)
+    monkeypatch.setattr(beast_mod, "plot_beast",
+                        lambda config, r: (plotted.append(r), real_plot(config, r)))
     r = _fit(display_graphs=True)
-    assert np.isfinite(r.att)
+    assert r is res and plotted == [res]
