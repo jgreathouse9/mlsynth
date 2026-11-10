@@ -1756,9 +1756,27 @@ screen to the search without it: the same treatment, controls, RSS, key, survivo
 `screened_out`, groups searched and replacements, at k = 2 and 3, gap 0 and 1/100,
 on one job and two.
 
-TIMING
+On 80 geos, 150 periods, k = 4, a 1% gap and four jobs (`results/worker_screen.log`,
+two alternating rounds on one host):
 
-Mutants (`tbr-bnb-worker-screen`): 7, all killed.
+| | main | worker screen | with the lean NNLS too |
+| --- | --- | --- | --- |
+| wall | 107.7 s, 104.9 s | 92.5 s, 96.2 s | 83.3 s, 88.4 s |
+| the floors | 36.5 s, 36.8 s | 34.1 s, 36.5 s | 24.2 s, 25.2 s |
+| the start | 52.2 s, 49.0 s | 49.4 s, 50.7 s | 49.9 s, 53.4 s |
+| the rest | 19.0 s, 19.1 s | 9.0 s, 9.0 s | 9.2 s, 9.8 s |
+
+The floors themselves take as long as they did; what the screen removes is the
+parent's sort and its row-by-row screen of 1.58 million rows, which halves the rest
+of the run. Every run certifies the same treatment, controls, RSS and key, searches 7
+groups, screens out 1,581,572 and keeps 8 survivors.
+
+Mutants (`tbr-bnb-worker-screen`): 7. The first run killed 5. The two survivors,
+the mask dropping a row inside the margin and the path without the kernel dropping
+an undecided row, were never reached, since no test row sat in the margin band;
+`test_a_floor_inside_the_margin_is_not_dropped` and
+`test_an_undecided_row_is_kept_without_the_kernel` put one there, and both are now
+killed.
 
 ## Five geos
 
