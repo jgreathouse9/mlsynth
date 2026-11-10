@@ -299,6 +299,10 @@ def test_a_column_in_the_sets_span_is_refused_and_the_solve_stops():
     assert run.returncode == 0, run.stderr
     w, passive = eval(run.stdout.strip())
     assert w == [1.0, 0.5, 0.0] and passive == [True, True, False]
+    G = np.array([[1.0, 0.0, 1.0], [0.0, 1.0, -1.0], [1.0, -1.0, 2.0]])   # in this process too, once it is known to end
+    p = np.zeros(3, np.bool_)
+    v = _lean(G, np.arange(3, dtype=np.int64), np.array([1.0, 0.5, 0.75]), p)
+    assert v.tolist() == w and p.tolist() == passive
 
 
 @needs_numba

@@ -270,6 +270,18 @@ def test_a_cap_off_the_range_is_left_to_the_exact_path():
 
 
 @needs_numba
+@pytest.mark.parametrize("lamf", [0.0, -1.0, float("nan")])
+def test_no_positive_gram_floor_leaves_the_floor_to_the_exact_path(lamf):
+    """Without a positive Gram floor there is no slope cap: the kernel leaves the
+    floor (nan) and the cap, but still returns the bracket."""
+    M = np.ascontiguousarray(_panel(2, 20, 6))
+    fl, lo, hi, w, y, cap = fastfloor.floor_parts(M, np.ascontiguousarray(M.T @ M),
+                                                  np.array([0, 1], np.int64), lamf)
+    assert math.isnan(fl) and math.isnan(cap)
+    assert Q(lo) <= square_sum(y) <= Q(hi)
+
+
+@needs_numba
 def test_a_zero_series_has_a_zero_cap_and_a_floor_at_or_below_zero():
     M = geo_panel(5).copy()
     M[:, 0] = 0.0; M[:, 1] = 0.0
