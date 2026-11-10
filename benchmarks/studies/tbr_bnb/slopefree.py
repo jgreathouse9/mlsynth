@@ -146,10 +146,51 @@ class Rows:
         self.triangles = tuple(triangles)
         self.box = box
         self.face = _face.face_of(p, m, fixes) if face else None   # Z = T W T' on it (face.py)
+        self._c = tuple(c)
+        self._fixed = dict(self.fixes)
+        self._table = None
+        self._coo = None
         full = level == "full"
-        self.eq: List[Dict] = []; self.beq: List = []
-        self.ineq: List[Dict] = []; self.bin: List = []
-        self.c_rows: List[int] = []             # inequality rows carrying c, scaled for the solver
+        npair = p * (p - 1) // 2 if full else 0
+        self.beq: List = [1] + [0] * p + ([m] + [0] * p if m is not None else []) + [v for _, v in self.fixes]
+        bin_: List = [-1] + [-1] * p if m is None else []
+        bin_ += [0, 0, 0, 1] * npair
+        t_c = len(bin_)
+        bin_ += [0] + [0, 0] * (p if full else 0)
+        self.c_rows: List[int] = list(range(t_c, len(bin_)))   # inequality rows carrying c, scaled for the solver
+        bin_ += [len(cut) - 1 for cut in self.cuts]
+        t0 = len(bin_)
+        bin_ += [0 if kind == 0 else 1 for kind, _ in self.triangles]
+        self.triangle_rows = (t0, len(bin_))
+        if box:                                          # 0 <= u_j <= 1 for each free geo (workspace.py)
+            bin_ += [1, 0] * sum(1 for j in range(p) if j not in self._fixed)
+        self.bin: List = bin_
+        self.n_eq, self.n_in = len(self.beq), len(self.bin)
+        self.n_triangles = len(triangles)
+
+    @property
+    def eq(self) -> List[Dict]:
+        return self._tables()[0]
+
+    @property
+    def ineq(self) -> List[Dict]:
+        return self._tables()[2]
+
+    def _tables(self):
+        """The rows as dicts, (eq, beq, ineq, bin, c_rows, triangle_rows), built the first
+        time something reads them: the table the exact certificate (_slack) and holds()
+        read, and the definition the matrices are built to equal (test_fast_rows.py)."""
+        if self._table is None:
+            self._table = self._build_tables()
+        return self._table
+
+    def _build_tables(self):
+        c, m, p, level = self._c, self.m, self.p, self.level
+        cuts, triangles, fixes, box = self.cuts, self.triangles, self.fixes, self.box
+        full = level == "full"
+        eq_rows: List[Dict] = []; beq: List = []
+        ineq_rows: List[Dict] = []; bin_: List = []
+        c_rows: List[int] = []
         U = lambda i, j: (min(i, j) + 1, max(i, j) + 1)  # noqa: E731
         u = lambda i: (0, i + 1)                         # noqa: E731
 
@@ -160,12 +201,12 @@ class Rows:
             return {k: v for k, v in r.items() if v != 0}
 
         def eq(r, b):
-            self.eq.append(r); self.beq.append(b)
+            eq_rows.append(r); beq.append(b)
 
         def le(r, b, carries_c=False):
             if carries_c:
-                self.c_rows.append(len(self.ineq))
-            self.ineq.append(r); self.bin.append(b)
+                c_rows.append(len(ineq_rows))
+            ineq_rows.append(r); bin_.append(b)
 
         eq(row(((0, 0), 1)), 1)
         for i in range(p):
@@ -191,21 +232,20 @@ class Rows:
             le(row(*((U(i, j), c[j]) for j in range(p)), *((u(j), -c[j]) for j in range(p))), 0, True)
         for cut in cuts:
             le(row(*((u(j), 1 if j in cut else -1) for j in range(p))), len(cut) - 1)
-        t0 = len(self.ineq)
+        t0 = len(ineq_rows)
         for kind, (i, j, k) in triangles:
             if kind == 0:
                 le(row((U(i, j), 1), (U(i, k), 1), (U(j, k), -1), (u(i), -1)), 0)
             else:
                 le(row((u(i), 1), (u(j), 1), (u(k), 1), (U(i, j), -1), (U(i, k), -1), (U(j, k), -1)), 1)
-        self.triangle_rows = (t0, len(self.ineq))
+        t_rows = (t0, len(ineq_rows))
         if box:                                          # 0 <= u_j <= 1 for each free geo (workspace.py)
             fixed = dict(fixes)
             for j in range(p):
                 if j not in fixed:
                     le(row((u(j), 1)), 1)
                     le(row((u(j), -1)), 0)
-        self.n_eq, self.n_in = len(self.eq), len(self.ineq)
-        self.n_triangles = len(triangles)
+        return eq_rows, beq, ineq_rows, bin_, c_rows, t_rows
 
     def holds(self, Z) -> bool:
         """Every row at the exact matrix Z."""
@@ -215,18 +255,102 @@ class Rows:
 
     def matrices(self, c_scale: float):
         """The rows as sparse matrices over vec(Z) (column-major), in doubles, the
-        rows carrying c divided by ``c_scale``."""
-        n = self.n
+        rows carrying c divided by ``c_scale``: each family's entries by index
+        arithmetic, equal bit for bit to the matrices of the dict table
+        (test_fast_rows.py)."""
+        if self._coo is None:
+            self._coo = self._entries()
+        (er, ec, ev), (ir, ic, iv) = self._coo
+        n2 = self.n * self.n
+        Me = sp.csr_matrix((ev, (er, ec)), shape=(self.n_eq, n2))
+        if c_scale != 1.0 and self.c_rows:
+            iv = iv.copy()
+            lo, hi = self.c_rows[0], self.c_rows[-1] + 1        # the c rows are consecutive
+            iv[(ir >= lo) & (ir < hi)] *= 1.0 / c_scale
+        Mi = sp.csr_matrix((iv, (ir, ic)), shape=(self.n_in, n2))
+        return Me, Mi
 
-        def build(rows, scale_rows=()):
-            data, ri, ci = [], [], []
-            scale = set(scale_rows)
-            for k, r in enumerate(rows):
-                f = 1.0 / c_scale if k in scale else 1.0
-                for (a, b), v in r.items():
-                    data.append(float(v) * f); ri.append(k); ci.append(a + n * b)
-            return sp.csr_matrix((data, (ri, ci)), shape=(len(rows), n * n))
-        return build(self.eq), build(self.ineq, self.c_rows)
+    def _entries(self):
+        """(rows, columns, values) of the equalities and of the inequalities, in the
+        table's row order. Z_ab is column a + n b; u_i is Z_{0, i+1} and U_ij is
+        Z_{min+1, max+1}. A zero coefficient (c_j = 0, m = 0) is not stored, as the
+        table drops it."""
+        p, n, m = self.p, self.n, self.m
+        cq = self._c
+        cf = np.array([float(v) for v in cq], dtype=float)
+        nz = np.array([j for j in range(p) if cq[j] != 0], dtype=int)
+        ar = np.arange(p)
+        ucol = n * (ar + 1)                                             # u_i
+
+        def Ucol(i, j):
+            i, j = np.minimum(i, j), np.maximum(i, j)
+            return (i + 1) + n * (j + 1)
+
+        R, C, V = [], [], []
+
+        def put(rows, cols, vals):
+            rows, cols = np.broadcast_arrays(np.asarray(rows, dtype=int), np.asarray(cols, dtype=int))
+            R.append(rows.ravel()); C.append(cols.ravel())
+            V.append(np.broadcast_to(np.asarray(vals, dtype=float), rows.shape).ravel())
+
+        # equalities
+        put(0, 0, 1.0)
+        put(1 + ar, Ucol(ar, ar), 1.0); put(1 + ar, ucol, -1.0)
+        r = 1 + p
+        if m is not None:
+            put(r, ucol, 1.0)
+            ii, jj = np.meshgrid(ar, ar, indexing="ij")
+            put(r + 1 + ii, Ucol(ii, jj), 1.0)
+            if m != 0:
+                put(r + 1 + ar, ucol, -float(m))
+            r += 1 + p
+        for k, (j, _) in enumerate(self.fixes):
+            put(r + k, n * (j + 1), 1.0)
+        eq = tuple(np.concatenate(x) for x in (R, C, V))
+
+        # inequalities
+        R, C, V = [], [], []
+        r = 0
+        if m is None:
+            put(0, ucol, -1.0)
+            ii, jj = np.meshgrid(ar, ar, indexing="ij")
+            put(1 + ii, ucol[jj], np.where(ii == jj, -2.0, -1.0))         # u_i appears twice
+            put(1 + ii, Ucol(ii, jj), 1.0)
+            r = 1 + p
+        if self.level == "full" and p > 1:
+            I, J = np.triu_indices(p, 1)                                # itertools.combinations order
+            q = r + 4 * np.arange(I.size)
+            uij = Ucol(I, J)
+            put(q, uij, -1.0)
+            put(q + 1, uij, 1.0); put(q + 1, ucol[I], -1.0)
+            put(q + 2, uij, 1.0); put(q + 2, ucol[J], -1.0)
+            put(q + 3, ucol[I], 1.0); put(q + 3, ucol[J], 1.0); put(q + 3, uij, -1.0)
+            r += 4 * I.size
+        put(r, ucol[nz], -cf[nz])                                       # c'u >= 0
+        r += 1
+        if self.level == "full":
+            ii, jj = np.meshgrid(ar, nz, indexing="ij")
+            put(r + 2 * ii, Ucol(ii, jj), -cf[jj])                      # u_i c'u >= 0
+            put(r + 2 * ii + 1, Ucol(ii, jj), cf[jj])
+            put(r + 2 * ii + 1, ucol[jj], -cf[jj])
+            r += 2 * p
+        for k, cut in enumerate(self.cuts):
+            inside = np.isin(ar, cut)
+            put(r + k, ucol, np.where(inside, 1.0, -1.0))
+        r += len(self.cuts)
+        for k, (kind, (i, j, l)) in enumerate(self.triangles):
+            if kind == 0:
+                put(r + k, [Ucol(i, j), Ucol(i, l), Ucol(j, l), ucol[i]], [1.0, 1.0, -1.0, -1.0])
+            else:
+                put(r + k, [ucol[i], ucol[j], ucol[l], Ucol(i, j), Ucol(i, l), Ucol(j, l)],
+                    [1.0, 1.0, 1.0, -1.0, -1.0, -1.0])
+        r += len(self.triangles)
+        if self.box:
+            free = np.array([j for j in range(p) if j not in self._fixed], dtype=int)
+            k = np.arange(free.size)
+            put(r + 2 * k, ucol[free], 1.0); put(r + 2 * k + 1, ucol[free], -1.0)
+        ineq = tuple(np.concatenate(x) if x else np.zeros(0) for x in (R, C, V))
+        return eq, ineq
 
 
 @dataclass

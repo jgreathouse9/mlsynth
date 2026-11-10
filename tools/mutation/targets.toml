@@ -14374,8 +14374,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-box-rows-are-not-written"
-  find = "        if box:                                          # 0 <= u_j <= 1 for each free geo (workspace.py)\n"
-  replace = "        if False:                                          # 0 <= u_j <= 1 for each free geo (workspace.py)\n"
+  find = "        if self.box:\n            free = np.array([j for j in range(p) if j not in self._fixed], dtype=int)\n"
+  replace = "        if False:\n            free = np.array([j for j in range(p) if j not in self._fixed], dtype=int)\n"
   models = "Rows(box=True) without the box rows the workspace's multipliers are laid out for"
 
   [[target.mutant]]
@@ -14467,3 +14467,57 @@ timeout = 600.0
   find = "SCREEN_SOLVE_BELOW = 90\n"
   replace = "SCREEN_SOLVE_BELOW = 48\n"
   models = "the threshold moved below the measured 56-control screens the solve closes in 25 s"
+
+[[target]]
+name = "tbr-bnb-fast-rows"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fast_rows.py -q -p no:cacheprovider -x -W ignore"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-size-free-row-counts-u-i-once"
+  find = "np.where(ii == jj, -2.0, -1.0))         # u_i appears twice"
+  replace = "-1.0)         # u_i appears twice"
+  models = "(sum u - 1)(1 - u_i) >= 0 with u_i's coefficient -1, where the table merges two -1s, so the group screen's rows are not the ones its certificate reads"
+
+  [[target.mutant]]
+  id = "the-c-rows-are-not-scaled"
+  find = "            iv[(ir >= lo) & (ir < hi)] *= 1.0 / c_scale\n"
+  replace = "            pass\n"
+  models = "the rows carrying c left in the data's units when the solver asked for them scaled, so the solver's multipliers no longer map back to the table's rows"
+
+  [[target.mutant]]
+  id = "a-zero-c-is-stored"
+  find = "        nz = np.array([j for j in range(p) if cq[j] != 0], dtype=int)\n"
+  replace = "        nz = np.arange(p)\n"
+  models = "a zero coefficient stored as an explicit entry where the table drops it, so the matrices' sparsity is not the table's"
+
+  [[target.mutant]]
+  id = "a-zero-size-coefficient-is-stored"
+  find = "            if m != 0:\n"
+  replace = "            if True:\n"
+  models = "the -m u_i term of the size products stored at m = 0, where the table drops it"
+
+  [[target.mutant]]
+  id = "the-c-rows-start-one-late"
+  find = "        self.c_rows: List[int] = list(range(t_c, len(bin_)))"
+  replace = "        self.c_rows: List[int] = list(range(t_c + 1, len(bin_)))"
+  models = "c'u >= 0 left out of the rows the solver scales, so its multiplier comes back in the wrong units"
+
+  [[target.mutant]]
+  id = "two-pair-rows-swapped"
+  find = "            put(q + 1, uij, 1.0); put(q + 1, ucol[I], -1.0)\n            put(q + 2, uij, 1.0); put(q + 2, ucol[J], -1.0)\n"
+  replace = "            put(q + 2, uij, 1.0); put(q + 2, ucol[I], -1.0)\n            put(q + 1, uij, 1.0); put(q + 1, ucol[J], -1.0)\n"
+  models = "U_ij <= u_i and U_ij <= u_j at each other's row index, so a multiplier is read against the wrong row"
+
+  [[target.mutant]]
+  id = "a-triangle-sign-flipped"
+  find = "[Ucol(i, j), Ucol(i, l), Ucol(j, l), ucol[i]], [1.0, 1.0, -1.0, -1.0])"
+  replace = "[Ucol(i, j), Ucol(i, l), Ucol(j, l), ucol[i]], [1.0, 1.0, -1.0, 1.0])"
+  models = "the first triangle inequality with +u_i, a row no design is known to satisfy"
+
+  [[target.mutant]]
+  id = "the-table-is-built-eagerly"
+  find = "        self.n_eq, self.n_in = len(self.beq), len(self.bin)\n        self.n_triangles = len(triangles)\n\n    @property"
+  replace = "        self.n_eq, self.n_in = len(self.beq), len(self.bin)\n        self.n_triangles = len(triangles)\n        self._tables()\n\n    @property"
+  models = "the dict table built at every construction, the 0.07-0.18 s a build the change removes"
