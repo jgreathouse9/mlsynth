@@ -44,6 +44,13 @@ def _unscreened(M, k, cls):
     return groups, rows, keep
 
 
+def _ceiling(yy, cls):
+    """The ceiling compete_bracket computes in doubles at y'y = yy."""
+    a, b, rss = treatment._class_doubles(*cls)
+    second = min(rss, yy * b)
+    return second if a is None else max(yy * a, second)
+
+
 def _same(a, b):
     assert len(a) == len(b)
     for (fa, ya, Ta), (fb, yb, Tb) in zip(a, b):
@@ -168,6 +175,34 @@ def test_a_panel_without_a_gram_floor_is_screened_on_the_exact_path():
     keep = [r for r in rows if not (isinstance(r[1], tuple) and compete_bracket(r[0], r[1][0], r[1][1], *cls) is False)]
     got, dropped = treatment._floor_chunk_screened(M, None, groups, cls)
     assert [r[2] for r in got] == [r[2] for r in keep] and dropped == len(rows) - len(keep)
+
+
+def test_a_floor_inside_the_margin_is_not_dropped():
+    """A floor above the ceiling by less than the float margin is undecided in
+    doubles: compete_bracket returns None and the mask keeps the row."""
+    cls = (Q(9, 10), Q(1))
+    yy = 10.0
+    c = _ceiling(yy, cls)
+    f = c * (1 + treatment._MARGIN / 4)
+    assert f > c and compete_bracket(f, yy, yy, *cls) is None
+    assert not treatment._screen_mask(np.array([f]), np.array([yy]), np.array([yy]), *cls).any()
+
+
+def test_an_undecided_row_is_kept_without_the_kernel(monkeypatch):
+    """Without the kernel a row compete_bracket leaves undecided (a floor at the
+    bracket top's ceiling) is kept for the parent's exact screen."""
+    M = geo_panel(5)
+    cls = _class(M, 2)
+    groups = list(combinations(range(M.shape[1]), 2))
+    monkeypatch.setattr(fastfloor, "AVAILABLE", False)
+    rows = treatment._floor_chunk(M, gram_floor(M), groups)
+    i = next(i for i, r in enumerate(rows) if isinstance(r[1], tuple))
+    _, (lo, hi), T = rows[i]
+    rows[i] = (_ceiling(hi, cls), (lo, hi), T)
+    assert compete_bracket(rows[i][0], lo, hi, *cls) is None
+    monkeypatch.setattr(treatment, "_floor_chunk", lambda M, lam, g: list(rows))
+    got, dropped = treatment._floor_chunk_screened(M, gram_floor(M), groups, cls)
+    assert T in {r[2] for r in got} and len(got) + dropped == len(groups)
 
 
 def test_no_groups():
