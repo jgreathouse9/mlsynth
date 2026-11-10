@@ -1763,7 +1763,22 @@ KKT conditions, `rss_floor`'s floors to 1e-9 on three-geo groups of an 18-geo pa
 and (a property) a group's floor bit for bit the same alone and after any run of
 groups before it.
 
-TIMING
+On 50,000 consecutive four-geo groups of the 80-geo panel, taken at three points of
+the enumeration, the kernel takes 66, 54 and 62 us a group against main's 97, 73 and
+91, and its floors are main's bit for bit on all 150,000. Starting every group cold
+instead of from the last group's support takes 84, 72 and 72 us, with the same
+floors. End to end on 80 geos, 150 periods, k = 4, a 1% gap and four jobs
+(`results/lean_nnls.log`, two alternating rounds on one host):
+
+| | main | lean NNLS | with the worker screen too |
+| --- | --- | --- | --- |
+| wall | 107.7 s, 104.9 s | 94.8 s, 95.6 s | 83.3 s, 88.4 s |
+| the floors | 36.5 s, 36.8 s | 26.0 s, 26.2 s | 24.2 s, 25.2 s |
+| the start | 52.2 s, 49.0 s | 50.1 s, 51.1 s | 49.9 s, 53.4 s |
+
+Every run certifies the same treatment, controls, RSS and key, searches 7 groups,
+screens out 1,581,572 and keeps 8 survivors. The start's 50 restarts in one process
+are now the larger part of the run.
 
 Mutants (`tbr-bnb-lean-nnls`): 10 on the lean solve, all killed but `the-support-is-not-carried`, which
 starts every group cold. It gives the same floors by construction (`_canonical`) and
