@@ -35,15 +35,17 @@ relaxation's feasible set, and that set has tr Z = 1 + sum(diag U) = 1 + m exact
 so the maximum is at most k + (1 + m) max(0, lambda_max(S)) (weak duality with a
 trace bound, as for the joint lift: Jansson, Chaykin and Keil 2007, Thm 3.2). S and
 k are summed in rationals from the double data and the double multipliers, and
-lambda_max(S) is bounded above exactly by mlsynth's Cholesky-residual bound on -S.
+lambda_max(S) is bounded above exactly by mlsynth's Cholesky-residual bound on -S
+(bound). Every tier decides by fbound.certificate: S and k summed in doubles with a
+rigorous bound on their rounding (Rump 2010), which closes a size or rules it out
+alone and calls bound() only when its upper and lower bounds straddle zero.
 
 Since the bound holds at any multipliers, and for any subset of the rows (a
 relaxation with fewer rows contains more points, and every design among them), a
 size is tried by a cascade of certificates, cheapest first (size_certificate):
-the previous size's multipliers at this size's rows, screened in doubles and
-then evaluated exactly; multipliers from a first-order method on the certificate
-itself (dual_multipliers: L-BFGS-B on its smoothing, warm-started from the previous
-size), evaluated exactly; the Shor relaxation, which keeps the equalities, c'u >= 0
+the previous size's multipliers at this size's rows; multipliers from a
+first-order method on the certificate itself (dual_multipliers: L-BFGS-B on its
+smoothing, warm-started from the previous size); the Shor relaxation, which keeps the equalities, c'u >= 0
 and the cuts and drops the bound products and the products of c'u; then the full
 relaxation with its rounds of triangles. On the 242 root sizes of the four-geo
 GeoLift search the first closed 43 of the 239 that had a previous size, the
@@ -71,6 +73,8 @@ Jansson, C., Chaykin, D. and Keil, C. (2007). Rigorous error bounds for the opti
     value in semidefinite programming. SIAM J. Numer. Anal. 46, 180-200.
 Padberg, M. (1989). The boolean quadric polytope: some characteristics, facets and
     relatives. Math. Program. 45, 139-172.
+Rump, S. M. (2010). Verification methods: Rigorous results using floating-point
+    arithmetic. Acta Numerica 19, 287-449. doi:10.1017/S096249291000005X.
 Sherali, H. D. and Adams, W. P. (1990). A hierarchy of relaxations between the
     continuous and convex hull representations for zero-one programming problems.
     SIAM J. Discrete Math. 3, 411-430.
@@ -93,6 +97,7 @@ from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 from mlsynth.utils.marex_helpers.certify import Dyadic
 
 from . import face as _face
+from . import fbound
 from .certificate import ExactData, _dot_err, round_down
 from .progress import clarabel_log, emit, reporting
 
@@ -577,35 +582,6 @@ class SizeResult:
     multipliers: Optional[Multipliers] = None   # those of the certificate that closed it
 
 
-def _screen(A, R: Rows, y_eq, y_in, m) -> float:
-    """bound() in doubles, unrounded: it decides only whether the exact bound is
-    tried, never whether a size is certified."""
-    return _screener(A, R, m)(y_eq, y_in)
-
-
-def _screener(A, R: Rows, m):
-    """_screen for R with its matrices built once, for a solver that screens many
-    multipliers of one node (workspace.py)."""
-    n = R.n
-    Me, Mi = R.matrices(1.0)
-    MeT, MiT = Me.T.tocsr(), Mi.T.tocsr()
-    beq, bin_ = np.asarray(R.beq, dtype=float), np.asarray(R.bin, dtype=float)
-    A0 = np.zeros((n, n)); A0[1:, 1:] = np.asarray(A, dtype=float)
-    T = None if R.face is None else R.face.matrix()
-
-    def screen(y_eq, y_in) -> float:
-        y_in = np.maximum(np.asarray(y_in, dtype=float), 0.0)
-        E = (MeT @ np.asarray(y_eq, dtype=float) + MiT @ y_in).reshape(n, n, order="F")
-        S = A0 - (E + E.T) / 2
-        k = float(np.dot(y_eq, beq) + np.dot(y_in, bin_))
-        full = k + (1 + m) * max(0.0, float(np.linalg.eigvalsh(S)[-1]))
-        if T is None:
-            return full
-        M = T.T @ S @ T
-        return min(full, k + R.face.trace * max(0.0, float(np.linalg.eigvalsh((M + M.T) / 2)[-1])))
-    return screen
-
-
 def _capped(v, T):
     """The projection of v onto {z >= 0, sum z <= T}: max(v - theta, 0), with
     theta >= 0 the smallest shift that brings the sum to at most T. When the sum of
@@ -880,11 +856,11 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
         raise MlsynthConfigError(f"first_order_rounds is a count of rounds, an int at least 0, not {first_order_rounds!r}.")
     lam = dyadic_below(lam)
     A = objective(c, G, lam)
+    af = fbound.objective_float(A)
     if warm is not None:
         R = Rows(c, m, cuts=cuts, fixes=fixes, face=face, level=warm.level)
-        if len(warm.y_eq) == R.n_eq and len(warm.y_in) == R.n_in and \
-                _screen(A, R, warm.y_eq, warm.y_in, m) <= 0:
-            b = bound(A, R, warm.y_eq, warm.y_in, m)
+        if len(warm.y_eq) == R.n_eq and len(warm.y_in) == R.n_in:
+            b = fbound.certificate(A, R, warm.y_eq, warm.y_in, m, af)
             if b is not None and b <= 0:
                 return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="reuse", multipliers=warm)
     R = Rows(c, m, cuts=cuts, fixes=fixes, face=face)
@@ -894,7 +870,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
         w, info = dual_multipliers(A, R, m, c, warm=warm if rung == 0 else None,
                                    maxfun=maxfun, stages=stages, budget=budget)
         point = info.get("point") if info else None
-        b = bound(A, R, w.y_eq, w.y_in, m) if w is not None else None
+        b = fbound.certificate(A, R, w.y_eq, w.y_in, m, af) if w is not None else None
         closed = b is not None and b <= 0
         emit("schedule", m=m, rung=rung, maxfun=maxfun, closed=closed, seconds=time.perf_counter() - t1)
         if closed:
@@ -913,7 +889,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
         maxfun, stages, budget = schedules[-1]
         w, info = dual_multipliers(A, Rt, m, c, maxfun=maxfun, stages=stages, budget=budget)
         point = info.get("point") if info else None
-        b = bound(A, Rt, w.y_eq, w.y_in, m) if w is not None else None
+        b = fbound.certificate(A, Rt, w.y_eq, w.y_in, m, af) if w is not None else None
         closed = b is not None and b <= 0
         emit("triangles", m=m, round=r, triangles=len(tri), closed=closed, seconds=time.perf_counter() - t1)
         if closed:
@@ -928,7 +904,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
         except cp.error.SolverError:
             sol = None                   # the full relaxation decides
     if sol is not None:
-        b = bound(A, R, sol.y_eq, sol.y_in, m)
+        b = fbound.certificate(A, R, sol.y_eq, sol.y_in, m, af)
         if b is not None and b <= 0:
             return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="shor",
                               multipliers=Multipliers("shor", sol.y_eq, sol.y_in))
@@ -940,7 +916,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
             sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R)
         except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved
             return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)
-        b = sol.bound if sol.bound is not None else bound(A, R, sol.y_eq, sol.y_in, m)
+        b = sol.bound if sol.bound is not None else fbound.certificate(A, R, sol.y_eq, sol.y_in, m, af)
         u = None if sol.Z is None else np.asarray(sol.Z)[0, 1:]
         if b is not None and b <= 0:
             w = Multipliers("full", sol.y_eq, sol.y_in) if not tri else None
@@ -1035,13 +1011,14 @@ def group_certificate(c, G, lam, schedules: Optional[Tuple[Tuple[int, int, int],
         final_solve = screen_solves(len(c))
     lam = dyadic_below(lam)
     A = objective(c, G, lam)
+    af = fbound.objective_float(A)
     R = Rows(c, None)
     b = None
     for rung, (maxfun, stages, budget) in enumerate(schedules):
         t1 = time.perf_counter()
         w, _ = dual_multipliers(A, R, R.p, c, maxfun=maxfun, stages=stages, budget=budget)
         if w is not None:
-            b = group_bound(A, R, w.y_eq, w.y_in)
+            b = fbound.certificate(A, R, w.y_eq, w.y_in, R.p, af)
         closed = w is not None and b is not None and b <= 0
         emit("schedule", m=None, rung=rung, maxfun=maxfun, closed=closed, seconds=time.perf_counter() - t1)
         if closed:
@@ -1052,7 +1029,7 @@ def group_certificate(c, G, lam, schedules: Optional[Tuple[Tuple[int, int, int],
         sol = solve(c, G, lam, R, solver=_one_relaxation(solver))
     except cp.error.SolverError:        # pragma: no cover - Clarabel solves the size-free rows of every test panel
         return GroupResult(False, b, "open", time.perf_counter() - t0)
-    b = group_bound(A, R, sol.y_eq, sol.y_in)
+    b = fbound.certificate(A, R, sol.y_eq, sol.y_in, R.p, af)
     if b is not None and b <= 0:
         return GroupResult(True, b, "full", time.perf_counter() - t0)
     return GroupResult(False, b, "open", time.perf_counter() - t0)

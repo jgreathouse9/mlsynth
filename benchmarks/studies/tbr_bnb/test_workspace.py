@@ -19,7 +19,7 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import slopefree, workspace
+from . import fbound, slopefree, workspace
 from .brute import geo_panel, panel
 from .certificate import ExactData
 from .progress import reporting
@@ -185,7 +185,8 @@ def test_a_closed_chunk_ends_the_solve(monkeypatch):
     A = objective(D.c, D.G, slopefree.dyadic_below(D.yy * 4))   # far above every design's ratio
     sol = Workspaces().solve(D.c, D.G, slopefree.dyadic_below(D.yy * 4), _box_rows(D, 3))
     assert sol.status == "certified" and sol.bound is not None and sol.bound <= 0 and len(calls) == 1
-    assert sol.bound == bound(A, _box_rows(D, 3), sol.y_eq, sol.y_in, 3)
+    assert sol.bound == fbound.certificate(A, _box_rows(D, 3), sol.y_eq, sol.y_in, 3)
+    assert bound(A, _box_rows(D, 3), sol.y_eq, sol.y_in, 3) <= 0
 
 
 def test_the_certificate_closes_a_chunk_before_scs_converges(monkeypatch):

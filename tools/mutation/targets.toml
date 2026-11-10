@@ -12403,8 +12403,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-triangle-round-certifies-without-its-exact-bound"
-  find = "        b = bound(A, Rt, w.y_eq, w.y_in, m) if w is not None else None\n        closed = b is not None and b <= 0\n"
-  replace = "        b = bound(A, Rt, w.y_eq, w.y_in, m) if w is not None else None\n        closed = b is not None\n"
+  find = "        b = fbound.certificate(A, Rt, w.y_eq, w.y_in, m, af) if w is not None else None\n        closed = b is not None and b <= 0\n"
+  replace = "        b = fbound.certificate(A, Rt, w.y_eq, w.y_in, m, af) if w is not None else None\n        closed = b is not None\n"
   models = "a round's float certificate taken whatever its exact bound, so a size holding a better design can be pruned"
 
   [[target.mutant]]
@@ -12439,8 +12439,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-rung-that-gives-up-ends-the-ladder"
-  find = "        if w is not None:\n            b = group_bound(A, R, w.y_eq, w.y_in)\n"
-  replace = "        if w is None:\n            break\n        b = group_bound(A, R, w.y_eq, w.y_in)\n"
+  find = "        if w is not None:\n            b = fbound.certificate(A, R, w.y_eq, w.y_in, R.p, af)\n"
+  replace = "        if w is None:\n            break\n        b = fbound.certificate(A, R, w.y_eq, w.y_in, R.p, af)\n"
   models = "the ladder abandoned when a schedule finds no multipliers, the case it exists for"
 
   [[target.mutant]]
@@ -12517,9 +12517,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-dual-certifies-without-the-exact-bound"
-  find = "        b = bound(A, R, w.y_eq, w.y_in, m) if w is not None else None\n        closed = b is not None and b <= 0\n"
+  find = "        b = fbound.certificate(A, R, w.y_eq, w.y_in, m, af) if w is not None else None\n        closed = b is not None and b <= 0\n"
   replace = "        b = Q(-1) if w is not None else None\n        closed = b is not None and b <= 0\n"
-  models = "a size certified on the dual's float value, with no exact bound, so a rounding error or a dual bug can close a size that holds a better design"
+  models = "a size certified on the dual's own value, with no certificate, so a rounding error or a dual bug can close a size that holds a better design"
 
   [[target.mutant]]
   id = "the-dual-tier-is-skipped"
@@ -12601,15 +12601,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "reused-multipliers-certify-on-the-screen"
-  find = "            b = bound(A, R, warm.y_eq, warm.y_in, m)\n            if b is not None and b <= 0:\n"
+  find = "            b = fbound.certificate(A, R, warm.y_eq, warm.y_in, m, af)\n            if b is not None and b <= 0:\n"
   replace = "            b = Q(-1)\n            if True:\n"
-  models = "a size certified by reused multipliers on the float screen alone, with no exact bound, so a rounding error can certify a size that holds a better design"
-
-  [[target.mutant]]
-  id = "the-screen-is-not-consulted"
-  find = "        if len(warm.y_eq) == R.n_eq and len(warm.y_in) == R.n_in and \\\n                _screen(A, R, warm.y_eq, warm.y_in, m) <= 0:\n"
-  replace = "        if len(warm.y_eq) == R.n_eq and len(warm.y_in) == R.n_in:\n"
-  models = "the exact bound tried for every reused set of multipliers, the 58 ms evaluation the float screen exists to skip"
+  models = "a size certified by reused multipliers with no certificate, so multipliers from another size can certify a size that holds a better design"
 
   [[target.mutant]]
   id = "a-shor-failure-raises"
@@ -14008,12 +14002,6 @@ timeout = 600.0
   models = "the face bound returned where the full-space bound is smaller (T is not orthonormal)"
 
   [[target.mutant]]
-  id = "the-screen-ignores-the-face"
-  find = "        if T is None:\n            return full\n"
-  replace = "        return full\n"
-  models = "the float screen reading the full-space bound only, so it calls a face-closable node open"
-
-  [[target.mutant]]
   id = "the-face-is-off-by-default"
   find = "FACE = True\n"
   replace = "FACE = False\n"
@@ -14313,10 +14301,10 @@ timeout = 900.0
   models = "a node the certificate closed after its first chunk run to SCS's own convergence"
 
   [[target.mutant]]
-  id = "the-screen-is-skipped-until-convergence"
-  find = "if done or screen(y_eq, y_in) <= 0 else None\n"
-  replace = "if done else None\n"
-  models = "the exact certificate tried only once SCS converges, so a node closable at its first chunk runs every chunk"
+  id = "the-certificate-is-skipped-until-convergence"
+  find = "                b = fbound.certificate(self.A, R, y_eq, y_in, self.m, self.af)\n                if b is not None and b <= 0:\n                    return Outcome(\"certified\""
+  replace = "                b = fbound.certificate(self.A, R, y_eq, y_in, self.m, self.af) if done else None\n                if b is not None and b <= 0:\n                    return Outcome(\"certified\""
+  models = "the certificate tried only once SCS converges, so a node closable at its first chunk runs every chunk"
 
   [[target.mutant]]
   id = "the-cap-is-reported-as-convergence"
@@ -14521,3 +14509,87 @@ timeout = 300.0
   find = "        self.n_eq, self.n_in = len(self.beq), len(self.bin)\n        self.n_triangles = len(triangles)\n\n    @property"
   replace = "        self.n_eq, self.n_in = len(self.beq), len(self.bin)\n        self.n_triangles = len(triangles)\n        self._tables()\n\n    @property"
   models = "the dict table built at every construction, the 0.07-0.18 s a build the change removes"
+
+[[target]]
+name = "tbr-bnb-fbound"
+module-path = "benchmarks/studies/tbr_bnb/fbound.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fbound.py benchmarks/studies/tbr_bnb/test_face.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "negative-inequality-multipliers-are-kept"
+  find = "    y = np.concatenate([y_eq, np.maximum(y_in, 0.0)])\n"
+  replace = "    y = np.concatenate([y_eq, y_in])\n"
+  models = "the inequality multipliers not clipped at zero, so the float slack is not the one bound() certifies and a negative multiplier can lower the bound below the relaxation's maximum"
+
+  [[target.mutant]]
+  id = "the-slack-has-no-rounding-bound"
+  find = "    E = inflate(EA0 + _dot_err(F.N + 3, np.abs(A0) + (Wm + Wm.T) / 2))\n"
+  replace = "    E = EA0\n"
+  models = "the sum of the multipliers' terms taken as exact, so under cancellation the float slack's top eigenvalue can sit below the exact one's and a size holding a better design is closed"
+
+  [[target.mutant]]
+  id = "the-constant-has-no-rounding-bound"
+  find = "    ek = inflate(_dot_err(y.size, float(ay @ np.abs(F.b))))\n"
+  replace = "    ek = 0.0\n"
+  models = "k = sum y b taken as exact, so the bound can fall below the dual function by k's rounding"
+
+  [[target.mutant]]
+  id = "weyl-term-dropped"
+  find = "    return Q(-low) + Q(eS)\n"
+  replace = "    return Q(-low)\n"
+  models = "lambda_max of the computed slack taken for the exact one's, without Weyl's ||E||, so the upper bound can be below the exact slack's top eigenvalue"
+
+  [[target.mutant]]
+  id = "the-rayleigh-bound-keeps-its-rounding"
+  find = "    low = Q(num) - Q(err)\n"
+  replace = "    low = Q(num)\n"
+  models = "the Rayleigh quotient's rounding and the slack's error not subtracted, so the lower bound can exceed bound() and a size bound() would close is ruled out without it"
+
+  [[target.mutant]]
+  id = "the-face-is-not-symmetrised"
+  find = "    M = (M + M.T) / 2\n    P = "
+  replace = "    P = "
+  models = "T'ST used as summed, not symmetric, so the Cholesky bound reads one triangle of a matrix whose rounding differs between them"
+
+  [[target.mutant]]
+  id = "the-face-ignores-the-slack-error"
+  find = "    EM = inflate(PE + _dot_err(2 * F.c + 2, P) + U * np.abs(M))"
+  replace = "    EM = inflate(_dot_err(2 * F.c + 2, P) + U * np.abs(M))"
+  models = "the face's bound counts the rounding of T'ST but not the slack's own error carried through T, so the face matrix is not enclosed"
+
+  [[target.mutant]]
+  id = "the-face-is-not-read"
+  find = "        if lf is not None:\n            face = kq + F.face.trace * max(Q(0), lf)\n"
+  replace = "        if False:\n            face = kq + F.face.trace * max(Q(0), lf)\n"
+  models = "the float bound reads the full space only, so a node only the face closes goes to the exact certificate or stays open"
+
+  [[target.mutant]]
+  id = "a-subnormal-coefficient-is-trusted"
+  find = "        self.exact = bool((nz.size == 0 or nz.min() >= NORMAL) and all(Q(float(v)) == v for v in set(bs)))\n"
+  replace = "        self.exact = True\n"
+  models = "a coefficient that rounds into the subnormal range bounded as if within a relative u of its double, which it is not"
+
+  [[target.mutant]]
+  id = "the-floats-never-close"
+  find = "    if up <= 0:\n        return Q(up)\n"
+  replace = "    if False:\n        return Q(up)\n"
+  models = "every closure computed by the exact certificate, the cost the float tier exists to remove"
+
+  [[target.mutant]]
+  id = "the-lower-bound-never-rules-out"
+  find = "    if np.isfinite(up) and bound_lower(af, R, y_eq, y_in, m) > 0:\n"
+  replace = "    if False:\n"
+  models = "every open size sent to the exact certificate, the cost the lower bound exists to remove"
+
+  [[target.mutant]]
+  id = "the-band-skips-the-exact-certificate"
+  find = "    exact = bound(A, R, y_eq, y_in, m)\n"
+  replace = "    return Q(up) if np.isfinite(up) else None\n    exact = bound(A, R, y_eq, y_in, m)\n"
+  models = "a size between the float bounds left open without the exact certificate, so the certificate no longer closes everything bound() closes"
+
+  [[target.mutant]]
+  id = "the-gate-is-inverted"
+  find = "bound_lower(af, R, y_eq, y_in, m) > 0:\n"
+  replace = "bound_lower(af, R, y_eq, y_in, m) <= 0:\n"
+  models = "the lower bound's test reversed, so a size bound() would close is reported open with the float bound"
