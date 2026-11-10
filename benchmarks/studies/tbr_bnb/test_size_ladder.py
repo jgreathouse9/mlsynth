@@ -21,7 +21,7 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import slopefree
+from . import fbound, slopefree
 from .brute import geo_panel
 from .certificate import ExactData
 from .search import incumbent
@@ -167,8 +167,9 @@ def test_a_round_whose_exact_bound_misses_goes_on(monkeypatch, needs_triangles):
     """Float multipliers that the exact bound does not confirm are not a certificate:
     the next round runs, and Clarabel when the rounds are spent."""
     c, G, lam, m, cuts = needs_triangles
-    real = slopefree.bound
-    monkeypatch.setattr(slopefree, "bound", lambda A, R, ye, yi, m_: Q(1) if R.n_triangles else real(A, R, ye, yi, m_))
+    real = fbound.certificate
+    monkeypatch.setattr(fbound, "certificate",
+                        lambda A, R, ye, yi, m_, af=None: Q(1) if R.n_triangles else real(A, R, ye, yi, m_, af))
     calls = _spy(monkeypatch)
     res = size_certificate(c, G, lam, m, cuts=cuts, **LADDER)
     assert res.tier == "full" and sum(1 for cl in calls if cl[2] > 0) >= 1

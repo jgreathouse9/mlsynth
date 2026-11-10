@@ -20,9 +20,10 @@ things change:
    and the second the default scale; each node runs them in order, both from the
    node's warm start.
 3. A certificate after every chunk of ``CHUNK`` iterations. The multipliers go to
-   the float screen and, when it is at most zero, to the exact certificate
-   (slopefree.bound) on the node's own rows; the first chunk the certificate closes
-   ends the solve. SCS's stopping test decides nothing that is proved.
+   fbound.certificate on the node's own rows, the rigorous float bounds first and
+   the exact certificate (slopefree.bound) only between them; the first chunk the
+   certificate closes ends the solve. SCS's stopping test decides nothing that is
+   proved.
 
 The certificate holds for any multipliers (slopefree's module docstring), so the
 bound is valid at every outcome; how tight it is depends on how far SCS got. Each
@@ -52,7 +53,7 @@ import scs
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import slopefree as sf
+from . import fbound, slopefree as sf
 from .progress import emit
 
 SQ2 = math.sqrt(2.0)
@@ -108,6 +109,7 @@ class SizeWorkspace:
         lam = sf.dyadic_below(lam)
         self.c, self.m, self.p, self.n = c, m, len(c), len(c) + 1
         self.A = sf.objective(c, G, lam)
+        self.af = fbound.objective_float(self.A)
         A = np.asarray(self.A, dtype=float)
         self.s = sf._pow2(float(np.abs(A).max()))
         self.cs = sf._pow2(float(np.max(np.abs(np.asarray(c, dtype=float)))))
@@ -201,7 +203,6 @@ class SizeWorkspace:
         """The node of R (this size, cuts and triangles, R's fixings, R's box rows)."""
         t0 = time.perf_counter()
         fixes = R.fixes
-        screen = sf._screener(self.A, R, self.m)
         iters, status, b = 0, "unstarted", None
         y_eq = y_in = Z = None
         start = self.last
@@ -218,13 +219,13 @@ class SizeWorkspace:
                 iters += sol["info"]["iter"]; status = sol["info"]["status"]
                 if status in ("infeasible", "infeasible_inaccurate"):
                     y_eq, y_in = self._multipliers(sol["y"], fixes)
-                    b = sf.bound(self.A, R, y_eq, y_in, self.m)
+                    b = fbound.certificate(self.A, R, y_eq, y_in, self.m, self.af)
                     kind = "certified" if b is not None and b <= 0 else "infeasible"
                     return Outcome(kind, status, iters, time.perf_counter() - t0, b, y_eq, y_in, None)
                 y_eq, y_in = self._multipliers(sol["y"], fixes)
                 Z = self._Z(sol["x"])
                 done = status in ("solved", "solved_inaccurate")
-                b = sf.bound(self.A, R, y_eq, y_in, self.m) if done or screen(y_eq, y_in) <= 0 else None
+                b = fbound.certificate(self.A, R, y_eq, y_in, self.m, self.af)
                 if b is not None and b <= 0:
                     return Outcome("certified", status, iters, time.perf_counter() - t0, b, y_eq, y_in, Z)
                 if done:
