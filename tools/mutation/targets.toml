@@ -14907,3 +14907,57 @@ timeout = 600.0
   find = "            high = (wF > upper[free]) if upper is not None else np.zeros(nF, dtype=bool)"
   replace = "            high = np.zeros(nF, dtype=bool)"
   models = "the cap side of the same clamp: a weight solved just over its cap cut back to it with the others left as solved"
+
+[[target]]
+name = "tbr-bnb-parallel-start"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_parallel_start.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "a-tie-goes-to-the-later-descent"
+  find = "            if key > best[0]:\n                best = (key, T, C)"
+  replace = "            if key >= best[0]:\n                best = (key, T, C)"
+  models = "the pooled start keeps the last of tied descents where local_search's strict comparison keeps the first, so the start differs from local_search's whenever two descents end at the same key"
+
+  [[target.mutant]]
+  id = "the-greedys-descent-is-not-a-candidate"
+  find = "    best = (first.score.key, first.treatment, first.control)"
+  replace = "    best = ((), first.treatment, first.control)"
+  models = "the pooled start compares the restarts only with each other, so a restart that merely ties the greedy's descent replaces it"
+
+  [[target.mutant]]
+  id = "every-draw-from-a-fresh-generator"
+  find = "    draws = [d for d in (lib_local._random_design(rng, roles, out[-1].k) for _ in range(restarts))"
+  replace = "    draws = [d for d in (lib_local._random_design(np.random.default_rng(0), roles, out[-1].k) for _ in range(restarts))"
+  models = "each restart drawn from a generator seeded afresh, so all draws are the first draw and the pooled start explores one design where local_search explores restarts of them"
+
+  [[target.mutant]]
+  id = "one-restart-too-few"
+  find = "out[-1].k) for _ in range(restarts))"
+  replace = "out[-1].k) for _ in range(restarts - 1))"
+  models = "the pooled start draws one restart fewer than local_search, so its last draw's descent is never run"
+
+  [[target.mutant]]
+  id = "the-descents-are-taken-in-reverse"
+  find = "        for key, T, C in _map(pool, _descend, [(M, roles, T, sorted(C), n_test) for T, C in draws]):"
+  replace = "        for key, T, C in reversed(_map(pool, _descend, [(M, roles, T, sorted(C), n_test) for T, C in draws])):"
+  models = "the pool's results read last to first, so of tied descents the last drawn wins: the order local_search's tie rule depends on is lost"
+
+  [[target.mutant]]
+  id = "a-no-design-draw-is-descended"
+  find = "             if d is not None]"
+  replace = "             ]"
+  models = "a draw that is no design (None) is passed to the pool, where local_search skips it"
+
+  [[target.mutant]]
+  id = "negative-restarts-pass-with-a-pool"
+  find = "    if restarts < 0:\n        raise MlsynthDataError(f\"restarts is {restarts}; it cannot be negative.\")\n    first = lib_local"
+  replace = "    first = lib_local"
+  models = "with a pool, negative restarts give the greedy's descent where local_search raises"
+
+  [[target.mutant]]
+  id = "the-search-gives-the-start-no-pool"
+  find = "        T0, Cs = _start(M, k, n_test, restarts, pool)"
+  replace = "        T0, Cs = _start(M, k, n_test, restarts)"
+  models = "certify_treatment runs the start's restarts in one process though it has a pool: the same design, four times slower on four jobs"

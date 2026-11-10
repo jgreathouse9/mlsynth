@@ -1837,6 +1837,40 @@ an undecided row, were never reached, since no test row sat in the margin band;
 `test_an_undecided_row_is_kept_without_the_kernel` put one there, and both are now
 killed.
 
+## The start's restarts on the pool
+
+The search's first incumbent is the library's design: the greedy search, then
+`local_search`'s descent from the greedy design and from 50 random designs. On 80
+geos the greedy takes 1.1 s and the 50 restarts 47.7 s, about 1 s each, all in one
+process, while the pool the search made sat idle.
+
+`local_search` draws every restart from one generator seeded 0, and each descent
+depends only on its own draw. With a pool, `_start` makes the draws itself in
+`local_search`'s order (`_random_design`), descends them on the pool (`_descend`,
+`local_search` from that design with no restarts), and takes the best in draw order:
+the greedy's descent first, a later descent replacing the best only when its key is
+strictly greater, which is `local_search`'s own rule. The result is
+`local_search`'s design, and `test_parallel_start.py` pins it on the pool and in
+this process, at fixed panels and as a property over panels, sizes and restart
+counts, together with the tie rule and the draw that is no design.
+
+On four processes the start takes 15.5 s against 53.4 s on 80 geos at k = 4, 5.4 s
+against 20.2 s on 60 geos at k = 3, and 1.5 s against 4.6 s on 40 geos at k = 4,
+each time with the same design. End to end on 80 geos, 150 periods, k = 4, a 1% gap
+and four jobs, with the lean NNLS and the worker screen in place
+(`results/parallel_start.log`, two alternating rounds):
+
+| | the floors' two changes | with the pooled start |
+| --- | --- | --- |
+| wall | 90.1 s, 83.3 s | 52.6 s, 49.8 s |
+| the start | 51.2 s, 49.0 s | 17.2 s, 15.8 s |
+| the floors | 28.3 s, 24.9 s | 26.8 s, 24.7 s |
+
+Every run certifies the same treatment, controls and key. The floors are now half of
+the run.
+
+Mutants (`tbr-bnb-parallel-start`): 8, all killed.
+
 ## Five geos
 
 At five geos GeoLift has 658,008 treatment groups. On one process the search took
