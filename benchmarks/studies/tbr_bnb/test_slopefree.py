@@ -309,7 +309,8 @@ def test_a_round_adds_the_separated_triangles(monkeypatch):
 
     monkeypatch.setattr(sf, "Rows", rows)
     monkeypatch.setattr(sf, "dual_multipliers", lambda *a, **k: (None, {"evals": 0}))   # the full tier's rounds
-    monkeypatch.setattr(sf, "bound", lambda A, R, *a, **k: Q(1) if R.level == "shor" else next(bounds))
+    from . import fbound
+    monkeypatch.setattr(fbound, "certificate", lambda A, R, *a, **k: Q(1) if R.level == "shor" else next(bounds))
     monkeypatch.setattr(sf, "separate_triangles", lambda u, U, k=400: [(0.1, 0, (0, 1, 2))])
     res = sf.size_certificate(c, G, Q(1, 2), 2)
     assert res.certified and res.rounds == 1 and res.triangles == 1

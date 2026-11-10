@@ -13,7 +13,7 @@ import pytest
 from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
-from . import slopefree as sf
+from . import fbound, slopefree as sf
 from .brute import panel, positive_optimum
 from .certificate import ExactData
 from .slopefree import (Multipliers, Rows, bound, certify_slope_free, design_value, dyadic_below,
@@ -186,44 +186,22 @@ def test_a_sizes_own_multipliers_close_it_without_a_solve(monkeypatch):
     assert again.certified and again.tier == "reuse" and again.bound == first.bound
 
 
-def test_reused_multipliers_are_checked_exactly(monkeypatch):
-    """The float screen only decides whether to try the exact bound; a size the exact
-    bound does not close goes on to the Shor relaxation."""
+def test_reused_multipliers_the_certificate_does_not_close_go_on(monkeypatch):
+    """Reused multipliers decide nothing on their own: a certificate above zero at
+    them hands the size to the next tier, which closes it as a size offered nothing
+    would."""
     c, G, lam, C = _at_optimum(2)
     first = size_certificate(c, G, lam, 3, cuts=[C])
-    monkeypatch.setattr(sf, "_screen", lambda *a, **k: -1.0)
-    real, calls = sf.bound, []
+    cold = size_certificate(c, G, lam, 3, cuts=[C])
+    real, calls = fbound.certificate, []
 
-    def bound(*a, **k):
+    def certificate(*a, **k):
         calls.append(1)
         return Q(1) if len(calls) == 1 else real(*a, **k)
 
-    monkeypatch.setattr(sf, "bound", bound)
+    monkeypatch.setattr(fbound, "certificate", certificate)
     res = size_certificate(c, G, lam, 3, cuts=[C], warm=first.multipliers)
-    assert res.certified and res.tier != "reuse" and len(calls) >= 2
-
-
-def test_a_screen_above_zero_skips_the_exact_check(monkeypatch):
-    """Multipliers the float screen rules out cost no exact bound: the size makes
-    the same exact evaluations as one offered nothing."""
-    c, G, lam, C = _at_optimum(2)
-    first = size_certificate(c, G, lam, 3, cuts=[C])
-    monkeypatch.setattr(sf, "_screen", lambda *a, **k: 1.0)
-    real, calls = sf.bound, []
-    monkeypatch.setattr(sf, "bound", lambda *a, **k: calls.append(1) or real(*a, **k))
-    cold = size_certificate(c, G, lam, 3, cuts=[C]); n_cold = len(calls)
-    res = size_certificate(c, G, lam, 3, cuts=[C], warm=first.multipliers)
-    assert res.tier == cold.tier != "reuse" and len(calls) - n_cold == n_cold
-
-
-def test_the_screen_agrees_with_the_exact_bound():
-    c, G, lam, C = _at_optimum(1)
-    res = size_certificate(c, G, lam, 2, cuts=[C])
-    w = res.multipliers
-    R = Rows(c, 2, cuts=[C], level=w.level)
-    A = objective(c, G, dyadic_below(lam))
-    exact = float(bound(A, R, w.y_eq, w.y_in, 2))
-    assert sf._screen(A, R, w.y_eq, w.y_in, 2) == pytest.approx(exact, rel=1e-6, abs=1e-6 * abs(exact) + 1e-9)
+    assert res.certified and res.tier == cold.tier != "reuse" and len(calls) >= 2
 
 
 def test_multipliers_of_another_shape_are_not_reused(monkeypatch):
@@ -250,8 +228,8 @@ def test_a_size_the_shor_relaxation_closes_solves_nothing_more(monkeypatch):
 def test_a_shor_bound_above_zero_goes_on_to_the_full_relaxation(monkeypatch):
     _no_dual(monkeypatch)
     c, G, lam, C = _at_optimum(0)
-    real = sf.bound
-    monkeypatch.setattr(sf, "bound", lambda A, R, *a, **k: Q(1) if R.level == "shor" else real(A, R, *a, **k))
+    real = fbound.certificate
+    monkeypatch.setattr(fbound, "certificate", lambda A, R, *a, **k: Q(1) if R.level == "shor" else real(A, R, *a, **k))
     seen = _solves_by_level(monkeypatch)
     res = size_certificate(c, G, lam, 2, cuts=[C], shor=True)
     assert res.certified and res.tier == "full" and seen[:2] == ["shor", "full"]
