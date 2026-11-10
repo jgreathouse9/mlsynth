@@ -372,7 +372,7 @@ G = np.array([[1.0, 0.0, 1.0], [0.0, 1.0, 1.0], [1.0, 1.0, 2.0]])   # column 3 i
 c = np.array([1.0, 1.0, 1.5])
 w = np.zeros(3); passive = np.zeros(3, np.bool_); idx = np.zeros(3, np.int64)
 L = np.zeros((3, 3)); z = np.zeros(3); x = np.ones(3)                # scratch left positive
-ff._nnls_gram(G, c, passive, w, idx, L, z, x, 500)
+ff._nnls_gram(G, np.arange(3), c, passive, w, idx, L, z, x, 500)
 print(repr(w.tolist()))
 """
 
@@ -397,16 +397,41 @@ def test_a_singular_active_set_ends_the_solve():
     c = np.array([1.0, 1.0, 1.5])
     assert np.all(w >= 0) and float(w @ G @ w - 2 * c @ w) < 0
     v, passive, idx, L, z, x = _scratch(3, 1.0)       # in this process too, once it is known to end
-    fastfloor._nnls_gram(G, c, passive, v, idx, L, z, x, 500)
+    fastfloor._nnls_gram(G, np.arange(3), c, passive, v, idx, L, z, x, 500)
     assert np.array_equal(v, w) and passive.tolist() == [True, False, True]   # column 1 was the one added
 
 
 @needs_numba
 def test_the_cholesky_reports_a_matrix_that_is_not_positive_definite():
+    """_factor refuses a singular set; _extend refuses a column in the set's span and
+    leaves the set as it was."""
     A = np.array([[1.0, 1.0], [1.0, 1.0]])
+    rest = np.array([0, 1], np.int64)
     idx = np.array([0, 1], np.int64)
-    assert not fastfloor._chol_solve(A, np.ones(2), idx, 2, np.zeros((2, 2)), np.zeros(2), np.zeros(2))
-    assert fastfloor._chol_solve(np.eye(2), np.ones(2), idx, 2, np.zeros((2, 2)), np.zeros(2), np.zeros(2))
+    L = np.zeros((2, 2))
+    assert not fastfloor._factor(A, rest, idx, 2, L)
+    assert fastfloor._factor(np.eye(2), rest, idx, 2, L)
+    idx = np.array([0, -1], np.int64)
+    assert fastfloor._factor(A, rest, idx, 1, L)
+    assert not fastfloor._extend(A, rest, idx, 1, 1, L)
+    assert idx.tolist() == [0, -1]
+    assert fastfloor._extend(np.eye(2), rest, idx, 1, 1, L) and idx.tolist() == [0, 1]
+
+
+@needs_numba
+def test_extending_the_factor_is_factoring_the_extended_set():
+    """_extend's row is _factor's row for the same ordered set, bit for bit."""
+    rng = np.random.default_rng(3)
+    B = rng.normal(size=(12, 6))
+    A = np.ascontiguousarray(B.T @ B)
+    rest = np.arange(6, dtype=np.int64)
+    order = np.array([4, 1, 5, 0, 2], np.int64)
+    L1 = np.zeros((6, 6)); idx1 = order.copy()
+    assert fastfloor._factor(A, rest, idx1, 5, L1)
+    L2 = np.zeros((6, 6)); idx2 = np.full(6, -1, np.int64)
+    for k, j in enumerate(order):
+        assert fastfloor._extend(A, rest, idx2, k, j, L2)
+    assert np.array_equal(np.tril(L1[:5, :5]), np.tril(L2[:5, :5])) and idx2[:5].tolist() == order.tolist()
 
 
 @needs_numba
@@ -422,7 +447,7 @@ def test_property_the_active_set_ends_feasible_and_below_its_start(seed, m, r, f
     y = rng.normal(size=B.shape[0])
     G, c = B.T @ B, B.T @ y
     w, passive, idx, L, z, x = _scratch(m, fill)
-    fastfloor._nnls_gram(G, c, passive, w, idx, L, z, x, 500)
+    fastfloor._nnls_gram(G, np.arange(m), c, passive, w, idx, L, z, x, 500)
     assert np.all(np.isfinite(w)) and np.all(w >= 0)
     assert float(w @ G @ w - 2 * c @ w) <= 1e-9 * (1 + float(np.abs(G).sum() + np.abs(c).sum()))
 
