@@ -14597,5 +14597,5 @@ timeout = 120.0
   [[target.mutant]]
   id = "the-limit-applies-outside-xdist"
   find = "    if not env.get(\"PYTEST_XDIST_WORKER\"):\n        return False\n"
-  replace = ""
+  replace = "    if False:\n        return False\n"
   models = "one thread imposed on a plain pytest run, which may use the whole machine"
