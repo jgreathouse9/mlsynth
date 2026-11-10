@@ -12117,8 +12117,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-full-solve-failure-ends-the-search"
-  find = "        try:\n            sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R)\n        except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved\n            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)\n"
-  replace = "        sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R)\n"
+  find = "        try:\n            sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R, early=r < rounds)\n        except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved\n            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)\n"
+  replace = "        sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R, early=r < rounds)\n"
   models = "Clarabel's failure on the full relaxation raised out of the certificate, ending the treatment search (the 100-geo incident)"
 
   [[target.mutant]]
@@ -14092,8 +14092,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-full-level-drops-the-solver"
-  find = "            sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R)\n        except cp.error.SolverError:    # no bound"
-  replace = "            sol = solve(c, G, lam, R) if ws is None else ws.solve(c, G, lam, R)\n        except cp.error.SolverError:    # no bound"
+  find = "            sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R, early=r < rounds)\n        except cp.error.SolverError:    # no bound"
+  replace = "            sol = solve(c, G, lam, R) if ws is None else ws.solve(c, G, lam, R, early=r < rounds)\n        except cp.error.SolverError:    # no bound"
   models = "a size's full relaxation solved by the default solver whatever the size certificate was asked"
 
   [[target.mutant]]
@@ -14599,3 +14599,75 @@ timeout = 120.0
   find = "    if not env.get(\"PYTEST_XDIST_WORKER\"):\n        return False\n"
   replace = "    if False:\n        return False\n"
   models = "one thread imposed on a plain pytest run, which may use the whole machine"
+
+[[target]]
+name = "tbr-bnb-early-triangles"
+module-path = "benchmarks/studies/tbr_bnb/workspace.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_early_triangles.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-early-end-ignores-the-request"
+  find = "                if early and not done and solved >= SEPARATE_AFTER and \\\n"
+  replace = "                if not done and solved >= SEPARATE_AFTER and \\\n"
+  models = "every workspace round cut at a violated triangle, the last one too, so a size with no round after it stops before its relaxation is solved"
+
+  [[target.mutant]]
+  id = "a-converged-round-is-cut"
+  find = "                if early and not done and solved >= SEPARATE_AFTER and \\\n"
+  replace = "                if early and solved >= SEPARATE_AFTER and \\\n"
+  models = "a stage that has converged ended as 'separate', so the second stage never runs from the first stage's point"
+
+  [[target.mutant]]
+  id = "the-check-does-not-wait"
+  find = "solved >= SEPARATE_AFTER and"
+  replace = "solved >= 1 and"
+  models = "a round cut after its first chunk, whose point shows the triangles of the warm start, not of this round's relaxation"
+
+  [[target.mutant]]
+  id = "the-chunks-restart-each-stage"
+  find = "            ws = self._workspace(k, fixes)\n"
+  replace = "            ws = self._workspace(k, fixes); solved = 0\n"
+  models = "the wait counted per stage, so a two-chunk first stage never reaches it and the round always runs into the second stage"
+
+  [[target.mutant]]
+  id = "the-tolerance-is-the-separations"
+  find = "k=1, tol=SEPARATE_TOL)"
+  replace = "k=1, tol=1e-6)"
+  models = "a round cut at any triangle above the separation's own tolerance, the threshold the measurements rejected"
+
+  [[target.mutant]]
+  id = "the-early-end-reports-a-cap"
+  find = '                    return Outcome("separate", status,'
+  replace = '                    return Outcome("cap", status,'
+  models = "an early end indistinguishable from a round that spent its chunks, in the outcome and in the progress events (rule 1)"
+
+  [[target.mutant]]
+  id = "the-request-is-dropped"
+  find = "            o = ws.solve(R, early=early)\n"
+  replace = "            o = ws.solve(R)\n"
+  models = "Workspaces accepting early and never passing it on, so no round ends early"
+
+  [[target.mutant]]
+  id = "a-non-bool-request-is-accepted"
+  find = "        if type(early) is not bool:\n"
+  replace = "        if False:\n"
+  models = "a truthy string or integer taken as a request to cut rounds"
+
+[[target]]
+name = "tbr-bnb-early-rounds"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_early_triangles.py -q -x -p no:cacheprovider"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-last-round-is-cut-too"
+  find = "ws.solve(c, G, lam, R, early=r < rounds)"
+  replace = "ws.solve(c, G, lam, R, early=True)"
+  models = "the last triangle round asked to end early, with no round after it to add the triangles"
+
+  [[target.mutant]]
+  id = "no-round-is-cut"
+  find = "ws.solve(c, G, lam, R, early=r < rounds)"
+  replace = "ws.solve(c, G, lam, R, early=False)"
+  models = "the full tier never asking for the early end, so every round runs to its cap as before"
