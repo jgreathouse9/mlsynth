@@ -7,7 +7,10 @@ replaces (kept below as the reference): the same objective to rounding, the KKT
 conditions, and the same floors.
 """
 import math
+import subprocess
+import sys
 from itertools import combinations
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -267,6 +270,35 @@ def test_a_duplicated_column_stops_at_a_feasible_point_as_the_reference_does():
     ref = _ref(Gf, rest, c, np.zeros(7, np.bool_))
     assert np.all(w >= 0)
     assert _objective(Gf, rest, c, w) == pytest.approx(_objective(Gf, rest, c, ref), rel=1e-8, abs=1e-8)
+
+
+_REFUSED = """
+import sys
+import numpy as np
+sys.path.insert(0, {root!r})
+from benchmarks.studies.tbr_bnb import fastfloor as ff
+G = np.array([[1.0, 0.0, 1.0], [0.0, 1.0, -1.0], [1.0, -1.0, 2.0]])   # column 3 is 1 - 2
+c = np.array([1.0, 0.5, 0.75])
+w = np.zeros(3); passive = np.zeros(3, np.bool_); idx = np.zeros(3, np.int64)
+L = np.ones((3, 3)); z = np.zeros(3); x = np.ones(3)                  # scratch left positive
+ff._nnls_gram(G, np.arange(3), c, passive, w, idx, L, z, x, 500)
+print(repr((w.tolist(), passive.tolist())))
+"""
+
+
+@needs_numba
+def test_a_column_in_the_sets_span_is_refused_and_the_solve_stops():
+    """Columns u, v and u - v: the solve adds u, then v, and column 3 still has a
+    positive gradient (0.25) but a pivot of 2 - 1 - 1 = 0 exactly. _extend refuses
+    it: the solve stops at the last feasible point (1, 1/2, 0), the refused column
+    not passive. In a subprocess, as a solve on a factor row left unfinished need not
+    end."""
+    root = str(Path(__file__).resolve().parents[3])
+    run = subprocess.run([sys.executable, "-c", _REFUSED.format(root=root)],
+                         capture_output=True, text=True, timeout=120)
+    assert run.returncode == 0, run.stderr
+    w, passive = eval(run.stdout.strip())
+    assert w == [1.0, 0.5, 0.0] and passive == [True, True, False]
 
 
 @needs_numba

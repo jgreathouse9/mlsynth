@@ -385,10 +385,11 @@ def _scratch(m, fill):
 
 @needs_numba
 def test_a_singular_active_set_ends_the_solve():
-    """From w = (1/2, 0, 1/2) the solve that adds column 1 to {0, 2} fails (the Gram is
-    singular, its last pivot 0). The step
-    after it must not read the scratch it left: with that scratch positive, a step to it
-    moves nothing out of the set and the same solve fails again, for ever."""
+    """From w = (1/2, 0, 1/2) the solve adds column 1 to {2, 0} (the Gram is singular).
+    The lean solve extends the factor in that order, so the last pivot rounds to
+    3e-16, not 0: the column joins, and the step back takes it out again. Either way
+    the solve must end, at (1/2, 0, 1/2) with column 1 not passive. The exact refusal
+    is test_lean_nnls.test_a_column_in_the_sets_span_is_refused_and_the_solve_stops."""
     root = str(Path(__file__).resolve().parents[3])
     run = subprocess.run([sys.executable, "-c", _SINGULAR.format(root=root)],
                          capture_output=True, text=True, timeout=120)
