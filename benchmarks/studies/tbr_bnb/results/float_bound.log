@@ -1,0 +1,115 @@
+# The slope-free certificate in floating point beside the exact bound() at every call (#965).
+# Spike of fbound.py on main c01d5a2e: certify_slope_free on brute.geo_panel(0, n=90, p) groups,
+# bound() wrapped to also compute the float upper and lower bounds. Three processes, 4-core host.
+# Columns: size m, exact bound(), float upper, float lower, exact seconds, float seconds (rows built once).
+
+## p=100, group (4, 35, 58, 60), exact: total 181.2 s, certified True, 41 calls
+m=  4  exact=     -42037723.9  up=-42037723.9  lo=-42037724.1  t_exact=0.301  t_float=0.0403
+m=  5  exact=     -23853341.3  up=-23853341.3  lo=-23853341.5  t_exact=0.340  t_float=0.0401
+m=  6  exact=     -9125076.61  up=-9125076.59  lo=-9125076.87  t_exact=0.538  t_float=0.0431
+m=  7  exact=     -5099295.12  up=-5099295.1  lo=-5099295.41  t_exact=0.379  t_float=0.0447
+m=  8  exact=     -5360382.59  up=-5360382.57  lo=-5360382.92  t_exact=0.372  t_float=0.0416
+m=  9  exact=     -3384577.63  up=-3384577.6  lo=-3384578  t_exact=0.329  t_float=0.0403
+m= 10  exact=     -10142495.3  up=-10142495.3  lo=-10142495.7  t_exact=0.317  t_float=0.0399
+m= 11  exact=     -6364349.98  up=-6364349.95  lo=-6364350.43  t_exact=0.324  t_float=0.0426
+m= 12  exact=     -3681076.19  up=-3681076.16  lo=-3681076.67  t_exact=0.314  t_float=0.0429
+m= 13  exact=     -6852470.21  up=-6852470.17  lo=-6852470.72  t_exact=0.338  t_float=0.0411
+m= 14  exact=     -1226894.16  up=-1226894.12  lo=-1226894.71  t_exact=0.311  t_float=0.0408
+m= 15  exact=     -578307.234  up=-578307.195  lo=-578307.822  t_exact=0.313  t_float=0.0449
+m= 16  exact=      -2384044.1  up=-2384044.06  lo=-2384044.73  t_exact=0.417  t_float=0.0402
+m= 17  exact=      -162667201  up=-162667201  lo=-162667206  t_exact=0.237  t_float=0.0444
+m= 18  exact=     -76062865.4  up=-76062865  lo=-76062870.9  t_exact=0.217  t_float=0.0436
+m= 19  exact=     -11598027.4  up=-11598027  lo=-12115214.5  t_exact=0.219  t_float=0.0403
+m= 20  exact=     -855643.018  up=-855642.676  lo=-1187348.31  t_exact=0.214  t_float=0.0434
+m= 21  exact=      43175462.3  up=43175462.4  lo=43175461.8  t_exact=0.459  t_float=0.0438
+m= 21  exact=     -20640731.5  up=-20640731.1  lo=-22446318.1  t_exact=0.266  t_float=0.0448
+m= 22  exact=        -3280217  up=-3280216.56  lo=-4473755.82  t_exact=0.248  t_float=0.0440
+m= 23  exact=      31747727.2  up=31747727.4  lo=31747726.6  t_exact=0.270  t_float=0.0426
+m= 23  exact=     -2095700.26  up=-2095699.71  lo=-3809592.3  t_exact=0.247  t_float=0.0432
+m= 24  exact=      -25851.814  up=-25851.1197  lo=-33418.2324  t_exact=0.227  t_float=0.0477
+m= 25  exact=      14968215.5  up=14968215.6  lo=14968214.8  t_exact=0.335  t_float=0.0465
+m= 25  exact=     -119485.657  up=-119484.946  lo=-124699.294  t_exact=0.268  t_float=0.0447
+m= 26  exact=     -6159151.86  up=-6159151.13  lo=-7250317.59  t_exact=0.211  t_float=0.0428
+m= 27  exact=       -23575676  up=-23575675.2  lo=-24158951.4  t_exact=0.257  t_float=0.0568
+m= 28  exact=      -160725474  up=-160725473  lo=-160784175  t_exact=0.266  t_float=0.0522
+m= 29  exact=      -343098439  up=-343098438  lo=-343098452  t_exact=0.257  t_float=0.0440
+m= 30  exact=      -515958929  up=-515958928  lo=-518022308  t_exact=0.240  t_float=0.0446
+m= 31  exact=      -851313897  up=-851313896  lo=-851313912  t_exact=0.274  t_float=0.0489
+m= 32  exact=     -552165.436  up=-552165.305  lo=-552166.544  t_exact=0.565  t_float=0.0483
+m= 33  exact=      -283532743  up=-283532742  lo=-286945878  t_exact=0.382  t_float=0.0447
+m= 34  exact=      -502801619  up=-502801618  lo=-502801635  t_exact=0.428  t_float=0.0439
+m= 35  exact=      -712373005  up=-712373004  lo=-712373022  t_exact=0.400  t_float=0.0480
+m= 36  exact=      -919540489  up=-919540487  lo=-919540506  t_exact=0.422  t_float=0.0477
+m= 37  exact= -1.12555711e+09  up=-1.12555711e+09  lo=-1.12555713e+09  t_exact=0.435  t_float=0.0457
+m= 38  exact= -1.33083629e+09  up=-1.33083629e+09  lo=-1.33083631e+09  t_exact=0.402  t_float=0.0441
+m= 39  exact= -1.53556815e+09  up=-1.53556815e+09  lo=-1.53556817e+09  t_exact=0.431  t_float=0.0626
+m= 40  exact= -1.73985947e+09  up=-1.73985947e+09  lo=-1.73985949e+09  t_exact=0.577  t_float=0.0446
+m= 41  exact= -1.94377871e+09  up=-1.94377871e+09  lo=-1.94377873e+09  t_exact=0.374  t_float=0.0497
+# exact 13.7 s, float 1.84 s; closures exact 38, float 38; in the band 0
+
+## p=100, group (4, 27, 33, 58), ceiling 1324.8473623832656 (1% gap): total 170.1 s, certified True, 45 calls
+m=  4  exact=     -12870252.3  up=-12870252.3  lo=-12870252.4  t_exact=0.298  t_float=0.0414
+m=  5  exact=     -12808882.9  up=-12808882.9  lo=-12808883.1  t_exact=0.397  t_float=0.0411
+m=  6  exact=     -30562195.8  up=-30562195.8  lo=-30562196  t_exact=0.395  t_float=0.0403
+m=  7  exact=     -12982259.9  up=-12982259.9  lo=-12982260.1  t_exact=0.434  t_float=0.0613
+m=  8  exact=      -6875193.4  up=-6875193.38  lo=-6875193.65  t_exact=0.394  t_float=0.0407
+m=  9  exact=     -3399459.72  up=-3399459.7  lo=-3399460  t_exact=0.386  t_float=0.0446
+m= 10  exact=     -3305943.61  up=-3305943.59  lo=-3305943.92  t_exact=0.359  t_float=0.0426
+m= 11  exact=     -2133469.35  up=-2133469.33  lo=-2133469.69  t_exact=0.377  t_float=0.0421
+m= 12  exact=     -5396558.22  up=-5396558.19  lo=-5396558.58  t_exact=0.342  t_float=0.0411
+m= 13  exact=     -5339252.38  up=-5339252.35  lo=-5339252.77  t_exact=0.351  t_float=0.0417
+m= 14  exact=     -4817192.49  up=-4817192.46  lo=-4817192.91  t_exact=0.376  t_float=0.0397
+m= 15  exact=     -372426.555  up=-372426.525  lo=-372427.002  t_exact=0.527  t_float=0.0430
+m= 16  exact=     -3235580.63  up=-3235580.59  lo=-3235581.1  t_exact=0.357  t_float=0.0416
+m= 17  exact=     -454466.237  up=-454466.2  lo=-454466.738  t_exact=0.373  t_float=0.0530
+m= 18  exact=     -39409.5522  up=-39409.5116  lo=-39410.0807  t_exact=0.384  t_float=0.0417
+m= 19  exact=      -119668381  up=-119668380  lo=-119668388  t_exact=0.220  t_float=0.0438
+m= 20  exact=     -50769276.7  up=-50769276.2  lo=-50769285.2  t_exact=0.223  t_float=0.0420
+m= 21  exact=     -18956834.1  up=-18956833.7  lo=-20614959.8  t_exact=0.253  t_float=0.0431
+m= 22  exact=      10884082.1  up=10884082.2  lo=10884081.5  t_exact=0.484  t_float=0.0433
+m= 22  exact=     -39965740.3  up=-39965739.8  lo=-42883204  t_exact=0.258  t_float=0.0620
+m= 23  exact=     -40942313.3  up=-40942312.7  lo=-40942323.9  t_exact=0.244  t_float=0.0475
+m= 24  exact=     -9956890.19  up=-9956889.51  lo=-10242497.4  t_exact=0.218  t_float=0.0416
+m= 25  exact=     -2748993.35  up=-2748992.78  lo=-3712042.37  t_exact=0.265  t_float=0.0429
+m= 26  exact=     -330822.148  up=-330822.048  lo=-330822.752  t_exact=0.320  t_float=0.0438
+m= 27  exact=     -935966.599  up=-935966.04  lo=-1036676.7  t_exact=0.236  t_float=0.0482
+m= 28  exact=     -3056323.27  up=-3056322.72  lo=-4138126.5  t_exact=0.280  t_float=0.0441
+m= 29  exact=      -2934141.2  up=-2934141.07  lo=-2934141.9  t_exact=0.386  t_float=0.0442
+m= 30  exact=     -19897969.8  up=-19897969  lo=-21879718.1  t_exact=0.236  t_float=0.0433
+m= 31  exact=     -46670285.1  up=-46670283.7  lo=-46670311.3  t_exact=0.283  t_float=0.0508
+m= 32  exact=      -176264757  up=-176264756  lo=-176350587  t_exact=0.259  t_float=0.0482
+m= 33  exact=      -296827485  up=-296827483  lo=-296827515  t_exact=0.279  t_float=0.0486
+m= 34  exact=      -443035387  up=-443035385  lo=-443667658  t_exact=0.320  t_float=0.0425
+m= 35  exact=      -618418833  up=-618418831  lo=-618418866  t_exact=0.261  t_float=0.0452
+m= 36  exact=      -829417887  up=-829417885  lo=-829417922  t_exact=0.253  t_float=0.0426
+m= 37  exact= -1.07986714e+09  up=-1.07986714e+09  lo=-1.08128802e+09  t_exact=0.265  t_float=0.0426
+m= 38  exact= -1.32743583e+09  up=-1.32743583e+09  lo=-1.32743587e+09  t_exact=0.286  t_float=0.0444
+m= 39  exact=     -9369134.34  up=-9369134.2  lo=-9369135.47  t_exact=0.540  t_float=0.0461
+m= 40  exact=      -215493250  up=-215493249  lo=-237751332  t_exact=0.650  t_float=0.0431
+m= 41  exact=      -492841294  up=-492841293  lo=-492841318  t_exact=0.414  t_float=0.0436
+m= 42  exact=      -736942765  up=-736942763  lo=-736942790  t_exact=0.410  t_float=0.0445
+m= 43  exact=      -952817333  up=-952817332  lo=-952817359  t_exact=0.406  t_float=0.0434
+m= 44  exact= -1.14960374e+09  up=-1.14960374e+09  lo=-1.14960377e+09  t_exact=0.476  t_float=0.0434
+m= 45  exact= -1.33546276e+09  up=-1.33546276e+09  lo=-1.33546279e+09  t_exact=0.416  t_float=0.0428
+m= 46  exact=   -1.515449e+09  up=-1.515449e+09  lo=-1.51544903e+09  t_exact=0.400  t_float=0.0437
+m= 47  exact= -1.69222954e+09  up=-1.69222954e+09  lo=-1.69222957e+09  t_exact=0.396  t_float=0.0419
+# exact 15.7 s, float 2.00 s; closures exact 44, float 44; in the band 0
+
+## p=60, group (0, 1, 2, 3), exact: total 8.3 s, certified True, 16 calls
+m=  5  exact=      -358892194  up=-358892194  lo=-358892194  t_exact=0.083  t_float=0.0157
+m=  6  exact=      -543871922  up=-543871922  lo=-543871922  t_exact=0.107  t_float=0.0153
+m=  7  exact=      -225450603  up=-225450603  lo=-225450604  t_exact=0.111  t_float=0.0146
+m=  8  exact=     -68904504.4  up=-68904504.3  lo=-68904504.7  t_exact=0.120  t_float=0.0148
+m=  9  exact=     -55334566.9  up=-55334566.9  lo=-55334567.3  t_exact=0.117  t_float=0.0148
+m= 10  exact=      -7010784.8  up=-7010784.74  lo=-7010785.19  t_exact=0.119  t_float=0.0234
+m= 11  exact=     -1365757.17  up=-1365757.11  lo=-1365757.61  t_exact=0.114  t_float=0.0149
+m= 12  exact=     -790981.506  up=-790981.424  lo=-790981.985  t_exact=0.125  t_float=0.0158
+m= 13  exact=     -6469574.81  up=-6469574.72  lo=-6469575.33  t_exact=0.134  t_float=0.0247
+m= 14  exact=     -5552353.31  up=-5552353.21  lo=-5552353.86  t_exact=0.127  t_float=0.0152
+m= 15  exact=     -17642330.6  up=-17642330.5  lo=-17642331.2  t_exact=0.125  t_float=0.0150
+m= 16  exact=     -7859557.73  up=-7859557.61  lo=-7859558.35  t_exact=0.126  t_float=0.0149
+m= 17  exact=     -21602339.1  up=-21602339  lo=-21602339.8  t_exact=0.128  t_float=0.0148
+m= 18  exact=     -81821369.2  up=-81821369.1  lo=-81821369.9  t_exact=0.129  t_float=0.0149
+m= 19  exact=     -34979762.8  up=-34979762.7  lo=-34979763.6  t_exact=0.131  t_float=0.0158
+m= 20  exact=     -4961588.05  up=-4961587.89  lo=-4961588.82  t_exact=0.131  t_float=0.0147
+# exact 1.9 s, float 0.26 s; closures exact 16, float 16; in the band 0
