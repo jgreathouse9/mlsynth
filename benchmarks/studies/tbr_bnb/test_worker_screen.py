@@ -99,6 +99,25 @@ def test_the_search_with_the_worker_screen_is_the_search_without_it(monkeypatch,
     assert with_screen.screened_out > 0
 
 
+def test_the_search_hands_the_floors_the_start_class(monkeypatch):
+    """The search passes the start design's class to the floors, so the workers drop
+    rows: a search that passed no class would be the same search, only slower."""
+    M = geo_panel(5)
+    seen = []
+    real = treatment._screened_floor_rows
+
+    def spy(M, groups, lam, pool, n_jobs, cls):
+        rows, dropped = real(M, groups, lam, pool, n_jobs, cls)
+        seen.append((cls, dropped))
+        return rows, dropped
+
+    monkeypatch.setattr(treatment, "_screened_floor_rows", spy)
+    treatment.certify_treatment(M, 3, n_test=N_TEST, restarts=5, pass_restarts=3, gap=Q(0), n_jobs=1)
+    assert len(seen) == 1
+    (cls, dropped), = seen
+    assert cls == _class(M, 3) and dropped > 0
+
+
 # ---------------------------------------------------------------- edge
 
 
@@ -137,6 +156,18 @@ def test_a_group_the_kernel_leaves_is_kept_for_the_exact_path(monkeypatch):
     kept = {r[2] for r in got}
     assert all(groups[i] in kept for i in range(0, len(groups), 3))
     assert len(got) + dropped == len(groups)
+
+
+def test_a_panel_without_a_gram_floor_is_screened_on_the_exact_path():
+    """With no Gram floor (lam None) the rows are rss_floor's, screened one at a time,
+    whether or not the kernel is installed."""
+    M = geo_panel(5)
+    cls = _class(M, 2)
+    groups = list(combinations(range(M.shape[1]), 2))
+    rows = treatment._floor_chunk(M, None, groups)
+    keep = [r for r in rows if not (isinstance(r[1], tuple) and compete_bracket(r[0], r[1][0], r[1][1], *cls) is False)]
+    got, dropped = treatment._floor_chunk_screened(M, None, groups, cls)
+    assert [r[2] for r in got] == [r[2] for r in keep] and dropped == len(rows) - len(keep)
 
 
 def test_no_groups():
