@@ -31,8 +31,14 @@ programme and share their weight equally. With this rule the Basque fit returns
 Clarabel's donor weights and ATT, -0.6726, and the Proposition 99 benchmark is
 unchanged (#934).
 
-Each answer is certified by ``kkt_residual`` on ``B`` and refused above
-``KKT_TOL`` with ``MlsynthEstimationError``. This replaced a Clarabel solve in
+Each answer is certified to a relative tolerance (agents_solvers.md, rule 2):
+the library's ``simplex_kkt_error`` on ``B`` and the zero target, the caller's
+data, must be at most ``CERTIFY_TOL``, or ``MlsynthEstimationError`` is raised.
+The active-set solve's own outcome is read and a solve it does not certify
+raises too (rule 1). This is a reliability check, not a proof: no rounding is
+bounded, and nothing here is a verified enclosure (rules 17 to 27 cover that
+stronger claim; "What the books do not support" says why a tolerance-based
+certificate is not one). This replaced a Clarabel solve in
 Gram form with a trace-scaled ridge and a looser retry, whose status was
 accepted unchecked: on 20,000 inner solves sampled from a Basque fit its KKT
 residual had median 3.7e-6 and maximum 0.38, and 199,478 weights sat in
@@ -57,12 +63,7 @@ import numpy as np
 from scipy.optimize import linprog
 
 from ...exceptions import MlsynthDataError, MlsynthEstimationError
-from ..solvers.active_set import solve_simplex_qp
-from ..weights.solve import KKT_TOL, kkt_residual
-from ..weights.spec import WeightConstraint, WeightObjective
-
-_SIMPLEX = WeightConstraint()
-_PLAIN = WeightObjective()
+from ..solvers.active_set import CERTIFY_TOL, simplex_kkt_error, solve_simplex_qp
 
 # A donor is a candidate for the face when its reduced gradient is within this
 # fraction of the design's largest column energy of the multiplier. The face of
@@ -97,6 +98,12 @@ def _face(B: np.ndarray, w: np.ndarray) -> tuple:
     Every minimiser is ``w`` plus a direction ``d`` supported on ``S`` with
     ``B d = 0`` and ``1' d = 0``; ``Z`` spans them, empty when ``w`` is the only
     minimiser. Both tests are relative to the design's own scale.
+
+    Both are floating-point decisions, not proofs: whether a face is a point is a
+    question of exact rank, which rule 18 leaves to exact arithmetic. A wrong
+    decision changes only which minimiser is returned, never whether the answer
+    passes its certificate: a face missed returns the active-set minimiser, and
+    a point taken for a face keeps it (the programme cannot move off ``B w``).
     """
     scale = float(np.max(np.sum(B * B, axis=0)))
     if scale == 0.0:
@@ -128,6 +135,11 @@ def _pairwise_member(B: np.ndarray, w: np.ndarray) -> np.ndarray:
     function of the panel when the tie is between identical donors. A tie between
     distinct donors at exactly the same pairwise distance would leave the choice
     to HiGHS's pivot order; with continuous predictors it has probability zero.
+
+    HiGHS's answer is a proposal (rule 26): its status is read, and the member it
+    yields is accepted only through the certificate ``solve_w`` computes on the
+    original data. Its optimality for the tie-break is not certified; a
+    sub-optimal member is still a certified minimiser of the fit.
     """
     S, Z = _face(B, w)
     if Z.shape[1] == 0:
@@ -178,7 +190,7 @@ def solve_w(
     warm_start: Optional[np.ndarray] = None,
     warm: Optional[WarmStart] = None,
 ) -> np.ndarray:
-    """Return the certified donor-weight vector ``w`` on the simplex.
+    """Return the donor-weight vector ``w`` on the simplex, certified to ``CERTIFY_TOL``.
 
     A unique minimiser is returned as the active-set solve finds it; on a face
     of minimisers, the member closest to the treated unit in Abadie and
@@ -206,8 +218,10 @@ def solve_w(
     MlsynthDataError
         If a predictor is not finite.
     MlsynthEstimationError
-        If ``v`` has a negative or non-finite entry, the tie-break on a face
-        fails, or the answer fails its KKT certificate.
+        If ``v`` has a negative or non-finite entry, the active-set solve is not
+        certified, the tie-break on a face fails, or the answer fails its KKT
+        certificate (``simplex_kkt_error`` at most ``CERTIFY_TOL``; a reliability
+        check, not a proof).
     """
     v = np.asarray(v, dtype=float).ravel()
     X1 = np.asarray(X1, dtype=float).ravel()
@@ -220,12 +234,19 @@ def solve_w(
     B = np.sqrt(v)[:, None] * (X0 - X1[:, None])
     target = np.zeros(B.shape[0])
     start = warm_start if warm_start is not None else (warm.w if warm is not None else None)
-    w = _share_duplicates(B, _pairwise_member(B, solve_simplex_qp(B, target, warm_start=start)))
-    kkt = kkt_residual(B, target, w, 0.0, _SIMPLEX, _PLAIN)
-    if not kkt <= KKT_TOL:
+    w0, info = solve_simplex_qp(B, target, warm_start=start, return_info=True)
+    if not info["converged"]:
+        raise MlsynthEstimationError(
+            f"SparseSC: the inner simplex QP's active-set solve is not certified "
+            f"(KKT error {info['kkt_error']:.2e} against {CERTIFY_TOL:.0e}, after "
+            f"{info['pivots']} pivots)."
+        )
+    w = _share_duplicates(B, _pairwise_member(B, w0))
+    kkt = simplex_kkt_error(B, target, w)
+    if not kkt <= CERTIFY_TOL:
         raise MlsynthEstimationError(
             f"SparseSC: the inner simplex QP's answer fails its KKT certificate "
-            f"(residual {kkt:.2e} against {KKT_TOL:.0e})."
+            f"(error {kkt:.2e} against {CERTIFY_TOL:.0e})."
         )
     if warm is not None:
         warm.w = w

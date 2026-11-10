@@ -10230,9 +10230,15 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "inner-answer-not-certified"
-  find = "    if not kkt <= KKT_TOL:"
+  find = "    if not kkt <= CERTIFY_TOL:"
   replace = "    if False:"
   models = "#934: the solver's answer accepted unchecked, as Clarabel's status was, whose KKT residual reached 0.38 on a Basque sweep"
+
+  [[target.mutant]]
+  id = "inner-solver-outcome-ignored"
+  find = "    if not info[\"converged\"]:"
+  replace = "    if False:"
+  models = "rule 1: the active-set solve's outcome requested and not read, so an uncertified stage-1 answer reaches the tie-break"
 
   [[target.mutant]]
   id = "inner-design-uncentred"
@@ -10254,8 +10260,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "inner-face-left-to-the-active-set-solve"
-  find = "    w = _share_duplicates(B, _pairwise_member(B, solve_simplex_qp(B, target, warm_start=start)))"
-  replace = "    w = _share_duplicates(B, solve_simplex_qp(B, target, warm_start=start))"
+  find = "    w = _share_duplicates(B, _pairwise_member(B, w0))"
+  replace = "    w = _share_duplicates(B, w0)"
   models = "#934: a face of minimisers resolved by whatever member the active-set pivots reach, which the outer V-search then exploits; least norm, the documented alternative, moved the Basque fit to one predictor and the ATT from -0.673 to -0.526"
 
   [[target.mutant]]

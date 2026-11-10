@@ -10,8 +10,11 @@ weights by up to 0.78 (agents_solvers.md, rules 2, 4, 5 and 6).
 The solve now runs on the centred differences ``V^(1/2) (X0 - X1 1')`` against a zero
 target through the active-set ``solve_simplex_qp``: on the simplex the problem is the
 same, the level drops out, no Gram matrix is formed, and inactive weights are exact
-zeros. Each answer is certified by ``kkt_residual`` on that design and refused above
-``KKT_TOL``. On the same 20,000 solves the residual has median 2.4e-17 and maximum
+zeros. Each answer is certified to a relative tolerance by the library's
+``simplex_kkt_error`` on that design, at most ``CERTIFY_TOL`` or refused, and the
+active-set solve's own outcome is read (agents_solvers.md, rules 1 and 2; a
+reliability check, not a proof under rules 17 to 27). On the same 20,000 solves
+the KKT residual has median 2.4e-17 and maximum
 2.8e-10, and a solve warm-started from the previous answer takes 106 microseconds
 against Clarabel's 410.
 
@@ -24,6 +27,8 @@ with Clarabel.
 """
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 from hypothesis import example, given, settings
@@ -31,11 +36,10 @@ from hypothesis import strategies as st
 
 import mlsynth.utils.sparse_sc_helpers.inner as inner
 from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError
-from mlsynth.utils.solvers.active_set import solve_simplex_qp, solve_simplex_qp_least_norm
+from mlsynth.utils.solvers.active_set import (CERTIFY_TOL, SimplexQPUncertifiedWarning, simplex_kkt_error,
+                                              solve_simplex_qp, solve_simplex_qp_least_norm)
 from mlsynth.utils.sparse_sc_helpers.inner import WarmStart, solve_w
 from mlsynth.utils.sparse_sc_helpers.objective import outer_loss_and_grad
-from mlsynth.utils.weights.solve import KKT_TOL, kkt_residual
-from mlsynth.utils.weights.spec import WeightConstraint, WeightObjective
 
 
 def _problem(seed, P=8, N=12, inside=True):
@@ -49,7 +53,7 @@ def _problem(seed, P=8, N=12, inside=True):
 
 def _kkt(v, X1, X0, w):
     B = np.sqrt(v)[:, None] * (X0 - X1[:, None])
-    return kkt_residual(B, np.zeros(B.shape[0]), w, 0.0, WeightConstraint(), WeightObjective())
+    return simplex_kkt_error(B, np.zeros(B.shape[0]), w)
 
 
 # --------------------------------------------------------------------------- smoke
@@ -57,7 +61,7 @@ def test_a_solve_returns_a_certified_simplex_point():
     v, X1, X0 = _problem(0)
     w = solve_w(v, X1, X0)
     assert w.shape == (X0.shape[1],) and w.min() >= 0.0 and w.sum() == pytest.approx(1.0)
-    assert _kkt(v, X1, X0, w) <= KKT_TOL
+    assert _kkt(v, X1, X0, w) <= CERTIFY_TOL
 
 
 # --------------------------------------------------------------------------- unit
@@ -192,7 +196,7 @@ def test_zero_weight_on_every_predictor_but_an_exact_one():
     v = np.zeros_like(v); v[0] = 1.0
     X0 = X0.copy(); X0[0, :2] = X1[0]
     w = solve_w(v, X1, X0)
-    assert _kkt(v, X1, X0, w) <= KKT_TOL
+    assert _kkt(v, X1, X0, w) <= CERTIFY_TOL
 
 
 def test_one_active_donor_pins_w_and_leaves_only_the_penalty_in_the_gradient():
@@ -242,7 +246,7 @@ def test_on_a_face_the_member_minimises_the_pairwise_discrepancy(seed):
     w = solve_w(v, X1, X0)
     ref, c = _reference_pairwise(v, X1, X0, w)
     assert c @ w <= c @ ref * (1.0 + 1e-7) + 1e-12 * c.max()
-    assert _kkt(v, X1, X0, w) <= KKT_TOL
+    assert _kkt(v, X1, X0, w) <= CERTIFY_TOL
 
 
 def _exact_fit_problem(seed, level=0.0):
@@ -275,7 +279,7 @@ def test_pinned_faces_reach_the_pairwise_optimum(seed, level):
     w = solve_w(v, X1, X0)
     ref, c = _reference_pairwise(v, X1, X0, w)
     assert c @ w <= c @ ref * (1.0 + 1e-7) + 1e-12 * c.max()
-    assert _kkt(v, X1, X0, w) <= KKT_TOL
+    assert _kkt(v, X1, X0, w) <= CERTIFY_TOL
 
 
 def test_identical_donors_share_their_weight_equally():
@@ -319,9 +323,10 @@ def test_a_unique_optimum_is_left_alone_by_the_tie_break(monkeypatch):
 def test_a_certificate_failure_is_raised(monkeypatch):
     v, X1, X0 = _problem(12, inside=False)
     bad = np.zeros(X0.shape[1]); bad[0] = 1.0
-    if _kkt(v, X1, X0, bad) <= KKT_TOL:                       # pragma: no cover - seed chosen so it is not optimal
+    if _kkt(v, X1, X0, bad) <= CERTIFY_TOL:                       # pragma: no cover - seed chosen so it is not optimal
         pytest.skip("vertex happens to be optimal")
-    monkeypatch.setattr(inner, "solve_simplex_qp", lambda *a, **k: bad.copy())
+    monkeypatch.setattr(inner, "solve_simplex_qp",
+                        lambda *a, **k: (bad.copy(), {"converged": True, "kkt_error": 0.0, "pivots": 0}))
     with pytest.raises(MlsynthEstimationError, match="KKT"):
         solve_w(v, X1, X0)
 
@@ -331,6 +336,30 @@ def test_a_tie_break_lp_failure_is_raised(monkeypatch):
     monkeypatch.setattr(inner, "linprog", lambda *a, **k: SimpleNamespace(status=4, message="numerical difficulties"))
     v, X1, X0 = _problem(20, P=3, N=10)
     with pytest.raises(MlsynthEstimationError, match="tie-break"):
+        solve_w(v, X1, X0)
+
+
+def test_an_uncertified_active_set_solve_is_raised(monkeypatch):
+    """The solver's own outcome is read (rule 1), not left to its warning."""
+    v, X1, X0 = _problem(23)
+    real = inner.solve_simplex_qp
+
+    def uncertified(*a, **k):
+        w, info = real(*a, **k)
+        return w, {**info, "converged": False, "kkt_error": 3e-6}
+    monkeypatch.setattr(inner, "solve_simplex_qp", uncertified)
+    with pytest.raises(MlsynthEstimationError, match="active-set solve is not certified"):
+        solve_w(v, X1, X0)
+
+
+def test_a_fit_reads_every_solver_outcome():
+    """No SimplexQPUncertifiedWarning escapes: the warning is for callers that do not read info."""
+    v, X1, X0 = _problem(24, P=6, N=9)
+    rng = np.random.default_rng(24)
+    Z0 = rng.normal(size=(6, X0.shape[1])); Z1 = rng.normal(size=6)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", SimplexQPUncertifiedWarning)
+        outer_loss_and_grad(v[1:], X1, X0, Z1, Z0, 0.01)
         solve_w(v, X1, X0)
 
 
@@ -360,12 +389,12 @@ def test_property_certified_exact_zeros_and_level_free(seed, P, N, k, inside):
     w = solve_w(v, X1, X0)
     assert w.min() >= 0.0 and w.sum() == pytest.approx(1.0)
     assert not np.any((w > 0.0) & (w < 1e-12))
-    assert _kkt(v, X1, X0, w) <= KKT_TOL
+    assert _kkt(v, X1, X0, w) <= CERTIFY_TOL
     c = 10.0 ** k
     ws = solve_w(v, X1 + c, X0 + c)
     # Storing X + c rounds each entry by eps c / 2 (rule 11): the shifted problem is the
     # original one perturbed by that much, and its answer is certified on its own data.
-    assert _kkt(v, X1 + c, X0 + c, ws) <= KKT_TOL
+    assert _kkt(v, X1 + c, X0 + c, ws) <= CERTIFY_TOL
     B = np.sqrt(v)[:, None] * (X0 - X1[:, None])
     loss = lambda z: float(np.sum((B @ z) ** 2))
     assert loss(ws) <= loss(w) + 1e-9 * max(loss(w), 1.0) + 64 * (np.finfo(float).eps * c) ** 2 * P * float(v.sum())
