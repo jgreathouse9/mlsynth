@@ -191,8 +191,11 @@ with an active-set method. The level of each predictor drops out, so a
 predictor recorded far from zero, such as a year or a population in levels,
 does not move :math:`\mathbf{w}`. The cross-product matrix is never formed, and
 donors outside the support get weights of exactly zero. Each answer is
-checked against the optimality (KKT) conditions on that design; one that fails
-raises ``MlsynthEstimationError`` instead of entering the fit. Consecutive solves
+checked against the optimality (KKT) conditions on that design, by the library's
+shared certificate for this programme (``simplex_kkt_error`` at most
+``CERTIFY_TOL``); one that fails raises ``MlsynthEstimationError`` instead of
+entering the fit. The check is to a relative tolerance: it makes the answer
+reliable, and it is not a proof, which would need every rounding bounded. Consecutive solves
 along the outer search start from the previous weights.
 
 When the selected predictors let the treated unit be reproduced exactly, or
