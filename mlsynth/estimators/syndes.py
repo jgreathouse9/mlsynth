@@ -209,9 +209,10 @@ def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8,
     The MIP ranks designs by fit alone, so each pooled design is annotated with
     the dimensions the objective ignored: its full power curve, the headline MDE%
     at the realised post horizon, and its cost (when ``costs`` is supplied).
-    Returned as a list of dicts ranked by MSE.
+    Returned as a list of dicts in the selection rule's order: by the in-sample
+    objective by default, by ``oos_rmse`` under holdout, by ``ic`` under IC.
 
-    Crucially, every entry is *actionable*, not just rankable: it carries the
+    Every entry is *actionable*, not just rankable: it carries the
     full :class:`SYNDESDesign` under ``"design"`` (treated/control weights and
     all), the names of the donor units that form its synthetic control under
     ``"control_group"``, and its own per-horizon power curve under
@@ -222,8 +223,10 @@ def _syndes_pool_menu(pool_designs, inputs, costs, alpha, power_target=0.8,
     * ``"markets"``       -- labels of the treated units (the design's arms).
     * ``"control_group"`` -- labels of the donor units carrying nonzero control
       weight (the synthetic-control pool backing the treated arms).
-    * ``"objective"``     -- the MIP objective (fit) the design was ranked by.
-    * ``"pre_fit_rmse"``  -- root-mean-square pre-period contrast.
+    * ``"objective"``     -- the design's objective (fit) on the panel it was
+      solved on: the whole pre-period, or under holdout the training slice with
+      that slice's default ``lam``. It is the ranking key only in-sample.
+    * ``"pre_fit_rmse"``  -- root-mean-square contrast on the same panel.
     * ``"mde_pct"``       -- minimum detectable effect at the realised post
       horizon, % of treated baseline. This is the design's ``power_curve``
       value at that horizon (the Newey-West HAC MDE), so the headline number and
