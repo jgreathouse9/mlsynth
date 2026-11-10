@@ -14817,6 +14817,12 @@ timeout = 600.0
   models = "the converged point left as the solve in the order its columns joined, so a group's floor differs in its last bits with the groups before it and a chunked search can screen differently from a single one"
 
   [[target.mutant]]
+  id = "a-negative-re-solve-is-kept"
+  find = "    for q in range(k):\n        if not (x[q] > 0.0):\n            return\n"
+  replace = "    for q in range(k):\n        if False:\n            return\n"
+  models = "the canonical re-solve written back with a coordinate at or below zero, an infeasible point the certificate would then be computed at"
+
+  [[target.mutant]]
   id = "the-support-is-not-carried"
   find = "            held[rest[i]] = passive[i]"
   replace = "            held[rest[i]] = False"

@@ -324,6 +324,23 @@ def test_the_iteration_cap_is_kept():
     assert np.count_nonzero(w) <= 2 and np.all(w >= 0)
 
 
+@needs_numba
+def test_a_canonical_solve_that_is_not_positive_leaves_the_point():
+    """The re-solve on a support whose unconstrained point has a coordinate at or below
+    zero (reachable only by rounding at the edge of the support) keeps the point the
+    active set left, which is feasible."""
+    G = np.eye(2)
+    c = np.array([1.0, -1.0])
+    passive = np.array([True, True])
+    w = np.array([0.5, 0.25])
+    idx = np.empty(2, np.int64); L = np.empty((2, 2)); z = np.empty(2); x = np.empty(2)
+    fastfloor._canonical(G, np.arange(2), c, passive, w, idx, L, z, x)
+    assert w.tolist() == [0.5, 0.25]
+    passive[1] = False
+    fastfloor._canonical(G, np.arange(2), c, passive, w, idx, L, z, x)
+    assert w.tolist() == [1.0, 0.25]
+
+
 # ---------------------------------------------------------------- property
 
 
