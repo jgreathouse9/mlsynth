@@ -1328,19 +1328,19 @@ A property now checks the face against every matrix within `E` of the slack, wit
 
 ### The rows by index arithmetic
 
- built its table of rows as dicts of exact coefficients at every construction,
-and  turned the table into sparse matrices entry by entry. On the 100-geo
-group (4, 35, 58, 60) the search built  102 times (17.3 s) and called
- 101 times (4.5 s). The solvers and the float certificate read only the
-counts, the right-hand sides, the rows that carry  and the sparse matrices, so
- now computes those directly from the row families' index patterns: a build
+`Rows` built its table of rows as dicts of exact coefficients at every construction,
+and `Rows.matrices` turned the table into sparse matrices entry by entry. On the 100-geo
+group (4, 35, 58, 60) the search built `Rows` 102 times (17.3 s) and called
+`matrices` 101 times (4.5 s). The solvers and the float certificate read only the
+counts, the right-hand sides, the rows that carry `c` and the sparse matrices, so
+`Rows` now computes those directly from the row families' index patterns: a build
 takes about 0.1 ms and the matrices under 2 ms. The dict table, which the exact
-certificate and  read, is built the first time something asks for it.
- pins the two paths equal: every count, right-hand side and row
-index, and the matrices bit for bit at any scale of the  rows, as a hypothesis
+certificate (`_slack`) and `holds` read, is built the first time something asks for it.
+`test_fast_rows.py` pins the two paths equal: every count, right-hand side and row
+index, and the matrices bit for bit at any scale of the `c` rows, as a hypothesis
 property over sizes, levels, cuts, triangles, fixings and the box rows.
 
-Against main, both at once ():
+Against main, both at once (`results/fast_rows.log`):
 
 | group | main | fast rows | |
 | --- | --- | --- | --- |
