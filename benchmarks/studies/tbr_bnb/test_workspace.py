@@ -93,6 +93,11 @@ def test_box_rows_are_two_per_free_geo_at_the_end_of_the_inequalities():
     free = [j for j in range(6) if j not in (1, 4)]
     assert boxed.ineq[plain.n_in:] == [r for j in free for r in ({(0, j + 1): 1}, {(0, j + 1): -1})]
     assert boxed.bin[plain.n_in:] == [b for _ in free for b in (1, 0)]
+    box = boxed.matrices(1.0)[1][plain.n_in:].toarray()           # the rows the workspace reads
+    want = np.zeros_like(box)
+    for k, j in enumerate(free):
+        want[2 * k, boxed.n * (j + 1)], want[2 * k + 1, boxed.n * (j + 1)] = 1.0, -1.0
+    assert np.array_equal(box, want)
 
 
 def test_box_rows_hold_at_every_design():
