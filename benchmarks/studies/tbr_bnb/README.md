@@ -1971,6 +1971,41 @@ geos 274.7 s against 267.2 s; `geo_panel(0)` with 60 geos at four took 206.3 s
 against 204.6 s. Each pair certifies the same design with the same key, survivors
 and screen.
 
+The same panels on the current search (`results/scaling_recheck.log`): the lean
+NNLS, the worker screen and the pooled start (main at 5c4d4a8e), with every
+change merged since `results/diag_cap.log`, exact, four processes, one run each.
+The earlier column is that log's run with the diagonal bound where it has one, and
+`main`'s where it does not:
+
+| panel | treated geos | groups | earlier | now | the start | survivors | peak memory |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| GeoLift | 4 | 91,390 | 12.9 s | 14.1 s | 1.1 s | 32 | 0.44 GB |
+| GeoLift | 5 | 658,008 | 29.7 s | 27.2 s | 1.4 s | 71 | 0.45 GB |
+| GeoLift | 6 | 3,838,380 | 262.4 s | 218.5 s | 1.3 s | 907 | 0.81 GB |
+| 60 geos | 3 | 34,220 | 39.6 s | 13.8 s | 4.5 s | 10 | 0.39 GB |
+| 80 geos | 3 | 82,160 | 113.2 s | 33.5 s | 12.4 s | 4 | 0.40 GB |
+| 90 geos | 3 | 117,480 | 389.9 s | 61.0 s | 20.8 s | 8 | 0.41 GB |
+| 100 geos | 3 | 161,700 | 1,361.5 s | 135.8 s | 29.0 s | 10 | 0.44 GB |
+| 60 geos | 4 | 487,635 | 201.0 s | 57.0 s | 5.6 s | 15 | 0.43 GB |
+| 80 geos | 4 | 1,581,580 | 1,907.0 s | 340.7 s | 15.1 s | 145 | 0.96 GB |
+| 100 geos | 4 | 3,921,225 | not finished in 7,000 s | 2,091.0 s | 29.9 s | 34 | 2.57 GB |
+
+Each case certifies the design it certified before, with the same key; 100 geos at
+four treated geos, which no earlier run finished, certifies g4, g27, g33 and g58.
+GeoLift at four and five treated geos is where it was: there the start and the
+floors were already small and the run is the certification of 32 and 71 groups. At
+six, peak memory falls from 2.06 GB to 0.81 GB, since the 3.84 million floors no
+longer come back to the parent as rows.
+
+At 100 geos and four treated geos one group takes most of the run. A second run that
+records each survivor (the end of the log) took 2,103.3 s, 1,847.2 s of it the
+certification of g4, g27, g33 and g58, against 88.2 s or less for each of the other
+33. That group is the certified design's own. Every other group closes once its
+bound clears the incumbent's ceiling; the incumbent's group has the incumbent as
+its optimum, so a node of its search closes only when its bound rises above that
+optimum itself, with no margin to spare. Its tree is where the branching rules and
+the node order (item 6) have their work.
+
 ## The floor-guided search
 
 `guided.py` is `certify_treatment` without its certificates. It takes the library's
@@ -2300,7 +2335,11 @@ fixing is certified to the solver's value.
    search; see The gates).
 9. The search over treatment groups (done here, by enumeration of the groups
    with an exact floor and a ceiling for each one; see The treatment groups).
-10. Tightness on other panels and at more geos.
+10. Tightness on other panels and at more geos. Measured at 60 to 100 simulated
+    geos and on GeoLift at four to six treated geos (see More geos than periods):
+    every case certifies, 100 geos at four treated geos in 2,091 s, and in a
+    second run of that case the certified design's own group took 1,847 s of
+    2,103 s.
 11. This study.
 12. The build: `search="exact"` with `certify`.
 13. Shared helpers and `agents/agents_combinatorial.md`.
