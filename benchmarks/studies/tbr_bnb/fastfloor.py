@@ -141,6 +141,30 @@ def _tri_solve(c, idx, k, L, z, x):
 
 
 @njit(cache=_CACHE)
+def _canonical(Gf, rest, c, passive, w, idx, L, z, x):
+    """The point re-solved on its support in ascending column order, the order the
+    support's own factor would have from scratch: the point then depends on the
+    support alone, not on the order its columns joined, so a group's floor is the same
+    whatever group came before it (and however the groups are split among processes).
+    A re-solve that is not positive, or a support that is not positive definite in
+    doubles, leaves the point as it was."""
+    m = c.shape[0]
+    k = 0
+    for j in range(m):
+        if passive[j]:
+            idx[k] = j
+            k += 1
+    if k == 0 or not _factor(Gf, rest, idx, k, L):
+        return
+    _tri_solve(c, idx, k, L, z, x)
+    for q in range(k):
+        if not (x[q] > 0.0):
+            return
+    for q in range(k):
+        w[idx[q]] = x[q]
+
+
+@njit(cache=_CACHE)
 def _nnls_gram(Gf, rest, c, passive, w, idx, L, z, x, maxit):
     """min w'Gw - 2c'w over w >= 0, G = Gf[rest, rest], by Lawson and Hanson's active
     set from ``passive``, which is left holding the support. G is read through
@@ -189,8 +213,10 @@ def _nnls_gram(Gf, rest, c, passive, w, idx, L, z, x, maxit):
                     best = g
                     jbest = j
         if jbest < 0:
+            _canonical(Gf, rest, c, passive, w, idx, L, z, x)
             return
         if not _extend(Gf, rest, idx, k, jbest, L):
+            _canonical(Gf, rest, c, passive, w, idx, L, z, x)
             return                               # the column is in the set's span: stop at w, the last feasible point
         passive[jbest] = True
         k += 1
@@ -225,6 +251,7 @@ def _nnls_gram(Gf, rest, c, passive, w, idx, L, z, x, maxit):
             k = kk
             if not _factor(Gf, rest, idx, k, L):  # pragma: no cover - a subset of a positive definite set is positive definite
                 return
+    _canonical(Gf, rest, c, passive, w, idx, L, z, x)
 
 
 @njit(cache=_CACHE)

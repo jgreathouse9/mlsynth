@@ -329,6 +329,24 @@ def test_the_iteration_cap_is_kept():
 
 @needs_numba
 @SETTINGS
+@given(seed=st.integers(0, 10_000), before=st.lists(st.integers(0, 10 ** 6), min_size=1, max_size=4))
+def test_property_a_floor_does_not_depend_on_the_groups_before_it(seed, before):
+    """A group's floor, bit for bit, is the same computed alone (a cold start) as after
+    any other groups (a warm start from their support): the point is re-solved on its
+    support in ascending order, so chunks of any size give the same floors."""
+    M = np.ascontiguousarray(geo_panel(seed % 50, n=40, p=12))
+    Gf = np.ascontiguousarray(M.T @ M)
+    lam = float(gram_floor(M))
+    every = list(combinations(range(12), 3))
+    target = np.array([every[seed % len(every)]], np.int64)
+    pre = np.array([every[b % len(every)] for b in before], np.int64)
+    alone = fastfloor.floors(M, Gf, target, lam)[0][0]
+    after = fastfloor.floors(M, Gf, np.vstack([pre, target]), lam)[0][-1]
+    assert alone == after or (np.isnan(alone) and np.isnan(after))
+
+
+@needs_numba
+@SETTINGS
 @given(seed=st.integers(0, 10_000), p=st.integers(4, 18), k=st.integers(1, 3),
        scale_e=st.integers(-6, 6), warm=st.integers(0, 2 ** 20))
 @example(seed=0, p=4, k=3, scale_e=0, warm=0)

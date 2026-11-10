@@ -13421,7 +13421,7 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-singular-solve-steps-to-stale-scratch"
-  find = "        if not _extend(Gf, rest, idx, k, jbest, L):\n            return                               # the column is in the set's span: stop at w, the last feasible point\n"
+  find = "        if not _extend(Gf, rest, idx, k, jbest, L):\n            _canonical(Gf, rest, c, passive, w, idx, L, z, x)\n            return                               # the column is in the set's span: stop at w, the last feasible point\n"
   replace = "        _extend(Gf, rest, idx, k, jbest, L)\n"
   models = "a column in the active set's span read as joining it: the solve runs on a factor row that was never completed, and with positive scratch never leaves the set"
 
@@ -14800,7 +14800,7 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "a-refused-column-is-left-passive"
-  find = "        if not _extend(Gf, rest, idx, k, jbest, L):\n            return                               # the column is in the set's span: stop at w, the last feasible point\n        passive[jbest] = True\n"
+  find = "        if not _extend(Gf, rest, idx, k, jbest, L):\n            _canonical(Gf, rest, c, passive, w, idx, L, z, x)\n            return                               # the column is in the set's span: stop at w, the last feasible point\n        passive[jbest] = True\n"
   replace = "        passive[jbest] = True\n        if not _extend(Gf, rest, idx, k, jbest, L):\n            return\n"
   models = "a column in the set's span marked passive before its row is refused, so the next group's warm start carries a column the solve never used"
 
@@ -14809,6 +14809,12 @@ timeout = 600.0
   find = "            s -= L[q, i] * x[q]"
   replace = "            s -= L[i, q] * x[q]"
   models = "the back substitution reading L's upper triangle, which holds no factor"
+
+  [[target.mutant]]
+  id = "the-converged-point-keeps-its-join-order"
+  find = "        if jbest < 0:\n            _canonical(Gf, rest, c, passive, w, idx, L, z, x)\n            return\n"
+  replace = "        if jbest < 0:\n            return\n"
+  models = "the converged point left as the solve in the order its columns joined, so a group's floor differs in its last bits with the groups before it and a chunked search can screen differently from a single one"
 
   [[target.mutant]]
   id = "the-support-is-not-carried"
