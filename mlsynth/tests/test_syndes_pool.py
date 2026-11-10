@@ -98,8 +98,7 @@ class TestEstimatorPool:
         assert res.design.selected_unit_indices.size == 3
 
     def test_pool_menu_returned(self):
-        # in-sample selection ranks the pool by the MIP objective (a pool now
-        # holdout-validates by default, so opt in to in-sample for this check)
+        # in-sample selection, the default, ranks the pool by the MIP objective
         res = SYNDES(self._cfg(top_K=4, selection="in_sample")).fit()
         assert res.pool is not None and len(res.pool) == 4
         # ranked by MSE (the objective), non-decreasing
