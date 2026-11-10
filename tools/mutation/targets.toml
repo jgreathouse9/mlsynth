@@ -14909,6 +14909,54 @@ timeout = 600.0
   models = "the cap side of the same clamp: a weight solved just over its cap cut back to it with the others left as solved"
 
 [[target]]
+name = "tbr-bnb-nan-panel"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_nan_panel.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "certify-takes-the-panel-unchecked"
+  find = "    M = _checked_panel(M)\n    p = M.shape[1]\n    if not 1 <= k <= p - 1:"
+  replace = "    M = np.asarray(M, dtype=float)\n    p = M.shape[1]\n    if not 1 <= k <= p - 1:"
+  models = "certify_treatment reads the panel without the check, so a nan or an inf reaches the library's least squares and comes back as numpy's LinAlgError"
+
+  [[target.mutant]]
+  id = "an-infinite-entry-passes"
+  find = "    bad = ~np.isfinite(M)"
+  replace = "    bad = np.isnan(M)"
+  models = "the check looks for missing values only, so an infinite entry passes it and fails in the least squares"
+
+  [[target.mutant]]
+  id = "the-geo-and-period-are-swapped"
+  find = "        t, j = (int(i) for i in np.argwhere(bad)[0])"
+  replace = "        j, t = (int(i) for i in np.argwhere(bad)[0])"
+  models = "the message names the bad entry's period as its geo and its geo as its period"
+
+  [[target.mutant]]
+  id = "the-last-bad-entry-is-named"
+  find = "np.argwhere(bad)[0])"
+  replace = "np.argwhere(bad)[-1])"
+  models = "the message names the last bad entry in period order, not the first"
+
+  [[target.mutant]]
+  id = "a-flat-panel-passes"
+  find = "    if M.ndim != 2:"
+  replace = "    if M.ndim > 2:"
+  models = "a one-dimensional panel passes the check and fails later on M.shape[1] with an IndexError"
+
+[[target]]
+name = "tbr-bnb-nan-panel-guided"
+module-path = "benchmarks/studies/tbr_bnb/guided.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_nan_panel.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "guided-takes-the-panel-unchecked"
+  find = "    M = treatment._checked_panel(M)"
+  replace = "    M = np.asarray(M, dtype=float)"
+  models = "guided_treatment reads the panel without the check, so a nan or an inf reaches the library's least squares and comes back as numpy's LinAlgError"
+
+[[target]]
 name = "tbr-bnb-parallel-start"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_parallel_start.py -q -p no:cacheprovider -x -W ignore"

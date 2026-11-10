@@ -152,7 +152,7 @@ def guided_treatment(M, k: int, *, n_test: int, restarts: int = 50,
 
 def _guided_treatment(M, k, *, n_test, restarts, start) -> GuidedResult:
     t0 = time.perf_counter()
-    M = np.asarray(M, dtype=float)
+    M = treatment._checked_panel(M)
     p = M.shape[1]
     if not 1 <= k <= p - 1:
         raise MlsynthDataError(f"a treatment group of {k} geos leaves no control among {p} geos; "
