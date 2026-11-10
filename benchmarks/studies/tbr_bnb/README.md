@@ -1212,6 +1212,59 @@ node with fixings (its active triangles matched the root's), and the iterate of 
 failed solve kept (the error came at the first solve, when there was none). Each test
 now has a case the mutant changes, and all fourteen are killed.
 
+### The certificate in floating point
+
+`bound()` sums the certificate's `S` and `k` in rationals, then bounds
+`lambda_max(S)` exactly. On the profiled 100-geo groups that took 13.7 s and 15.7 s of
+181 s and 170 s, about 0.33 s a call, and the rational sum (`_slack`, 638,000
+`Fraction` operations on four easy sizes) was most of it. `fbound.py` decides the
+same certificate in doubles, as a verification method in the sense of Rump (2010):
+a theorem whose assumptions the computer checks, with every rounding bounded
+(`agents/agents_solvers.md`, rules 17 to 27).
+
+- The slack in doubles, `fl(S)` and `fl(k)`, with `|fl(S) - S| <= E` and
+  `|fl(k) - k| <= e_k` entrywise. Each entry of `S` is `A`'s entry less a sum of at
+  most `N` products, so its rounding is at most `gamma_{N+3}` times the sum of the
+  moduli plus `(N + 3) eta` for underflow (Rump (2.3), (2.4), Theorem 2.1), plus
+  `A`'s own rounding. A coefficient that rounds into the subnormal range is not
+  within a relative `u` of its double, and turns the floats off for those rows.
+- The upper bound: `lambda_max(S) <= lambda_max(fl(S)) + ||E||_inf` by Weyl's
+  inequality (Rump Lemma 10.12), `lambda_max(fl(S))` from the Cholesky-residual
+  bound of `certificate.lambda_min_lower_float`. The face's `T'ST` is bounded the
+  same way, `T` integer, and combined with the full-space bound as `bound()`
+  combines them.
+- The lower bound: the Rayleigh quotient at the top eigenvector, its rounding and
+  `|v|'E|v|` subtracted. It is at most the dual function, and so at most `bound()`.
+
+`certificate()` closes a size when the upper bound is at most zero, rules it out
+when the lower bound is above zero, and calls `bound()` only between them, so it
+closes every size `bound()` closes. Every tier of `size_certificate`, the group
+screen and the SCS workspace decide through it. The float screen it replaces
+(`_screen`) was unrounded and decided only whether to try `bound()`; the
+certificate costs about what the screen did and is a proof.
+
+On the same two groups (`results/float_bound.log`, the spike run beside the exact
+bound at every call):
+
+| group | gap | calls | exact `bound()` | float certificate | closures | in the band |
+| --- | --- | --- | --- | --- | --- | --- |
+| (4, 35, 58, 60) | exact | 41 | 13.7 s | 1.8 s | 38 = 38 | 0 |
+| (4, 27, 33, 58) | 1% | 45 | 15.7 s | 2.0 s | 44 = 44 | 0 |
+| (0, 1, 2, 3), 60 geos | exact | 16 | 1.9 s | 0.26 s | 16 = 16 | 0 |
+
+The float bound was within six digits of `bound()` at every call and never below
+the exact lower bound on the dual function. No call fell between the float bounds,
+so the exact tier ran nowhere in these runs; it is there for the cases the error
+bound cannot separate from zero (rule 18). The saving is about 7% of a 100-geo
+group's time; the rest is SCS and the dual tier.
+
+The first mutation run left one of the thirteen `tbr-bnb-fbound` mutants alive: the
+face's error bound without the slack's own error carried through `T`. The face's
+enclosure test compared the face against the exact face of the exact slack, where
+the slack's error is a few units in the last place and the rounding term covers it.
+A property now checks the face against every matrix within `E` of the slack, with
+`E` as wide as the slack, and kills it.
+
 ## Several processes
 
 `certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
@@ -1798,11 +1851,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (992 tests, about 230 s with three workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (1,027 tests, about 230 s with three workers) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 474 mutants of the 36
+but for the lines marked `pragma: no cover`, each with its reason. The 485 mutants of the 37
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
@@ -1909,6 +1962,7 @@ fixing is certified to the solver's value.
 - `face.py`: the face Z = T W T' of a size's relaxation, its reduced rows and its exact bound.
 - `slopefree.py`: the slope-free relaxation, its certificate, the cascade of certificates for one size
   (`size_certificate`) and `certify_slope_free()`.
+- `fbound.py`: the slope-free certificate in floating point with rigorous rounding bounds, and `certificate()`, which calls the exact bound only between the float bounds.
 - `workspace.py`: a size's full relaxation on one SCS workspace, and `Workspaces`, one search's
   workspaces and triangle pool.
 - `gated.py`: the reference key's four gates on the slope-free search, `certify_gated()`.
@@ -1945,6 +1999,9 @@ fixing is certified to the solver's value.
   Program. 192, 57-88.
 - Han, S., Gómez, A. and Atamtürk, A. (2023). 2x2-convexifications for convex
   quadratic optimization with indicator variables. Math. Program. 202, 95-134.
+- Rump, S. M. (2010). Verification methods: Rigorous results using floating-point
+  arithmetic. Acta Numerica 19, 287-449. Cambridge University Press.
+  doi:10.1017/S096249291000005X.
 - Jansson, C., Chaykin, D. and Keil, C. (2007). Rigorous error bounds for the
   optimal value in semidefinite programming. SIAM J. Numer. Anal. 46, 180-200.
 - Boyd, S., El Ghaoui, L., Feron, E. and Balakrishnan, V. (1994). Linear Matrix

@@ -435,3 +435,28 @@ def test_a_coefficient_below_the_normal_range_disables_the_floats():
     af = fbound.objective_float(A)
     assert fbound.bound_float(af, R, y_eq, y_in, 1) == np.inf
     assert fbound.bound_lower(af, R, y_eq, y_in, 1) == -np.inf
+
+
+@SETTINGS
+@given(seed=st.integers(0, 10**6), width=st.sampled_from([1e-3, 1.0, 1e3]))
+@example(seed=0, width=1.0)
+def test_property_the_face_encloses_every_slack_within_its_error(seed, width):
+    """face_float's EM bounds |fl(T'ST) - T'S*T| for every symmetric S* within E of
+    S, not only for S itself: checked in rationals at S + E, S - E and random sign
+    patterns, with E wide enough that its propagation |T|'E|T| is most of EM."""
+    D, lam, A = _instance(p=6)
+    R = _rows(D, 3, fixes=((0, 1), (4, 0)))
+    F = fbound.float_rows(R)
+    rng = np.random.default_rng(seed)
+    n = R.n
+    B = rng.normal(size=(n, n)); S = (B + B.T) / 2
+    E = np.abs(rng.normal(size=(n, n))) * width; E = (E + E.T) / 2
+    M, EM = fbound.face_float(F, S, E)
+    T = R.face.integer_basis()
+    k = M.shape[0]
+    for sign in [np.ones((n, n)), -np.ones((n, n))] + [np.sign(rng.normal(size=(n, n))) for _ in range(3)]:
+        sign = np.triu(sign) + np.triu(sign, 1).T
+        Sx = np.array([[Q(float(S[i, j])) + int(sign[i, j]) * Q(float(E[i, j])) for j in range(n)] for i in range(n)],
+                      dtype=object)
+        Mx = T.T.dot(Sx).dot(T)
+        assert all(abs(Q(float(M[i, j])) - Mx[i, j]) <= Q(float(EM[i, j])) for i in range(k) for j in range(k))
