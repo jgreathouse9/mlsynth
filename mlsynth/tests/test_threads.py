@@ -29,6 +29,11 @@ def restore():
 
 
 def test_a_worker_gets_one_thread(restore):
+    """A pool starts at two threads, so the check has power whatever thread count the
+    process began with (OMP_NUM_THREADS=1 would otherwise satisfy it already). A
+    single-threaded BLAS build stays at one."""
+    threadpool_limits(2, user_api="blas")
+    assert max(_blas()) == 2
     env = {"PYTEST_XDIST_WORKER": "gw0"}
     assert limit_threads(env) is True
     assert _blas() and set(_blas()) == {1}
