@@ -81,6 +81,7 @@ def test_property_the_series_is_splits_bit_for_bit(seed, n, p, k):
 @needs_numba
 @SETTINGS
 @given(seed=st.integers(0, 10_000), n=st.integers(5, 60), e=st.integers(-400, 400))
+@example(seed=1, n=33, e=0)                  # the sum rounds up by more than one step: the bottom needs its margin
 def test_property_the_bracket_holds_the_exact_sum_of_squares(seed, n, e):
     M = np.ldexp(_panel(seed, n, 7), e)
     (fl, lo, hi, w, y, cap), _ = _parts(M, (0, 3))
@@ -269,6 +270,18 @@ def test_a_cap_off_the_range_is_left_to_the_exact_path():
 
 
 @needs_numba
+@pytest.mark.parametrize("lamf", [0.0, -1.0, float("nan")])
+def test_no_positive_gram_floor_leaves_the_floor_to_the_exact_path(lamf):
+    """Without a positive Gram floor there is no slope cap: the kernel leaves the
+    floor (nan) and the cap, but still returns the bracket."""
+    M = np.ascontiguousarray(_panel(2, 20, 6))
+    fl, lo, hi, w, y, cap = fastfloor.floor_parts(M, np.ascontiguousarray(M.T @ M),
+                                                  np.array([0, 1], np.int64), lamf)
+    assert math.isnan(fl) and math.isnan(cap)
+    assert Q(lo) <= square_sum(y) <= Q(hi)
+
+
+@needs_numba
 def test_a_zero_series_has_a_zero_cap_and_a_floor_at_or_below_zero():
     M = geo_panel(5).copy()
     M[:, 0] = 0.0; M[:, 1] = 0.0
@@ -372,7 +385,7 @@ G = np.array([[1.0, 0.0, 1.0], [0.0, 1.0, 1.0], [1.0, 1.0, 2.0]])   # column 3 i
 c = np.array([1.0, 1.0, 1.5])
 w = np.zeros(3); passive = np.zeros(3, np.bool_); idx = np.zeros(3, np.int64)
 L = np.zeros((3, 3)); z = np.zeros(3); x = np.ones(3)                # scratch left positive
-ff._nnls_gram(G, c, passive, w, idx, L, z, x, 500)
+ff._nnls_gram(G, np.arange(3), c, passive, w, idx, L, z, x, 500)
 print(repr(w.tolist()))
 """
 
@@ -384,10 +397,11 @@ def _scratch(m, fill):
 
 @needs_numba
 def test_a_singular_active_set_ends_the_solve():
-    """From w = (1/2, 0, 1/2) the solve that adds column 1 to {0, 2} fails (the Gram is
-    singular, its last pivot 0). The step
-    after it must not read the scratch it left: with that scratch positive, a step to it
-    moves nothing out of the set and the same solve fails again, for ever."""
+    """From w = (1/2, 0, 1/2) the solve adds column 1 to {2, 0} (the Gram is singular).
+    The lean solve extends the factor in that order, so the last pivot rounds to
+    3e-16, not 0: the column joins, and the step back takes it out again. Either way
+    the solve must end, at (1/2, 0, 1/2) with column 1 not passive. The exact refusal
+    is test_lean_nnls.test_a_column_in_the_sets_span_is_refused_and_the_solve_stops."""
     root = str(Path(__file__).resolve().parents[3])
     run = subprocess.run([sys.executable, "-c", _SINGULAR.format(root=root)],
                          capture_output=True, text=True, timeout=120)
@@ -397,16 +411,41 @@ def test_a_singular_active_set_ends_the_solve():
     c = np.array([1.0, 1.0, 1.5])
     assert np.all(w >= 0) and float(w @ G @ w - 2 * c @ w) < 0
     v, passive, idx, L, z, x = _scratch(3, 1.0)       # in this process too, once it is known to end
-    fastfloor._nnls_gram(G, c, passive, v, idx, L, z, x, 500)
+    fastfloor._nnls_gram(G, np.arange(3), c, passive, v, idx, L, z, x, 500)
     assert np.array_equal(v, w) and passive.tolist() == [True, False, True]   # column 1 was the one added
 
 
 @needs_numba
 def test_the_cholesky_reports_a_matrix_that_is_not_positive_definite():
+    """_factor refuses a singular set; _extend refuses a column in the set's span and
+    leaves the set as it was."""
     A = np.array([[1.0, 1.0], [1.0, 1.0]])
+    rest = np.array([0, 1], np.int64)
     idx = np.array([0, 1], np.int64)
-    assert not fastfloor._chol_solve(A, np.ones(2), idx, 2, np.zeros((2, 2)), np.zeros(2), np.zeros(2))
-    assert fastfloor._chol_solve(np.eye(2), np.ones(2), idx, 2, np.zeros((2, 2)), np.zeros(2), np.zeros(2))
+    L = np.zeros((2, 2))
+    assert not fastfloor._factor(A, rest, idx, 2, L)
+    assert fastfloor._factor(np.eye(2), rest, idx, 2, L)
+    idx = np.array([0, -1], np.int64)
+    assert fastfloor._factor(A, rest, idx, 1, L)
+    assert not fastfloor._extend(A, rest, idx, 1, 1, L)
+    assert idx.tolist() == [0, -1]
+    assert fastfloor._extend(np.eye(2), rest, idx, 1, 1, L) and idx.tolist() == [0, 1]
+
+
+@needs_numba
+def test_extending_the_factor_is_factoring_the_extended_set():
+    """_extend's row is _factor's row for the same ordered set, bit for bit."""
+    rng = np.random.default_rng(3)
+    B = rng.normal(size=(12, 6))
+    A = np.ascontiguousarray(B.T @ B)
+    rest = np.arange(6, dtype=np.int64)
+    order = np.array([4, 1, 5, 0, 2], np.int64)
+    L1 = np.zeros((6, 6)); idx1 = order.copy()
+    assert fastfloor._factor(A, rest, idx1, 5, L1)
+    L2 = np.zeros((6, 6)); idx2 = np.full(6, -1, np.int64)
+    for k, j in enumerate(order):
+        assert fastfloor._extend(A, rest, idx2, k, j, L2)
+    assert np.array_equal(np.tril(L1[:5, :5]), np.tril(L2[:5, :5])) and idx2[:5].tolist() == order.tolist()
 
 
 @needs_numba
@@ -422,7 +461,7 @@ def test_property_the_active_set_ends_feasible_and_below_its_start(seed, m, r, f
     y = rng.normal(size=B.shape[0])
     G, c = B.T @ B, B.T @ y
     w, passive, idx, L, z, x = _scratch(m, fill)
-    fastfloor._nnls_gram(G, c, passive, w, idx, L, z, x, 500)
+    fastfloor._nnls_gram(G, np.arange(m), c, passive, w, idx, L, z, x, 500)
     assert np.all(np.isfinite(w)) and np.all(w >= 0)
     assert float(w @ G @ w - 2 * c @ w) <= 1e-9 * (1 + float(np.abs(G).sum() + np.abs(c).sum()))
 
