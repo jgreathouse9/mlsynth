@@ -375,7 +375,7 @@ def test_non_finite_predictors_are_refused(which):
 def test_an_invalid_v_is_refused(bad):
     v, X1, X0 = _problem(14)
     v = v.copy(); v[2] = bad
-    with pytest.raises(MlsynthEstimationError, match="v"):
+    with pytest.raises(MlsynthEstimationError, match="V-weights v must be finite and non-negative"):
         solve_w(v, X1, X0)
 
 
