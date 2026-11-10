@@ -21,6 +21,13 @@ from .treatment import _split
 
 
 @pytest.fixture(autouse=True)
+def _shallow_incumbent(monkeypatch):
+    """These tests are of the search from a few restarts' incumbent, so the second
+    descent is off (test_deep_descent.py checks it)."""
+    monkeypatch.setattr(slopefree, "DEEP_RESTARTS", 0)
+
+
+@pytest.fixture(autouse=True)
 def _bound_every_node(monkeypatch):
     monkeypatch.setattr(slopefree, "PRICE_LIMIT", 0)
 

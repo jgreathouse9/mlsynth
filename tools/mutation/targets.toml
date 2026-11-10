@@ -15009,3 +15009,99 @@ timeout = 600.0
   find = "        T0, Cs = _start(M, k, n_test, restarts, pool)"
   replace = "        T0, Cs = _start(M, k, n_test, restarts)"
   models = "certify_treatment runs the start's restarts in one process though it has a pool: the same design, four times slower on four jobs"
+
+[[target]]
+name = "tbr-bnb-deep-descent"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_deep_descent.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "deep-descent-never-runs"
+  find = "    if deep_restarts > restarts and not excluded:"
+  replace = "    if False:"
+  models = "the second descent is accepted, validated and documented but never run, so the search keeps the weak incumbent that cost the 100-geo run 1,959 s"
+
+  [[target.mutant]]
+  id = "deep-descent-at-equal-restarts"
+  find = "    if deep_restarts > restarts and not excluded:"
+  replace = "    if deep_restarts >= restarts and not excluded:"
+  models = "the second descent runs with as many restarts as the first, from the same seed, and repeats its work"
+
+  [[target.mutant]]
+  id = "deep-descent-with-exclusions"
+  find = "    if deep_restarts > restarts and not excluded:"
+  replace = "    if deep_restarts > restarts:"
+  models = "the second descent runs with designs excluded, so it can return an excluded design and make it the incumbent"
+
+  [[target.mutant]]
+  id = "deep-design-found-and-dropped"
+  find = "            C, cu, lam = C2, cu2, lam2\n"
+  replace = "            pass\n"
+  models = "the deep design is computed and reported but the search keeps the first descent's design and ratio"
+
+  [[target.mutant]]
+  id = "deep-ratio-not-tested"
+  find = "            test = max(test, lam)\n"
+  replace = "            pass\n"
+  models = "the incumbent changes but every size is still tested at the first descent's ratio, so the branch and bound prunes against the weaker one"
+
+  [[target.mutant]]
+  id = "deep-design-adopted-when-worse"
+  find = "        if lam2 > lam:"
+  replace = "        if lam2 != lam:"
+  models = "a deep design with a smaller ratio replaces a better incumbent"
+
+  [[target.mutant]]
+  id = "deep-design-adopted-at-a-tie"
+  find = "        if lam2 > lam:"
+  replace = "        if lam2 >= lam:"
+  models = "a deep design at the same ratio is reported as a new incumbent"
+
+  [[target.mutant]]
+  id = "deep-incumbent-not-reported"
+  find = "            emit(\"incumbent\", ratio=lam, controls=sorted(C), source=\"descent\", m=None, depth=None)\n"
+  replace = "            pass\n"
+  models = "the deep design becomes the incumbent without an incumbent event, so a progress log cannot tell where the search's ratio came from"
+
+  [[target.mutant]]
+  id = "deep-descent-seeded-off-the-first"
+  find = "        C2 = set(incumbent(y, X, restarts=deep_restarts, seed=seed)[1])"
+  replace = "        C2 = set(incumbent(y, X, restarts=restarts, seed=seed)[1])"
+  models = "the second descent runs with the first descent's restarts, so it returns the same design"
+
+  [[target.mutant]]
+  id = "zero-deep-restarts-refused"
+  find = "    if type(deep_restarts) is not int or deep_restarts < 0:"
+  replace = "    if type(deep_restarts) is not int or deep_restarts < 1:"
+  models = "deep_restarts=0, the documented way to turn the second descent off, is refused"
+
+  [[target.mutant]]
+  id = "negative-deep-restarts-accepted"
+  find = "    if type(deep_restarts) is not int or deep_restarts < 0:"
+  replace = "    if type(deep_restarts) is not int:"
+  models = "a negative deep_restarts is accepted and the second descent is skipped as if it were 0"
+
+  [[target.mutant]]
+  id = "non-int-deep-restarts-accepted"
+  find = "    if type(deep_restarts) is not int or deep_restarts < 0:"
+  replace = "    if deep_restarts < 0:"
+  models = "a float, a bool or a numpy integer is accepted as deep_restarts, and True runs a one-restart descent"
+
+  [[target.mutant]]
+  id = "default-bound-at-import"
+  find = "    deep_restarts = DEEP_RESTARTS if deep_restarts is None else deep_restarts\n"
+  replace = "    deep_restarts = 500 if deep_restarts is None else deep_restarts\n"
+  models = "the default ignores DEEP_RESTARTS as set at the call, so the beds and the tests that switch it off still run it"
+
+[[target]]
+name = "tbr-bnb-deep-descent-beds"
+module-path = "benchmarks/studies/tbr_bnb/beds.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_deep_descent.py benchmarks/studies/tbr_bnb/test_beds.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "beds-run-the-deep-descent"
+  find = "    search.setdefault(\"deep_restarts\", BED_DEEP_RESTARTS)\n"
+  replace = "    pass\n"
+  models = "the beds run the second descent, so most groups close at the hull and the beds stop measuring the branch and bound"
