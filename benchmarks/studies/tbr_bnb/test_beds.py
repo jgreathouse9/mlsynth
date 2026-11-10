@@ -66,7 +66,7 @@ def test_counting_counts_each_level_and_restores_the_solver(monkeypatch):
     with counting() as n:
         y, X = BEDS["s15_k3"].panel(0)
         with every_node_bounded():
-            slopefree.certify_slope_free(y, X, restarts=5, shor=True)
+            slopefree.certify_slope_free(y, X, restarts=5, shor=True, deep_restarts=0)
     assert slopefree.solve is real
     assert n["full"] > 0 and n["shor"] > 0 and set(n) == {"full", "shor"}
 
@@ -79,7 +79,7 @@ def test_counting_counts_the_workspaces_full_solves(monkeypatch):
     with counting() as n:
         y, X = BEDS["s15_k3"].panel(0)
         with every_node_bounded():
-            slopefree.certify_slope_free(y, X, restarts=5, solver="workspace")
+            slopefree.certify_slope_free(y, X, restarts=5, solver="workspace", deep_restarts=0)
     assert Workspaces.solve is real
     assert n["full"] > 0
 
@@ -109,7 +109,8 @@ def test_a_run_counts_what_the_search_did():
     r = run_group("s15_k3", 0)
     y, X = BEDS["s15_k3"].panel(0)
     with counting() as n, every_node_bounded():
-        out = slopefree.certify_slope_free(y, X, restarts=beds.BED_RESTARTS)
+        out = slopefree.certify_slope_free(y, X, restarts=beds.BED_RESTARTS,
+                                           deep_restarts=beds.BED_DEEP_RESTARTS)
     assert (r.nodes, r.full, r.shor, r.rounded, r.open) == (out.nodes, n["full"], n["shor"], out.rounded, len(out.open))
     assert r.controls == sorted(out.controls) and r.certified == out.certified
 

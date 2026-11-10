@@ -1323,6 +1323,15 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, verbose: int = 0, progre
         return out
 
 
+#: Restarts of the second RSS descent certify_slope_free runs on a group that reaches
+#: the hull stage. At 100 geos, k = 4, the certified design's own group held a design
+#: at ratio 134,126.7 after 50 restarts, below the optimum's 134,150.2, which rounding
+#: found 1,959 s into a 2,057 s run; 500 restarts find the optimum, and the run took
+#: 785 s, not 2,091 s. On GeoLift at k = 6 and 80 geos at k = 4 the run took 3% and 1%
+#: longer, and the same designs were certified (results/deep_descent.log).
+DEEP_RESTARTS = 500
+
+
 def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed: int = 0,
                         rounds: int = 6, per_round: int = 400, max_depth: int = 12,
                         hull: bool = True, exclude: Sequence[Set[int]] = (),
@@ -1333,7 +1342,8 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
                         rounding: bool = ROUND_NODES,
                         face: bool = FACE,
                         solver: Optional[str] = None,
-                        shor: bool = SHOR_TIER) -> SlopeFreeCertificate:
+                        shor: bool = SHOR_TIER,
+                        deep_restarts: Optional[int] = None) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -1370,6 +1380,12 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
     relaxations are solved by ``solver``, "clarabel", "scs" (solve()) or "workspace"
     (workspace.py, one Workspaces for the whole search); None takes default_solver(p).
     With ``shor`` the Shor relaxation is solved before the full one (SHOR_TIER).
+
+    A group that reaches the hull stage (no ceiling, or a screen that did not close)
+    is searched at its incumbent's ratio, so before the hull stage the RSS descent is
+    run again with ``deep_restarts`` restarts, when that is more than ``restarts`` and
+    no design is excluded, and its design replaces the incumbent when its ratio is
+    larger. None takes DEEP_RESTARTS, read at the call; 0 turns it off.
     """
     from .search import hull_survivors, incumbent, pieces_to
 
@@ -1384,6 +1400,9 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
         _checked_solver(solver)
     if type(shor) is not bool:
         raise MlsynthConfigError(f"shor is True or False, not {shor!r}.")
+    deep_restarts = DEEP_RESTARTS if deep_restarts is None else deep_restarts
+    if type(deep_restarts) is not int or deep_restarts < 0:
+        raise MlsynthConfigError(f"deep_restarts is a number of restarts, an int at least 0, not {deep_restarts!r}.")
     p = X.shape[1]
     solver = default_solver(p) if solver is None else solver
     excluded = [set(e) for e in exclude]
@@ -1415,6 +1434,13 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
                                         certified=True, ceiling_held=True, group_tier=screen.tier,
                                         group_seconds=screen.seconds,
                                         seconds=time.perf_counter() - t_all)
+    if deep_restarts > restarts and not excluded:
+        C2 = set(incumbent(y, X, restarts=deep_restarts, seed=seed)[1])
+        cu2, lam2 = _ratio(c, G, C2)
+        if lam2 > lam:                     # 0 when the slope is not positive, and lam > 0
+            C, cu, lam = C2, cu2, lam2
+            test = max(test, lam)
+            emit("incumbent", ratio=lam, controls=sorted(C), source="descent", m=None, depth=None)
     sizes = list(range(1, p + 1)); t_h = 0.0
     cap = D.slope_cap()
     if hull and cap is not None:

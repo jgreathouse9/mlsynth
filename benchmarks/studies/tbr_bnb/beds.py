@@ -40,6 +40,12 @@ ENUMERATION_LIMIT = 17
 #: The RSS descent's restarts on the beds, as in the measurements of #1003 and #1004.
 BED_RESTARTS = 5
 
+#: The second descent's restarts on the beds. The beds measure the branch and bound
+#: from a five-restart incumbent; with slopefree.DEEP_RESTARTS the first s15_k3 group
+#: certifies in 5 nodes without a relaxation solved, so the beds would stop measuring
+#: the search they were built for.
+BED_DEEP_RESTARTS = 0
+
 BASELINE = Path(__file__).resolve().parent / "results" / "beds_baseline.json"
 
 
@@ -138,11 +144,13 @@ def _bed(name) -> Bed:
 
 def run_group(name: str, i: int, **search) -> GroupRun:
     """Certify group ``i`` of bed ``name`` with every node bounded; ``search`` goes to
-    certify_slope_free (restarts defaults to BED_RESTARTS)."""
+    certify_slope_free (restarts defaults to BED_RESTARTS, deep_restarts to
+    BED_DEEP_RESTARTS)."""
     bed = _bed(name)
     seed, T, periods = bed.groups[i]
     y, X = bed.panel(i)
     search.setdefault("restarts", BED_RESTARTS)
+    search.setdefault("deep_restarts", BED_DEEP_RESTARTS)
     t0 = time.perf_counter()
     with counting() as n, every_node_bounded():
         out = slopefree.certify_slope_free(y, X, **search)

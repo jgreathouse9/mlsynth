@@ -28,6 +28,13 @@ N_TEST = 8
 
 
 @pytest.fixture(autouse=True)
+def _shallow_incumbent(monkeypatch):
+    """These tests are of the search from a few restarts' incumbent, so the second
+    descent is off (test_deep_descent.py checks it)."""
+    monkeypatch.setattr(slopefree, "DEEP_RESTARTS", 0)
+
+
+@pytest.fixture(autouse=True)
 def _bound_every_node(monkeypatch):
     """Every node is bounded, so the small panels branch."""
     monkeypatch.setattr(slopefree, "PRICE_LIMIT", 0)
