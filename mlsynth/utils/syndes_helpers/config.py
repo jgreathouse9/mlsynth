@@ -208,8 +208,10 @@ class SYNDESConfig(BaseMAREXConfig):
             "designs by no-good cuts (forbidding each chosen treated set and "
             "re-solving for the next-best), ranked by MSE, and attaches them as "
             "``results.pool`` -- a menu of near-optimal options re-scored on MDE "
-            "and cost, since the MIP optimises fit alone. Fewer than ``top_K`` "
-            "are returned if the feasible region is exhausted."
+            "and cost, since the MIP optimises fit alone. The pool's first entry "
+            "is the design ``top_K=1`` returns; ``top_K`` does not change the "
+            "selection rule (see ``selection``). Fewer than ``top_K`` are "
+            "returned if the feasible region is exhausted."
         ),
     )
     arm: Optional[str] = Field(
@@ -383,14 +385,11 @@ class SYNDESConfig(BaseMAREXConfig):
                 "mode='per_unit'.")
 
         # Resolve the design-selection rule (None infers from holdout_frac).
-        # A solution pool (top_K >= 2) is holdout-validated by default: rank the
-        # candidate designs by out-of-sample fit, not in-sample overfit.
-        # The in-sample (paper-faithful) rule stays available via
-        # selection="in_sample"; single designs (top_K < 2) are unaffected.
-        if (values.selection is None and values.holdout_frac is None
-                and values.top_K is not None and values.top_K >= 2):
-            values.holdout_frac = 0.3
-
+        # top_K only enlarges the menu: without selection or holdout_frac the
+        # pool is ranked by the in-sample objective, and its first entry is the
+        # design top_K=1 returns. Defaulting a pool to holdout (as 2bbfe352 did)
+        # made top_K=5 select {milwaukee, portland} where top_K=1 selected
+        # {cleveland, new york} on the GeoLift panel with K=2.
         resolved = values.selection or (
             "holdout" if values.holdout_frac is not None else "in_sample"
         )

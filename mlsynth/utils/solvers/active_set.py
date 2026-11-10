@@ -613,6 +613,27 @@ def solve_simplex_qp(
             if upper is not None:
                 w[free] = np.minimum(w[free], upper[free])
                 w[capped] = upper[capped]
+            # A free weight that solved past a bound, within tol, is pinned there
+            # and the free set solved again. Clamping it alone left the other
+            # weights at the values its presence gave them: on a SparseSC inner
+            # solve (#934) a donor solved to -7.67e-10, and the clamped point
+            # failed the certificate at 2.92e-10 where the re-solved one scored
+            # 2.7e-17 (rules 2 and 8). The clamped point, rescaled onto the
+            # simplex, is the feasible point the next solve steps from.
+            low = wF < 0.0
+            high = (wF > upper[free]) if upper is not None else np.zeros(nF, dtype=bool)
+            if low.any() or high.any():
+                active[free[low]] = True
+                if upper is not None:
+                    capped[free[high]] = True
+                    room = 1.0 - float(w[capped].sum())
+                    rest = ~active & ~capped
+                    if rest.any() and w[rest].sum() > 0.0:
+                        w[rest] *= room / float(w[rest].sum())
+                else:
+                    w = w / float(w.sum())
+                pivots += 1
+                continue
             # The gradient in residual form, B'(B w - A) plus half the price,
             # not G w - c: the Gram adds an error of eps |B|'|B| |w| that, on a
             # design whose rows differ in scale by 1e6, is the size of the
