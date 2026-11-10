@@ -457,6 +457,70 @@ def _floor_chunk(M, lam, groups):
     return out
 
 
+def _screen_mask(fl, lo, hi, r_star: Optional[Q], rss_star: Optional[Q]) -> np.ndarray:
+    """For each kernel row (floor ``fl``, bracket [lo, hi]), whether
+    compete_bracket(floor, lo, hi, r_star, rss_star) is False for the row as
+    _floor_chunk builds it (floor 0 when the kernel's is not positive): the same
+    doubles, the same products and comparisons, element by element. A row with a nan
+    (left to rss_floor) is never in the mask."""
+    fl, lo, hi = (np.asarray(v, dtype=float) for v in (fl, lo, hi))
+    if r_star is None:
+        return np.zeros(fl.shape, dtype=bool)
+    a, b, rss = _class_doubles(r_star, rss_star)
+
+    def ceil(yy):
+        second = np.minimum(rss, yy * b)
+        return second if a is None else np.maximum(yy * a, second)
+
+    with np.errstate(invalid="ignore"):
+        f = np.where(fl > 0, fl, 0.0)
+        c_lo, c_hi = ceil(lo), ceil(hi)
+        competes = (c_lo >= _NORMAL) & (f < c_lo * (1 - _MARGIN))
+        refused = (c_hi >= _NORMAL) & (f * (1 - _MARGIN) >= c_hi)
+    return np.isfinite(fl) & np.isfinite(lo) & np.isfinite(hi) & refused & ~competes
+
+
+def _floor_chunk_screened(M, lam, groups, cls):
+    """_floor_chunk's rows less those the float screen shows cannot compete against
+    the class ``cls`` = (r_star, rss_star), and how many it dropped. With the kernel
+    the screen reads its arrays (_screen_mask) and only the rows kept become Python
+    rows; without it, each row with a float bracket is screened by compete_bracket."""
+    r_star, rss_star = cls
+    if r_star is None:
+        return _floor_chunk(M, lam, groups), 0
+    if lam is None or not fastfloor.AVAILABLE or not groups:
+        rows = _floor_chunk(M, lam, groups)
+        keep = [r for r in rows
+                if not (isinstance(r[1], tuple) and compete_bracket(r[0], r[1][0], r[1][1], r_star, rss_star) is False)]
+        return keep, len(rows) - len(keep)
+    Mc = np.ascontiguousarray(M, dtype=float)
+    fl, lo, hi = fastfloor.floors(Mc, np.ascontiguousarray(Mc.T @ Mc), np.asarray(groups, dtype=np.int64),
+                                  float(lam))
+    drop = _screen_mask(fl, lo, hi, r_star, rss_star)
+    out = []
+    for i in np.flatnonzero(~drop):
+        f, T = fl[i], groups[i]
+        if math.isnan(f):
+            out.append(_floor_row(M, lam, T))
+        else:
+            out.append((f if f > 0 else Q(0), (float(lo[i]), float(hi[i])), T))
+    return out, int(drop.sum())
+
+
+def _screened_floor_rows(M, groups, lam, pool, n_jobs, cls):
+    """_floor_rows screened where the floors are computed (_floor_chunk_screened):
+    the rows that may compete with the class ``cls``, in the order given, and how many
+    were dropped. The incumbent only improves, so a row that cannot compete with the
+    class at this point cannot compete later."""
+    if pool is None or len(groups) < 2:
+        return _floor_chunk_screened(M, lam, groups, cls)
+    n = min(len(groups), 4 * n_jobs)
+    size = -(-len(groups) // n)
+    chunks = [groups[i:i + size] for i in range(0, len(groups), size)]
+    parts = _map(pool, _floor_chunk_screened, [(M, lam, c, cls) for c in chunks])
+    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)
+
+
 def _ratio(row) -> float:
     """The row's floor over its y'y in doubles: the queue's order, one minus the
     group's squared-correlation bound."""
@@ -583,8 +647,18 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
         out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0
         out.passing = True
     left_open = []
-    lam = gram_floor(M)
-    rows = _floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs)
+    held = [None, None, (None, None)]
+
+    def class_of():                         # the incumbent's class and target RSS, rebuilt when it changes
+        if out.key is None:
+            return (None, None)
+        if held[0] is not out.key or held[1] is not out.rss:
+            held[0], held[1], held[2] = out.key, out.rss, (Q(out.key[4]), out.rss / shrink if g else out.rss)
+        return held[2]
+
+    lam = gram_floor(M)                     # rows that cannot compete with the start's class are dropped where computed
+    rows, dropped = _screened_floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs, class_of())
+    out.screened_out += dropped
     rows.sort(key=_ratio)                  # the highest correlation bound first
     exact = {}
 
@@ -594,15 +668,6 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
         if T not in exact:
             exact[T] = _yy(M, T)
         return exact[T]
-
-    held = [None, None, (None, None)]
-
-    def class_of():                         # the incumbent's class and target RSS, rebuilt when it changes
-        if out.key is None:
-            return (None, None)
-        if held[0] is not out.key or held[1] is not out.rss:
-            held[0], held[1], held[2] = out.key, out.rss, (Q(out.key[4]), out.rss / shrink if g else out.rss)
-        return held[2]
 
     def competes(row):
         floor, yy, T = row
