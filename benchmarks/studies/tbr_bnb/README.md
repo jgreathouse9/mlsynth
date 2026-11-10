@@ -1212,6 +1212,67 @@ node with fixings (its active triangles matched the root's), and the iterate of 
 failed solve kept (the error came at the first solve, when there was none). Each test
 now has a case the mutant changes, and all fourteen are killed.
 
+### Where the workspace's time goes
+
+SCS reports its own timers. At two roots of the 100-geo group (4, 35, 58, 60), the
+incumbent's no-good cut in place, at the default settings (`results/solver_internals.log`):
+
+| size | iterations | node | cone projection | linear system | acceleration | outside SCS |
+| --- | --- | --- | --- | --- | --- | --- |
+| 24 | 6,375 | 16.2 s | 9.8 s | 4.4 s | 0.6 s | 0.6 s |
+| 21 | 4,025 | 9.9 s | 5.6 s | 2.8 s | 0.4 s | 0.5 s |
+
+An iteration costs about 2.4 ms, three fifths of it the projection onto the
+semidefinite cone, a full eigendecomposition of the 97 x 97 matrix. The workspace's
+own work (the multipliers, the screen and the exact certificate) is under 5%, and
+building the workspace 0.4 s. So the levers inside the solve are a cheaper
+projection and fewer iterations.
+
+### A low-rank projection, measured and not built
+
+The projection needs only the eigenpairs on one side of zero, so it is cheap when the
+iterate is close to low rank. At 97 x 97 a full eigendecomposition takes 0.92 ms; the
+top eigenpair 0.28 ms, the top three 0.40 ms and the top ten 0.66 ms. The same two
+roots solved to 1e-9 (21,125 and 24,125 iterations) end with Z of rank 37 and 35 at a
+cutoff of 1e-6 of the largest eigenvalue: one large eigenvalue (17.1 and 20.6), then
+1.5 and 1.4, and some thirty more above the cutoff. About 35 eigenpairs cost no less
+than all 97, so the projection cannot be made cheaper this way.
+
+The dual matrix has rank 54 and 58, so the two ranks sum to 91 and 93, not 97: strict
+complementarity fails at these roots (at the same cutoff, on approximate solutions).
+Local linear convergence of ADMM rests on it (Ding, Lu and Yang 2026), which fits the
+4,000 to 6,400 iterations a root takes at the working tolerance.
+
+### A working set of pair rows, measured and not built
+
+At those roots 3,703 and 3,731 of the 18,240 pair rows carry a multiplier, against 2
+and 7 of the other 194 inequalities. Primal-dual methods speed up once the active rows
+are identified, without strict complementarity (Díaz, Izquierdo Lehmann, Lu and Yang
+2026), and the certificate holds with a dropped row's multiplier at zero, so a
+workspace built on the active rows alone loses no soundness.
+
+The spike solved each size's root and two children (the most fractional geo fixed to
+one and to zero), sizes 21 to 26 of the group (4, 35, 58, 60) exact and sizes 24 to
+29 of the hard group (4, 27, 33, 58) at its 1% target. The working-set arm kept the
+pair rows active at the previous size's root; where a node stayed open and its point
+violated dropped rows, it added them and solved again. Every bound was certified on
+the full rows (`results/working_set.log`):
+
+| group | arm | closed | iterations | time |
+| --- | --- | --- | --- | --- |
+| (4, 35, 58, 60) | all rows | 6 of 18 | 95,625 | 238.1 s |
+| (4, 35, 58, 60) | working set | 6 of 18 | 83,300 | 529.8 s |
+| (4, 27, 33, 58), 1% | all rows | 2 of 18 | 107,075 | 275.1 s |
+| (4, 27, 33, 58), 1% | working set | 2 of 18 | 74,350 | 484.9 s |
+
+The active rows do not carry over: a size's 3,000 to 4,000 active pair rows are a
+different set from its neighbour's, and at 28 of the 30 nodes that kept a previous
+set the point violated 159 to 891 of the dropped rows. Nearly every node paid for a
+second solve, and the working set took about twice as long with the same closures.
+The second solve started cold in a new workspace; a warm start would recover part of
+it, but the first pass is spent either way, so the ceiling is about a quarter to a
+third of the solves' time.
+
 ### The certificate in floating point
 
 `bound()` sums the certificate's `S` and `k` in rationals, then bounds
@@ -2080,3 +2141,8 @@ fixing is certified to the solver's value.
   semidefinite programs. Preprint.
 - Knueven, B., Ostrowski, J. and Pokutta, S. (2018). Detecting almost
   symmetries of graphs. Math. Program. Comput. 10, 143-185.
+- Ding, L., Lu, H. and Yang, J. (2026). On the local linear convergence of
+  operator splitting methods for conic programming. arXiv:2608.16054v2.
+- Díaz, M., Izquierdo Lehmann, P., Lu, H. and Yang, J. (2026). Active set
+  identification and rapid convergence for degenerate primal-dual problems.
+  arXiv:2602.10436v1.
