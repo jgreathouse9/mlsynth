@@ -22,7 +22,7 @@ from mlsynth.exceptions import MlsynthConfigError
 from mlsynth.utils.marex_helpers.certify import Dyadic
 
 from . import face as fc
-from . import slopefree
+from . import fbound, slopefree
 from .brute import geo_panel, panel, positive_optimum
 from .certificate import ExactData
 from .slopefree import Rows, bound, certify_slope_free, objective, solve
@@ -259,13 +259,14 @@ def test_the_trace_on_the_face_is_one_plus_q():
     assert float(got) <= (1 + F.q) * lam_max * (1 + 1e-6)
 
 
-def test_the_screen_reads_the_face():
+def test_the_float_certificate_reads_the_face():
     D, lam = _pinned()
     R = Rows(D.c, 3, level="shor", face=True)
     A = objective(D.c, D.G, lam)
     s = solve(D.c, D.G, lam, R)
-    assert slopefree._screen(A, R, s.y_eq, s.y_in, 3) <= 0
-    assert slopefree._screen(A, Rows(D.c, 3, level="shor"), s.y_eq, s.y_in, 3) > 0
+    af = fbound.objective_float(A)
+    assert fbound.bound_float(af, R, s.y_eq, s.y_in, 3) <= 0
+    assert fbound.bound_float(af, Rows(D.c, 3, level="shor"), s.y_eq, s.y_in, 3) > 0
 
 
 def test_without_the_face_the_rows_and_the_solve_are_as_before():
