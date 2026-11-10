@@ -13535,14 +13535,14 @@ timeout = 600.0
 [[target]]
 name = "tbr-bnb-fastfloor"
 module-path = "benchmarks/studies/tbr_bnb/fastfloor.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastfloor.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastfloor.py benchmarks/studies/tbr_bnb/test_lean_nnls.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
   [[target.mutant]]
   id = "a-singular-solve-steps-to-stale-scratch"
-  find = "            if not ok:                           # the column is in the set's span: x is stale,\n                passive[jbest] = False           # so stop at w, the last feasible point\n                return\n            allpos = True\n"
-  replace = "            allpos = ok\n"
-  models = "a failed Cholesky on the active set read as a step toward the scratch it left, which with positive scratch never leaves the set"
+  find = "        if not _extend(Gf, rest, idx, k, jbest, L):\n            _canonical(Gf, rest, c, passive, w, idx, L, z, x)\n            return                               # the column is in the set's span: stop at w, the last feasible point\n"
+  replace = "        _extend(Gf, rest, idx, k, jbest, L)\n"
+  models = "a column in the active set's span read as joining it: the solve runs on a factor row that was never completed, and with positive scratch never leaves the set"
 
   [[target.mutant]]
   id = "a-group-is-sorted-descending"
@@ -14880,6 +14880,74 @@ timeout = 600.0
   find = "ws.solve(c, G, lam, R, early=r < rounds)"
   replace = "ws.solve(c, G, lam, R, early=False)"
   models = "the full tier never asking for the early end, so every round runs to its cap as before"
+
+[[target]]
+name = "tbr-bnb-lean-nnls"
+module-path = "benchmarks/studies/tbr_bnb/fastfloor.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_lean_nnls.py benchmarks/studies/tbr_bnb/test_fastfloor.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-new-row-keeps-its-diagonal-unreduced"
+  find = "    s = Gf[rest[j], rest[j]]\n    for q in range(k):\n        s -= L[k, q] * L[k, q]\n"
+  replace = "    s = Gf[rest[j], rest[j]]\n"
+  models = "a joining column's pivot taken from the Gram's diagonal, not reduced by the row above it, so the extended factor is not the set's"
+
+  [[target.mutant]]
+  id = "the-new-row-skips-the-earlier-columns"
+  find = "        for q in range(i):\n            s -= L[i, q] * L[k, q]\n        L[k, i] = s / L[i, i]"
+  replace = "        L[k, i] = s / L[i, i]"
+  models = "a joining column's row computed without the forward substitution, each entry from its own Gram entry alone"
+
+  [[target.mutant]]
+  id = "a-step-back-keeps-the-columns-that-left"
+  find = "                if passive[idx[q]]:\n                    idx[kk] = idx[q]"
+  replace = "                if True:\n                    idx[kk] = idx[q]"
+  models = "the set after a step back still holding the columns that reached zero, so the next solve frees them again"
+
+  [[target.mutant]]
+  id = "a-step-back-solves-on-the-old-factor"
+  find = "            if not _factor(Gf, rest, idx, k, L):  # pragma: no cover"
+  replace = "            if False and not _factor(Gf, rest, idx, k, L):  # pragma: no cover"
+  models = "the factor kept after columns leave, so the next solve reads rows of columns no longer in the set"
+
+  [[target.mutant]]
+  id = "the-gradient-reads-the-first-k-coordinates"
+  find = "                    g -= Gf[rj, rest[idx[q]]] * w[idx[q]]"
+  replace = "                    g -= Gf[rj, rest[q]] * w[q]"
+  models = "the gradient summed over the first k controls, not over the support, so the coordinate that joins is chosen on a wrong gradient"
+
+  [[target.mutant]]
+  id = "a-refused-column-is-left-passive"
+  find = "        if not _extend(Gf, rest, idx, k, jbest, L):\n            _canonical(Gf, rest, c, passive, w, idx, L, z, x)\n            return                               # the column is in the set's span: stop at w, the last feasible point\n        passive[jbest] = True\n"
+  replace = "        passive[jbest] = True\n        if not _extend(Gf, rest, idx, k, jbest, L):\n            return\n"
+  models = "a column in the set's span marked passive before its row is refused, so the next group's warm start carries a column the solve never used"
+
+  [[target.mutant]]
+  id = "the-back-substitution-reads-the-upper-triangle"
+  find = "            s -= L[q, i] * x[q]"
+  replace = "            s -= L[i, q] * x[q]"
+  models = "the back substitution reading L's upper triangle, which holds no factor"
+
+  [[target.mutant]]
+  id = "the-converged-point-keeps-its-join-order"
+  find = "        if jbest < 0:\n            _canonical(Gf, rest, c, passive, w, idx, L, z, x)\n            return\n"
+  replace = "        if jbest < 0:\n            return\n"
+  models = "the converged point left as the solve in the order its columns joined, so a group's floor differs in its last bits with the groups before it and a chunked search can screen differently from a single one"
+
+  [[target.mutant]]
+  id = "a-negative-re-solve-is-kept"
+  find = "    for q in range(k):\n        if not (x[q] > 0.0):\n            return\n"
+  replace = "    for q in range(k):\n        if False:\n            return\n"
+  models = "the canonical re-solve written back with a coordinate at or below zero, an infeasible point the certificate would then be computed at"
+
+  [[target.mutant]]
+  id = "the-support-is-not-carried"
+  find = "            held[rest[i]] = passive[i]"
+  replace = "            held[rest[i]] = False"
+  models = "every group started cold: the warm start decides where the solve begins, not where it ends"
+  expected = "survived"
+  accepted-because = "the carry is a speed-up only: the active set from a cold start ends at the same optimum, so every floor agrees to rounding; the timing of the carried start is in results/lean_nnls.log"
 
 [[target]]
 name = "syndes-top-k-default-selection"
