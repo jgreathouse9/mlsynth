@@ -2006,6 +2006,57 @@ its optimum, so a node of its search closes only when its bound rises above that
 optimum itself, with no margin to spare. Its tree is where the branching rules and
 the node order (item 6) have their work.
 
+## The certified group's own incumbent
+
+The slow group at 100 geos (g4, g27, g33 and g58) is the certified design's own, and
+its search ran against a weak incumbent. Its 50-restart RSS descent stopped at the
+ratio 134,126.72 (the ratio is y'y less the RSS, so larger is better), below the
+group's optimum at 134,150.21. Every size was then tested at the weaker ratio, and a
+node closed only when its bound cleared it. In a run with the progress log at level 3
+(2,080.3 s, the group 1,825.0 s) the incumbent rose five times by node rounding
+between 1,519 s and 1,959 s, the last time to the optimum. Given the optimum as its
+start, the same group certified in 477.1 s with the same design, and the descent with
+100 restarts reaches that optimum in 0.24 s. The near-ties around the optimum are
+still there to separate; the incumbent decides how far the search has to go before
+it can.
+
+`certify_slope_free` therefore runs the descent a second time, with
+`deep_restarts` restarts (`DEEP_RESTARTS = 500`), in a group that reaches the hull
+stage: a group with no ceiling, or one whose group screen did not close. A group the
+screen closes never pays for it, and those are most groups of a treatment search. The
+second descent's design replaces the incumbent when its ratio is larger, and is
+reported as an `incumbent` event with source `descent`. It is skipped when designs are
+excluded, since the descent does not know them. `test_deep_descent.py` pins when it
+runs, that it never replaces a better design, and, as a property, that the certified
+design is the enumerated optimum with or without it. The beds and the tests of the branch
+and bound run with it off (`BED_DEEP_RESTARTS = 0`), since they measure the search
+from a five-restart incumbent.
+
+| Panel | k | main | Deep descent | Slowest group, main | Slowest group, deep |
+| --- | --- | --- | --- | --- | --- |
+| GeoLift | 4 | 14.1 s | 14.1 s | 6.1 s | 5.9 s |
+| GeoLift | 6 | 218.5 s | 224.3 s | 32.2 s | 31.6 s |
+| 80 geos | 4 | 340.7 s | 343.7 s | 97.2 s | 101.9 s |
+| 100 geos | 4 | 2,091.0 s | 784.9 s | 1,834.9 s | 521.4 s |
+
+Each case certifies the same design, with the same key and survivors
+(`results/deep_descent.log`). The runs on GeoLift at six and 80 geos took 3% and 1%
+longer.
+
+Three other arms were measured on the same four cases and not built.
+
+- 500 restarts in every group (the earlier experiment of More restarts, measured and
+  not built, at the size of this one). 100 geos took 735.9 s, faster than the gated
+  descent, but GeoLift at six treated geos took 280.1 s against 218.5 s and 80 geos
+  367.7 s against 340.7 s: the restarts are paid in every one of the 907 and 145
+  survivors, most of which the screen closes without a search.
+- Polishing the start's design with a 1,000-restart descent before the search. The
+  polish took 2.76 s and returned the start's own design, and the run took
+  2,055.7 s, the slow group 1,807.9 s.
+- A second descent only in a group whose own incumbent clears the treatment ceiling.
+  It did not fire in the certified design's group, whose incumbent is the ceiling
+  (2,057.3 s at 100 geos).
+
 ## The floor-guided search
 
 `guided.py` is `certify_treatment` without its certificates. It takes the library's
@@ -2324,7 +2375,10 @@ fixing is certified to the solver's value.
    10.5-14.8 s for all 1,872-1,989 pairs, and the exact certificates take about
    as long again (7-10 s), so the stage gains an exact tier and no cvxpy more than
    it gains time; the two-tier stage is unchanged (7.6-9.5 s against 8.0-9.6 s).
-6. Branching rules and node order.
+6. Branching rules and node order. The slow group at 100 geos was slow for its
+   incumbent: a second RSS descent in each group that reaches the hull stage
+   takes that case from 2,091 s to 785 s (see The certified group's own
+   incumbent).
 7. Incumbent from #964's local search, improved during the search (done here).
    Each node rounds its eigen-primal to a design of its size within its
    fixings, descends from it (`search.Incumbent.offer`, on the positive-slope

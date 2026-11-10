@@ -1,0 +1,43 @@
+certify_treatment(M, k, n_test=14, restarts=50, pass_restarts=10, n_jobs=4) on one host (4 cores).
+Panels: GeoLift (40 geos, 90 periods) at k=4 and k=6; geo_panel(0, n=90, p) at p=80 and p=100, k=4.
+main = the scaling re-check on main (results/scaling_recheck.log).
+Each arm ran certify_treatment end to end; wall seconds; cert_sum is the sum of the group certifications' seconds;
+slowest are the four slowest group certifications. Every arm certified the same design with the same key.
+
+The diagnosis, 100 geos, k=4, the certified design's own group (4, 27, 33, 58)
+  a run with the progress log at level 3: wall 2,080.3 s, the group 1,825.0 s
+  its incumbent after the start: ratio 134,126.72 (50 descent restarts)
+  the group's optimum: ratio 134,150.21, adopted by rounding at t = 1,959.1 s; the last five incumbents, all by rounding:
+    t 1,519.4  134,144.99 | t 1,545.3  134,145.68 | t 1,747.0  134,146.11 | t 1,809.7  134,148.55 | t 1,959.1  134,150.21
+  the same group with the optimum given as its start: 477.1 s, the same design
+  search.incumbent on the group: 100 restarts reach the optimum in 0.24 s
+
+Arms
+  A  main: 50 restarts in every group
+  B  500 restarts in every group (the descent's restarts raised)
+  C  the start's design polished by a 1,000-restart descent before the search
+  D  a second descent of 500 restarts only in a group whose own incumbent clears the treatment ceiling
+  E  a second descent of 500 restarts in every group that reaches the hull stage (built: DEEP_RESTARTS)
+
+panel        k  arm  wall       cert_sum   slowest                          survivors  treatment
+geolift      4  A      14.1 s     21.4 s   6.1  1.9  1.9  1.8                    32  [1, 9, 22, 32]
+geolift      4  B      16.1 s     30.4 s   6.0  2.0  2.0  1.9                    32  [1, 9, 22, 32]
+geolift      4  D      15.6 s     24.7 s   6.8  2.1  1.9  1.9                    32  [1, 9, 22, 32]
+geolift      4  E      14.1 s     20.7 s   5.9  1.8  1.7  1.6                    32  [1, 9, 22, 32]
+geolift      6  A     218.5 s    374.4 s  32.2 29.4 10.4  5.8                   907  [1, 9, 15, 22, 31, 32]
+geolift      6  B     280.1 s    617.9 s  30.9 20.6 11.8  5.9                   907  [1, 9, 15, 22, 31, 32]
+geolift      6  D     235.6 s    417.8 s  30.9 20.3 12.1  5.8                   907  [1, 9, 15, 22, 31, 32]
+geolift      6  E     224.3 s    376.6 s  31.6 21.1 12.4  6.7                   907  [1, 9, 15, 22, 31, 32]
+sim:80:0     4  A     340.7 s    691.6 s  97.2 62.6 62.1 24.5                   145  [7, 9, 26, 48]
+sim:80:0     4  B     367.7 s    805.3 s  98.4 63.6 61.9 26.1                   145  [7, 9, 26, 48]
+sim:80:0     4  D     341.9 s    688.8 s  99.7 64.3 60.5 25.7                   145  [7, 9, 26, 48]
+sim:80:0     4  E     343.7 s    691.4 s 101.9 65.4 62.7 25.2                   145  [7, 9, 26, 48]
+sim:100:0    4  A   2,091.0 s  2,302.7 s 1834.9 88.0 86.7 77.1                   34  [4, 27, 33, 58]
+sim:100:0    4  B     735.9 s    953.9 s 475.6 85.7 75.9 67.6                    34  [4, 27, 33, 58]
+sim:100:0    4  C   2,055.7 s          - 1807.9 85.9 84.6 74.6                    34  [4, 27, 33, 58]
+sim:100:0    4  D   2,057.3 s  2,263.2 s 1802.6 87.0 81.8 77.9                   34  [4, 27, 33, 58]
+sim:100:0    4  E     784.9 s    971.8 s 521.4 88.4 76.4 68.1                    34  [4, 27, 33, 58]
+
+C: the polish took 2.76 s and returned the start's own design (better = false).
+D: the certified design's group never qualified, since its incumbent did not clear the ceiling; the rule did not fire there.
+Every arm: key [1, 1, 1, 1, 1.0, *] equal to main's, the same survivors and groups screened.

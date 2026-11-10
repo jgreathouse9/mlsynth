@@ -1326,7 +1326,7 @@ def certify_slope_free(y: np.ndarray, X: np.ndarray, *, verbose: int = 0, progre
 #: Restarts of the second RSS descent certify_slope_free runs on a group that reaches
 #: the hull stage. At 100 geos, k = 4, the certified design's own group held a design
 #: at ratio 134,126.7 after 50 restarts, below the optimum's 134,150.2, which rounding
-#: found 1,959 s into a 2,057 s run; 500 restarts find the optimum, and the run took
+#: found 1,959 s into a 2,080 s run; 500 restarts find the optimum, and the run took
 #: 785 s, not 2,091 s. On GeoLift at k = 6 and 80 geos at k = 4 the run took 3% and 1%
 #: longer, and the same designs were certified (results/deep_descent.log).
 DEEP_RESTARTS = 500
