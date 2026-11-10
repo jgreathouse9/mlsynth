@@ -1,0 +1,8 @@
+# Fast Rows (claude/tbr-fast-rows) against main ad363aca, both 100-geo groups, four processes on four cores,
+# one BLAS thread each. certify_slope_free(geo_panel(0, n=90, p=100) split at the treated set, restarts=50);
+# '1%' is ceiling 1324.8473623832656.
+{"run": "main_g", "T": [4, 35, 58, 60], "total": 158.9, "certified": true, "nodes": 41, "scs_iters": 42600, "statuses": {"certified": 15, "converged": 3}}
+{"run": "rows_g", "T": [4, 35, 58, 60], "total": 139.6, "certified": true, "nodes": 41, "scs_iters": 42600, "statuses": {"certified": 15, "converged": 3}}
+{"run": "main_h", "T": [4, 27, 33, 58], "total": 148.6, "certified": true, "nodes": 47, "scs_iters": 17925, "statuses": {"certified": 20, "converged": 1}}
+{"run": "rows_h", "T": [4, 27, 33, 58], "total": 128.0, "certified": true, "nodes": 47, "scs_iters": 17925, "statuses": {"certified": 20, "converged": 1}}
+# designs: main_g == rows_g, main_h == rows_h (the same controls)
