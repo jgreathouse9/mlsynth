@@ -1326,6 +1326,67 @@ the slack's error is a few units in the last place and the rounding term covers 
 A property now checks the face against every matrix within `E` of the slack, with
 `E` as wide as the slack, and kills it.
 
+### Ending a triangle round early
+
+The full tier solves a size's relaxation on the SCS workspace, separates the most
+violated triangle inequalities at its point and solves again, up to `rounds` times.
+On the 100-geo groups most rounds ran SCS to its cap, although the point had shown,
+chunks earlier, the triangles the next round would add. So a round that another
+round follows ends after `SEPARATE_AFTER` (5) chunks, counted over its stages, when
+its point violates a triangle by more than `SEPARATE_TOL` (1e-2): the outcome is
+`"separate"`, and the next round adds the triangles and starts warm. The last round
+runs to its end. The certificate is computed at every chunk and decides first, so a
+round that closes still reports `"certified"`, and an early end changes only which
+rows the next solve has, never what is proved.
+
+The two thresholds came from a sweep on the two 100-geo groups (spike runs on main,
+`results/early_triangles.log`):
+
+| chunks, violation | (4, 35, 58, 60), exact | (4, 27, 33, 58), 1% |
+| --- | --- | --- |
+| no early end | 176.6 s, 42,600 SCS iterations | 167.7 s, 17,925 |
+| 10, 1e-2 | 125.5 s | 148.1 s |
+| 10, 1e-3 | 135.5 s | 148.2 s |
+| 5, 1e-3 | 145.3 s (47 nodes) | 136.6 s |
+| 5, 1e-2 | 108.2 s, 13,000 | 137.2 s, 6,000 |
+
+Built, against its base, both at once:
+
+| case | base | early end | |
+| --- | --- | --- | --- |
+| (4, 35, 58, 60), exact | 160.8 s | 94.3 s | 42,600 to 13,000 SCS iterations, 41 nodes each |
+| (4, 27, 33, 58), 1% | 150.2 s | 124.3 s | 17,925 to 6,000, 47 nodes each |
+| 60 geos, 4 treated, exact | 101.7 s | 84.9 s | same treatment |
+| the five beds | 160.8 s | 154.9 s | 2,588 and 2,578 nodes; 315 and 343 full solves |
+
+Every case certified the same design, and no bed group missed its enumerated optimum.
+
+### Accelerating SCS, measured and not built
+
+Three levers on SCS itself, each measured at the setting above or beside it:
+
+- Anderson acceleration. SuperSCS (Sopasakis, Menounou and Patrinos 2019) owes its
+  speed to Anderson and restarted Broyden directions, and SCS 3 applies Anderson
+  acceleration by default (memory 10). At memory 0, 5, 10 and 20 the exact group
+  took 109.5, 114.0, 108.2 and 109.0 s and the 1% group 138.0, 139.3, 137.2 and
+  139.6 s; type-I acceleration (memory -10) ran past 750 s on both and was
+  stopped. SCS's safeguard accepted 7 of 619 accelerated steps: on this relaxation
+  the lever is spent.
+- A warm start from the neighbouring size's last iterate. On the exact group 42,600
+  to 38,300 iterations, on the 1% group 17,925 to 27,200, size 22 hitting its cap.
+- A first-order prediction from the derivative of the solution map (Agrawal, Barratt,
+  Boyd, Busseti and Moursi 2019). The derivative needs a unique, strictly
+  complementary solution; this relaxation has no interior and an unbounded dual
+  optimal set (`face.py`), and in the paper's own example one derivative cost about
+  one solve (191.7 s against 195.7 s). Not tried.
+
+An SCS iteration costs 2.1 to 2.5 ms here, about 55% a full eigendecomposition of
+the 97 x 97 block and 35% the back-solve, so what is left inside SCS is the number
+of iterations, which the early end cuts. An interior-point method pays a Schur
+complement of order `n^2 mu^2 + n^3` a step, with about 18,000 rows and `mu = 97`
+(Nesterov and Nemirovskii 1994, section 6.4.1), which is why Clarabel took 100 to
+145 s a full solve.
+
 ## Several processes
 
 `certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
@@ -1912,11 +1973,11 @@ field that is not declared raises, so a log's columns are fixed.
 
 ## Tests
 
-`pytest benchmarks/studies/tbr_bnb/` (1,027 tests, about 230 s with three workers) checks every bound
+`pytest benchmarks/studies/tbr_bnb/` (1,046 tests, about 165 s with four workers and one BLAS thread each) checks every bound
 against enumeration on panels of up to eight geos, with hypothesis properties
 over panels, slope pieces, sizes, fixings and scrambled multipliers, and
 `certify()` against the enumerated positive-slope optimum. Coverage is 100%
-but for the lines marked `pragma: no cover`, each with its reason. The 485 mutants of the 37
+but for the lines marked `pragma: no cover`, each with its reason. The 495 mutants of the 39
 `tbr-bnb-*` targets in `tools/mutation/targets.toml` are killed, but for six recorded as equivalent with their reasons. The first run
 left four certificate mutants alive, each for an assertion too weak to see it:
 the two trace bounds without the size (with the solver's multipliers
