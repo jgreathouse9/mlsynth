@@ -1,0 +1,12 @@
+# SCS's own timers at two roots of geo_panel(0, n=90, p=100), treated (4, 35, 58, 60), the incumbent cut in place,
+# the workspace's default settings (STAGES, CHUNK = 200, EPS = 1e-7). Times in seconds.
+size 24: build 0.4, node 16.2, outcome converged, chunks 32, iters 6375; SCS 15.6: lin_sys 4.4, cone 9.8, accel 0.6; outside SCS 0.6
+size 21: build 0.4, node 9.9, outcome converged, chunks 21, iters 4025; SCS 9.3: lin_sys 2.8, cone 5.6, accel 0.4; outside SCS 0.5
+# eigendecomposition of a 97 x 97 symmetric matrix, ms per call (numpy eigh; scipy eigh driver evr with a subset)
+full 0.920; top-1 0.283; top-3 0.403; top-10 0.662; all positive (49 of 97) 2.338
+# the same roots solved to EPS = 1e-9; ranks at 1e-6 of the largest eigenvalue; active rows at 1e-6 of the largest multiplier
+size 24: outcome converged, iters 24125; rank Z 35, rank S 58, sum 93 of 97 (Z eigs top [20.6242  1.3566  0.5587], S eigs top [1.475519 1.21359  1.040194])
+  active inequality rows 3705 of 18434: pair rows 3703 of 18240, other 2 of 194
+size 21: outcome converged, iters 21125; rank Z 37, rank S 54, sum 91 of 97 (Z eigs top [17.1005  1.501   0.8935], S eigs top [1.46694  1.170166 1.027693])
+  active inequality rows 3738 of 18434: pair rows 3731 of 18240, other 7 of 194
+
