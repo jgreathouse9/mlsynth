@@ -1726,6 +1726,27 @@ Measured and not built:
   multipliers are bounded and many sit at zero, the case L-BFGS-B's Cauchy point and
   subspace minimisation are built for.
 
+## The start's restarts on the pool
+
+The search's first incumbent is the library's design: the greedy search, then
+`local_search`'s descent from the greedy design and from 50 random designs. On 80
+geos the greedy takes 1.1 s and the 50 restarts 47.7 s, about 1 s each, all in one
+process, while the pool the search made sat idle.
+
+`local_search` draws every restart from one generator seeded 0, and each descent
+depends only on its own draw. With a pool, `_start` makes the draws itself in
+`local_search`'s order (`_random_design`), descends them on the pool (`_descend`,
+`local_search` from that design with no restarts), and takes the best in draw order:
+the greedy's descent first, a later descent replacing the best only when its key is
+strictly greater, which is `local_search`'s own rule. The result is
+`local_search`'s design, and `test_parallel_start.py` pins it on the pool and in
+this process, at fixed panels and as a property over panels, sizes and restart
+counts, together with the tie rule and the draw that is no design.
+
+TIMING
+
+Mutants (`tbr-bnb-parallel-start`): 8, all killed.
+
 ## Five geos
 
 At five geos GeoLift has 658,008 treatment groups. On one process the search took
