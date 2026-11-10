@@ -1,0 +1,114 @@
+# The dual tier and the group screen: levers measured and not built.
+# Each replay patches dual_multipliers on the 100-geo groups: certify_slope_free(geo_panel(0, n=90, p=100)
+# split at the treated set, restarts=50); '1%' is ceiling 1324.8473623832656. One BLAS thread each.
+
+## 1. Step rules against L-BFGS-B, every dual_multipliers call replayed on the same _Dual, start,
+##    smoothing schedule, per-stage cap, budget and stopping rule (main ad363aca).
+# SPG (Birgin, Martinez and Raydan 2000) with Fletcher's (2005) non-monotone window; BB without line search
+(4, 35, 58, 60) calls 29
+lbfgsb    closed  14  evals   7230     22.3 s  3.09 ms/eval
+spg-M10   closed   9  evals   8793     12.8 s  1.46 ms/eval
+spg-M100  closed  10  evals   8736     12.4 s  1.41 ms/eval
+bb-free   closed   0  evals  11629     15.9 s  1.37 ms/eval
+L-BFGS-B closed, SPG-M100 not: 4  SPG-M100 closed, L-BFGS-B not: 0
+(4, 27, 33, 58) calls 39
+lbfgsb    closed  16  evals  25602     71.5 s  2.79 ms/eval
+spg-M10   closed  11  evals  31863     43.9 s  1.38 ms/eval
+spg-M100  closed  11  evals  31573     44.3 s  1.40 ms/eval
+bb-free   closed   0  evals  34839     50.2 s  1.44 ms/eval
+L-BFGS-B closed, SPG-M100 not: 5  SPG-M100 closed, L-BFGS-B not: 0
+# SPG, M = 10, at twice the evaluation budget (equal time)
+(4, 35, 58, 60) calls 29
+lbfgsb    closed  14  evals   7230     21.8 s  3.02 ms/eval
+spg-M10-2x closed  10  evals  16938     23.8 s  1.40 ms/eval
+L-BFGS-B closed, SPG-M10-2x not: 4  SPG-M10-2x closed, L-BFGS-B not: 0
+# projected L-BFGS (Kim, Sra and Dhillon 2010): held bound variables, two-loop direction (5 pairs), projected backtracking, scipy's stage rules
+(4, 35, 58, 60) calls 29
+lbfgsb    closed  14  evals   7230     22.6 s  3.13 ms/eval
+pqn       closed  10  evals   8737     16.9 s  1.93 ms/eval
+L-BFGS-B closed, PQN not: 4  PQN closed, L-BFGS-B not: 0
+(4, 27, 33, 58) calls 39
+lbfgsb    closed  16  evals  25602     71.0 s  2.77 ms/eval
+pqn       closed  12  evals  27289     50.9 s  1.86 ms/eval
+L-BFGS-B closed, PQN not: 4  PQN closed, L-BFGS-B not: 0
+
+## 2. Give-up rules, from every dual call's certificate trajectory: both 100-geo searches (68 calls)
+##    and the five beds (2,205 calls), on main ad363aca with #1025 and #1026 merged in.
+## Rule: give up at evaluation K if min(F[:K]) / F[0] > tau. "lost" counts calls that closed later.
+calls 2273, closed 1926, evaluations in calls that never close 123371
+K= 50 tau=0.20  calls cut  269  closures lost 114  evaluations saved  62638
+K= 50 tau=0.25  calls cut  156  closures lost  51  evaluations saved  31790
+K= 50 tau=0.30  calls cut   77  closures lost  15  evaluations saved  18947
+K= 50 tau=0.35  calls cut   44  closures lost   6  evaluations saved  11783
+K=100 tau=0.20  calls cut  104  closures lost   2  evaluations saved  25587
+K=100 tau=0.25  calls cut   62  closures lost   0  evaluations saved  15351
+K=100 tau=0.30  calls cut   36  closures lost   0  evaluations saved   9178
+K=100 tau=0.35  calls cut   14  closures lost   0  evaluations saved   3549
+K=150 tau=0.20  calls cut   82  closures lost   0  evaluations saved  16855
+K=150 tau=0.25  calls cut   46  closures lost   0  evaluations saved   9505
+K=150 tau=0.30  calls cut   18  closures lost   0  evaluations saved   3390
+K=150 tau=0.35  calls cut    6  closures lost   0  evaluations saved   1106
+
+## 3. The group screen's rungs, each run on its own, with rung 0's trajectory: every screen of
+##    certify_treatment(geo_panel(0, n=90, p=P), 4, gap=1/100) at P = 60 (complete, 15 screens)
+##    and P = 80 (the first 41 screens; the run was stopped there), same tree as section 2. best = min F / F[0].
+screens 56, closed by rung 0: 9
+rung 0 left open: rung 0 best, and whether a later rung closed
+  p=76  rung0 best 0.0001  later rung closes True
+  p=76  rung0 best 0.0006  later rung closes True
+  p=76  rung0 best 0.0009  later rung closes True
+  p=76  rung0 best 0.0009  later rung closes True
+  p=76  rung0 best 0.0011  later rung closes True
+  p=76  rung0 best 0.0012  later rung closes True
+  p=76  rung0 best 0.0022  later rung closes True
+  p=76  rung0 best 0.0025  later rung closes True
+  p=76  rung0 best 0.0025  later rung closes True
+  p=76  rung0 best 0.0029  later rung closes True
+  p=56  rung0 best 0.0030  later rung closes True
+  p=76  rung0 best 0.0034  later rung closes True
+  p=76  rung0 best 0.0039  later rung closes True
+  p=76  rung0 best 0.0039  later rung closes True
+  p=76  rung0 best 0.0039  later rung closes True
+  p=76  rung0 best 0.0040  later rung closes True
+  p=76  rung0 best 0.0041  later rung closes True
+  p=76  rung0 best 0.0043  later rung closes True
+  p=76  rung0 best 0.0045  later rung closes True
+  p=76  rung0 best 0.0046  later rung closes True
+  p=76  rung0 best 0.0049  later rung closes True
+  p=76  rung0 best 0.0049  later rung closes True
+  p=76  rung0 best 0.0049  later rung closes True
+  p=76  rung0 best 0.0051  later rung closes True
+  p=56  rung0 best 0.0053  later rung closes True
+  p=76  rung0 best 0.0054  later rung closes True
+  p=76  rung0 best 0.0060  later rung closes True
+  p=76  rung0 best 0.0061  later rung closes True
+  p=76  rung0 best 0.0066  later rung closes True
+  p=76  rung0 best 0.0067  later rung closes True
+  p=76  rung0 best 0.0071  later rung closes True
+  p=56  rung0 best 0.0071  later rung closes True
+  p=76  rung0 best 0.0071  later rung closes True
+  p=76  rung0 best 0.0077  later rung closes True
+  p=76  rung0 best 0.0079  later rung closes True
+  p=76  rung0 best 0.0086  later rung closes True
+  p=56  rung0 best 0.0119  later rung closes True
+  p=76  rung0 best 0.0127  later rung closes True
+  p=76  rung0 best 0.0141  later rung closes True
+  p=56  rung0 best 0.0165  later rung closes True
+  p=76  rung0 best 0.0190  later rung closes True
+  p=76  rung0 best 0.0227  later rung closes True
+  p=76  rung0 best 0.0407  later rung closes True
+  p=76  rung0 best 0.0477  later rung closes True
+  p=76  rung0 best 0.0519  later rung closes False
+  p=76  rung0 best 0.0573  later rung closes False
+  p=56  rung0 best 0.0643  later rung closes False
+rungs 0 and 1 left open: rung 1 best, and whether rung 2 closed
+  p=56  rung1 best 0.0081  rung 2 closes False
+  p=76  rung1 best 0.0080  rung 2 closes True
+  p=76  rung1 best 0.0150  rung 2 closes False
+  p=76  rung1 best 0.0112  rung 2 closes False
+# the hard 100-geo group (4, 27, 33, 58) at 1%: rung 0 best 0.051; no rung closes (3 calls, 16,157 evaluations)
+
+## 4. A partial eigendecomposition: every 25th dual evaluation of both 100-geo searches (97 x 97).
+1021 samples; n 97 | positive eigenvalues median 12.0 p90 20.0 max 33 | active median 10.0 | full eigh 0.857 ms, syevr (0,inf) 0.891 ms | agree False
+# agree False: in some samples an eigenvalue at zero fell on different sides of (0, inf) in the two routines
+287 samples; n 97 | positive eigenvalues median 12.0 p90 21.0 max 33 | active median 8.0 | full eigh 0.865 ms, syevr (0,inf) 0.895 ms | agree True

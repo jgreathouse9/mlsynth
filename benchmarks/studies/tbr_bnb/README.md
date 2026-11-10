@@ -1417,6 +1417,39 @@ complement of order `n^2 mu^2 + n^3` a step, with about 18,000 rows and `mu = 97
 (Nesterov and Nemirovskii 1994, section 6.4.1), which is why Clarabel took 100 to
 145 s a full solve.
 
+### The dual tier and the screen, measured and not built
+
+With the early end and the fast rows, the dual tier is 75.6 s of the 1% group's
+113.8 s under the profiler: `setulb` (L-BFGS-B's own step) 28.6 s over 50,236
+calls, the evaluations 34.2 s, of which the 97 x 97 eigendecomposition is 22.0 s.
+On the same group the group screen is 44.9 s, three calls that do not close.
+Four levers were measured against that (`results/dual_tier.log`), every one on
+the dual's own calls, replayed with the same start, smoothing schedule, budget and
+stopping rule:
+
+- A cheaper step. Spectral projected gradient (Birgin, Martinez and Raydan 2000)
+  with Fletcher's (2005) non-monotone window costs 1.4 ms an evaluation against
+  L-BFGS-B's 2.8 to 3.1, and closes 9 to 11 calls where L-BFGS-B closes 14 and 16;
+  given twice the budget, the same time, it closes 10 against 14. A projected
+  L-BFGS with the two-loop direction on the variables off their bound (Kim, Sra
+  and Dhillon 2010) closes 10 and 12. Neither closes a call L-BFGS-B leaves open,
+  and each call left open costs a relaxation solve, so L-BFGS-B's generalized
+  Cauchy point and subspace step pay for themselves.
+- Giving up early. Over 2,273 recorded calls (both 100-geo searches and the five
+  beds), the calls that never close spend 123,371 evaluations. Giving up at
+  evaluation 100 when the best certificate is above 0.25 of its start loses no
+  closure and saves 15,351 of them, a few percent of the time; at 0.20 it loses
+  two, at 0.201 and 0.239. The margin is too thin for the gain.
+- Skipping the screen's longer rungs. On the 56 screens of the 60 and 80-geo,
+  four-treated searches at 1%, the screens a later rung closed ended rung 0 at
+  best ratios up to 0.048, and those no rung closed at 0.052 to 0.064 (0.051 on
+  the hard 100-geo group). One rung later, rung 2 closed a screen whose rung 1
+  had reached 0.0080 and left open one at 0.0081. Neither rung predicts the next.
+- A partial eigendecomposition. At the dual's iterates S(y) has a median of 12
+  positive eigenvalues of 97, but LAPACK's `syevr` restricted to them takes
+  0.89 ms against 0.86 ms for the full decomposition: the reduction to tridiagonal
+  form, which both pay, is the cost at this size.
+
 ## Several processes
 
 `certify_treatment(..., n_jobs=)` computes the floors in chunks over a pool of
