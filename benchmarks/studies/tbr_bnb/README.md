@@ -1785,6 +1785,58 @@ starts every group cold. It gives the same floors by construction (`_canonical`)
 only costs time, so no test can tell it from the original; its cost is in
 `results/lean_nnls.log`.
 
+## The screen in the workers
+
+On 80 geos the floors leave a handful of the 1,581,580 four-geo groups, yet every
+floor came back to the parent as a Python row, was sorted, and was screened one at a
+time by `compete_bracket`. Building, sending and sorting rows that the screen then
+dropped was a large part of the floors' wall time once the kernel had made the
+floors themselves cheap.
+
+The search now passes the floors the incumbent's class as it stands when they are
+computed, the start's design (`class_of()`), and each worker drops the rows the float
+screen shows cannot compete (`_floor_chunk_screened`). It counts them as screened
+out, so `screened_out` is what it was. The incumbent only improves, so its ceiling
+only falls: a row that cannot compete with the start's class
+cannot compete with any later one, and the search is the search it was.
+
+With the kernel, the screen reads the kernel's arrays (`_screen_mask`): the same
+doubles, the same products and the same comparisons as `compete_bracket`, element by
+element, with the same margin (`_MARGIN`, 2^-48) and the same guard on subnormal
+ceilings (`_NORMAL`, 2^-1000). A row inside the margin is undecided and kept for the
+parent's exact screen; a row with a nan floor, which the kernel left to `rss_floor`,
+is never dropped. Only the rows kept become Python rows. Without the kernel, or on a
+panel without a Gram floor, each row is screened by `compete_bracket` itself.
+
+`test_worker_screen.py` pins the mask to `compete_bracket` row by row (a property
+over floors, brackets and classes), the screened rows to the unscreened rows less
+those `compete_bracket` refuses, one process to two, and the search with the worker
+screen to the search without it: the same treatment, controls, RSS, key, survivors,
+`screened_out`, groups searched and replacements, at k = 2 and 3, gap 0 and 1/100,
+on one job and two.
+
+On 80 geos, 150 periods, k = 4, a 1% gap and four jobs (`results/worker_screen.log`,
+two alternating rounds on one host):
+
+| | main | worker screen | with the lean NNLS too |
+| --- | --- | --- | --- |
+| wall | 107.7 s, 104.9 s | 92.5 s, 96.2 s | 83.3 s, 88.4 s |
+| the floors | 36.5 s, 36.8 s | 34.1 s, 36.5 s | 24.2 s, 25.2 s |
+| the start | 52.2 s, 49.0 s | 49.4 s, 50.7 s | 49.9 s, 53.4 s |
+| the rest | 19.0 s, 19.1 s | 9.0 s, 9.0 s | 9.2 s, 9.8 s |
+
+The floors themselves take as long as they did; what the screen removes is the
+parent's sort and its row-by-row screen of 1.58 million rows, which halves the rest
+of the run. Every run certifies the same treatment, controls, RSS and key, searches 7
+groups, screens out 1,581,572 and keeps 8 survivors.
+
+Mutants (`tbr-bnb-worker-screen`): 7. The first run killed 5. The two survivors,
+the mask dropping a row inside the margin and the path without the kernel dropping
+an undecided row, were never reached, since no test row sat in the margin band;
+`test_a_floor_inside_the_margin_is_not_dropped` and
+`test_an_undecided_row_is_kept_without_the_kernel` put one there, and both are now
+killed.
+
 ## The start's restarts on the pool
 
 The search's first incumbent is the library's design: the greedy search, then

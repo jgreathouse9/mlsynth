@@ -13021,14 +13021,14 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-competing-side-reads-the-top"
-  find = "    c_lo, c_hi = ceil(lo), ceil(hi)\n"
-  replace = "    c_lo, c_hi = ceil(hi), ceil(hi)\n"
+  find = "    f = float(floor)\n    c_lo, c_hi = ceil(lo), ceil(hi)\n"
+  replace = "    f = float(floor)\n    c_lo, c_hi = ceil(hi), ceil(hi)\n"
   models = "a group taken as competing against the ceiling at the bracket's top, which a y'y at its bottom may not reach"
 
   [[target.mutant]]
   id = "the-screened-side-reads-the-bottom"
-  find = "    c_lo, c_hi = ceil(lo), ceil(hi)\n"
-  replace = "    c_lo, c_hi = ceil(lo), ceil(lo)\n"
+  find = "    f = float(floor)\n    c_lo, c_hi = ceil(lo), ceil(hi)\n"
+  replace = "    f = float(floor)\n    c_lo, c_hi = ceil(lo), ceil(lo)\n"
   models = "a group screened out against the ceiling at the bracket's bottom, which a y'y at its top may exceed"
 
   [[target.mutant]]
@@ -13139,8 +13139,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "a-kernel-nan-is-taken-as-a-floor"
-  find = "        if math.isnan(f):\n            out.append(_floor_row(M, lam, T))\n"
-  replace = "        if False:\n            out.append(_floor_row(M, lam, T))\n"
+  find = "    for f, a, b, T in zip(fl, lo, hi, groups):\n        if math.isnan(f):\n            out.append(_floor_row(M, lam, T))\n"
+  replace = "    for f, a, b, T in zip(fl, lo, hi, groups):\n        if False:\n            out.append(_floor_row(M, lam, T))\n"
   models = "a group the kernel left (a nan floor) kept as a row, not computed by rss_floor"
 
   [[target.mutant]]
@@ -13151,8 +13151,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "the-kernel-runs-without-a-gram-floor"
-  find = "    if lam is None or not fastfloor.AVAILABLE or not groups:\n"
-  replace = "    if not fastfloor.AVAILABLE or not groups:\n"
+  find = "    if lam is None or not fastfloor.AVAILABLE or not groups:\n        return [_floor_row(M, lam, T) for T in groups]\n"
+  replace = "    if not fastfloor.AVAILABLE or not groups:\n        return [_floor_row(M, lam, T) for T in groups]\n"
   models = "the kernel called on a panel with no Gram floor, where every floor is 0"
 
   [[target.mutant]]
@@ -13325,8 +13325,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "the-start-group-is-left-out-of-the-queue"
-  find = "    rows = _floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs)\n"
-  replace = "    rows = _floor_rows(M, [T for T in combinations(range(p), k) if list(T) != T0], lam, pool, n_jobs)\n"
+  find = "    rows, dropped = _screened_floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs, class_of())\n"
+  replace = "    rows, dropped = _screened_floor_rows(M, [T for T in combinations(range(p), k) if list(T) != T0], lam, pool, n_jobs, class_of())\n"
   models = "the start group adopted as the incumbent and never certified, so a better design in it is never found and the count of screened and certified groups is one short"
 
   [[target.mutant]]
@@ -14761,6 +14761,54 @@ timeout = 600.0
   find = "ws.solve(c, G, lam, R, early=r < rounds)"
   replace = "ws.solve(c, G, lam, R, early=False)"
   models = "the full tier never asking for the early end, so every round runs to its cap as before"
+
+[[target]]
+name = "tbr-bnb-worker-screen"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_worker_screen.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-screen-drops-inside-the-margin"
+  find = "        refused = (c_hi >= _NORMAL) & (f * (1 - _MARGIN) >= c_hi)"
+  replace = "        refused = (c_hi >= _NORMAL) & (f >= c_hi)"
+  models = "the worker screen drops a row whose floor clears the ceiling by less than the float margin, where compete_bracket leaves it undecided, so a group that might compete is never searched"
+
+  [[target.mutant]]
+  id = "the-workers-drops-go-uncounted"
+  find = "    out.screened_out += dropped\n"
+  replace = "    out.screened_out += 0\n"
+  models = "the rows the workers drop missing from screened_out, so the search's accounting no longer covers every group"
+
+  [[target.mutant]]
+  id = "the-floors-get-no-class"
+  find = "    rows, dropped = _screened_floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs, class_of())\n"
+  replace = "    rows, dropped = _screened_floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs, (None, None))\n"
+  models = "the floors computed without the start's class: the same search, every row shipped back to the parent and screened there one at a time"
+
+  [[target.mutant]]
+  id = "one-chunks-drops-counted"
+  find = "    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
+  replace = "    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
+  models = "a parallel run counting the rows dropped in its first chunk only"
+
+  [[target.mutant]]
+  id = "an-undecided-row-is-dropped-without-the-kernel"
+  find = "                if not (isinstance(r[1], tuple) and compete_bracket(r[0], r[1][0], r[1][1], r_star, rss_star) is False)]\n"
+  replace = "                if not (isinstance(r[1], tuple) and compete_bracket(r[0], r[1][0], r[1][1], r_star, rss_star) is not True)]\n"
+  models = "without the kernel, a row compete_bracket leaves undecided dropped as if refused"
+
+  [[target.mutant]]
+  id = "a-nan-row-is-dropped"
+  find = "            out.append(_floor_row(M, lam, T))\n        else:\n            out.append((f if f > 0 else Q(0), (float(lo[i]), float(hi[i])), T))\n    return out, int(drop.sum())\n"
+  replace = "            continue\n        else:\n            out.append((f if f > 0 else Q(0), (float(lo[i]), float(hi[i])), T))\n    return out, int(drop.sum())\n"
+  models = "a group the kernel leaves (nan floor) dropped from the queue instead of taking rss_floor's exact path"
+
+  [[target.mutant]]
+  id = "the-screened-kernel-runs-without-a-gram-floor"
+  find = "    if lam is None or not fastfloor.AVAILABLE or not groups:\n        rows = _floor_chunk(M, lam, groups)\n"
+  replace = "    if not fastfloor.AVAILABLE or not groups:\n        rows = _floor_chunk(M, lam, groups)\n"
+  models = "the screened floors calling the kernel on a panel with no Gram floor, where every floor is 0"
 
 [[target]]
 name = "tbr-bnb-lean-nnls"
