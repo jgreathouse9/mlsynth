@@ -118,6 +118,22 @@ def _split(M, T):
     return M[:, T].sum(axis=1), M[:, rest], rest
 
 
+def _checked_panel(M) -> np.ndarray:
+    """The panel as a periods-by-geos array of doubles, refused with MlsynthDataError
+    when it is not two-dimensional or has a missing or infinite entry, named by its
+    geo and period (the first in period order) with the count of such entries. The
+    library's least squares otherwise fail on it with numpy's LinAlgError."""
+    M = np.asarray(M, dtype=float)
+    if M.ndim != 2:
+        raise MlsynthDataError(f"the panel has {M.ndim} dimensions; it has to be periods by geos.")
+    bad = ~np.isfinite(M)
+    if bad.any():
+        t, j = (int(i) for i in np.argwhere(bad)[0])
+        raise MlsynthDataError(f"the panel needs finite values: geo {j} has a missing or infinite value "
+                               f"at period {t} ({int(bad.sum())} entries in all).")
+    return M
+
+
 def _integers(v, what="y'y"):
     """The doubles ``v`` as integers over one power of two, D: a finite double is an
     integer over a power of two, n / d, and with D the largest of the d every D / d
@@ -546,7 +562,7 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
 
 def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, gap, n_jobs) -> TreatmentCertificate:
     t0 = time.perf_counter()
-    M = np.asarray(M, dtype=float)
+    M = _checked_panel(M)
     p = M.shape[1]
     if not 1 <= k <= p - 1:
         raise MlsynthDataError(f"a treatment group of {k} geos leaves no control among {p} geos; "
