@@ -1,0 +1,75 @@
+# Working-set spike: each size's root and two children (the most fractional geo fixed to 1 and to 0), geo_panel(0, n=90, p=100).
+# arm full: every row; arm working: the pair rows active at the previous size's root (kept), and where the node stayed
+# open, the dropped pair rows its point violated (added) and a second, cold solve. bound: the exact certificate on the full rows.
+{"label": "hard1pct", "arm": "full", "m": 24, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 3925, "seconds": 10.03, "bound": 92558731.56655723, "closed": false, "active_pairs": 3341}
+{"label": "g4356", "arm": "full", "m": 21, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 4025, "seconds": 10.17, "bound": 43175462.334387, "closed": false, "active_pairs": 3698}
+{"label": "g4356", "arm": "full", "m": 21, "fixes": [[86, 1]], "kept": null, "added": 0, "outcome": "certified", "iters": 2800, "seconds": 7.08, "bound": -7558242.261847839, "closed": true}
+{"label": "g4356", "arm": "full", "m": 21, "fixes": [[86, 0]], "kept": null, "added": 0, "outcome": "certified", "iters": 1800, "seconds": 4.85, "bound": -7146923.931913118, "closed": true}
+{"label": "hard1pct", "arm": "full", "m": 24, "fixes": [[39, 1]], "kept": null, "added": 0, "outcome": "converged", "iters": 5325, "seconds": 13.37, "bound": 19463696.724455215, "closed": false}
+{"label": "g4356", "arm": "full", "m": 22, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 4675, "seconds": 11.76, "bound": 83899588.82358807, "closed": false, "active_pairs": 3598}
+{"label": "hard1pct", "arm": "full", "m": 24, "fixes": [[39, 0]], "kept": null, "added": 0, "outcome": "converged", "iters": 4725, "seconds": 11.64, "bound": 8258270.961001861, "closed": false}
+{"label": "g4356", "arm": "full", "m": 22, "fixes": [[37, 1]], "kept": null, "added": 0, "outcome": "certified", "iters": 4000, "seconds": 9.84, "bound": -3052837.1454508714, "closed": true}
+{"label": "hard1pct", "arm": "full", "m": 25, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 3950, "seconds": 10.06, "bound": 117112519.99684456, "closed": false, "active_pairs": 3478}
+{"label": "g4356", "arm": "full", "m": 22, "fixes": [[37, 0]], "kept": null, "added": 0, "outcome": "certified", "iters": 1600, "seconds": 4.27, "bound": -11151930.824700562, "closed": true}
+{"label": "g4356", "arm": "full", "m": 23, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 4025, "seconds": 10.25, "bound": 113020664.36140367, "closed": false, "active_pairs": 3745}
+{"label": "hard1pct", "arm": "full", "m": 25, "fixes": [[39, 1]], "kept": null, "added": 0, "outcome": "converged", "iters": 6100, "seconds": 14.7, "bound": 41143418.389851615, "closed": false}
+{"label": "g4356", "arm": "full", "m": 23, "fixes": [[53, 1]], "kept": null, "added": 0, "outcome": "certified", "iters": 3200, "seconds": 7.74, "bound": -1438062.0734989906, "closed": true}
+{"label": "hard1pct", "arm": "full", "m": 25, "fixes": [[39, 0]], "kept": null, "added": 0, "outcome": "converged", "iters": 3900, "seconds": 10.16, "bound": 33734937.37353866, "closed": false}
+{"label": "hard1pct", "arm": "full", "m": 26, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 5250, "seconds": 12.61, "bound": 128268237.1398588, "closed": false, "active_pairs": 3572}
+{"label": "g4356", "arm": "full", "m": 23, "fixes": [[53, 0]], "kept": null, "added": 0, "outcome": "converged", "iters": 6725, "seconds": 17.25, "bound": 26095137.259879608, "closed": false}
+{"label": "hard1pct", "arm": "full", "m": 26, "fixes": [[39, 1]], "kept": null, "added": 0, "outcome": "converged", "iters": 4375, "seconds": 10.9, "bound": 55339963.63833357, "closed": false}
+{"label": "g4356", "arm": "full", "m": 24, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 6375, "seconds": 16.22, "bound": 124993043.0729917, "closed": false, "active_pairs": 3655}
+{"label": "g4356", "arm": "full", "m": 24, "fixes": [[51, 1]], "kept": null, "added": 0, "outcome": "certified", "iters": 4000, "seconds": 10.13, "bound": -417332.4879090744, "closed": true}
+{"label": "hard1pct", "arm": "full", "m": 26, "fixes": [[39, 0]], "kept": null, "added": 0, "outcome": "converged", "iters": 9725, "seconds": 25.34, "bound": 43382376.48570009, "closed": false}
+{"label": "g4356", "arm": "full", "m": 24, "fixes": [[51, 0]], "kept": null, "added": 0, "outcome": "converged", "iters": 6125, "seconds": 15.04, "bound": 52522164.94763083, "closed": false}
+{"label": "hard1pct", "arm": "full", "m": 27, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 3375, "seconds": 8.7, "bound": 122030372.31320454, "closed": false, "active_pairs": 3549}
+{"label": "hard1pct", "arm": "full", "m": 27, "fixes": [[61, 1]], "kept": null, "added": 0, "outcome": "converged", "iters": 3425, "seconds": 8.63, "bound": 83236335.12862769, "closed": false}
+{"label": "g4356", "arm": "full", "m": 25, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 8350, "seconds": 21.27, "bound": 115481101.93319178, "closed": false, "active_pairs": 3603}
+{"label": "g4356", "arm": "full", "m": 25, "fixes": [[33, 1]], "kept": null, "added": 0, "outcome": "converged", "iters": 12050, "seconds": 28.68, "bound": 19425799.960776437, "closed": false}
+{"label": "hard1pct", "arm": "full", "m": 27, "fixes": [[61, 0]], "kept": null, "added": 0, "outcome": "cap", "iters": 20400, "seconds": 54.43, "bound": 54455162.78067989, "closed": false}
+{"label": "g4356", "arm": "full", "m": 25, "fixes": [[33, 0]], "kept": null, "added": 0, "outcome": "converged", "iters": 9650, "seconds": 23.34, "bound": 29869786.187301375, "closed": false}
+{"label": "g4356", "arm": "full", "m": 26, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 5250, "seconds": 13.15, "bound": 74647598.61363469, "closed": false, "active_pairs": 3579}
+{"label": "g4356", "arm": "full", "m": 26, "fixes": [[18, 1]], "kept": null, "added": 0, "outcome": "converged", "iters": 6875, "seconds": 16.47, "bound": 35655707.719385706, "closed": false}
+{"label": "hard1pct", "arm": "full", "m": 28, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 15575, "seconds": 40.47, "bound": 96810614.28920726, "closed": false, "active_pairs": 3582}
+{"label": "g4356", "arm": "full", "m": 26, "fixes": [[18, 0]], "kept": null, "added": 0, "outcome": "converged", "iters": 4100, "seconds": 10.6, "bound": 41032036.37295461, "closed": false}
+{"label": "hard1pct", "arm": "full", "m": 28, "fixes": [[27, 1]], "kept": null, "added": 0, "outcome": "converged", "iters": 4500, "seconds": 12.18, "bound": 31478125.66634693, "closed": false}
+{"label": "g4356", "arm": "working", "m": 21, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 4025, "seconds": 10.17, "bound": 43175462.334387, "closed": false, "active_pairs": 3698}
+{"label": "hard1pct", "arm": "full", "m": 28, "fixes": [[27, 0]], "kept": null, "added": 0, "outcome": "converged", "iters": 4100, "seconds": 10.49, "bound": 29268864.028166015, "closed": false}
+{"label": "g4356", "arm": "working", "m": 21, "fixes": [[86, 1]], "kept": null, "added": 0, "outcome": "certified", "iters": 2800, "seconds": 6.9, "bound": -7558242.261847839, "closed": true}
+{"label": "g4356", "arm": "working", "m": 21, "fixes": [[86, 0]], "kept": null, "added": 0, "outcome": "certified", "iters": 1800, "seconds": 4.83, "bound": -7146923.931913118, "closed": true}
+{"label": "hard1pct", "arm": "full", "m": 29, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 3625, "seconds": 9.31, "bound": 55262912.72464815, "closed": false, "active_pairs": 3925}
+{"label": "hard1pct", "arm": "full", "m": 29, "fixes": [[39, 1]], "kept": null, "added": 0, "outcome": "certified", "iters": 3400, "seconds": 8.45, "bound": -2457162.3506005434, "closed": true}
+{"label": "hard1pct", "arm": "full", "m": 29, "fixes": [[39, 0]], "kept": null, "added": 0, "outcome": "certified", "iters": 1400, "seconds": 3.65, "bound": -12639894.548973722, "closed": true}
+{"label": "g4356", "arm": "working", "m": 22, "fixes": [], "kept": 3930, "added": 232, "outcome": "converged", "iters": 3625, "seconds": 14.44, "bound": 83899842.18880676, "closed": false, "active_pairs": 2936}
+{"label": "hard1pct", "arm": "working", "m": 24, "fixes": [], "kept": null, "added": 0, "outcome": "converged", "iters": 3925, "seconds": 10.18, "bound": 92558731.56655723, "closed": false, "active_pairs": 3341}
+{"label": "hard1pct", "arm": "working", "m": 24, "fixes": [[39, 1]], "kept": null, "added": 0, "outcome": "converged", "iters": 5325, "seconds": 13.6, "bound": 19463696.724455215, "closed": false}
+{"label": "hard1pct", "arm": "working", "m": 24, "fixes": [[39, 0]], "kept": null, "added": 0, "outcome": "converged", "iters": 4725, "seconds": 11.96, "bound": 8258270.961001861, "closed": false}
+{"label": "g4356", "arm": "working", "m": 22, "fixes": [[37, 1]], "kept": 4353, "added": 423, "outcome": "certified", "iters": 400, "seconds": 43.68, "bound": -8665546.606279392, "closed": true}
+{"label": "g4356", "arm": "working", "m": 22, "fixes": [[37, 0]], "kept": 4353, "added": 0, "outcome": "certified", "iters": 1800, "seconds": 3.82, "bound": -562165.9614747411, "closed": true}
+{"label": "hard1pct", "arm": "working", "m": 25, "fixes": [], "kept": 3500, "added": 159, "outcome": "converged", "iters": 3775, "seconds": 13.85, "bound": 117156296.2315738, "closed": false, "active_pairs": 2708}
+{"label": "g4356", "arm": "working", "m": 23, "fixes": [], "kept": 3207, "added": 271, "outcome": "converged", "iters": 4100, "seconds": 15.84, "bound": 113115611.99750674, "closed": false, "active_pairs": 2748}
+{"label": "hard1pct", "arm": "working", "m": 25, "fixes": [[39, 1]], "kept": 3798, "added": 298, "outcome": "converged", "iters": 5750, "seconds": 53.71, "bound": 41522566.566207975, "closed": false}
+{"label": "g4356", "arm": "working", "m": 23, "fixes": [[53, 1]], "kept": 3808, "added": 601, "outcome": "certified", "iters": 400, "seconds": 41.47, "bound": -1129943.8786758848, "closed": true}
+{"label": "hard1pct", "arm": "working", "m": 25, "fixes": [[39, 0]], "kept": 4135, "added": 337, "outcome": "converged", "iters": 2725, "seconds": 44.9, "bound": 34102165.196517594, "closed": false}
+{"label": "g4356", "arm": "working", "m": 23, "fixes": [[53, 0]], "kept": 4081, "added": 273, "outcome": "converged", "iters": 3825, "seconds": 50.37, "bound": 26324399.124850664, "closed": false}
+{"label": "hard1pct", "arm": "working", "m": 26, "fixes": [], "kept": 2947, "added": 239, "outcome": "converged", "iters": 2750, "seconds": 15.57, "bound": 128319364.84634428, "closed": false, "active_pairs": 2582}
+{"label": "g4356", "arm": "working", "m": 24, "fixes": [], "kept": 2989, "added": 241, "outcome": "converged", "iters": 5025, "seconds": 19.0, "bound": 125141543.35337973, "closed": false, "active_pairs": 2590}
+{"label": "hard1pct", "arm": "working", "m": 26, "fixes": [[39, 1]], "kept": 3280, "added": 333, "outcome": "converged", "iters": 4925, "seconds": 49.72, "bound": 55599314.13159956, "closed": false}
+{"label": "g4356", "arm": "working", "m": 24, "fixes": [[51, 1]], "kept": 3524, "added": 535, "outcome": "certified", "iters": 1200, "seconds": 45.33, "bound": -1053237.937384687, "closed": true}
+{"label": "g4356", "arm": "working", "m": 24, "fixes": [[51, 0]], "kept": 4166, "added": 642, "outcome": "converged", "iters": 3900, "seconds": 20.97, "bound": 52734049.36482365, "closed": false}
+{"label": "hard1pct", "arm": "working", "m": 26, "fixes": [[39, 0]], "kept": 3636, "added": 356, "outcome": "converged", "iters": 3075, "seconds": 43.03, "bound": 43516647.84318212, "closed": false}
+{"label": "g4356", "arm": "working", "m": 25, "fixes": [], "kept": 2888, "added": 298, "outcome": "converged", "iters": 6825, "seconds": 23.38, "bound": 115676454.86282705, "closed": false, "active_pairs": 2491}
+{"label": "hard1pct", "arm": "working", "m": 27, "fixes": [], "kept": 2811, "added": 229, "outcome": "converged", "iters": 3750, "seconds": 13.86, "bound": 122060861.7165698, "closed": false, "active_pairs": 2427}
+{"label": "hard1pct", "arm": "working", "m": 27, "fixes": [[61, 1]], "kept": 3047, "added": 236, "outcome": "converged", "iters": 4575, "seconds": 49.78, "bound": 83292754.48925318, "closed": false}
+{"label": "hard1pct", "arm": "working", "m": 27, "fixes": [[61, 0]], "kept": 3552, "added": 505, "outcome": "converged", "iters": 4300, "seconds": 22.33, "bound": 54511708.75442979, "closed": false}
+{"label": "g4356", "arm": "working", "m": 25, "fixes": [[33, 1]], "kept": 3779, "added": 891, "outcome": "cap", "iters": 20400, "seconds": 86.48, "bound": 19890673.134266682, "closed": false}
+{"label": "hard1pct", "arm": "working", "m": 28, "fixes": [], "kept": 2765, "added": 338, "outcome": "converged", "iters": 4175, "seconds": 16.18, "bound": 96875255.85963352, "closed": false, "active_pairs": 2356}
+{"label": "g4356", "arm": "working", "m": 25, "fixes": [[33, 0]], "kept": 4240, "added": 461, "outcome": "converged", "iters": 5350, "seconds": 37.16, "bound": 30082099.199424606, "closed": false}
+{"label": "hard1pct", "arm": "working", "m": 28, "fixes": [[27, 1]], "kept": 3452, "added": 687, "outcome": "converged", "iters": 4425, "seconds": 49.99, "bound": 31780662.62195239, "closed": false}
+{"label": "g4356", "arm": "working", "m": 26, "fixes": [], "kept": 2927, "added": 436, "outcome": "converged", "iters": 5275, "seconds": 23.92, "bound": 74867727.70054464, "closed": false, "active_pairs": 2446}
+{"label": "hard1pct", "arm": "working", "m": 28, "fixes": [[27, 0]], "kept": 3843, "added": 391, "outcome": "converged", "iters": 4425, "seconds": 23.05, "bound": 29488249.846668314, "closed": false}
+{"label": "hard1pct", "arm": "working", "m": 29, "fixes": [], "kept": 2838, "added": 482, "outcome": "converged", "iters": 5125, "seconds": 19.43, "bound": 55311416.05464095, "closed": false, "active_pairs": 2370}
+{"label": "g4356", "arm": "working", "m": 26, "fixes": [[18, 1]], "kept": 3371, "added": 444, "outcome": "converged", "iters": 7700, "seconds": 55.37, "bound": 35799546.56088095, "closed": false}
+{"label": "hard1pct", "arm": "working", "m": 29, "fixes": [[39, 1]], "kept": 3334, "added": 496, "outcome": "certified", "iters": 1600, "seconds": 23.86, "bound": -135209.2156389049, "closed": true}
+{"label": "hard1pct", "arm": "working", "m": 29, "fixes": [[39, 0]], "kept": 3334, "added": 0, "outcome": "certified", "iters": 5000, "seconds": 9.93, "bound": -137708.85345126016, "closed": true}
+{"label": "g4356", "arm": "working", "m": 26, "fixes": [[18, 0]], "kept": 3835, "added": 464, "outcome": "converged", "iters": 4850, "seconds": 26.64, "bound": 40972863.85190994, "closed": false}
