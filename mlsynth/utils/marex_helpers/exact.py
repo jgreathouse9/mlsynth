@@ -186,13 +186,16 @@ from ..syndes_helpers.enumeration import SearchSpace
 from ..syndes_helpers.exact import SubsetFilter
 from .diagnostics import MAREXSearchWarning, SearchReport
 from .formulation import (
+    WEIGHT_FLOOR,
     build_membership_mask,
+    carries_weight,
     compute_cluster_means_members,
     get_per_cluster_param,
     per_unit_reproducibility,
     precompute_distances,
     prepare_clusters,
     prepare_fit_slices,
+    validate_costs_budget,
     validate_scm_inputs,
 )
 from .optimization import _augment_fit, finish_design
@@ -307,6 +310,56 @@ def side_fit(B: np.ndarray, A: np.ndarray, cols: Sequence[int],
     if linear is not None:
         value += float(np.dot(linear, w))
     return value, w
+
+
+#: Bisection steps on the cost multiplier; each halves its bracket.
+BUDGET_STEPS = 200
+
+
+def budgeted_side_fit(B: np.ndarray, A: np.ndarray, cols: Sequence[int],
+                      linear: Optional[np.ndarray] = None, *,
+                      costs: np.ndarray, budget: float
+                      ) -> Optional[Tuple[float, np.ndarray]]:
+    """``side_fit`` with the weights' average cost held to ``budget``.
+
+    ``min ||A - B[:, cols] w||^2 + linear'w`` over the simplex and
+    ``costs'w <= budget``, ``costs`` in the order of ``cols``. When the
+    unconstrained fit already meets the budget it is the answer. Otherwise the
+    inequality binds at the optimum, and the fit is the simplex fit with the
+    linear term ``linear + mu costs`` for the multiplier ``mu > 0`` at which
+    ``costs'w = budget``: the weighted cost falls as ``mu`` rises, so ``mu`` is
+    found by bisection, keeping the side of the bracket that meets the budget.
+    Returns ``None`` when no weights meet it: every market costs more.
+    """
+    cols = list(cols)
+    c = np.asarray(costs, dtype=float)
+    if float(c.min()) > budget:
+        return None
+    base = np.zeros(len(cols)) if linear is None else np.asarray(linear, dtype=float)
+    value, w = side_fit(B, A, cols, linear)
+    if float(c @ w) <= budget:
+        return value, w
+    Bs = B[:, cols]
+
+    def at(mu):
+        return np.asarray(solve_simplex_qp(Bs, A, linear=base + mu * c), dtype=float)
+
+    lo, hi = 0.0, 1.0
+    w_hi = at(hi)
+    while float(c @ w_hi) > budget and hi < 1e300:
+        lo, hi = hi, 2.0 * hi
+        w_hi = at(hi)
+    for _ in range(BUDGET_STEPS):
+        mid = 0.5 * (lo + hi)
+        if mid <= lo or mid >= hi:
+            break
+        w_mid = at(mid)
+        if float(c @ w_mid) > budget:
+            lo = mid
+        else:
+            hi, w_hi = mid, w_mid
+    r = A - Bs @ w_hi
+    return float(r @ r + base @ w_hi), w_hi
 
 
 class CoupledFitNotCertified(MlsynthEstimationError):
@@ -1095,7 +1148,8 @@ def _chunks(n: int, sizes: Sequence[int], filt: SubsetFilter
     tested on each finished candidate; with none of them the candidates go
     straight into an array without a per-candidate call.
     """
-    check = bool(filt.conflict_pairs or filt.strata or filt.forbidden_sets)
+    check = bool(filt.conflict_pairs or filt.strata or filt.forbidden_sets
+                 or filt.costs is not None)
     for size in sizes:
         space = _space(n, size, filt)
         if not space.size:
@@ -1160,6 +1214,8 @@ def search_cluster(
     beta: Optional[float] = None,
     control_penalty: float = 0.0,
     report: Optional[SearchReport] = None,
+    weight_costs: Optional[np.ndarray] = None,
+    weight_budget: Optional[float] = None,
 ) -> List[ClusterDesign]:
     """The ``top_k`` best designs of one cluster, best first.
 
@@ -1199,6 +1255,12 @@ def search_cluster(
         coupled fits' numerics and the time by phase
         (:mod:`~mlsynth.utils.marex_helpers.diagnostics`). It keeps what it
         counted when the search raises.
+    weight_costs, weight_budget : optional
+        The weighted-average cost constraint, ``weight_costs'w <= weight_budget``
+        on the treated weights (``costs``/``budget``), in local indices. Each
+        candidate's treated side is fitted by :func:`budgeted_side_fit`; a set
+        with no admissible weights is counted ``over_weight_budget``. Not with
+        ``beta``.
 
     Raises
     ------
@@ -1212,6 +1274,14 @@ def search_cluster(
         When no admissible design exists.
     """
     n = B.shape[1]
+    if (weight_costs is None) != (weight_budget is None):
+        raise MlsynthConfigError(
+            "weight_costs and weight_budget go together: the constraint is "
+            "weight_costs'w <= weight_budget.")
+    if weight_costs is not None and beta is not None:
+        raise MlsynthConfigError(
+            "The weighted-average cost constraint is fitted on the treated side "
+            "alone; the weakly-targeted coupled fit does not take it.")
     if control_penalty and beta is None:
         raise MlsynthConfigError(
             "control_penalty charges each control its distance from the "
@@ -1264,13 +1334,26 @@ def search_cluster(
     def margin(cut: float) -> float:
         return PRUNE_MARGIN * (1.0 + abs(cut))
 
+    w_costs = None if weight_costs is None else np.asarray(weight_costs, dtype=float)
+
     def consider(S: Tuple[int, ...]) -> None:
         seen.add(S)
         cols = list(S)
-        g, w = side_fit(B, A, cols, None if lin_t is None else lin_t[cols])
+        if w_costs is None:
+            g, w = side_fit(B, A, cols, None if lin_t is None else lin_t[cols])
+        else:
+            fitted = budgeted_side_fit(B, A, cols, None if lin_t is None else lin_t[cols],
+                                       costs=w_costs[cols], budget=float(weight_budget))
+            if fitted is None:
+                rep.counts["over_weight_budget"] += 1
+                return
+            g, w = fitted
         cut = best.cutoff
         if g >= cut or g + floor >= cut + margin(cut):
             rep.counts["cleared_by_treated_fit"] += 1
+            return
+        if beta is None and not carries_weight(w):
+            rep.counts["unweighted"] += 1
             return
         drop = set(S)
         for i in S:
@@ -1293,6 +1376,9 @@ def search_cluster(
                 return
             value, w, v, info = fit
             rep.coupled(info, value)
+            if not carries_weight(w):
+                rep.counts["unweighted"] += 1
+                return
         rep.counts["fitted"] += 1
         best.offer(ClusterDesign(value=value, treated=tuple(S),
                                  control=tuple(control), w=w, v=v))
@@ -1398,7 +1484,9 @@ def search_cluster(
     if not best.items:
         raise MlsynthEstimationError(
             "No admissible design exists in this cluster: every treated set "
-            "the restrictions allow leaves no control market.")
+            "the restrictions allow leaves no control market or has a market "
+            "its fit gives no weight. A treated market must carry weight; "
+            "Abadie and Zhao count the nonzero treated weights.")
     return list(best.items)
 
 
@@ -1495,21 +1583,119 @@ def _k_best_combinations(lists: List[List[ClusterDesign]], k: int
     return out
 
 
+#: How many designs each cluster's list starts with under a total-cost budget
+#: across clusters, and how long a list may grow before the step refuses.
+COMBINE_START = 16
+COMBINE_LIMIT = 4096
+
+
+def cheapest_admissible_cost(costs: np.ndarray, sizes: Sequence[int],
+                             filt: SubsetFilter) -> float:
+    """A floor under the total cost of every treated set the filter admits.
+
+    Each size pays its forced markets and the cheapest markets neither forced
+    nor forbidden that fill it; the floor is the least over the sizes. Conflict
+    pairs, strata and excluded sets only remove sets, so the floor stays under
+    every admissible set's cost; with forced and forbidden markets alone it is
+    attained. ``inf`` when no size can be filled.
+    """
+    c = np.asarray(costs, dtype=float)
+    forced = sorted(filt.forced_in)
+    free = np.sort([c[j] for j in range(c.size)
+                    if j not in filt.forced_in and j not in filt.forbidden])
+    paid = float(c[forced].sum())
+    best = np.inf
+    for size in sizes:
+        r = int(size) - len(forced)
+        if 0 <= r <= free.size:
+            best = min(best, paid + float(free[:r].sum()))
+    return best
+
+
+def k_best_affordable(lists: Sequence[Sequence[Tuple[float, float]]],
+                      budget: float, k: int) -> List[Tuple[float, Tuple[int, ...]]]:
+    """The ``k`` smallest summed values over one entry per list whose costs sum
+    to at most ``budget``, best first: a multiple-choice knapsack.
+
+    ``lists[c]`` holds cluster ``c``'s designs as ``(value, cost)``, in
+    ascending value. A branch and bound over the clusters, in order: a branch
+    closes when its value plus every later cluster's least value reaches the
+    ``k``-th best found (each list is in value order, so the rest of that list
+    goes with it), or when its cost plus every later cluster's least cost
+    exceeds the budget. The budget allows the same 1e-9 as the subset filter.
+    """
+    K = len(lists)
+    least_value = np.zeros(K + 1)
+    least_cost = np.zeros(K + 1)
+    for c in range(K - 1, -1, -1):
+        least_value[c] = least_value[c + 1] + min(v for v, _ in lists[c])
+        least_cost[c] = least_cost[c + 1] + min(w for _, w in lists[c])
+    best: List[Tuple[float, Tuple[int, ...]]] = []
+    pick: List[int] = []
+
+    def cutoff() -> float:
+        return best[-1][0] if len(best) == k else np.inf
+
+    def branch(c: int, value: float, cost: float) -> None:
+        if c == K:
+            best.append((value, tuple(pick)))
+            best.sort()
+            del best[k:]
+            return
+        for i, (v, w) in enumerate(lists[c]):
+            if value + v + least_value[c + 1] >= cutoff():
+                return
+            if cost + w + least_cost[c + 1] > budget + 1e-9:
+                continue
+            pick.append(i)
+            branch(c + 1, value + v, cost + w)
+            pick.pop()
+
+    branch(0, 0.0, 0.0)
+    return best
+
+
+def outside_bound(values: Sequence[Sequence[float]], complete: Sequence[bool]) -> float:
+    """A floor under every combination that takes a design past some cluster's list.
+
+    ``values[c]`` is cluster ``c``'s list of best design values, ascending, and
+    ``complete[c]`` says it holds every admissible design. A design past a
+    list scores at least the list's last value, and every other cluster at
+    least its best, so a combination leaving list ``c`` scores at least
+    ``values[c][-1]`` plus the other clusters' first values. The floor is the
+    least of those over the lists that are not complete; ``inf`` when all are.
+    """
+    firsts = [v[0] for v in values]
+    total = sum(firsts)
+    bound = np.inf
+    for v, done, first in zip(values, complete, firsts):
+        if not done:
+            bound = min(bound, v[-1] + total - first)
+    return bound
+
+
 def _designs(
     Y_full, T0, clusters, blank_periods=0, m_eq=None, m_min=None, m_max=None,
     exclusive=True, design="standard", beta=1e-6, lambda1=0.0, lambda2=0.0,
     xi=0.0, lambda1_unit=0.0, lambda2_unit=0.0, costs=None, budget=None,
     covariates=None, covariate_weight=1.0, standardize=False,
     restrictions=None, top_k=1, control_penalty=0.0, certify=False,
+    market_costs=None, max_total_cost=None,
 ) -> List[Dict[str, Any]]:
     if design not in EXACT_DESIGNS:
         raise MlsynthConfigError(
             f"The exact backend solves the designs "
             f"{', '.join(sorted(EXACT_DESIGNS))}; got design={design!r}.")
-    if costs is not None or budget is not None:
+    if (costs is not None or budget is not None) and design == "weakly_targeted":
         raise MlsynthConfigError(
-            "The exact backend does not take a cost budget, which constrains "
-            "the treated weights; use backend='mip'.")
+            "The exact backend fits the weighted-average cost constraint on the "
+            "treated side alone; the weakly-targeted coupled fit does not take "
+            "it. Use backend='mip'.")
+    if (costs is not None or budget is not None) and certify:
+        raise MlsynthConfigError(
+            "The certificate prices each treated set by its unconstrained fit, "
+            "which the weighted-average cost constraint can raise; certify=True "
+            "does not take costs/budget.")
     if design == "unit_penalized" and lambda2_unit > 0:
         raise MlsynthConfigError(
             "lambda2_unit pairs the treated weights against the control weights "
@@ -1527,10 +1713,17 @@ def _designs(
     D1, _ = precompute_distances(X_fit, Xbar_clusters, cluster_members)
     cluster_of = np.array([int(np.argmax(M[j])) for j in range(N)])
     _refuse_spanning_rules(restrictions, cluster_of)
+    costs_np, budget_dict = validate_costs_budget(costs, budget, N, cluster_labels, K)
+    spanning = market_costs is not None and K > 1
+    if spanning and certify:
+        raise MlsynthConfigError(
+            "certify=True certifies each cluster's best design. Under a total-cost "
+            "budget across clusters the design can take a cluster's lower-ranked "
+            "treated set, which that certificate does not cover; use "
+            "certify=False. The combination step is exact over the clusters' "
+            "lists on its own.")
 
-    per_cluster: List[List[ClusterDesign]] = []
-    certificates: Dict[str, Any] = {}
-    searches: Dict[str, Any] = {}
+    setups: List[Dict[str, Any]] = []
     for k_idx, lab in enumerate(cluster_labels):
         members = np.asarray(cluster_members[k_idx])
         sizes = _sizes(len(members), lab, m_eq, m_min, m_max)
@@ -1540,19 +1733,55 @@ def _designs(
                 f"count leaves no control market (m_eq={m_eq}, m_min={m_min}, "
                 f"m_max={m_max}, cluster size {len(members)}).")
         filt, donors = _local_rules(restrictions, members, cluster_of)
+        if market_costs is not None:
+            filt = dataclasses.replace(
+                filt, costs=np.asarray(market_costs, dtype=float)[members],
+                budget=float(max_total_cost))
         a, b = _penalties(design, k_idx, members, X_fit, D1, lambda1, lambda2,
                           xi, lambda1_unit)
-        B_k, A_k = X_fit[members].T, Xbar_clusters[k_idx]
+        weighted = ({} if costs_np is None else
+                    dict(weight_costs=np.asarray(costs_np, dtype=float)[members],
+                         weight_budget=float(budget_dict[lab])))
+        setups.append(dict(lab=lab, members=members, sizes=sizes, filt=filt,
+                           donors=donors, a=a, b=b, B=X_fit[members].T,
+                           A=Xbar_clusters[k_idx], weighted=weighted))
+    if spanning:
+        # Each cluster's search drops the sets the budget leaves no room for once
+        # every other cluster takes its cheapest admissible treated set.
+        floors = [cheapest_admissible_cost(s["filt"].costs, s["sizes"], s["filt"])
+                  for s in setups]
+        spare = float(max_total_cost) - sum(floors)
+        if not spare >= -1e-9:
+            raise MlsynthEstimationError(
+                f"MAREX design is infeasible under the total-cost budget: the "
+                f"cheapest treated markets each cluster admits cost "
+                f"{sum(floors):g} together, above max_total_cost="
+                f"{float(max_total_cost):g}.")
+        for s, floor in zip(setups, floors):
+            s["filt"] = dataclasses.replace(s["filt"], budget=floor + max(spare, 0.0))
+
+    def search(s: Dict[str, Any], length: int):
+        """One cluster's ``length`` best designs, its certificate from the branch
+        and bound if it ran, and its search summary."""
+        lab, members, sizes, filt = s["lab"], s["members"], s["sizes"], s["filt"]
         cert = None
         report = SearchReport()
         try:
             n_cand = count_candidates(len(members), sizes, filt)
+            if s["weighted"] and n_cand > CANDIDATE_LIMIT:
+                raise MlsynthConfigError(
+                    f"Cluster {lab!r} has {n_cand:,} treated sets, above the exact "
+                    f"backend's candidate limit of {CANDIDATE_LIMIT:,}. The branch "
+                    f"and bound that searches above it does not take the "
+                    f"weighted-average cost constraint; use backend='mip', or "
+                    f"narrow the design.")
             if design in SEPARABLE_DESIGNS and n_cand > CANDIDATE_LIMIT:
                 from .branch import branch_and_bound
                 clock = time.perf_counter()
                 found = branch_and_bound(
-                    B_k, A_k, sizes, filt=filt, linear_treated=a,
-                    linear_control=b, donor_exclusion=donors, top_k=top_k)
+                    s["B"], s["A"], sizes, filt=filt, linear_treated=s["a"],
+                    linear_control=s["b"], donor_exclusion=s["donors"],
+                    top_k=length)
                 designs, cert = found.designs, found.certificate
                 report.timing["branch_and_bound"] = time.perf_counter() - clock
                 report.counts.update(candidates=n_cand, bnb_bounds=found.lifts,
@@ -1568,25 +1797,25 @@ def _designs(
                         f"{float(cert.gap) / max(abs(upper), 1e-300):.3g} of the "
                         "optimum relative to its objective, not a proven optimum. "
                         "Narrow the design with restrictions, clusters or a smaller "
-                        "treated count.", MAREXSearchWarning, stacklevel=3)
+                        "treated count.", MAREXSearchWarning, stacklevel=4)
             else:
                 designs = search_cluster(
-                    B_k, A_k, sizes, filt=filt,
-                    linear_treated=a, linear_control=b, donor_exclusion=donors,
-                    top_k=top_k,
+                    s["B"], s["A"], sizes, filt=filt,
+                    linear_treated=s["a"], linear_control=s["b"],
+                    donor_exclusion=s["donors"], top_k=length,
                     beta=beta if design == "weakly_targeted" else None,
-                    control_penalty=control_penalty, report=report)
+                    control_penalty=control_penalty, report=report, **s["weighted"])
                 kind = "enumeration"
         except (CoupledFitNotCertified, SearchNotClosed):
             raise
         except MlsynthEstimationError as exc:
             raise MlsynthEstimationError(
                 f"MAREX design is infeasible under the active restrictions "
-                f"(forced/forbidden units, border conflicts, size band) and the "
+                f"(forced/forbidden units, border conflicts, size band, total-cost "
+                f"budget) and the "
                 f"cluster cardinality (m_min/m_max) in cluster {lab!r}: {exc}"
             ) from exc
-        per_cluster.append(designs)
-        searches[str(lab)] = summary = report.freeze(kind)
+        summary = report.freeze(kind)
         if summary.numerics.bound_fallbacks:
             warnings.warn(
                 f"MAREX exact search, cluster {str(lab)!r}: "
@@ -1594,13 +1823,57 @@ def _designs(
                 "to 0 because their bordered update broke down, so those treated "
                 "sets were searched on no bound. The design is still exact; markets that "
                 "duplicate one another, or a near-singular panel, cause this.",
-                MAREXSearchWarning, stacklevel=3)
+                MAREXSearchWarning, stacklevel=4)
+        return designs, cert, summary
+
+    lengths = [max(top_k, COMBINE_START) if spanning else top_k] * K
+    found = [search(s, n) for s, n in zip(setups, lengths)]
+    per_cluster: List[List[ClusterDesign]] = [f[0] for f in found]
+    if spanning:
+        while True:
+            pairs = [[(d.value, float(s["filt"].costs[list(d.treated)].sum()))
+                      for d in lst] for lst, s in zip(per_cluster, setups)]
+            combos = k_best_affordable(pairs, float(max_total_cost), top_k)
+            values = [[d.value for d in lst] for lst in per_cluster]
+            complete = [len(lst) < n for lst, n in zip(per_cluster, lengths)]
+            cut = combos[-1][0] if len(combos) == top_k else np.inf
+            if outside_bound(values, complete) >= cut:
+                break
+            # Lengthen every list a combination past it could still beat the
+            # answer from: its last value plus the other clusters' best.
+            total = sum(v[0] for v in values)
+            for k_idx, (v, done) in enumerate(zip(values, complete)):
+                if done or v[-1] + total - v[0] >= cut:
+                    continue
+                lengths[k_idx] *= 2
+                if lengths[k_idx] > COMBINE_LIMIT:
+                    raise MlsynthConfigError(
+                        f"Under the total-cost budget the exact backend would keep "
+                        f"more than {COMBINE_LIMIT:,} designs of cluster "
+                        f"{setups[k_idx]['lab']!r} before it could prove the best "
+                        f"combination; use backend='mip', or narrow the design.")
+                found[k_idx] = search(setups[k_idx], lengths[k_idx])
+                per_cluster[k_idx] = found[k_idx][0]
+        if not combos:
+            raise MlsynthEstimationError(
+                f"MAREX design is infeasible under the total-cost budget: no "
+                f"admissible treated set per cluster costs at most "
+                f"max_total_cost={float(max_total_cost):g} together.")
+    else:
+        combos = _k_best_combinations(per_cluster, top_k)
+
+    certificates: Dict[str, Any] = {}
+    searches: Dict[str, Any] = {}
+    for s, (designs, cert, summary) in zip(setups, found):
+        lab, members = s["lab"], s["members"]
+        searches[str(lab)] = summary
         if certify:
             if cert is None:
                 from .certify import certify_cluster
                 cert = certify_cluster(
-                    B_k, A_k, sizes, filt, designs[0],
-                    linear_treated=a, linear_control=b, donor_exclusion=donors)
+                    s["B"], s["A"], s["sizes"], s["filt"], designs[0],
+                    linear_treated=s["a"], linear_control=s["b"],
+                    donor_exclusion=s["donors"])
             if cert.unresolved:
                 warnings.warn(
                     f"MAREX exact search, cluster {str(lab)!r}: the certificate left "
@@ -1611,7 +1884,8 @@ def _designs(
                 tuple(int(members[j]) for j in S) for S in cert.unresolved))
 
     raws = []
-    for total, pick in _k_best_combinations(per_cluster, top_k):
+    for total, pick in combos:
+
         w_opt = np.zeros((N, K))
         v_opt = np.zeros((N, K))
         z_opt = np.zeros((N, K))

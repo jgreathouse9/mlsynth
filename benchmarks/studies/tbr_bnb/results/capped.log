@@ -1,0 +1,4 @@
+[dallas] pairs 1989; capped only: clarabel 28.5s -> active set 22.9s (13 vs 13 survivors); two tiers: 9.6s -> 9.5s (13 vs 13, capped on 111); same: True
+[dallas+denver] pairs 1900; capped only: clarabel 25.6s -> active set 20.5s (18 vs 18 survivors); two tiers: 8.7s -> 8.9s (18 vs 18, capped on 127); same: True
+[cincinnati+dallas+denver] pairs 1924; capped only: clarabel 23.9s -> active set 19.9s (36 vs 36 survivors); two tiers: 8.0s -> 7.9s (36 vs 36, capped on 115); same: True
+[chicago+cincinnati+dallas+denver] pairs 1872; capped only: clarabel 21.7s -> active set 19.1s (41 vs 41 survivors); two tiers: 8.1s -> 7.6s (41 vs 41, capped on 108); same: True

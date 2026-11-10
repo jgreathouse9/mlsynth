@@ -29,6 +29,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from mlsynth.exceptions import MlsynthEstimationError
 from mlsynth.tests.test_marex_exact_backend import _fit, _panel
 
 
@@ -40,8 +41,9 @@ def _predictors(df, T0):
     return order, wide.to_numpy(float)[:, :T0]
 
 
-def _simplex_fit(D, y, lin=None):
-    """``min ||y - D w||^2 + lin'w`` over the simplex, by Clarabel."""
+def _simplex_fit(D, y, lin=None, weights=False):
+    """``min ||y - D w||^2 + lin'w`` over the simplex, by Clarabel; with
+    ``weights``, the minimum and its weights."""
     w = cp.Variable(D.shape[1])
     obj = cp.sum_squares(y - D @ w)
     if lin is not None:
@@ -49,6 +51,8 @@ def _simplex_fit(D, y, lin=None):
     prob = cp.Problem(cp.Minimize(obj), [w >= 0, cp.sum(w) == 1])
     prob.solve(solver=cp.CLARABEL, tol_gap_abs=1e-12, tol_gap_rel=1e-12,
                tol_feas=1e-12)
+    if weights:
+        return float(prob.value), np.asarray(w.value, dtype=float)
     return float(prob.value)
 
 
@@ -73,8 +77,17 @@ def _oracle_penalties(X, members, design, p):
     return np.zeros(len(members)), np.zeros(len(members))
 
 
+#: A treated market carries weight above this, or the set is not a design of
+#: its size (Abadie and Zhao bound the nonzero treated weights; jgreathouse9/mlsynth#950).
+CARRIED = 1e-8
+
+
 def _oracle(X, groups, m, design, p):
-    """The minimum of MAREX's objective by enumeration, and its treated sets."""
+    """The minimum of MAREX's objective by enumeration, and its treated sets.
+
+    A set counts only when its own treated fit weights every market in it. A
+    cluster with no such set makes the program empty: ``(inf, None)``.
+    """
     total, treated = 0.0, []
     for members in groups:
         members = list(members)
@@ -83,10 +96,15 @@ def _oracle(X, groups, m, design, p):
         best = (np.inf, None)
         for S in itertools.combinations(range(len(members)), m):
             C = [i for i in range(len(members)) if i not in S]
-            f = (_simplex_fit(X[[members[i] for i in S]].T, A, a[list(S)])
-                 + _simplex_fit(X[[members[i] for i in C]].T, A, b[C]))
+            g, w = _simplex_fit(X[[members[i] for i in S]].T, A, a[list(S)],
+                                weights=True)
+            if np.any(w <= CARRIED):
+                continue
+            f = g + _simplex_fit(X[[members[i] for i in C]].T, A, b[C])
             if f < best[0]:
                 best = (f, S)
+        if best[1] is None:
+            return np.inf, None
         total += best[0]
         treated.append([members[i] for i in best[1]])
     return total, treated
@@ -137,6 +155,15 @@ def test_each_cluster_is_priced_by_its_own_mean():
         np.testing.assert_allclose(b, rb, rtol=1e-9)
 
 
+def _at_oracle(want, fit, rel):
+    """The fit's objective is the oracle's, or both find the program empty."""
+    if not np.isfinite(want):
+        with pytest.raises(MlsynthEstimationError, match="weight"):
+            fit()
+        return
+    assert fit().globres.objective == pytest.approx(want, rel=rel)
+
+
 # ------------------------------------------- differential: design and objective
 @pytest.mark.parametrize("design, p", DESIGNS)
 def test_the_exact_design_is_the_oracle_optimum(design, p):
@@ -144,8 +171,7 @@ def test_the_exact_design_is_the_oracle_optimum(design, p):
     df, T0 = _panel(seed=1)
     labels, X = _predictors(df, T0)
     want, sets = _oracle(X, [range(X.shape[0])], 3, design, p)
-    res = _fit(df, T0, "exact", m_eq=3, design=design, **p)
-    assert res.globres.objective == pytest.approx(want, rel=1e-6)
+    _at_oracle(want, lambda: _fit(df, T0, "exact", m_eq=3, design=design, **p), 1e-6)
 
 
 @pytest.mark.parametrize("design, p", DESIGNS[1:])
@@ -154,8 +180,7 @@ def test_the_mip_design_is_the_oracle_optimum(design, p):
     df, T0 = _panel(seed=1)
     _, X = _predictors(df, T0)
     want, _ = _oracle(X, [range(X.shape[0])], 3, design, p)
-    res = _fit(df, T0, "mip", m_eq=3, design=design, **p)
-    assert res.globres.objective == pytest.approx(want, rel=1e-5)
+    _at_oracle(want, lambda: _fit(df, T0, "mip", m_eq=3, design=design, **p), 1e-5)
 
 
 def test_two_clusters_are_each_at_their_oracle_optimum():
@@ -163,8 +188,7 @@ def test_two_clusters_are_each_at_their_oracle_optimum():
     _, X = _predictors(df, T0)
     p = {"lambda1": 0.3, "lambda2": 0.1}
     want, _ = _oracle(X, [range(6), range(6, 12)], 2, "penalized", p)
-    res = _fit(df, T0, "exact", m_eq=2, cluster="region", design="penalized", **p)
-    assert res.globres.objective == pytest.approx(want, rel=1e-6)
+    _at_oracle(want, lambda: _fit(df, T0, "exact", m_eq=2, cluster="region", design="penalized", **p), 1e-6)
 
 
 # ----------------------------------------------------------- edge cases
@@ -173,8 +197,7 @@ def test_a_single_control_market_is_at_the_oracle_optimum():
     _, X = _predictors(df, T0)
     p = {"xi": 1.0, "lambda1_unit": 0.1}
     want, _ = _oracle(X, [range(6)], 5, "unit_penalized", p)
-    res = _fit(df, T0, "exact", m_eq=5, design="unit_penalized", **p)
-    assert res.globres.objective == pytest.approx(want, rel=1e-6)
+    _at_oracle(want, lambda: _fit(df, T0, "exact", m_eq=5, design="unit_penalized", **p), 1e-6)
 
 
 # ------------------------------------------------------------ property
@@ -192,5 +215,4 @@ def test_the_exact_objective_is_the_oracle_minimum_over_the_domain(
          if design == "penalized" else
          {"xi": scale * 10 * rng.random(), "lambda1_unit": scale * rng.random()})
     want, _ = _oracle(X, [range(J)], m, design, p)
-    res = _fit(df, T0, "exact", m_eq=m, design=design, **p)
-    assert res.globres.objective == pytest.approx(want, rel=1e-6)
+    _at_oracle(want, lambda: _fit(df, T0, "exact", m_eq=m, design=design, **p), 1e-6)

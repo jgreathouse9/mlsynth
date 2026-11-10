@@ -1,0 +1,45 @@
+# GeoLift, centred window, n_test=14, restarts=50, pass_restarts=10, BLAS on one thread, one host.
+# main (dbfc9779) and the first attempt (330dccf9, the start group given the descent), alternating:
+== main dbfc9779 k=5 round 1
+k=5 n_jobs=1 wall 402.4s certified True treatment ['austin', 'dallas', 'jacksonville', 'portland', 'reno'] key (1, 1, 1, 1, 1.0, 0.0004884433484088897) rss 4.86071e+06 survivors 136 searched 538 screened 657872 retried 1
+k=5 n_jobs=4 wall 371.1s certified True treatment ['austin', 'dallas', 'jacksonville', 'portland', 'reno'] key (1, 1, 1, 1, 1.0, 0.0004884433484088897) rss 4.86071e+06 survivors 136 searched 539 screened 657872 retried 1
+== main dbfc9779 k=4 round 1
+k=4 n_jobs=1 wall 26.0s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358 retried 0
+k=4 n_jobs=4 wall 16.2s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358 retried 0
+== first attempt 330dccf9 k=5 round 1
+k=5 n_jobs=1 wall 426.2s certified True treatment ['austin', 'dallas', 'jacksonville', 'portland', 'reno'] key (1, 1, 1, 1, 1.0, 0.0004884433484088897) rss 4.86071e+06 survivors 136 searched 538 screened 657872 retried 1
+k=5 n_jobs=4 wall 395.9s certified True treatment ['austin', 'dallas', 'jacksonville', 'portland', 'reno'] key (1, 1, 1, 1, 1.0, 0.0004884433484088897) rss 4.86071e+06 survivors 136 searched 539 screened 657872 retried 1
+== first attempt 330dccf9 k=4 round 1
+k=4 n_jobs=1 wall 27.0s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358 retried 0
+k=4 n_jobs=4 wall 16.8s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358 retried 0
+== main dbfc9779 k=5 round 2
+k=5 n_jobs=1 wall 423.4s certified True treatment ['austin', 'dallas', 'jacksonville', 'portland', 'reno'] key (1, 1, 1, 1, 1.0, 0.0004884433484088897) rss 4.86071e+06 survivors 136 searched 538 screened 657872 retried 1
+k=5 n_jobs=4 wall 389.1s certified True treatment ['austin', 'dallas', 'jacksonville', 'portland', 'reno'] key (1, 1, 1, 1, 1.0, 0.0004884433484088897) rss 4.86071e+06 survivors 136 searched 539 screened 657872 retried 1
+== main dbfc9779 k=4 round 2
+k=4 n_jobs=1 wall 25.8s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358 retried 0
+k=4 n_jobs=4 wall 16.2s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358 retried 0
+== first attempt 330dccf9 k=5 round 2
+k=5 n_jobs=1 wall 408.2s certified True treatment ['austin', 'dallas', 'jacksonville', 'portland', 'reno'] key (1, 1, 1, 1, 1.0, 0.0004884433484088897) rss 4.86071e+06 survivors 136 searched 538 screened 657872 retried 1
+k=5 n_jobs=4 wall 369.9s certified True treatment ['austin', 'dallas', 'jacksonville', 'portland', 'reno'] key (1, 1, 1, 1, 1.0, 0.0004884433484088897) rss 4.86071e+06 survivors 136 searched 539 screened 657872 retried 1
+== first attempt 330dccf9 k=4 round 2
+k=4 n_jobs=1 wall 25.9s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358 retried 0
+k=4 n_jobs=4 wall 16.0s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358 retried 0
+# this branch (3fd3152b: a given start gives way to the descent's design), two runs after the above:
+== this branch 3fd3152b k=5 round 1
+k=5 n_jobs=1 wall 65.0s certified True treatment ['austin', 'dallas', 'jacksonville', 'portland', 'reno'] key (1, 1, 1, 1, 1.0, 0.0004884433484088897) rss 4.86071e+06 survivors 71 searched 538 screened 657937 retried 0
+k=5 n_jobs=4 wall 39.6s certified True treatment ['austin', 'dallas', 'jacksonville', 'portland', 'reno'] key (1, 1, 1, 1, 1.0, 0.0004884433484088897) rss 4.86071e+06 survivors 71 searched 539 screened 657937 retried 0
+== this branch 3fd3152b k=4 round 1
+k=4 n_jobs=1 wall 27.2s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358 retried 0
+k=4 n_jobs=4 wall 15.9s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358 retried 0
+== this branch 3fd3152b k=5 round 2
+k=5 n_jobs=1 wall 65.4s certified True treatment ['austin', 'dallas', 'jacksonville', 'portland', 'reno'] key (1, 1, 1, 1, 1.0, 0.0004884433484088897) rss 4.86071e+06 survivors 71 searched 538 screened 657937 retried 0
+k=5 n_jobs=4 wall 40.4s certified True treatment ['austin', 'dallas', 'jacksonville', 'portland', 'reno'] key (1, 1, 1, 1, 1.0, 0.0004884433484088897) rss 4.86071e+06 survivors 71 searched 539 screened 657937 retried 0
+== this branch 3fd3152b k=4 round 2
+k=4 n_jobs=1 wall 27.3s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358 retried 0
+k=4 n_jobs=4 wall 15.8s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358 retried 0
+# the slow certification on main, one process (record of each certification's start):
+# group austin, dallas, jacksonville, portland, reno; pass design 20 controls, RSS 5089437.7 (the ceiling at its turn)
+#   300.5 s, sizes 13-17 branched (23, 35, 79, 25, 41 nodes), 224 nodes in all, 4 open at depth 12, certified False
+#   retry at ceiling 5032777.3 from the 50-restart descent (17 controls, RSS 4860705.3): 10.3 s, 23 nodes, certified True
+#   the start group (atlanta, austin, dallas, jacksonville, minneapolis): 0.2 s
+# the 50-restart descent on 40 random 4- and 5-geo groups: median 50 ms, max 94 ms

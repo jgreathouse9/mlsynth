@@ -1,0 +1,7 @@
+# certify_gated on the four GeoLift groups at 11d311f1, n_test=14 (the benchmark's A/A window),
+# one run at a time, BLAS on one thread, restarts=50. 'rounds' lists each certified design, its RSS, its four
+# gates (corr, A/A, Brownian bridge, Durbin-Watson) and seconds.
+[dallas] certified True passing True controls [5, 9, 18, 38] RSS 704316.1152213624 key (1, 1, 1, 1, 0.99, 0.001283157690787248) in 17.4s; rounds [([5, 9, 18, 38], 704316, (True, True, True, True), 17.4)]
+[dallas+denver] certified True passing True controls [3, 5, 17, 37] RSS 3810912.7749176575 key (1, 1, 1, 1, 0.99, 0.0005516318579695539) in 18.1s; rounds [([3, 5, 17, 37], 3810913, (True, True, True, True), 18.1)]
+[cincinnati+dallas+denver] certified True passing True controls [3, 5, 6, 16, 28, 33, 36] RSS 4771180.386932006 key (1, 1, 1, 1, 0.99, 0.0004930045480943627) in 34.2s; rounds [([3, 5, 6, 16, 28, 33, 36], 4771180, (True, True, True, True), 34.2)]
+[chicago+cincinnati+dallas+denver] certified True passing True controls [15, 18, 19, 27, 28, 32, 35] RSS 8083009.301130742 key (1, 1, 1, 1, 0.99, 0.00037877150952896397) in 47.4s; rounds [([15, 18, 19, 27, 28, 32, 35], 8083009, (True, True, True, True), 47.4)]

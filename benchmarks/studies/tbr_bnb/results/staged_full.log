@@ -1,0 +1,14 @@
+T=['dallas'] incumbent 704316 |C|=4 ratio 1.25: 2496 pairs -> hull 13 -> shor 1; gap shor  0.50%  full +0.000%  [hull 8s, shor 10s, full 29s = 28.7s each]
+     full lift lowest pieces: b in (0.1444, 0.1806) m=4: -0.008%
+T=['dallas', 'denver'] incumbent 3.81091e+06 |C|=4 ratio 1.25: 2432 pairs -> hull 18 -> shor 3; gap shor  5.90%  full +0.000%  [hull 7s, shor 13s, full 74s = 24.7s each]
+     full lift lowest pieces: b in (0.4072, 0.509) m=4: -0.030%
+     full lift lowest pieces: b in (0.509, 0.6362) m=4: -0.640%
+     full lift lowest pieces: b in (0.509, 0.6362) m=3: -1.405%
+T=['cincinnati', 'dallas', 'denver'] incumbent 4.77118e+06 |C|=7 ratio 1.25: 2368 pairs -> hull 36 -> shor 11; gap shor  6.10%  full +0.000%  [hull 7s, shor 29s, full 377s = 34.3s each]
+     full lift lowest pieces: b in (0.311, 0.3888) m=7: -0.004%
+     full lift lowest pieces: b in (0.311, 0.3888) m=8: -0.592%
+     full lift lowest pieces: b in (0.3888, 0.486) m=7: -0.752%
+T=['chicago', 'cincinnati', 'dallas', 'denver'] incumbent 8.08301e+06 |C|=7 ratio 1.25: 2304 pairs -> hull 41 -> shor 15; gap shor  5.64%  full +0.773%  [hull 7s, shor 30s, full 513s = 34.2s each]
+     full lift lowest pieces: b in (0.426, 0.5326) m=8: +0.773%
+     full lift lowest pieces: b in (0.3408, 0.426) m=9: +0.508%
+     full lift lowest pieces: b in (0.426, 0.5326) m=7: -0.003%

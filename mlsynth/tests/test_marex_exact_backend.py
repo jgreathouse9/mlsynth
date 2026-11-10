@@ -226,7 +226,8 @@ def test_the_exact_pool_matches_the_mip_pool():
 
 # ------------------------------------------------- unit: the search core
 def _brute_force(B, A, m, filt, lin_t=None, lin_c=None, donor_exclusion=()):
-    """Every admissible treated set of size ``m``, both fits each."""
+    """Every admissible treated set of size ``m``, both fits each. A set whose
+    treated fit leaves a market unweighted is not a design of its size."""
     n = B.shape[1]
     best = (np.inf, None)
     for S in itertools.combinations(range(n), m):
@@ -236,7 +237,9 @@ def _brute_force(B, A, m, filt, lin_t=None, lin_c=None, donor_exclusion=()):
         C = [j for j in range(n) if j not in S and j not in excluded]
         if not C:
             continue
-        g = side_fit(B, A, list(S), None if lin_t is None else lin_t[list(S)])[0]
+        g, w = side_fit(B, A, list(S), None if lin_t is None else lin_t[list(S)])
+        if np.any(w <= 1e-8):
+            continue                 # not a design of its size (jgreathouse9/mlsynth#950)
         h = side_fit(B, A, C, None if lin_c is None else lin_c[C])[0]
         if g + h < best[0]:
             best = (g + h, tuple(S))
@@ -330,7 +333,9 @@ def test_duplicate_markets_reach_the_same_objective_as_the_mip():
 # -------------------------------------------------------------- failures
 @pytest.mark.parametrize("over, fragment", [
     ({"relaxed": True}, "relaxed"),
-    ({"costs": [1.0] * 9, "budget": 3}, "budget"),
+    ({"costs": [1.0] * 9, "budget": 3, "design": "weakly_targeted", "beta": 1.0},
+     "weakly-targeted"),
+    ({"costs": [1.0] * 9, "budget": 3, "certify": True}, "certify"),
     ({"warm_start": ["u0"]}, "warm_start"),
     ({"time_limit": 5.0}, "time_limit"),
     ({"solver": "SCIP"}, "solver"),
@@ -488,7 +493,8 @@ def test_lambda2_unit_is_refused():
 
 @pytest.mark.parametrize("over, fragment", [
     ({"design": "no_such_design"}, "no_such_design"),
-    ({"costs": np.ones(9), "budget": 3}, "budget"),
+    ({"costs": np.ones(9), "budget": 3, "design": "weakly_targeted"}, "weakly-targeted"),
+    ({"costs": np.ones(9), "budget": 3, "certify": True}, "certif"),
     ({"design": "unit_penalized", "lambda2_unit": 0.1}, "lambda2_unit"),
 ])
 def test_a_direct_call_refuses_what_the_config_refuses(over, fragment):

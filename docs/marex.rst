@@ -143,6 +143,24 @@ with the number of treated units pinned by ``m_eq`` (exactly) or bounded by
 ``z``); ``mlsynth`` solves it with SCIP by default, or — via ``relaxed=True`` —
 relaxes ``z`` to :math:`[0, 1]`, solves the QP, and discretises post hoc.
 
+A treated unit is one the synthetic treated unit puts weight on. Abadie and Zhao
+bound :math:`\|\mathbf{w}\|_0`, the number of nonzero treated weights, and
+the selection :math:`\mathbf{z}` alone does not: :math:`w_j \le z_j` keeps an
+unselected market's weight at zero but lets a selected one carry none, and that
+market is then neither treated nor a control. With
+:math:`\|\mathbf{w}\|_0 = m` read literally the program can have no minimum:
+where the best fit of a treated set leaves one of its markets at zero, giving
+that market weight :math:`\varepsilon` costs less as :math:`\varepsilon`
+falls and never reaches the zero-weight design. MAREX therefore counts a treated
+set as a design of size :math:`m` only when its own fit gives every one of its
+:math:`m` markets a weight above :math:`10^{-8}`, the threshold its results use to
+list treated markets. The exact backend refuses any other set during its search,
+and the MIQP cuts such a set and solves again. Under ``m_min``/``m_max`` this
+changes no optimum, since the same set without its unweighted market fits the
+treated side as well and leaves one more control. Under ``m_eq`` it can: on
+small simulated panels about one design in eight had a market at zero weight,
+and a binding budget on the treated markets' total cost made it common.
+
 From SCIP's solution MAREX keeps only the selection. SCIP counts a binary
 within its integrality tolerance of an integer as integral, so a selection
 variable left near :math:`10^{-6}` rounds to "not treated" while still allowing
@@ -269,8 +287,53 @@ Clustering, Costs, and Budgets
 Passing a ``cluster`` column solves the design *within* each cluster (one or a
 few treated units per cluster), which better approximates the population
 predictor distribution and limits interpolation bias (paper OA.1). Per-unit
-``costs`` and a ``budget`` (scalar or per-cluster) add a knapsack constraint
-:math:`\sum_j c_j w_j \le B`, so the chosen treatment group respects a spend cap.
+``costs`` and a ``budget`` (scalar or per-cluster) add the constraint
+:math:`\sum_j c_j w_j \le B` on the treated weights. Because the weights sum to
+one, that bounds the treated group's weighted average cost per market, not the
+total the test spends. A scalar budget is split evenly across clusters. Both
+backends take it; the exact backend's handling is below. ``costs`` is listed in
+MAREX's unit order, which sorts the unit labels, so with labels such as
+``u0`` to ``u11`` the order is ``u0, u1, u10, u11, u2, ...``.
+
+A budget on what the test spends is a rule on which markets are treated.
+``market_cost_col`` names a column holding each market's cost of being in the
+test (the media held back, the fees to run it), and ``max_total_cost`` caps the
+sum over the treated markets,
+
+.. math::
+
+   \sum_j c_j z_j \le B,
+
+with :math:`z_j = 1` when market :math:`j` is treated. Six markets that cost one
+million each spend six million, whatever their weights. Both backends take it.
+The MIQP adds the row; the exact backend drops every treated set over budget
+before fitting it, the way it drops a set that breaks a border conflict, so its
+bounds and its proof of optimality stand as they are.
+
+With several clusters the budget ties them together. Each cluster is searched
+on its own, and the best affordable design can take a cluster's fiftieth-best
+treated set because it is cheap. The exact backend first drops, in each cluster,
+every set that would overrun the budget even if every other cluster took its
+cheapest admissible markets. It then keeps each cluster's best designs in
+order, with their costs, and picks one per cluster to minimise the summed
+objective within the budget, a multiple-choice knapsack solved by a branch and
+bound over the clusters. A combination that takes a design past a cluster's
+list scores at least that list's last value plus every other cluster's best.
+When that floor does not clear the answer, the lists it could still beat are
+doubled and the step repeats, so the design is the optimum over every
+admissible combination, the same one the MIQP returns. The lists start at 16
+designs and the step refuses past 4,096, naming ``backend='mip'``. When no
+admissible combination fits the budget, the fit raises
+:class:`~mlsynth.exceptions.MlsynthEstimationError`.
+
+.. code-block:: python
+
+   res = MAREX(MAREXConfig(df=df, outcome="orders", unitid="market", time="week",
+                           T0=150, m_eq=6, backend="exact",
+                           market_cost_col="test_cost", max_total_cost=2_000_000)).fit()
+
+The tests are in ``mlsynth/tests/test_marex_spend_budget.py``, against an oracle
+that enumerates every treated set within budget.
 
 Geographic design restrictions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -729,11 +792,25 @@ naming ``backend="mip"``:
 
 * a negative ``beta``, which makes the weakly-targeted coupling concave, so the
   design has no minimum to certify;
-* ``costs`` with a ``budget``, which caps a weighted sum of the treated weights,
-  a second constraint on the treated fit that the search's simplex solver does
-  not take;
+* ``costs`` with a ``budget`` on the ``weakly_targeted`` design, whose coupled
+  fit does not take the constraint, and with ``certify=True``, whose
+  certificate prices each set by its unconstrained fit;
+* ``certify=True`` with a total-cost budget across clusters, since each
+  cluster's certificate covers its own best design and the budget can pick a
+  lower-ranked one;
 * ``relaxed=True``, and the branch-and-bound settings ``solver``,
   ``warm_start`` and ``time_limit``, which have nothing to act on.
+
+With ``costs`` and a ``budget`` the search fits each treated set under the
+constraint. When the set's unconstrained fit already meets the budget it is the
+answer. Otherwise the constraint binds at the optimum, and the fit is the
+simplex fit with a Lagrange multiplier on the costs added as a linear term, the
+multiplier found by bisection, since the weighted cost falls as it rises. A set
+whose cheapest market already costs more than the budget has no admissible
+weights, and the search report counts it as ``over_weight_budget``. The bound
+the search prunes with is unchanged: a constraint can only raise the minimum.
+Above the candidate limit the constraint is refused, since the branch and bound
+does not take it.
 
 Above twenty million admissible treated sets in a cluster, pricing every set
 stops being affordable. The ``standard``, ``penalized`` and ``unit_penalized``
@@ -1062,7 +1139,8 @@ which the exact backend refused before, takes 35.5 seconds with
 
 The search counts its work in the same cost model that decides where it
 spends time: a microsecond per set priced and :math:`1 + 3 (k / 40)^3` seconds
-per bound with :math:`k` markets on the larger side. It stops at 600 such
+per bound with :math:`k` markets on the larger side (on the treated side when
+the bound has one block, below). It stops at 600 such
 seconds, and does not start a pricing or a bound that would take it past them.
 Every search in the table above closes well inside the limit (Walmart with eight
 treated does about 150 of them). A search stopped there returns the best design
@@ -1070,9 +1148,34 @@ it found and warns with a ``MAREXSearchWarning`` giving its relative gap. Its
 certificate stays valid: the lower bound is the least bound among the nodes it
 left open, so the certificate brackets the optimum, and
 ``res.search.counts.bnb_open`` counts those nodes. Only a search stopped before
-it found any design raises. A bound's cost grows with the cube of the markets on
-a side, so at a few hundred markets in one cluster the limit binds; clusters,
-restrictions or a smaller treated count bring each search back within it. The weakly-targeted design couples the treated and
+it found any design raises.
+
+Memory binds before time. An interior-point solver carries, for a semidefinite
+block of order :math:`s`, a dense scaling block with :math:`(s (s + 1) / 2)^2`
+entries in the system it factors each step (Goulart and Chen, Clarabel, sec. 2.5;
+the Schur complement of Todd 2001, Theorem 5.3), so a bound's memory grows as the
+fourth power of the markets on a side. One root bound measured 0.11 GB at 40
+markets and 0.86 GB at 70; the fitted law puts 150 markets at about 15 GB and 210
+at about 56. Before each bound the search estimates its memory against three
+quarters of the memory the process may use (the tighter of its control group's
+limit and the machine's memory).
+
+When the two blocks will not fit, the search bounds the node on the treated
+block alone. The two fits share nothing once the treated set is named, and a
+design's controls lie among the markets the node has not treated, where a fit is
+no worse than over any subset of them, so the treated block's bound plus the
+control fit over all those markets, certified like a fitted design, is still a
+bound below every design in the node. It is weaker, by one to two points of the
+optimum at the root, and needs about half the memory: 0.06 GB at 40 markets and
+0.64 GB at 80, about 7.4 GB at 150. The search returns the same design either
+way. Measured with each form at every node, the one block took twice as long on
+GeoLift with ten of forty markets treated, tied at forty to fifty markets
+elsewhere, and was 3.8 times faster at eighty. The search raises a
+``MlsynthConfigError`` naming the estimate only when even the one block will not
+fit. A child uses fewer markets than its parent, so in practice only the root
+can be refused, before the search has done any work. Clusters or restrictions on
+the treated markets bring each search back within it; the treated count does
+not, since every market can still be treated. The weakly-targeted design couples the treated and
 control fits, which the bound splits, so it is refused above the limit. The
 tests are in ``mlsynth/tests/test_marex_branch.py``, and the study that chose
 the bound, with the papers behind each piece, is in
@@ -1621,17 +1724,74 @@ realised ``n_post``, so the table also doubles as a *"how long do I need to
 run?"* answer — pick the smallest :math:`T` whose MDE drops below your
 target effect size.
 
-Practical reading
-"""""""""""""""""
+How far to trust the analytical MDE
+"""""""""""""""""""""""""""""""""""
 
-A typical MAREX run with ``T_post = 6``, ``blank_periods = 4`` and modest
-serial correlation (:math:`\widehat{\rho} \approx 0.5`) on a Walmart-style sales
-panel produces an MDE on the order of 0.05–0.15% of mean sales, well
-below the 1–3% effect sizes typical marketing interventions aim for; this
-is the quantitative substance of *"good designs are well-powered"*.
-Conversely, an MDE much above the expected effect is a signal the design
-needs more units (lower ``m_eq``/``m_max`` are typically *worse* for power)
-or more post-periods (extend the experiment).
+The analytical MDE prices a normal test of a mean from the blank window's
+noise. Two things make it optimistic for the test MAREX reports. A persistent
+factor accumulates over a test faster than the AR(1) inflation allows, and the
+cumulative band is a conformal test inversion, which runs conservative. On 32
+simulated panels (50 markets in four regions, 150 pre-periods, AR(0.9) regional
+factors, six test markets, a 15-period test), ``post_fit.power`` reported a
+0.95% MDE and the pool's Newey-West MDE 0.68%, while the cumulative band by
+inversion had a realized 80%-power MDE of 1.55% (#947). Use the analytical MDE
+to compare designs, and rehearse the test (below) for the size of effect it can
+find.
+
+Rehearsing the test
+"""""""""""""""""""
+
+Before launch nothing is treated, so the planned test can be run on the panel
+itself. With ``power_placebos=B``, MAREX draws :math:`B` random subsets of
+``power_share`` of the markets (85% by default). On each it solves the same
+design with the launch moved ``power_horizon`` periods earlier, and runs the
+configured cumulative band on the ``power_horizon`` pseudo-post periods. Those
+periods precede the real launch, so the placebo's estimate is pure error.
+
+Divide placebo :math:`b`'s band :math:`[L_b, U_b]` by its test composite's
+total over the pseudo-post periods, :math:`S_b`, giving
+:math:`[\ell_b, u_b] = [L_b / S_b, U_b / S_b]`. A relative effect :math:`e` on
+the test markets (:math:`e = -0.02` is a 2% drop) moves the total by
+:math:`e S_b`, and both cumulative bands move with an additive change in the
+post period, so one band per placebo prices every effect:
+
+.. math::
+
+   \pi(e) = \frac{1}{B} \sum_{b=1}^{B}
+       \mathbf{1}\bigl\{ 0 \notin [\ell_b + e,\; u_b + e] \bigr\}.
+
+The MDE for a drop is the smallest :math:`m \ge 0` past which
+:math:`\pi(-m') \ge 1 - \beta` for every :math:`m' > m`; the MDE for a lift
+reads :math:`\pi(m')` the same way.
+
+.. code-block:: python
+
+   res = MAREX(dict(df=df, outcome="sales", unitid="market", time="week",
+                    T0=150, m_eq=6, design="penalized", lambda2=1e-3,
+                    backend="exact", power_placebos=30,
+                    power_horizon=15)).fit()
+   r = res.power_rehearsal                 # MAREXPowerRehearsal
+   r.mde_drop                              # e.g. 0.018: a 1.8% drop at 80% power
+   r.power_at(-0.02)                       # power against a 2% drop
+   r.estimates.std()                       # spread of the placebo errors
+   r.lower, r.upper                        # each placebo's band, relative
+
+On the 32 panels above, with 30 placebos of 85% of the markets each, the
+rehearsal predicted a 1.80% MDE against the realized 1.55%, and the realized
+test rejected at each panel's predicted MDE 84% of the time against a target
+of 80%. The 15% conservatism that remains comes from the pseudo-launch, which
+shortens the fitting window by ``power_horizon`` periods. With placebos of two
+thirds of the controls the prediction was 2.05%: a placebo's inversion refit
+draws on its own untreated markets, so smaller placebos run wider bands.
+
+Three limits. The rehearsal is a planning number for a design setting: its
+per-panel predictions did not rank panels by their realized error (rank
+correlation -0.07), so it says how sensitive this kind of test is, not how
+precise one launch will be. The placebos keep the design, its penalties, the
+number of test markets, the covariates and the blank window, and drop the
+clusters, the geographic restrictions and the cost budgets, which choose
+markets the placebos do not have. It costs ``power_placebos`` design solves
+and as many cumulative bands, so it runs only when asked.
 
 Opting out
 """"""""""

@@ -1,0 +1,111 @@
+# The sizes' schedules and first-order triangle rounds (#965): incumbent groups certified alone, one process.
+== 100 geos, group (4, 35, 58, 60), 97 controls, main a460c434
+  size  19 depth 0 tier full      rounds 0 triangles    0   144.63 s
+  size  20 depth 0 tier full      rounds 0 triangles    0   143.83 s
+  size  21 depth 0 tier full      rounds 1 triangles  400   243.89 s
+  size  22 depth 0 tier full      rounds 1 triangles  400   244.56 s
+  size  23 depth 0 tier full      rounds 2 triangles  800   345.40 s
+  size  24 depth 0 tier full      rounds 2 triangles  800   353.93 s
+  size  25 depth 0 tier full      rounds 2 triangles  800   391.77 s
+  size  26 depth 0 tier full      rounds 1 triangles  400   270.24 s
+  size  27 depth 0 tier full      rounds 0 triangles    0   148.95 s
+  group 2321.27 s, tiers {'dual': 29, 'full': 9}, nodes 41
+== 100 geos, group (4, 35, 58, 60), schedules and rounds
+  size  19 depth 0 tier dual      rounds 0 triangles    0    10.31 s
+  size  20 depth 0 tier dual      rounds 0 triangles    0    62.81 s
+  size  21 depth 0 tier triangles rounds 1 triangles  400    92.51 s
+  size  22 depth 0 tier triangles rounds 1 triangles  400    92.41 s
+  size  23 depth 0 tier triangles rounds 2 triangles  793   137.65 s
+  size  24 depth 0 tier triangles rounds 2 triangles  787   149.39 s
+  size  25 depth 0 tier full      rounds 2 triangles  800   584.45 s
+  size  26 depth 0 tier triangles rounds 1 triangles  400    94.48 s
+  size  27 depth 0 tier dual      rounds 0 triangles    0    15.95 s
+  group 1272.08 s, tiers {'dual': 30, 'triangles': 5, 'full': 1, 'reuse': 2}, nodes 41
+== 80 geos, group (7, 9, 26, 48), 76 controls, main a460c434
+  size  21 depth 0 tier full      rounds 0 triangles    0    47.71 s
+  size  23 depth 0 tier full      rounds 0 triangles    0    43.18 s
+  size  24 depth 0 tier full      rounds 1 triangles  400    67.64 s
+  size  25 depth 0 tier full      rounds 2 triangles  800   130.97 s
+  size  26 depth 0 tier full      rounds 1 triangles  400    85.91 s
+  size  27 depth 0 tier full      rounds 0 triangles    0    46.58 s
+  group 439.26 s, tiers {'dual': 27, 'full': 6}, nodes 36
+== 80 geos, group (7, 9, 26, 48), schedules and rounds
+  size  23 depth 0 tier dual      rounds 0 triangles    0     7.52 s
+  size  24 depth 0 tier triangles rounds 1 triangles  400    70.21 s
+  size  25 depth 0 tier full      rounds 2 triangles  800   272.73 s
+  size  26 depth 0 tier triangles rounds 2 triangles  795   100.33 s
+  size  27 depth 0 tier dual      rounds 0 triangles    0     6.96 s
+  group 478.96 s, tiers {'dual': 30, 'triangles': 2, 'full': 1}, nodes 36
+== 80 geos, group (7, 9, 26, 48), schedules alone
+  size  23 depth 0 tier dual      rounds 0 triangles    0     7.92 s
+  size  24 depth 0 tier full      rounds 1 triangles  400   118.94 s
+  size  25 depth 0 tier full      rounds 2 triangles  800   162.72 s
+  size  26 depth 0 tier full      rounds 1 triangles  400   127.96 s
+  size  27 depth 0 tier dual      rounds 0 triangles    0     6.49 s
+  group 446.78 s, tiers {'dual': 30, 'full': 3}, nodes 36
+== first-order multipliers alone on the 100-geo group's Clarabel sizes (no Clarabel), seconds; best certificate over y'y
+  size 21 rows-150     closed False    3.71 s best 3440.0
+  size 19 rows-150     closed False    3.94 s best 2135.4
+  size 23 rows-150     closed False    4.48 s best 4642.6
+  size 19 rows-1000    closed True     8.00 s best -1.6
+  size 21 rows-1000    closed False   21.42 s best 329.7
+  size 23 rows-1000    closed False   22.70 s best 832.3
+  size 19 rows-3000    closed True    20.80 s best -2.3
+  size 19 tri-round-0  closed True    22.66 s best -2.3
+  size 20 rows-150     closed False    3.93 s best 2719.8
+  size 21 rows-3000    closed False   39.99 s best 318.6
+  size 23 rows-3000    closed False   43.21 s best 811.6
+  size 20 rows-1000    closed False   22.20 s best 5.6
+  size 21 tri-round-0  closed False   43.80 s best 318.6
+  size 23 tri-round-0  closed False   45.50 s best 811.6
+  size 20 rows-3000    closed True    37.21 s best -0.0
+  size 21 tri-round-1  closed True    20.60 s best -0.5
+  size 22 rows-150     closed False    3.58 s best 3843.9
+  size 22 rows-1000    closed False   20.69 s best 621.5
+  size 20 tri-round-0  closed True    35.04 s best -0.0
+  size 27 rows-150     closed False    4.40 s best 4549.8
+  size 23 tri-round-1  closed False   45.79 s best 49.9
+  size 27 rows-1000    closed True    13.42 s best -0.0
+  size 23 tri-round-2  closed True    23.08 s best -0.0
+  size 24 rows-150     closed False    4.03 s best 5197.9
+  size 22 rows-3000    closed False   46.57 s best 605.6
+  size 27 rows-3000    closed True    31.44 s best -0.0
+  size 24 rows-1000    closed False   22.49 s best 926.0
+  size 27 tri-round-0  closed True    32.68 s best -0.0
+  size 22 tri-round-0  closed False   42.57 s best 605.6
+  size 24 rows-3000    closed False   43.31 s best 895.8
+  size 22 tri-round-1  closed True    24.61 s best -0.1
+  size 26 rows-150     closed False    4.08 s best 5476.5
+  size 26 rows-1000    closed False   22.49 s best 571.9
+  size 24 tri-round-0  closed False   44.06 s best 895.8
+  size 26 rows-3000    closed False   45.95 s best 540.4
+  size 24 tri-round-1  closed False   48.75 s best 150.7
+  size 24 tri-round-2  closed True    34.38 s best -2.2
+  size 26 tri-round-0  closed False   46.01 s best 540.4
+  size 25 rows-150     closed False    4.67 s best 5402.8
+  size 25 rows-1000    closed False   22.32 s best 865.5
+  size 26 tri-round-1  closed True    24.15 s best -0.2
+  size 25 rows-3000    closed False   40.66 s best 828.8
+  size 25 tri-round-0  closed False   44.73 s best 828.8
+  size 25 tri-round-1  closed False   47.05 s best 159.4
+  size 25 tri-round-2  closed False   51.30 s best 27.3
+  size 25 tri-round-3  closed False   46.76 s best 6.0
+== the same, each triangle round warm-started from the last
+  size 23 warm-tri-round-0   closed False   44.44 s best 811.6
+  size 24 warm-tri-round-0   closed False   45.12 s best 895.8
+  size 25 warm-tri-round-0   closed False   45.80 s best 828.8
+  size 23 warm-tri-round-1   closed False   30.79 s best 47.5
+  size 25 warm-tri-round-1   closed False   36.67 s best 159.3
+  size 24 warm-tri-round-1   closed False   40.84 s best 149.5
+  size 23 warm-tri-round-2   closed False   37.53 s best 15.3
+  size 25 warm-tri-round-2   closed False   33.05 s best 137.5
+  size 24 warm-tri-round-2   closed False   33.38 s best 106.8
+  size 23 warm-tri-round-3   closed False   27.57 s best 9.1
+  size 25 warm-tri-round-3   closed False   25.29 s best 130.7
+  size 24 warm-tri-round-3   closed False   27.86 s best 98.1
+  size 23 warm-tri-round-4   closed False   21.72 s best 6.0
+  size 25 warm-tri-round-4   closed False   27.90 s best 122.8
+  size 23 warm-tri-round-5   closed False   15.10 s best 4.6
+  size 24 warm-tri-round-4   closed False   41.01 s best 77.3
+  size 25 warm-tri-round-5   closed False   33.18 s best 98.5
+  size 24 warm-tri-round-5   closed False   33.72 s best 53.5

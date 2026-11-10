@@ -27,7 +27,7 @@ from fractions import Fraction
 
 import numpy as np
 import pytest
-from hypothesis import given, settings
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
 from mlsynth import MAREX
@@ -38,6 +38,7 @@ from mlsynth.utils.marex_helpers.certify import (ClusterCertificate, Dyadic,
                                                 ExactData, certify_cluster,
                                                 round_down, round_up)
 from mlsynth.utils.marex_helpers.config import MAREXConfig
+from mlsynth.utils.marex_helpers.formulation import carries_weight
 from mlsynth.utils.marex_helpers.exact import (ClusterDesign, search_cluster,
                                               side_fit, treated_fit_bound)
 from mlsynth.utils.syndes_helpers.exact import SubsetFilter
@@ -312,6 +313,7 @@ def test_a_candidate_with_no_control_is_not_a_design():
 @settings(max_examples=40, deadline=None)
 @given(seed=st.integers(0, 10**6), T=st.integers(3, 16), n=st.integers(4, 7),
        m=st.integers(1, 3), penal=st.booleans(), donors=st.booleans())
+@example(seed=0, T=3, n=4, m=3, penal=True, donors=False)  # the best set leaves a market unweighted
 def test_a_certificate_brackets_the_brute_force_optimum(seed, T, n, m, penal, donors):
     # Every treated set fitted: the optimum lies in the bracket, and every set
     # that can match the design is listed as unresolved, and no other.
@@ -330,7 +332,10 @@ def test_a_certificate_brackets_the_brute_force_optimum(seed, T, n, m, penal, do
         control = [j for j in range(n) if j not in drop]
         if not control:
             continue
-        g, _ = side_fit(B, A, list(S), None if lin_t is None else lin_t[list(S)])
+        g, w = side_fit(B, A, list(S), None if lin_t is None else lin_t[list(S)])
+        if not carries_weight(w):
+            # Not a design: its fit leaves a market unweighted (jgreathouse9/mlsynth#950).
+            continue
         h, _ = side_fit(B, A, control, None if lin_c is None else lin_c[control])
         values[S] = g + h
     fstar = min(values.values())

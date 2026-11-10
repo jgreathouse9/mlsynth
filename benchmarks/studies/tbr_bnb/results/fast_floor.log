@@ -1,0 +1,12 @@
+== main a7f0b8ce
+n_jobs=1 wall 38.3s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358
+n_jobs=4 wall 19.2s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358
+== numba floor kernel 24f86e9b
+n_jobs=1 wall 24.4s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358
+n_jobs=4 wall 15.1s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358
+== main a7f0b8ce
+n_jobs=1 wall 36.5s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358
+n_jobs=4 wall 18.9s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358
+== numba floor kernel 24f86e9b
+n_jobs=1 wall 24.1s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 98 screened 91358
+n_jobs=4 wall 15.1s certified True treatment ['austin', 'dallas', 'minneapolis', 'reno'] key (1, 1, 1, 1, 1.0, 0.0005417610232889155) rss 3.95105e+06 survivors 32 searched 103 screened 91358

@@ -1,0 +1,23 @@
+# The full level with its pair rows loosened by eps (Z_ij >= -eps, Z_ij <= u_i + eps, Z_ij <= u_j + eps,
+# u_i + u_j - Z_ij <= 1 + eps), solved by Clarabel on the face, its multipliers certified with the original rows.
+# 50 geos, 5 treated: every full solve of the searches of seeds 1 and 8 (certify_slope_free, restarts 20), each
+# solve's bound over the objective's scale. base: the rows as they are.
+seed  m fixes | base: iters seconds status bound | eps 1e-6 | eps 1e-4 | eps 1e-3
+   1 11     0 |  24  2.10 optimal_inaccurate +2.52e-02 |  35  2.94 optimal_inaccurate +2.52e-02 |  38  3.15 optimal            +2.52e-02 |  33  2.67 optimal            +2.55e-02
+   1 11     2 |  19  1.35 optimal_inaccurate +2.72e-07 |  31  2.11 optimal_inaccurate +1.47e-06 |  35  2.29 optimal_inaccurate +7.76e-07 |  36  2.37 optimal            +5.86e-05
+   1 11     4 |  17  0.91 optimal_inaccurate +6.80e-09 |  36  1.99 optimal_inaccurate +4.50e-07 |  35  2.00 optimal_inaccurate +3.30e-07 |  35  1.86 optimal            +3.00e-05
+   1 11     6 |  16  0.70 optimal_inaccurate +3.50e-07 |  32  1.49 optimal_inaccurate +1.82e-06 |  36  1.64 optimal            +1.37e-07 |  35  1.60 optimal            +1.28e-05
+   1 12     0 |  18  1.42 optimal_inaccurate +3.37e-02 |  31  2.56 optimal_inaccurate +3.37e-02 |  36  2.92 optimal_inaccurate +3.37e-02 |  35  3.09 optimal_inaccurate +3.37e-02
+   1 12     2 |  19  1.41 optimal_inaccurate +1.32e-08 |  31  2.22 optimal_inaccurate +1.79e-06 |  36  2.38 optimal_inaccurate +2.41e-07 |  34  2.49 optimal            +2.06e-05
+   1 12     4 |  16  0.89 optimal_inaccurate +2.57e-07 |  28  1.57 optimal_inaccurate +2.99e-06 |  31  1.73 optimal_inaccurate +3.63e-07 |  30  1.83 optimal_inaccurate +8.12e-08
+   1 12     6 |  16  0.73 optimal_inaccurate +2.97e-08 |  26  1.17 optimal_inaccurate +5.27e-06 |  29  1.42 optimal_inaccurate +2.80e-06 |  30  1.44 optimal_inaccurate +8.77e-07
+   8 19     0 |  34  3.13 optimal_inaccurate -2.35e-02 |  43  3.67 optimal_inaccurate -2.35e-02 |  55  4.62 optimal_inaccurate -2.35e-02 |  46  3.89 optimal_inaccurate -2.32e-02
+   8 20     0 |  45  3.67 optimal_inaccurate -1.63e-02 |  50  3.99 optimal_inaccurate -1.63e-02 |  49  3.97 optimal_inaccurate -1.60e-02 |  46  3.74 optimal            -1.34e-02
+   8 21     0 |  53  4.24 optimal_inaccurate -5.02e-03 |  53  4.09 optimal_inaccurate -5.01e-03 |  44  3.57 optimal_inaccurate -4.83e-03 |  48  3.84 optimal_inaccurate -2.65e-03
+   8 22     0 |  29  2.41 optimal_inaccurate -4.77e-03 |  39  3.36 optimal_inaccurate -4.77e-03 |  52  4.23 optimal_inaccurate -4.77e-03 |  49  3.87 optimal_inaccurate -4.72e-03
+   8 23     0 |  31  2.57 optimal_inaccurate -3.12e-02 |  38  3.39 optimal_inaccurate -3.12e-02 |  59  4.78 optimal_inaccurate -3.12e-02 |  51  4.05 optimal_inaccurate -3.11e-02
+
+# The 100-geo group's size-21 root (geo_panel(0, n=90, p=100), treated (4, 27, 33, 58)), full level on the face:
+{"eps": null, "status": "optimal_inaccurate", "iters": 53, "seconds": 128.4, "value": 191061594.20849323, "bound": 191062630.32928464, "y_pair_sum": 322526208673.81537}
+{"eps": 0.0001, "status": "optimal_inaccurate", "iters": 48, "seconds": 117.7, "value": 209602168.70814753, "bound": 192581326.18450326, "y_pair_sum": 170212396615.03784}
+{"eps": 0.001, "status": "optimal_inaccurate", "iters": 42, "seconds": 100.9, "value": 323839488.81809807, "bound": 220858181.99731904, "y_pair_sum": 102981629616.49805}

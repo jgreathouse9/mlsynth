@@ -34,6 +34,23 @@ Five books supply the rules:
   cited as GvL with page numbers. Section 3.5.3 (mixed-precision iterative
   improvement, Heuristic III, p. 140).
 
+A paper supplies the rules for proofs computed in floating point (17 to 27):
+
+- Rump, S. M. (2010). Verification methods: Rigorous results using
+  floating-point arithmetic. *Acta Numerica* 19, 287-449. Cambridge University
+  Press. doi:10.1017/S096249291000005X. Cited as Rump with page, equation,
+  theorem and algorithm numbers. Part 1 (Sections 1 to 9: the principles of
+  verification methods, the floating-point model with underflow, error-free
+  transformations, directed rounding, interval operations and their
+  overestimation), Section 10 (linear systems: the failure of interval Gaussian
+  elimination, preconditioning, Krawczyk's operator with epsilon-inflation,
+  inner inclusions, positive definiteness by one Cholesky factorization, the
+  spectral norm), Section 13 to 13.1 (nonlinear systems, existence and
+  exclusion), Section 13.4 (eigenvalue clusters) and Section 14 (linear,
+  convex and semidefinite programming). Sections 11, 12, 13.2, 13.3 and Part 3
+  (automatic differentiation, quadrature, multiple roots, differential
+  equations) treat problems no `mlsynth` solver poses, and bind nothing here.
+
 Rules 1 to 10 were extracted while auditing the RRMA study's hand-written LP solvers
 and distribution functions (`benchmarks/studies/rrma_ablation/`, commit
 `ef9da44`). Every rule below comes with the failure it caused there, measured,
@@ -51,6 +68,17 @@ The thesis in one line:
 > say what it found: certified optimum, cap reached, infeasible, unbounded, or
 > not identified. Everything else in this file is how to make those two
 > statements true in floating point.
+
+And where a statement is a proof, not an estimate (a pruned node, a certified
+optimum, a positive definite matrix), Rump's design principle governs it:
+
+> "Mathematical theorems are formulated whose assumptions are verified with the
+> aid of a computer" (Rump (1.1), p. 292).
+
+A certificate in `mlsynth` is such a theorem: weak duality with a trace bound,
+Weyl's inequality, a Cholesky factorization that completes. Rules 17 to 27 say
+how to state it, how to verify its assumptions in floating point, and what a
+failed verification means.
 
 ---
 
@@ -72,6 +100,17 @@ file makes it a rule where it was not one.
 | 8 | Repairs to a solver's output are reported | binding (invariant 7) | none; invariant 7 |
 | 9 | Form quantities so the failure mode is underflow | adopted | NW p. 616 |
 | 10 | Degeneracy: perturb to pivot, evaluate and certify on the original | adopted | NW pp. 381-382 |
+| 17 | A certificate is a theorem whose assumptions the computer verifies | adopted | Rump (1.1), pp. 292-293, Theorem 1.1, p. 299 |
+| 18 | Verify only well-posed claims; equality and singularity are decided exactly | adopted | Rump (1.2), p. 293, p. 300, p. 309 |
+| 19 | Bound every rounding: the floating-point model with underflow | adopted | Rump (2.3), (2.4), Theorem 2.1, (2.8)-(2.10), pp. 302-304 |
+| 20 | Utilize input data: verify from the data, not from computed intermediates | adopted | Rump (5.13), p. 312; Sections 6, 10.1, pp. 315-337 |
+| 21 | Move a bound from the computed matrix to the exact one by perturbation theory | adopted | Rump Lemma 10.12, (10.54), (10.61), pp. 357-359 |
+| 22 | Positive definiteness: one factorization that completes, or a rigorous residual | adopted | Rump Lemma 10.13, (10.56)-(10.60), Table 10.10, pp. 357-358 |
+| 23 | A bound on a linear solve comes from a preconditioned residual, never from the elimination | adopted | Rump Theorems 10.2, 10.6, 10.8, Algorithm 10.7, (10.14), pp. 338-345 |
+| 24 | Range bounds: each variable once, and the inclusion of an image is not an inclusion of a preimage | adopted | Rump (5.16), (5.17), Theorem 8.1, (9.4)-(9.8), pp. 314-327 |
+| 25 | Bounds in matrix form, by products of magnitudes | adopted | Rump (9.10)-(9.14), Algorithm 9.1, Tables 9.1-9.3, pp. 327-331 |
+| 26 | A relaxation's bound is postprocessed from any multipliers, never read from the solver | binding (rule 2) | Rump Section 14, Theorem 14.2, pp. 392-397 |
+| 27 | A directed bound is rounded in its own direction, and says which | adopted | Rump (4.1)-(4.3), Theorem 4.2, pp. 308-310 |
 
 ## 1. Every outcome is explicit
 
@@ -468,6 +507,408 @@ claim of optimality, and the docstring says so.
 
 ---
 
+# Verification: rigorous results in floating point
+
+Rules 1 to 10 make a solver's answer accurate and its outcome explicit. Rules
+17 to 27 cover the stronger claim a branch and bound, an exact backend or a
+certified optimum makes: that a bound holds, proved. Rump (2010) is the source
+throughout. Its subject is "methods providing rigorous results which, in
+particular, use floating-point arithmetic" (p. 291), and its claim is that such
+methods need neither exact arithmetic nor a slow one: the goal is "to derive
+verification algorithms which are, for certain classes of problems, not much
+slower than the best numerical algorithms, say by at most an order of
+magnitude" (p. 293).
+
+Verification is not reliability. Stochastic error estimates, careful iterative
+refinement and a solver that "proves reliable in millions of examples" are
+"approaches increasing reliability"; "none of these approaches claims to
+produce always true results" (p. 293). A tolerance-based certificate (rule 2's
+KKT residual at most `TOL`) belongs to that class. A verification certificate
+is a proof, conditional only on the hardware, compiler and operating system
+working to their specification (p. 304).
+
+## 17. A certificate is a theorem whose assumptions the computer verifies
+
+"Mathematical theorems are formulated whose assumptions are verified with the
+aid of a computer" (Rump (1.1), p. 292). Three consequences bind.
+
+- State the theorem first, in the docstring, with its source: the assertion,
+  the hypotheses, and which hypotheses the code checks numerically. The
+  slope-free certificate's theorem is weak duality with a trace bound (Jansson,
+  Chaykin and Keil 2007, Rump Theorem 14.2); its verified hypotheses are an
+  upper bound on `lambda_max(S)` and the rounding of `S` and `k`.
+- "Mostly those theorems are sufficient criteria: if the assumptions are
+  satisfied, the assertions are true; if not, nothing can be said" (p. 292).
+  A verification that fails reports the node or the claim open (rule 1), never
+  false, and never retries with a loosened hypothesis.
+- Formulate the theorem so that its assumption "is likely to be satisfied for
+  an approximate [quantity] calculated in floating-point arithmetic. This is
+  the interplay between the mathematical theorem and the practical
+  application" (p. 300). In Theorem 1.1 the matrix `R` "is arbitrary, so
+  neither the 'quality' of R as an approximate inverse nor its non-singularity
+  need to be checked" (p. 300). In `mlsynth` the multipliers play `R`'s part:
+  any multipliers give a valid bound (rule 26), so the solver that proposed
+  them is never trusted and never checked, only the bound.
+
+"All numerical experience should be used to design the mathematical theorem,
+the assumptions to be verified, and the way to compute R" (p. 300): Rump's
+example is computing `R` as a left inverse, for which `rho(I - RA) < 1` is
+likely even when `A` is ill-conditioned. The choice of the theorem decides how
+often verification succeeds; the floating-point code decides only whether it
+is valid.
+
+## 18. Verify only well-posed claims; equality and singularity are decided exactly
+
+"Verification methods solve well-posed problems" (Rump (1.2), p. 293). A claim
+is verifiable when it holds on a neighbourhood of the data: "if the assumption
+`rho(I - RA) < 1` is satisfied, then it is satisfied for all matrices in a small
+neighbourhood of A" (p. 300). Its negation at a boundary is not: "the proof of
+singularity is outside the scope of verification methods because in every open
+neighbourhood of a matrix there is a non-singular matrix" (p. 293); "the
+verification of singularity excludes the use of estimates: it is only possible
+using exact computation" (p. 309). The exceptions Rump names are integer input
+data and semidefinite programs that are not at zero distance from infeasibility
+on both sides (p. 293).
+
+In `mlsynth`:
+
+- Prove strict statements with room. A size is closed when its bound is at most
+  zero; the slope-free search certifies at `lam' = dyadic_below(lam) <= lam`, a
+  stronger statement than the one at `lam`, so the claim survives rounding of
+  `lam` itself.
+- An exact tie (two designs of equal RSS, a matrix exactly singular, a bound
+  exactly zero) is decided in rationals or not at all. The float tier of a
+  certificate decides only the cases its error bound separates from the
+  boundary; between its upper and lower bounds the exact certificate decides
+  (`certificate.joint_clears` on `main`; the slope-free certificate's float tier
+  on #965's branch), and an exact zero is a closure there.
+- An ill-posed problem is regularized first and the regularized problem
+  verified (p. 293), with the regularization reported (rule 8).
+
+## 19. Bound every rounding: the floating-point model with underflow
+
+IEEE 754 in rounding to nearest defines every basic operation exactly (Rump
+(2.1)-(2.2), p. 302), and "basic floating-point operations ... according to
+IEEE 754, are defined precisely, and are accurate to the last bit" (p. 294).
+Standard library functions (`exp`, `log`, `erf`) are not: "there is no proof of
+that property", so they cannot be used "as is" in a verification (p. 294). A
+verified quantity is built from `+ - * /` and `sqrt` only, or from a function
+with its own proved error bound.
+
+The model, with `u = 2^-53` and the underflow unit `eta = 2^-1074` (Rump (2.3),
+p. 302):
+
+    a op b = fl(a op b) (1 + eps) + delta,  |eps| <= u, |delta| <= eta / 2,
+    eps delta = 0,
+
+and for addition and subtraction "the result is exact if underflow occurs"
+(Rump (2.4)): `a +- b = fl(a +- b)(1 + eps)`. Taking an absolute value is exact.
+
+Sums and dot products (Rump Theorem 2.1, p. 303, after Higham 2002, (3.2) and
+Lemma 8.2), evaluated "in any order":
+
+    |fl(sum x_i) - sum x_i| <= gamma_{n-1} sum |x_i|,                  (2.5)
+    |fl(c - x'y) - (c - x'y)| <= gamma_n |x|'|y|,  no underflow,        (2.6)
+
+with `gamma_n = n u / (1 - n u)`. "In any order" is what makes the bound usable
+on BLAS and sparse products, whose summation order is not specified; and "for
+composite operations, such as dot products, intermediate results are sometimes
+accumulated in some extended precision ... However, the error estimates ...
+remain valid" (p. 301).
+
+Three refinements are needed before (2.6) is a computable bound.
+
+- The right-hand side is itself computed. With `e~ = fl(|x|'|y|)`,
+  `|e| <= |e~| + gamma_n |e|`, so the error is at most
+  `gamma_{2n} / 2 * e~` (Rump (2.7)-(2.8)), and with the computed constant
+  `gamma~_n = fl(n u / (1 - n u))` it is at most `fl(gamma~_{2n+2} / 2 * e~)`
+  (Rump (2.9)). `certificate.inflate` covers the same rounding by a relative
+  `1e-6`; either is valid, and the docstring says which is used.
+- Underflow. (2.6) holds "provided no underflow has occurred". Each product
+  contributes at most `eta / 2` more by (2.3) and sums add nothing by (2.4), so
+  an `n`-term dot product errs by at most `gamma_n |x|'|y| + n eta`
+  (`certificate._dot_err`). A data entry or coefficient that converts to a
+  subnormal double is within `eta / 2` of its value, not within `u` of it: a
+  conversion bound `u |x|` holds only for a result at least the smallest normal
+  double (`np.finfo(float).tiny`; below it `eta / 2` is `u` times it at
+  most), and code that relies on it checks that.
+- Overflow. The model holds for `|x| <= realmax` (Rump (2.2)). A bound that
+  overflows is no bound: return `+inf` (an upper bound that closes nothing) or
+  `-inf`, and let the exact certificate or the open state decide.
+
+"For each operation the worst-case error is (and has to be) assumed" (p. 304):
+an a priori bound such as (2.10) is pessimistic by design, by about `n u`
+relative, which is why the float tier of a certificate leaves a band around zero
+to the exact tier (rule 18).
+
+Error-free transformations make the rounding error itself a double: for
+`+ - *`, "the error of every floating-point operation is itself a
+floating-point number" (Rump (3.1), p. 304). Knuth's `TwoSum` (Algorithm 3.1,
+six operations, any inputs) and Dekker's `FastTwoSum` (Algorithm 3.3, three
+operations, `|a| >= |b|`) return `x = fl(a + b)` and `y` with `x + y = a + b`
+exactly (Theorems 3.2, 3.4); `VecSum` (Algorithm 3.5) carries a vector to one
+with the same exact sum (Theorem 3.6), and Neumaier's `Sums` (Algorithm 3.8)
+gives a sum "as if computed in quadruple precision", within
+`u|s| + gamma_n^2 sum |p_i|` (Rump (3.10)). Dekker's `Split` (Algorithm 10.3)
+cuts a double into two halves whose products are exact, the basis of the
+improved residual (rule 23). Python's `math.fsum` returns the correctly rounded
+sum of its arguments (its documentation; not in Rump), and is the
+transformation to reach for in a scalar sum that decides a certificate.
+
+## 20. Utilize input data: verify from the data, not from computed intermediates
+
+"Avoid re-use of computed data; use input data where possible" (Rump (5.13),
+p. 312). The reason is data dependency: an inclusion of `X - X` has twice the
+width of `X` (Rump (5.9), p. 311), "absolute errors add" under subtraction
+(5.10), and each consecutive operation on computed bounds widens them. Replacing
+each operation of an algorithm by its interval operation "will almost certainly
+fail by producing wide and useless bounds" (p. 315): the naive interval Newton
+iteration diverges from `[1.4, 1.5]` to `[-12.2, 8.5]` in five steps (Algorithm
+6.1); interval Gaussian elimination on random matrices loses all accuracy by
+dimension 60 to 70 (Table 10.2, 96 percent failures at 60, 100 at 70), "solely
+[from] the number of consecutive interval operations, permanently violating the
+Utilize input data principle" (p. 336); a product of random 3 x 3 matrices in
+interval arithmetic loses about a factor 2 per step, so a relative error of 1
+"can be expected after some 50 iterations" (p. 337). "Interval arithmetic is
+not to blame for this: the result would be the same with power set operations
+applied in this way" (p. 336).
+
+The rule for `mlsynth`: a certificate is computed in one pass from the
+problem's data and the candidate answer, never propagated through the
+algorithm that produced the answer. Rule 2 already requires certifying on the
+original data; this is why a running error bound carried through a pivot loop,
+an elimination or an iteration is not a substitute. The slope-free and joint
+certificates assemble `S` from the data and the multipliers directly; the
+solver's internal matrices, scalings and iterates enter nothing that is proved.
+
+"The No inaccurate cancellation principle (NIC)" of Demmel, Dumitriu, Holtz and
+Koev (reported by Rump, p. 312) states when a formula is accurate without
+verification: additions only of same-sign data or of input data, subtractions
+only of opposite-sign data or of input data. A modulus sum `|x|'|y|` (the
+right-hand side of (2.6)) satisfies NIC, which is why its own rounding is a
+small relative factor.
+
+## 21. Move a bound from the computed matrix to the exact one by perturbation theory
+
+A symmetric matrix computed in floating point differs from the exact one by an
+error bounded entrywise (rule 19). Weyl's inequality moves an eigenvalue bound
+across that difference: for symmetric `A`, `E`,
+
+    lambda_i(A) + lambda_n(E) <= lambda_i(A + E) <= lambda_i(A) + lambda_1(E)
+
+(Rump Lemma 10.12, p. 357, from Wilkinson 1965). With `|S - S~| <= E`
+entrywise, `|lambda_i(S) - lambda_i(S~)| <= ||S - S~||_2 <= || |S - S~| ||_2
+<= ||E||_2` (the middle step is used in the proof of Rump Lemma 10.14, p. 359),
+and `||E||_2 <= ||E||_inf` for symmetric `E`. A sharper bound for a
+nonnegative `E` is Collatz's: for any positive vector `x`,
+`||E||_2 <= sqrt(max_i (E'(Ex))_i / x_i)` (Rump (10.61), p. 359); `x` the
+computed Perron vector makes it nearly tight.
+
+The same lemma turns any approximate factor into a bound: with `G` any matrix
+and `E := A - a I - G'G`, `lambda_n(A) >= a - ||E||_2` (Rump (10.54)). `G`
+need not be a good factor; only `||E||_2` has to be bounded rigorously, from
+the input data (rule 20). This is `mlsynth`'s `lambda_min_lower` (exact
+residual, `marex_helpers/branch.py`) and `certificate.lambda_min_lower_float`
+(residual bounded a priori).
+
+## 22. Positive definiteness: one factorization that completes, or a rigorous residual
+
+Rump gives two verified routes to `lambda_min(A) >= a`, and `mlsynth` uses both.
+
+- The residual route (rule 21): factor `A - a I` approximately, bound the
+  residual `A - a I - G'G` rigorously, subtract its norm. The exact residual in
+  rationals is a cubic count of big-integer products; the a priori residual
+  bound of `certificate.cholesky_residual` costs one matrix product.
+- The factorization route (Rump Section 10.8.1, after Demmel 1989). If a
+  floating-point Cholesky factorization runs to completion, then, barring over-
+  and underflow, `G~'G~ = A + DA` with
+  `||DA|| <= sum_j phi_{j+1} a_jj`, `phi_k = gamma_k / (1 - gamma_k)`
+  (Rump Lemma 10.13, (10.60)). So `A` is proved positive definite by
+  factoring `A - a~ I`, with `a~` at least that bound plus an underflow term,
+  and checking only that the factorization completes. No residual is formed;
+  "it is much faster than (10.54), albeit with a more restricted range of
+  applicability" (p. 357): it verifies down to a smallest singular value of
+  about `1.5e-13 ||A||` at dimension 100 (Table 10.10), where the residual
+  route reaches "almost of size u" (p. 359). An interval matrix
+  `[M - R, M + R]` is positive definite when `M - cI` is and `||R||_2 <= c`
+  (Rump Lemma 10.14).
+
+`benchmarks/studies/bnb_node_cost/parts.rump_lower` implements the factorization
+route and measured it 4.5 to 6.5 times faster than the exact residual (7.0 to
+20.7 ms to 1.4 to 3.6 ms) with bounds within `3.5e-16` of the exact ones
+(`benchmarks/studies/bnb_node_cost/README.md`). Which route a certificate
+takes is a cost choice; both are proofs. The near-zero band where neither
+separates the bound from zero is the exact tier's (rule 18).
+
+## 23. A bound on a linear solve comes from a preconditioned residual, never from the elimination
+
+Interval Gaussian elimination fails (rule 20), and "there seems little
+potential for converting floating-point Gaussian elimination into a
+verification algorithm, because known error estimates need an upper bound for
+the condition number" (Rump p. 338); a reliable condition estimate costs as
+much as a reliable inverse (Demmel, Diament and Malajovich, reported p. 338).
+Rump's own example: Gaussian elimination with partial pivoting on Wright's
+trapezoid-rule system of dimension 65, condition number below 30, returns
+components `-23.27, 0, -93.09, 1.00` where the solution is all ones, "no warning
+is given by MATLAB, so a user might trust the computed values" (p. 338); one
+residual iteration in working precision repairs it.
+
+Verification inverts the usual advice: "It is an unwritten rule in numerical
+analysis never to compute the inverse of a matrix ... For the purpose of
+verification other rules apply, in particular to rely only on the input data if
+possible" (p. 338). With any `R` and any approximation `x~`,
+
+    ||A^{-1} b - x~|| <= ||R(b - A x~)|| / (1 - ||I - RA||)   if ||I - RA|| < 1
+
+(Rump Theorem 10.2, (10.9)), which also proves `A` and `R` nonsingular. The
+stronger form is Krawczyk's operator as an existence test: if
+`R(b - A x~) + (I - RA) X` lies in the interior of `X`, then `A^{-1} b` is in
+`x~ + R(b - A x~) + (I - RA) X` (Rump Theorem 10.6 with (10.14)), computed by
+iteration with epsilon-inflation, `Y := X [0.9, 1.1] + [-e, e]` (Rump (10.13),
+Algorithm 10.7). Three things carry over to every verification by fixed point,
+nonlinear and eigenvalue problems included (Rump Theorems 13.3, 13.9):
+
+- include the error of an approximate solution, not the solution (p. 343);
+- inflate before testing inclusion, since without it the test can fail on a
+  problem it should pass (p. 343, the 1 x 1 example with `1 - RA = -0.6`);
+- the test succeeds essentially when `rho(|I - RA|) < 1` (p. 345), so it fails
+  only on problems whose floating-point solution has no correct digit.
+
+The bound's quality follows the residual: "the quality of the bound in (10.9)
+depends directly on the size of the residual" (p. 339). An improved residual
+(Rump Algorithm 10.4, `lssresidual`, by Dekker's `Split`; or an accurate dot
+product, Section 3) buys accuracy that iterative refinement in working
+precision does not (rule 6's GvL Heuristic III). For an M-matrix,
+`||A^{-1}||_inf <= ||y~|| / (1 - ||e - A y~||_inf)` for an approximate solution
+`y~` of `Ay = e`, an `O(n^2)` bound (Rump (10.62), p. 361).
+
+`mlsynth` has no verified linear solve on `main`. A future exact backend that
+certifies a weight vector by solving a system cites this rule, and its
+certificate is (10.9) or Algorithm 10.7, not a residual check at `TOL`.
+
+## 24. Range bounds: each variable once, and the inclusion of an image is not an inclusion of a preimage
+
+The inclusion property (Rump (5.16), p. 314) and principle (5.17) make every
+interval evaluation an outer bound on the range of a function: "the result will
+always be true; however, much overestimation may occur" (p. 314). A branch and
+bound's node bounds are range bounds, so the rules of Sections 8 and 9 apply.
+
+- "If f is evaluated by some arithmetic expression and each variable `x_i`
+  occurs at most once", the interval evaluation is the exact range (Rump
+  Theorem 8.1, p. 321). `x^2 - 4x` over `[1, 4]` evaluates to `[-15, 12]`,
+  `x(x - 4)` to `[-12, 0]`, `(x - 2)^2 - 4` to the exact `[-4, 0]` (p. 320).
+  Rewrite a node bound so each free variable appears once before bounding it.
+  "There seems to be no general recipe" (p. 321), so the rewrite is measured.
+- A matrix with interval entries times a point vector is exact (Rump (9.4)); a
+  point matrix times an interval vector is exact componentwise (9.6), not as a
+  set (9.5).
+- The pitfall: from `b` in `AX` it does not follow that `X` contains
+  `A^{-1} b` (Rump (9.8), p. 327). A bound on the image of a box says nothing
+  about which point of the box maps to a given value. A certificate that a
+  solution lies in a region is a fixed-point argument (rule 23), not an
+  evaluation.
+- Monotonicity removes the overestimation: where an inclusion of the
+  derivative excludes zero, the range is the image of the endpoints (Rump
+  (8.8)); otherwise bisect (Table 8.1). A local optimizer finds an inner
+  inclusion and can miss the global extremum (`fminbnd` underestimates the
+  range in Table 8.2), so it can propose a bound, never prove one.
+
+## 25. Bounds in matrix form, by products of magnitudes
+
+Branches are slow and rounding-mode switches slower (Rump Section 9.1, Table
+9.1: total pivoting runs at 0.1 to 0.2 GFLOPs where matrix multiplication runs
+at 121 to 166). A rigorous bound is computed as a few dense or sparse matrix
+products: in midpoint-radius form, `A B` for an interval `A = <mA, rA>` is
+`<mA B, rA |B|>` (Rump (9.10)), and for two interval matrices
+`<mA mB, rA(|mB| + rB) + |mA| rB>` (9.14), at the cost of three or four real
+products (Tables 9.2, 9.3). The a priori bounds of rule 19 have the same shape:
+the error of `M y` is bounded by `|M| |y|`, one more product.
+`certificate.joint_assembly` bounds the joint lift's slack this way, and the
+slope-free certificate's float tier (#965) bounds its slack by `|M|' |y|` and
+its face by `|T|' |S| |T|`: 2 ms a certificate where the rational sum took 120
+to 330 ms, with the same closures on two 100-geo groups (the #965 spike,
+2026-11-10). Loops over entries in Python, and `Fraction` arithmetic in
+particular, are a last resort for the band rule 18 leaves.
+
+## 26. A relaxation's bound is postprocessed from any multipliers, never read from the solver
+
+Linear programs are not safe: 72 percent of the NETLIB problems "are
+ill-conditioned ... many commercial solvers fail" (Ordóñez and Freund, reported
+by Rump p. 393); "preprocessing in particular may change the status of the
+linear program from feasible to infeasible, and vice versa" (p. 393); "it is not
+easy to program a robust simplex algorithm. Even for small problems it is not
+unlikely that an incorrect branch will lead to a sub-optimal result or apparent
+infeasibility" (p. 393); and "nonlinear programming solvers often fail even in
+solving convex problems" (Tawaralani and Sahinidis, p. 393). In a branch and
+bound, "ill-conditioning is ... likely to take place in combinatorial
+optimization when branch-and-cut procedures sequentially generate linear or
+semidefinite programming relaxations. Rigorous results in combinatorial
+optimization can be obtained when solving the relaxations rigorously" (p. 395).
+SDPT3 gave no warnings for 27 of the 32 ill-posed SDPLIB problems (p. 397).
+
+The remedy is postprocessing: "obtain rigorous bounds by postprocessing already
+computed data" (p. 395). For the semidefinite program
+`min <C, X>` subject to `<A_i, X> = b_i`, `X >= 0`, and any `y~`, with
+`D = C - sum y~_i A_i`, `d <= lambda_min(D)` and `lambda_max(X) <= x` on
+the feasible set,
+
+    p* >= b'y~ + s min(0, d) x
+
+(Rump Theorem 14.2, (14.8), p. 395, from Jansson, Chaykin and Keil 2007, for
+each block of size `s`); if no bound on `X` is known, `d >= 0` is required.
+The proof needs only `<E, Y> >= k min(0, d) x` for `d <= lambda_min(E)` and
+`0 <= Y`, `lambda_max(Y) <= x` (Rump (14.10)), and the same proof gives
+`<E, Y> >= min(0, d) tr(Y)`, so a trace bound `tr(Y) <= T` replaces `s x`
+(derived here; the slope-free and joint certificates use the trace).
+`lambda_min(D)` is bounded by rule 22.
+
+So: a solver's status, objective value or "optimal" flag is never a bound. The
+multipliers it returns are a proposal; the bound is the theorem evaluated at
+them, rigorously, on the problem's own data (rule 2). Where the theorem's
+`d >= 0` condition fails, Jansson's remedy is to relax the constraint and solve
+again (p. 396); `mlsynth`'s certificates instead carry a trace bound, so every
+multiplier gives a finite bound and a loose one simply does not close.
+
+## 27. A directed bound is rounded in its own direction, and says which
+
+IEEE 754 defines rounding toward minus and plus infinity (Rump (4.1)), valid for
+every operation "including possible over- or underflow" (p. 308); a dot product
+computed entirely in one mode is a one-sided bound (Rump (4.3)), and two passes
+give an enclosure at the cost of two products (Algorithm 4.1). The trap: in
+`I - RA` "the multiplication and subtraction must be computed in opposite
+rounding modes to obtain valid results" (p. 310). The sign of each term decides
+its rounding direction.
+
+NumPy and the BLAS it calls do not expose the rounding mode reliably, so
+`mlsynth` uses the rounding-to-nearest route of rule 19 and rounds only the
+final scalar in its direction: `certificate.round_down` (the largest double at
+most a rational, decided by an exact comparison) and `add_down` (one step down
+with `nextafter`). Every bound in a docstring says which side it is on ("a
+double at most ...", "at least ..."), and a mutant flips the direction once.
+
+## Testing a verification
+
+Verification code allows "a kind of testing which is hardly possible for
+numerical algorithms": an approximate `3.14159265358978` gives no reason to
+doubt, "but the wrong 'inclusion' `[3.14159265358978, 3.14159265358979]` would
+reveal an error" (Rump p. 300). The test is the enclosure, not the value.
+
+- Assert the enclosure against an exact reference (`fractions.Fraction`, rule
+  15): the computed bound is on the right side of the exact value for every
+  input a `hypothesis` property draws, including subnormal and huge magnitudes,
+  mixed signs and cancellation (`test_joint_float.py`'s
+  `test_property_the_assembly_error_bounds_its_rounding` checks
+  `|fl(S) - S| <= E` entrywise in rationals).
+- Assert tightness separately, at a fixture, as a relative distance to the
+  exact certificate: a valid bound that is never tight enough to close is a
+  defect of performance, not of soundness, and is tested as such.
+- Assert the failure mode: a verification that fails returns open (rule 17),
+  and a non-finite input returns the bound that closes nothing (rule 19).
+- One mutant per hypothesis the code verifies: drop the rounding term, flip the
+  rounding direction, skip the exact tier between the float bounds.
+
+---
+
 # Testing a solver: the floor of rounding
 
 The four levels and two instruments of `agents_tests.md` apply. These
@@ -528,7 +969,7 @@ Representative sites, for whoever takes the backlog:
 
 - Floors: `utils/solvers/simplex.py:274` (`prev - obj <= tol * max(1.0,
   abs(prev))`, a squared residual, so small-scale data make it absolute);
-  `utils/solvers/active_set.py:287`; `utils/solvers/nnls.py:92`
+  `utils/solvers/nnls.py:92`
   (`tol = max(tol, 1e-12)` floors a scaled tolerance);
   `utils/bilevel/mscmt.py:268`; `utils/bilevel/determine_v.py:308`.
 - Silent caps: `utils/solvers/simplex.py:73` defaults `warn` to False and 8 of
@@ -537,8 +978,10 @@ Representative sites, for whoever takes the backlog:
   renormalises at 90-92); `utils/syndes_helpers/certificate.py:114` checks only
   `value is None`, so `optimal_inaccurate` reaches a lower bound that an inexact
   relaxation can invalidate.
-- Normal equations: `utils/solvers/ridge_augment.py:479`
+- Normal equations: `utils/solvers/ridge_augment.py` `_residualized_matching`
   (`inv(Zc.T @ Zc)`, reused twice); `utils/rolldid_helpers/pipeline.py:56`.
+- Absolute floor on a standard deviation (rule 3): `utils/solvers/ridge_augment.py`
+  `build_matching` (`sdz < _EPS`), the covariate path of the ridge layer.
 - No cap: `utils/drosc_helpers/estimation.py:75` (`while beta is None:`).
 - Ridge sized by the level (rule 5): `utils/solvers/active_set.py`
   `solve_simplex_qp_least_norm` scales by the raw design's column energy (the
@@ -555,6 +998,14 @@ Representative sites, for whoever takes the backlog:
 
 Already right, and the models to copy:
 
+- `benchmarks/studies/tbr_bnb/certificate.py`: `hull_bound_float`,
+  `joint_bound_float` and `lambda_min_lower_float` verify in floating point with
+  the a priori bounds of rule 19, and `hull_clears` / `joint_clears` call the
+  exact certificate only when the float one falls short (rules 17 to 19, 27).
+- `mlsynth/utils/marex_helpers/branch.py` `lambda_min_lower`: a floating-point
+  Cholesky factor, its residual computed exactly, Weyl and Gershgorin (rules 21,
+  22).
+
 - `utils/bilevel/mscmt.py:339-341`: counts unconverged inner solves into
   `metadata["inner_unconverged"]` and warns.
 - `utils/weights/solution.py`: a result whose `kkt_residual` and `status` are
@@ -566,6 +1017,19 @@ Already right, and the models to copy:
   `MlsynthEstimationError`, not a fallback.
 - `utils/pcr/core.py:100-108`: singular values cut relative to the largest, and
   rank 0 raises.
+- `utils/solvers/active_set.py` `solve_simplex_qp` (#829, #960): the pivot loop
+  runs on the program in difference form at unit scale (a power-of-two division,
+  so data that differ by a power of two give the same bits), and `converged` is
+  `simplex_kkt_error` on the caller's data, at most `CERTIFY_TOL`. Before it, a
+  scale of 1e-6 or a level of 1e8 left the loop 37% above the optimum, reported
+  converged at 1e-6. A caller that does not read `info` gets
+  `SimplexQPUncertifiedWarning`.
+- `utils/solvers/ridge_augment.py` (#960): the ridge correction through the
+  thin SVD of `B` (the Gram form erred by 1.2e-6 to 3.5e-6 against an exact
+  rational solve at condition 1e8, the SVD by at most 8.5e-10), and a cvxpy
+  fallback that reads each status, raises when no solver returns an optimum,
+  and reports itself, its repairs and its certificate in a
+  `SimplexFallbackWarning`.
 
 Sweeps (documentation-level, like those in `agents_unix.md`; they over-count):
 
@@ -583,21 +1047,41 @@ grep -rnE "(solve|inv|cholesky)\([A-Za-z_]+\.T @" mlsynth/ --include=*.py | grep
 - No tolerance values. NW states the principle of scaling; R bounds one
   rounding. `TOL = 1e-9` and the `64 eps` floors are choices, defended by the
   units properties and the error models above, not by a citation.
-- No bound on accumulated error through a pivot loop, a triangular solve or a
-  dot product. R stops at single operations; the standard dot-product bound is
-  Higham's (*Accuracy and Stability of Numerical Algorithms*), which was not
-  among the sources read. B, B96 and GvL give the least squares perturbation
-  bounds, the refinement heuristic and the least distance reduction (B96
-  Theorem 5.2.1, p. 197, by citation to Lawson and Hanson), not a rounding
-  analysis of that reduction; its digit loss is measured, not derived.
+- No bound on accumulated error through a pivot loop or a triangular solve.
+  The dot-product and summation bounds are Rump's Theorem 2.1 (rule 19, after
+  Higham's *Accuracy and Stability of Numerical Algorithms*, (3.2) and Lemma
+  8.2), with underflow by Rump (2.3)-(2.4), and Cholesky's by Rump Lemma 10.13.
+  Rump argues against propagating error bounds through an elimination at all
+  (rule 20, Table 10.2): the bound is computed once, from the data and the
+  answer. B, B96 and GvL give the least squares perturbation bounds, the
+  refinement heuristic and the least distance reduction (B96 Theorem 5.2.1,
+  p. 197, by citation to Lawson and Hanson), not a rounding analysis of that
+  reduction; its digit loss is measured, not derived.
 - No size for a tie-breaking ridge or a constraint weight. B96 gives the
   `gamma^-2` rate and the need for pivoting, not a value; the ridge and the
   `1e3` are choices, and rule 5 says what they are measured against.
 - No anti-cycling rule for a bounded dual simplex, and no safeguarded Newton
   method for a scalar root (NW's Chapter 11 globalises with a merit function,
   p. 287). Brent's halving rule is named as Brent's.
-- No claim that a tolerance-based certificate is exact. Exactness would need
-  rational arithmetic; the wording is "certified to a relative tolerance".
+- No claim that a tolerance-based certificate is a proof. A KKT residual at
+  most `TOL` increases reliability (Rump p. 293) and is worded "certified to a
+  relative tolerance". A proof needs either rational arithmetic or Rump's
+  route: a theorem whose hypotheses are verified with every rounding bounded
+  (rules 17 to 27). Floating point suffices for a rigorous inequality with room
+  to spare; equality, a tie or singularity needs exact arithmetic (rule 18).
+- No directed rounding from NumPy. Rump's interval algorithms switch the
+  processor's rounding mode (Section 4, Algorithm 9.1); NumPy and the BLAS do
+  not expose that reliably, so `mlsynth` uses the a priori bounds of rounding to
+  nearest (rule 19) and rounds a final scalar in its direction (rule 27).
+- No verified method for sparse or iterative linear algebra in general: "for
+  general sparse linear systems such an algorithm is not known, one major open
+  problem of verification algorithms", and "the field of verification
+  algorithms based on iterative methods is basically a blank slate" (Rump
+  p. 356). A first-order or ADMM solver's iterate is a proposal (rule 26); only
+  the postprocessed bound is proved.
+- No tolerance for the band where a float certificate defers to the exact one.
+  Its width is the a priori error bound itself (rule 19), not a choice.
 
-Mark claims accordingly in docstrings and reviews: what a book states (with the
-page), what was measured (with the number), and what is inferred.
+Mark claims accordingly in docstrings and reviews: what a book or paper states
+(with the page or equation), what was measured (with the number), and what is
+inferred or derived here.

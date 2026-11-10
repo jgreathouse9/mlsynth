@@ -1880,6 +1880,7 @@
   "mlsynth/utils/marex_helpers/certify.py",
   "mlsynth/utils/marex_helpers/diagnostics.py",
   "mlsynth/utils/marex_helpers/exact.py",
+  "mlsynth/utils/marex_helpers/formulation.py",
   "mlsynth/utils/search_skeleton.py",
   "mlsynth/utils/solvers/active_set.py",
   "mlsynth/utils/syndes_helpers/enumeration.py",
@@ -3537,7 +3538,8 @@
   "mlsynth/utils/spillsynth_helpers/iscm/system.py",
   "mlsynth/utils/spillsynth_helpers/iscm/weights.py",
   "mlsynth/utils/spillsynth_helpers/setup.py",
-  "mlsynth/utils/spillsynth_helpers/structures.py"
+  "mlsynth/utils/spillsynth_helpers/structures.py",
+  "mlsynth/utils/spillsynth_helpers/windows.py"
  ],
  "spillsynth_iscm_xval": [
   "basedata/repgermany.dta",
@@ -3558,7 +3560,8 @@
   "mlsynth/utils/spillsynth_helpers/iscm/system.py",
   "mlsynth/utils/spillsynth_helpers/iscm/weights.py",
   "mlsynth/utils/spillsynth_helpers/setup.py",
-  "mlsynth/utils/spillsynth_helpers/structures.py"
+  "mlsynth/utils/spillsynth_helpers/structures.py",
+  "mlsynth/utils/spillsynth_helpers/windows.py"
  ],
  "spillsynth_iterative_germany": [
   "basedata/repgermany.dta",
@@ -3584,7 +3587,8 @@
   "mlsynth/utils/spillsynth_helpers/iscm/weights.py",
   "mlsynth/utils/spillsynth_helpers/iterative/pipeline.py",
   "mlsynth/utils/spillsynth_helpers/setup.py",
-  "mlsynth/utils/spillsynth_helpers/structures.py"
+  "mlsynth/utils/spillsynth_helpers/structures.py",
+  "mlsynth/utils/spillsynth_helpers/windows.py"
  ],
  "spillsynth_prop99": [
   "basedata/prop99_with_dc.csv",
@@ -3962,7 +3966,9 @@
   "mlsynth/utils/groupfit/sums.py",
   "mlsynth/utils/groupfit/variance.py",
   "mlsynth/utils/tbr_helpers/config.py",
+  "mlsynth/utils/tbr_helpers/design/batched.py",
   "mlsynth/utils/tbr_helpers/design/estimate.py",
+  "mlsynth/utils/tbr_helpers/design/local.py",
   "mlsynth/utils/tbr_helpers/design/objective.py",
   "mlsynth/utils/tbr_helpers/design/pipeline.py",
   "mlsynth/utils/tbr_helpers/design/search.py",

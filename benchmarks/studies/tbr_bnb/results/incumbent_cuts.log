@@ -1,0 +1,66 @@
+# A no-good cut for every incumbent the search adopts (#965, step 6)
+#
+# 1. On main (33ca828c), with every node bounded (PRICE_LIMIT = 0): do the nodes left open
+#    at the depth limit hold the search's final incumbent? (s20_k3, s20_k4, s30_k10, s30_k4)
+{"bed": "s20_k3", "i": 8, "certified": false, "nodes": 56, "rounded": 2, "open": [{"m": 8, "depth": 12, "holds": true}], "m_inc": 8}
+{"bed": "s20_k3", "i": 12, "certified": false, "nodes": 104, "rounded": 4, "open": [{"m": 7, "depth": 12, "holds": false}, {"m": 8, "depth": 12, "holds": false}, {"m": 8, "depth": 12, "holds": true}], "m_inc": 8}
+{"bed": "s20_k3", "i": 21, "certified": false, "nodes": 35, "rounded": 1, "open": [{"m": 8, "depth": 12, "holds": true}], "m_inc": 8}
+{"bed": "s20_k3", "i": 39, "certified": false, "nodes": 38, "rounded": 1, "open": [{"m": 8, "depth": 12, "holds": true}], "m_inc": 8}
+{"bed": "s20_k3", "i": 44, "certified": false, "nodes": 77, "rounded": 3, "open": [{"m": 8, "depth": 12, "holds": false}], "m_inc": 9}
+{"bed": "s20_k4", "i": 17, "certified": false, "nodes": 39, "rounded": 1, "open": [{"m": 7, "depth": 12, "holds": true}], "m_inc": 7}
+{"bed": "s30_k10", "i": 5, "certified": false, "nodes": 46, "rounded": 1, "open": [{"m": 9, "depth": 12, "holds": true}], "m_inc": 9}
+{"bed": "s30_k10", "i": 11, "certified": false, "nodes": 66, "rounded": 2, "open": [{"m": 9, "depth": 12, "holds": false}, {"m": 9, "depth": 12, "holds": true}], "m_inc": 9}
+{"bed": "s30_k10", "i": 12, "certified": false, "nodes": 46, "rounded": 1, "open": [{"m": 10, "depth": 12, "holds": true}], "m_inc": 10}
+{"bed": "s30_k4", "i": 13, "certified": false, "nodes": 74, "rounded": 2, "open": [{"m": 10, "depth": 12, "holds": true}], "m_inc": 10}
+{"bed": "s30_k4", "i": 19, "certified": false, "nodes": 68, "rounded": 2, "open": [{"m": 11, "depth": 12, "holds": true}], "m_inc": 11}
+open nodes 14 holding the final incumbent 10 groups uncertified 11
+
+[exited with code 0]
+
+# 2. Prototype: each bounded node cuts the incumbent it is bounded against (cut), and also
+#    the node whose rounding adopted a design bounded again under its cut (recheck).
+#    Four workers; 'baseline' is results/beds_baseline.json as recorded on main.
+s15_k3 {"nodes": 616, "full": 79, "open": 0, "uncertified": 0, "rounded": 76, "optimum_missed": 0, "unsound": 0, "seconds": 37.64} baseline {"nodes": 960, "full": 149, "shor": 0, "open": 0, "uncertified": 0}
+s20_k3 {"nodes": 588, "full": 76, "open": 0, "uncertified": 0, "rounded": 62, "optimum_missed": 0, "unsound": 0, "seconds": 64.21} baseline {"nodes": 1114, "full": 197, "shor": 0, "open": 7, "uncertified": 5}
+s20_k4 {"nodes": 285, "full": 27, "open": 0, "uncertified": 0, "rounded": 26, "optimum_missed": 0, "unsound": 0, "seconds": 28.6} baseline {"nodes": 533, "full": 81, "shor": 0, "open": 1, "uncertified": 1}
+s30_k10 {"nodes": 307, "full": 40, "open": 0, "uncertified": 0, "rounded": 24, "optimum_missed": 0, "unsound": 0, "seconds": 32.06} baseline {"nodes": 681, "full": 131, "shor": 0, "open": 4, "uncertified": 3}
+s30_k4 {"nodes": 774, "full": 113, "open": 0, "uncertified": 0, "rounded": 48, "optimum_missed": 0, "unsound": 0, "seconds": 124.63} baseline {"nodes": 1400, "full": 258, "shor": 0, "open": 2, "uncertified": 2}
+TOTAL cut {"nodes": 2570, "full": 335, "open": 0, "uncertified": 0, "seconds": 287.14, "unsound": 0, "optimum_missed": 0}
+s15_k3 {"nodes": 466, "full": 80, "open": 0, "uncertified": 0, "rounded": 76, "optimum_missed": 0, "unsound": 0, "seconds": 32.96} baseline {"nodes": 960, "full": 149, "shor": 0, "open": 0, "uncertified": 0}
+s20_k3 {"nodes": 466, "full": 89, "open": 0, "uncertified": 0, "rounded": 62, "optimum_missed": 0, "unsound": 0, "seconds": 55.79} baseline {"nodes": 1114, "full": 197, "shor": 0, "open": 7, "uncertified": 5}
+s20_k4 {"nodes": 233, "full": 30, "open": 0, "uncertified": 0, "rounded": 26, "optimum_missed": 0, "unsound": 0, "seconds": 21.38} baseline {"nodes": 533, "full": 81, "shor": 0, "open": 1, "uncertified": 1}
+s30_k10 {"nodes": 251, "full": 55, "open": 0, "uncertified": 0, "rounded": 24, "optimum_missed": 0, "unsound": 0, "seconds": 28.72} baseline {"nodes": 681, "full": 131, "shor": 0, "open": 4, "uncertified": 3}
+s30_k4 {"nodes": 652, "full": 143, "open": 0, "uncertified": 0, "rounded": 47, "optimum_missed": 0, "unsound": 0, "seconds": 120.64} baseline {"nodes": 1400, "full": 258, "shor": 0, "open": 2, "uncertified": 2}
+TOTAL recheck {"nodes": 2068, "full": 397, "open": 0, "uncertified": 0, "seconds": 259.49, "unsound": 0, "optimum_missed": 0}
+
+# 3. The build (cut, no re-check), python -m benchmarks.studies.tbr_bnb.beds --workers 4
+s15_k3: 62 groups, nodes 616, full 79, Shor 0, open nodes 0, uncertified 0, rounded 76, optimum missed 0, 30.65 s
+    nodes        baseline    960  now    616  change -344
+    full         baseline    149  now     79  change -70
+    shor         baseline      0  now      0  change +0
+    open         baseline      0  now      0  change +0
+    uncertified  baseline      0  now      0  change +0
+s20_k3: 45 groups, nodes 588, full 76, Shor 0, open nodes 0, uncertified 0, rounded 62, optimum missed 0, 51.68 s
+    nodes        baseline   1114  now    588  change -526
+    full         baseline    197  now     76  change -121
+    shor         baseline      0  now      0  change +0
+    open         baseline      7  now      0  change -7
+    uncertified  baseline      5  now      0  change -5
+s20_k4: 21 groups, nodes 285, full 27, Shor 0, open nodes 0, uncertified 0, rounded 26, optimum missed 0, 21.1 s
+    nodes        baseline    533  now    285  change -248
+    full         baseline     81  now     27  change -54
+    shor         baseline      0  now      0  change +0
+    open         baseline      1  now      0  change -1
+    uncertified  baseline      1  now      0  change -1
+s30_k10: 13 groups, nodes 307, full 40, Shor 0, open nodes 0, uncertified 0, rounded 24, optimum missed 0, 25.43 s
+    nodes        baseline    681  now    307  change -374
+    full         baseline    131  now     40  change -91
+    shor         baseline      0  now      0  change +0
+    open         baseline      4  now      0  change -4
+    uncertified  baseline      3  now      0  change -3
+s30_k4: 25 groups, nodes 774, full 113, Shor 0, open nodes 0, uncertified 0, rounded 48, optimum missed 0, 125.01 s
+    nodes        baseline   1400  now    774  change -626
+    full         baseline    258  now    113  change -145
+    shor         baseline      0  now      0  change +0
+    open         baseline      2  now      0  change -2
+    uncertified  baseline      2  now      0  change -2

@@ -382,13 +382,28 @@ def _near_copies(seed=0, gap=1e-12):
 
 
 def _reference(B, A, lin):
-    """Clarabel at tight tolerances: the minimiser, renormalised onto the simplex."""
+    """Clarabel at tight tolerances: the minimiser, renormalised onto the simplex.
+
+    On some draws (columns near 2e4, prices near 1e4, copies 1e-16 apart)
+    Clarabel stops with a numerical error on the raw data, on ``main`` as on
+    this branch. Dividing ``B`` and ``A`` by ``s`` and the price by ``s^2``
+    divides the objective by ``s^2`` and leaves the minimiser where it is, so
+    that problem is the fallback.
+    """
     import cvxpy as cp
-    w = cp.Variable(B.shape[1])
-    cp.Problem(cp.Minimize(cp.sum_squares(A - B @ w) + lin @ w),
-               [w >= 0, cp.sum(w) == 1]).solve(
-        solver=cp.CLARABEL, tol_gap_abs=1e-10, tol_gap_rel=1e-12, tol_feas=1e-12)
-    w = np.maximum(np.asarray(w.value, float).ravel(), 0.0)
+
+    def solve(B, A, lin):
+        w = cp.Variable(B.shape[1])
+        cp.Problem(cp.Minimize(cp.sum_squares(A - B @ w) + lin @ w),
+                   [w >= 0, cp.sum(w) == 1]).solve(
+            solver=cp.CLARABEL, tol_gap_abs=1e-10, tol_gap_rel=1e-12, tol_feas=1e-12)
+        return np.maximum(np.asarray(w.value, float).ravel(), 0.0)
+
+    try:
+        w = solve(B, A, lin)
+    except cp.error.SolverError:
+        s = float(np.abs(B).max())
+        w = solve(B / s, A / s, lin / (s * s))
     return w / w.sum()
 
 
@@ -457,6 +472,13 @@ from hypothesis import strategies as st         # noqa: E402
        gap_exp=st.sampled_from([-16, -15, -14, -13, -12, -11, -10, -8, -6, -3]),
        scale_exp=st.floats(3, 7), equal=st.booleans())
 @example(seed=3, J=3, T=6, gap_exp=-14, scale_exp=3.0, equal=False)
+# #960: near-copies priced apart by 1e-11 of the gradient's size. The first was
+# left on the dearer copy once the problem was solved at unit scale; the second
+# was 1.6e-8 above the optimum on main as well.
+@example(seed=4, J=4, T=16, gap_exp=-8, scale_exp=3.0, equal=True)
+@example(seed=4, J=4, T=16, gap_exp=-8, scale_exp=3.75, equal=True)
+# A draw whose reference fails on the raw data (see ``_reference``).
+@example(seed=39, J=4, T=15, gap_exp=-16, scale_exp=4.0, equal=True)
 @settings(max_examples=80, deadline=None)
 def test_it_reaches_the_minimiser_on_near_collinear_designs(
         seed, J, T, gap_exp, scale_exp, equal):
@@ -559,3 +581,21 @@ def test_the_solve_stays_on_the_directions_the_shift_kept():
     # and on the kept directions it is the least-squares solution
     kept = Vt.T @ Vt
     np.testing.assert_allclose(kept @ (M.T @ (M @ v - b)), 0.0, atol=1e-6 * np.linalg.norm(M.T @ b))
+
+
+@pytest.mark.parametrize("eps", [1e-6, 1e-10, 1e-13])
+def test_a_tiny_price_still_breaks_an_exact_tie(eps):
+    """Two exact copies of a donor make a face of minimisers, and a linear term
+    of any size picks one copy: all the weight goes to the cheaper one. The ray
+    test compared the term's null part with ``tol * max(1, |q|)``; on unit-scale
+    data that floor is absolute, so a price difference below 1e-9 was missed
+    and the solver split the copies by pivot order (#960)."""
+    rng = np.random.default_rng(0)
+    B = rng.normal(size=(6, 4))
+    B = np.column_stack([B, B[:, 1]])          # donor 4 is an exact copy of donor 1
+    A = 0.6 * B[:, 1] + 0.4 * B[:, 2]
+    lin = np.zeros(5)
+    lin[1] = eps                               # the original is dearer than its copy
+    w = solve_simplex_qp(B, A, linear=lin)
+    assert w[1] == 0.0
+    assert w[4] == pytest.approx(0.6, abs=1e-9)

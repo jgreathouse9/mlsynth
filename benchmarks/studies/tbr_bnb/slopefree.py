@@ -1,0 +1,1446 @@
+"""The shared-slope control group without the slope: a fractional 0-1 program (#965).
+
+For a fixed treatment group, min over C and b > 0 of ||y - b X u_C||^2 is, at the
+best slope b = c'u / u'Gu (c = X'y, G = X'X, u the indicator of C),
+
+    RSS(C) = y'y - (c'u)^2 / u'Gu   when c'u > 0,   y'y otherwise,
+
+so the best control group maximises the ratio (c'u)^2 / u'Gu over binary u with
+c'u > 0 (derived here from the normal equation of b). An incumbent with ratio lam*
+is optimal exactly when, for every size m,
+
+    max { u'(cc' - lam* G) u : u binary, sum u = m, c'u >= 0 } <= 0,
+
+the parametric form of a fractional program (Dinkelbach 1967; Borrero, Gillen and
+Prokopyev 2017, Sect. 4.2, for 0-1 problems). Each size's maximum is bounded by a
+semidefinite relaxation in u alone, Z = [[1, u'], [u, U]] >= 0 with U standing for
+uu', and the constraints every binary design meets (Rows):
+
+  * diag U = u (u_j^2 = u_j), and U_ij >= 0, U_ij <= u_i, U_ij >= u_i + u_j - 1, the
+    products of the bounds 0 <= u <= 1 (Sherali and Adams 1990);
+  * sum u = m and its products sum_j U_ij = m u_i;
+  * c'u >= 0 and its products with u_i and 1 - u_i;
+  * no-good cuts sum_C u - sum_notC u <= |C| - 1, one per excluded design and one for
+    the incumbent, so the incumbent's size can fall below zero; each excludes its C
+    and no other binary vector at any size (Balas and Jeroslow 1972), since a design
+    of size m sharing t geos with C has 2t - m <= |C| - 1 unless it is C (derived here);
+  * triangle inequalities U_ij + U_ik - U_jk <= u_i and u_i + u_j + u_k - U_ij -
+    U_ik - U_jk <= 1, valid at every binary point (Padberg 1989), added where the
+    relaxation's solution violates them;
+  * branching fixings u_j = v.
+
+The certificate does not trust the solver. Any multipliers, the inequality ones
+clipped at zero, give the Lagrangian L(Z) = <S, Z> + k with obj(Z) <= L(Z) on the
+relaxation's feasible set, and that set has tr Z = 1 + sum(diag U) = 1 + m exactly,
+so the maximum is at most k + (1 + m) max(0, lambda_max(S)) (weak duality with a
+trace bound, as for the joint lift: Jansson, Chaykin and Keil 2007, Thm 3.2). S and
+k are summed in rationals from the double data and the double multipliers, and
+lambda_max(S) is bounded above exactly by mlsynth's Cholesky-residual bound on -S
+(bound). Every tier decides by fbound.certificate: S and k summed in doubles with a
+rigorous bound on their rounding (Rump 2010), which closes a size or rules it out
+alone and calls bound() only when its upper and lower bounds straddle zero.
+
+Since the bound holds at any multipliers, and for any subset of the rows (a
+relaxation with fewer rows contains more points, and every design among them), a
+size is tried by a cascade of certificates, cheapest first (size_certificate):
+the previous size's multipliers at this size's rows; multipliers from a
+first-order method on the certificate itself (dual_multipliers: L-BFGS-B on its
+smoothing, warm-started from the previous size); the Shor relaxation, which keeps the equalities, c'u >= 0
+and the cuts and drops the bound products and the products of c'u; then the full
+relaxation with its rounds of triangles. On the 242 root sizes of the four-geo
+GeoLift search the first closed 43 of the 239 that had a previous size, the
+first-order method 240 of 242 at 0.04 s a size, the Shor relaxation 212 of 242 at
+0.37 s a solve, against 1.07 s for the full relaxation. Since the first-order method
+bounds the full rows, the Shor relaxation now closes nothing it leaves open (0 of 756
+sizes on the beds), so it is solved only when asked for (SHOR_TIER).
+
+The smoothing of T max(0, lambda_max(S)) is max {<Z, S> - a/2 ||Z||^2 : Z >= 0,
+tr Z <= T}, within a T^2 / 2 of it, with the maximiser given by projecting the
+eigenvalues of S / a onto {z >= 0, sum z <= T} (derived here; dual.smoothed_lbfgs
+smooths the joint lift's dual by Young's inequality instead), minimised by
+L-BFGS-B (Byrd, Lu, Nocedal and Zhu 1995).
+
+Balas, E. and Jeroslow, R. (1972). Canonical cuts on the unit hypercube. SIAM J.
+    Appl. Math. 23, 61-69.
+Borrero, J. S., Gillen, C. and Prokopyev, O. A. (2017). Fractional 0-1 programming:
+    applications and algorithms. J. Global Optim. 69, 255-282.
+Byrd, R. H., Lu, P., Nocedal, J. and Zhu, C. (1995). A limited memory algorithm for bound
+    constrained optimization. SIAM J. Sci. Comput. 16, 1190-1208.
+Dinkelbach, W. (1967). On nonlinear fractional programming. Manag. Sci. 13, 492-498.
+Duchi, J., Shalev-Shwartz, S., Singer, Y. and Chandra, T. (2008). Efficient projections
+    onto the l1-ball for learning in high dimensions. Proc. 25th ICML, 272-279.
+Jansson, C., Chaykin, D. and Keil, C. (2007). Rigorous error bounds for the optimal
+    value in semidefinite programming. SIAM J. Numer. Anal. 46, 180-200.
+Padberg, M. (1989). The boolean quadric polytope: some characteristics, facets and
+    relatives. Math. Program. 45, 139-172.
+Rump, S. M. (2010). Verification methods: Rigorous results using floating-point
+    arithmetic. Acta Numerica 19, 287-449. doi:10.1017/S096249291000005X.
+Sherali, H. D. and Adams, W. P. (1990). A hierarchy of relaxations between the
+    continuous and convex hull representations for zero-one programming problems.
+    SIAM J. Discrete Math. 3, 411-430.
+"""
+from __future__ import annotations
+
+import itertools
+import math
+import time
+from dataclasses import dataclass, field
+from fractions import Fraction as Q
+from typing import Dict, List, Optional, Sequence, Set, Tuple
+
+import cvxpy as cp
+import numpy as np
+import scipy.sparse as sp
+
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
+from mlsynth.utils.marex_helpers.certify import Dyadic
+
+from . import face as _face
+from . import fbound
+from .certificate import ExactData, _dot_err, round_down
+from .progress import clarabel_log, emit, reporting
+
+
+def dyadic_below(q) -> Q:
+    """The largest double at most the rational q, as a rational. The certificate's
+    eigenvalue bound reads its matrix as dyadic rationals (mlsynth's
+    _from_fractions), so lam enters as one; certifying at lam' <= lam* proves the
+    stronger statement that no design's ratio exceeds lam'."""
+    return Q(round_down(Q(q)))
+
+
+def objective(c, G, lam):
+    """cc' - lam G, exact for rational c, G and lam."""
+    c = np.asarray(c, dtype=object)
+    return np.outer(c, c) - lam * np.asarray(G, dtype=object)
+
+
+def design_value(A, u):
+    """u'Au for a 0-1 vector u, exact."""
+    idx = [j for j, v in enumerate(u) if v]
+    return sum((A[i, j] for i in idx for j in idx), Q(0))
+
+
+class Rows:
+    """The relaxation's constraints as rows <E_k, Z> = b_k or <= b_k over the upper
+    triangle of Z (index 0 the constant, j + 1 the geo j). A row is a dict
+    {(a, b): coefficient} with a <= b, read as sum coefficient * Z_ab. The same table
+    builds the solver's model and the certificate, so the certificate holds for the
+    constraints written here whatever the solver did.
+
+    With ``box`` each free geo also has the rows u_j <= 1 and -u_j <= 0, last among the
+    inequalities: valid for every design, and the rows the SCS workspace turns into a
+    node's fixings (workspace.py).
+
+    With ``m`` None the rows hold the designs of every size: sum u >= 1 and its
+    products with 1 - u_i, (sum u - 1)(1 - u_i) >= 0, replace sum u = m and its
+    products (the products with u_i follow from U_ii = u_i and U_ij >= 0), and the
+    trace bound is 1 + p (group_bound)."""
+
+    def __init__(self, c: Sequence, m: Optional[int], cuts: Sequence[Set[int]] = (),
+                 triangles: Sequence[Tuple[int, Tuple[int, int, int]]] = (),
+                 fixes: Sequence[Tuple[int, int]] = (), level: str = "full", face: bool = False,
+                 box: bool = False):
+        if level not in ("full", "shor"):
+            raise ValueError(f"the rows' level is 'full' or 'shor', not {level!r}")
+        p = len(c)
+        self.p, self.n, self.m, self.level = p, p + 1, m, level
+        self.fixes = tuple(fixes)
+        self.cuts = tuple(tuple(sorted(C)) for C in cuts)
+        self.triangles = tuple(triangles)
+        self.box = box
+        self.face = _face.face_of(p, m, fixes) if face else None   # Z = T W T' on it (face.py)
+        self._c = tuple(c)
+        self._fixed = dict(self.fixes)
+        self._table = None
+        self._coo = None
+        full = level == "full"
+        npair = p * (p - 1) // 2 if full else 0
+        self.beq: List = [1] + [0] * p + ([m] + [0] * p if m is not None else []) + [v for _, v in self.fixes]
+        bin_: List = [-1] + [-1] * p if m is None else []
+        bin_ += [0, 0, 0, 1] * npair
+        t_c = len(bin_)
+        bin_ += [0] + [0, 0] * (p if full else 0)
+        self.c_rows: List[int] = list(range(t_c, len(bin_)))   # inequality rows carrying c, scaled for the solver
+        bin_ += [len(cut) - 1 for cut in self.cuts]
+        t0 = len(bin_)
+        bin_ += [0 if kind == 0 else 1 for kind, _ in self.triangles]
+        self.triangle_rows = (t0, len(bin_))
+        if box:                                          # 0 <= u_j <= 1 for each free geo (workspace.py)
+            bin_ += [1, 0] * sum(1 for j in range(p) if j not in self._fixed)
+        self.bin: List = bin_
+        self.n_eq, self.n_in = len(self.beq), len(self.bin)
+        self.n_triangles = len(triangles)
+
+    @property
+    def eq(self) -> List[Dict]:
+        return self._tables()[0]
+
+    @property
+    def ineq(self) -> List[Dict]:
+        return self._tables()[2]
+
+    def _tables(self):
+        """The rows as dicts, (eq, beq, ineq, bin, c_rows, triangle_rows), built the first
+        time something reads them: the table the exact certificate (_slack) and holds()
+        read, and the definition the matrices are built to equal (test_fast_rows.py)."""
+        if self._table is None:
+            self._table = self._build_tables()
+        return self._table
+
+    def _build_tables(self):
+        c, m, p, level = self._c, self.m, self.p, self.level
+        cuts, triangles, fixes, box = self.cuts, self.triangles, self.fixes, self.box
+        full = level == "full"
+        eq_rows: List[Dict] = []; beq: List = []
+        ineq_rows: List[Dict] = []; bin_: List = []
+        c_rows: List[int] = []
+        U = lambda i, j: (min(i, j) + 1, max(i, j) + 1)  # noqa: E731
+        u = lambda i: (0, i + 1)                         # noqa: E731
+
+        def row(*pairs):
+            r = {}
+            for key, v in pairs:
+                r[key] = r.get(key, 0) + v
+            return {k: v for k, v in r.items() if v != 0}
+
+        def eq(r, b):
+            eq_rows.append(r); beq.append(b)
+
+        def le(r, b, carries_c=False):
+            if carries_c:
+                c_rows.append(len(ineq_rows))
+            ineq_rows.append(r); bin_.append(b)
+
+        eq(row(((0, 0), 1)), 1)
+        for i in range(p):
+            eq(row((U(i, i), 1), (u(i), -1)), 0)
+        if m is not None:
+            eq(row(*((u(i), 1) for i in range(p))), m)
+            for i in range(p):
+                eq(row(*((U(i, j), 1) for j in range(p)), (u(i), -m)), 0)
+        else:
+            le(row(*((u(j), -1) for j in range(p))), -1)                      # sum u >= 1
+            for i in range(p):                                                 # (sum u - 1)(1 - u_i) >= 0
+                le(row(*((u(j), -1) for j in range(p)), (u(i), -1), *((U(i, j), 1) for j in range(p))), -1)
+        for j, v in fixes:
+            eq(row((u(j), 1)), v)
+        for i, j in itertools.combinations(range(p) if full else (), 2):
+            le(row((U(i, j), -1)), 0)
+            le(row((U(i, j), 1), (u(i), -1)), 0)
+            le(row((U(i, j), 1), (u(j), -1)), 0)
+            le(row((u(i), 1), (u(j), 1), (U(i, j), -1)), 1)
+        le(row(*((u(j), -c[j]) for j in range(p))), 0, True)                      # c'u >= 0
+        for i in range(p if full else 0):
+            le(row(*((U(i, j), -c[j]) for j in range(p))), 0, True)              # u_i c'u >= 0
+            le(row(*((U(i, j), c[j]) for j in range(p)), *((u(j), -c[j]) for j in range(p))), 0, True)
+        for cut in cuts:
+            le(row(*((u(j), 1 if j in cut else -1) for j in range(p))), len(cut) - 1)
+        t0 = len(ineq_rows)
+        for kind, (i, j, k) in triangles:
+            if kind == 0:
+                le(row((U(i, j), 1), (U(i, k), 1), (U(j, k), -1), (u(i), -1)), 0)
+            else:
+                le(row((u(i), 1), (u(j), 1), (u(k), 1), (U(i, j), -1), (U(i, k), -1), (U(j, k), -1)), 1)
+        t_rows = (t0, len(ineq_rows))
+        if box:                                          # 0 <= u_j <= 1 for each free geo (workspace.py)
+            fixed = dict(fixes)
+            for j in range(p):
+                if j not in fixed:
+                    le(row((u(j), 1)), 1)
+                    le(row((u(j), -1)), 0)
+        return eq_rows, beq, ineq_rows, bin_, c_rows, t_rows
+
+    def holds(self, Z) -> bool:
+        """Every row at the exact matrix Z."""
+        val = lambda r: sum((v * Z[a, b] for (a, b), v in r.items()), Q(0))  # noqa: E731
+        return all(val(r) == b for r, b in zip(self.eq, self.beq)) and \
+            all(val(r) <= b for r, b in zip(self.ineq, self.bin))
+
+    def matrices(self, c_scale: float):
+        """The rows as sparse matrices over vec(Z) (column-major), in doubles, the
+        rows carrying c divided by ``c_scale``: each family's entries by index
+        arithmetic, equal bit for bit to the matrices of the dict table
+        (test_fast_rows.py)."""
+        if self._coo is None:
+            self._coo = self._entries()
+        (er, ec, ev), (ir, ic, iv) = self._coo
+        n2 = self.n * self.n
+        Me = sp.csr_matrix((ev, (er, ec)), shape=(self.n_eq, n2))
+        if c_scale != 1.0 and self.c_rows:
+            iv = iv.copy()
+            lo, hi = self.c_rows[0], self.c_rows[-1] + 1        # the c rows are consecutive
+            iv[(ir >= lo) & (ir < hi)] *= 1.0 / c_scale
+        Mi = sp.csr_matrix((iv, (ir, ic)), shape=(self.n_in, n2))
+        return Me, Mi
+
+    def _entries(self):
+        """(rows, columns, values) of the equalities and of the inequalities, in the
+        table's row order. Z_ab is column a + n b; u_i is Z_{0, i+1} and U_ij is
+        Z_{min+1, max+1}. A zero coefficient (c_j = 0, m = 0) is not stored, as the
+        table drops it."""
+        p, n, m = self.p, self.n, self.m
+        cq = self._c
+        cf = np.array([float(v) for v in cq], dtype=float)
+        nz = np.array([j for j in range(p) if cq[j] != 0], dtype=int)
+        ar = np.arange(p)
+        ucol = n * (ar + 1)                                             # u_i
+
+        def Ucol(i, j):
+            i, j = np.minimum(i, j), np.maximum(i, j)
+            return (i + 1) + n * (j + 1)
+
+        R, C, V = [], [], []
+
+        def put(rows, cols, vals):
+            rows, cols = np.broadcast_arrays(np.asarray(rows, dtype=int), np.asarray(cols, dtype=int))
+            R.append(rows.ravel()); C.append(cols.ravel())
+            V.append(np.broadcast_to(np.asarray(vals, dtype=float), rows.shape).ravel())
+
+        # equalities
+        put(0, 0, 1.0)
+        put(1 + ar, Ucol(ar, ar), 1.0); put(1 + ar, ucol, -1.0)
+        r = 1 + p
+        if m is not None:
+            put(r, ucol, 1.0)
+            ii, jj = np.meshgrid(ar, ar, indexing="ij")
+            put(r + 1 + ii, Ucol(ii, jj), 1.0)
+            if m != 0:
+                put(r + 1 + ar, ucol, -float(m))
+            r += 1 + p
+        for k, (j, _) in enumerate(self.fixes):
+            put(r + k, n * (j + 1), 1.0)
+        eq = tuple(np.concatenate(x) for x in (R, C, V))
+
+        # inequalities
+        R, C, V = [], [], []
+        r = 0
+        if m is None:
+            put(0, ucol, -1.0)
+            ii, jj = np.meshgrid(ar, ar, indexing="ij")
+            put(1 + ii, ucol[jj], np.where(ii == jj, -2.0, -1.0))         # u_i appears twice
+            put(1 + ii, Ucol(ii, jj), 1.0)
+            r = 1 + p
+        if self.level == "full" and p > 1:
+            I, J = np.triu_indices(p, 1)                                # itertools.combinations order
+            q = r + 4 * np.arange(I.size)
+            uij = Ucol(I, J)
+            put(q, uij, -1.0)
+            put(q + 1, uij, 1.0); put(q + 1, ucol[I], -1.0)
+            put(q + 2, uij, 1.0); put(q + 2, ucol[J], -1.0)
+            put(q + 3, ucol[I], 1.0); put(q + 3, ucol[J], 1.0); put(q + 3, uij, -1.0)
+            r += 4 * I.size
+        put(r, ucol[nz], -cf[nz])                                       # c'u >= 0
+        r += 1
+        if self.level == "full":
+            ii, jj = np.meshgrid(ar, nz, indexing="ij")
+            put(r + 2 * ii, Ucol(ii, jj), -cf[jj])                      # u_i c'u >= 0
+            put(r + 2 * ii + 1, Ucol(ii, jj), cf[jj])
+            put(r + 2 * ii + 1, ucol[jj], -cf[jj])
+            r += 2 * p
+        for k, cut in enumerate(self.cuts):
+            inside = np.isin(ar, cut)
+            put(r + k, ucol, np.where(inside, 1.0, -1.0))
+        r += len(self.cuts)
+        for k, (kind, (i, j, l)) in enumerate(self.triangles):
+            if kind == 0:
+                put(r + k, [Ucol(i, j), Ucol(i, l), Ucol(j, l), ucol[i]], [1.0, 1.0, -1.0, -1.0])
+            else:
+                put(r + k, [ucol[i], ucol[j], ucol[l], Ucol(i, j), Ucol(i, l), Ucol(j, l)],
+                    [1.0, 1.0, 1.0, -1.0, -1.0, -1.0])
+        r += len(self.triangles)
+        if self.box:
+            free = np.array([j for j in range(p) if j not in self._fixed], dtype=int)
+            k = np.arange(free.size)
+            put(r + 2 * k, ucol[free], 1.0); put(r + 2 * k + 1, ucol[free], -1.0)
+        ineq = tuple(np.concatenate(x) if x else np.zeros(0) for x in (R, C, V))
+        return eq, ineq
+
+
+@dataclass
+class Solve:
+    value: float                 # the relaxation's value in the solver's units
+    scale: float                 # the objective's scale: value * scale is in the data's units
+    y_eq: np.ndarray             # multipliers in the data's units, for bound()
+    y_in: np.ndarray
+    Z: Optional[np.ndarray]      # the point, None when the solve has none (an infeasible node)
+    status: str
+    face: bool = False           # solved on the face Z = T W T' (face.py)
+    solver: str = "clarabel"     # the solver that answered (solve())
+    bound: Optional[Q] = None    # the exact certificate at these multipliers, when the solve computed it
+
+
+def _pow2(x):
+    return 2.0 ** round(math.log2(x)) if x > 0 else 1.0
+
+
+def _checked_solver(solver):
+    """The solver's name, SOLVER when None; anything else is refused."""
+    if solver is None:
+        return SOLVER
+    if type(solver) is not str or solver not in SOLVERS:
+        raise MlsynthConfigError(f"solver is one of {SOLVERS}, not {solver!r}.")
+    return solver
+
+
+def _scs_answered(status: str) -> bool:
+    """Whether SCS's status answers the relaxation: a point with its multipliers, or
+    an infeasibility (a node holding no design). A limit, an error or an unbounded
+    relaxation (impossible, since tr Z bounds Z) is solved again by Clarabel."""
+    return status in ("optimal", "optimal_inaccurate", "infeasible", "infeasible_inaccurate")
+
+
+def solve(c, G, lam, R: Rows, solver: Optional[str] = None) -> Solve:
+    """The relaxation in scaled units: the objective divided by a power of two near
+    its largest entry and the rows carrying c by one near max |c|, both exact, so
+    the multipliers return to the data's units by those two factors.
+
+    ``solver`` (SOLVER when None) is "clarabel" or "scs". Clarabel solves on the
+    face when the rows have one (_solve_on_face). SCS solves in the full space,
+    where its iterations are fewer (results/face.log); the rows keep their face, so
+    bound() still takes the face's certificate. A solve SCS does not answer
+    (_scs_answered) or that raises is reported and solved again by Clarabel.
+
+    Clarabel runs on one thread. Its automatic threading starts a native thread
+    pool on a relaxation of the GeoLift groups' size, and a process forked after
+    that (a worker of certify_treatment's pool) inherits the pool's state but not
+    its threads, so its next solve never returns."""
+    solver = _checked_solver(solver)
+    if solver == "workspace":
+        raise MlsynthConfigError("solve() takes 'clarabel' or 'scs'; the workspace solves through "
+                                 "workspace.Workspaces, which keeps it across a size's nodes.")
+    A = np.asarray(objective(c, G, lam), dtype=float)
+    s = _pow2(float(np.abs(A).max())); cs = _pow2(float(np.max(np.abs(np.asarray(c, dtype=float)))))
+    n = R.n
+    A0 = np.zeros((n, n)); A0[1:, 1:] = A / s
+    if solver == "scs":
+        try:
+            out = _solve_in_full_space(R, A0, s, cs, "scs")
+        except cp.error.SolverError:     # reported; Clarabel solves it
+            out = None
+        if out is not None:
+            return out
+    if R.face is not None:
+        return _solve_on_face(R, A0, s, cs)
+    return _solve_in_full_space(R, A0, s, cs, "clarabel")
+
+
+def _solve_in_full_space(R: Rows, A0, s, cs, solver: str) -> Optional[Solve]:
+    """The relaxation in Z by ``solver``, reported as a solve event. None when SCS
+    does not answer (_scs_answered); a SolverError is reported and raised."""
+    n = R.n
+    Me, Mi = R.matrices(cs)
+    Z = cp.Variable((n, n), symmetric=True)
+    z = cp.vec(Z, order="F")
+    ce = Me @ z == np.asarray(R.beq, dtype=float)
+    ci = Mi @ z <= np.asarray(R.bin, dtype=float)
+    prob = cp.Problem(cp.Maximize(cp.trace(A0 @ Z)), [Z >> 0, ce, ci])
+    t0 = time.perf_counter()
+    try:
+        if solver == "scs":
+            prob.solve(solver="SCS", eps_abs=SCS_EPS, eps_rel=SCS_EPS, verbose=clarabel_log())
+        else:
+            prob.solve(solver="CLARABEL", max_threads=1, verbose=clarabel_log())   # a thread pool would hang a worker forked after it
+    except cp.error.SolverError:
+        emit("solve", relaxation=R.level, solver=solver, rows_eq=R.n_eq, rows_in=R.n_in, status="error",
+             seconds=time.perf_counter() - t0)
+        raise
+    emit("solve", relaxation=R.level, solver=solver, rows_eq=R.n_eq, rows_in=R.n_in, status=prob.status,
+         seconds=time.perf_counter() - t0)
+    if solver == "scs" and not _scs_answered(prob.status):
+        return None
+    if ce.dual_value is None:            # no duals (some cvxpy versions, at an infeasible node): no point either
+        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status, solver=solver)
+    y_in = np.array(ci.dual_value, dtype=float) * s
+    y_in[R.c_rows] /= cs
+    return Solve(float(prob.value), s, np.array(ce.dual_value, dtype=float) * s, y_in, Z.value, prob.status,
+                 solver=solver)
+
+
+def _solve_on_face(R: Rows, A0, s, cs) -> Solve:
+    """The relaxation in W, Z = T W T' (face.py): the rows the face satisfies
+    identically dropped, the multipliers of the rows kept returned at their places
+    in R (the dropped rows' are zero) and Z lifted back, so bound(), the triangle
+    separation and branching read the same Solve as off the face."""
+    F = R.face
+    red = _face.reduce(F, R, cs)
+    keep_e, keep_i = red.keep_e, red.keep_i
+    T = F.matrix()
+    k = T.shape[1]
+    W = cp.Variable((k, k), symmetric=True)
+    a = cp.Variable(R.n)                 # Z's pivot row, so the rows that touch it stay sparse (face.py)
+    x = cp.hstack([cp.vec(W, order="F"), a])
+    ce = red.eq @ x == red.beq
+    ci = red.ineq @ x <= red.bin
+    cd = red.define @ x == 0
+    prob = cp.Problem(cp.Maximize(cp.trace((T.T @ A0 @ T) @ W)), [W >> 0, ce, ci, cd])
+    t0 = time.perf_counter()
+    try:
+        prob.solve(solver="CLARABEL", max_threads=1, verbose=clarabel_log())   # one thread, as in solve()
+    except cp.error.SolverError:
+        emit("solve", relaxation=R.level, solver="clarabel", rows_eq=len(keep_e), rows_in=len(keep_i), status="error",
+             seconds=time.perf_counter() - t0)
+        raise
+    emit("solve", relaxation=R.level, solver="clarabel", rows_eq=len(keep_e), rows_in=len(keep_i), status=prob.status,
+         seconds=time.perf_counter() - t0)
+    n = R.n
+    if ce.dual_value is None:            # no duals (some cvxpy versions, at an infeasible node): no point either
+        return Solve(-np.inf, s, np.zeros(R.n_eq), np.zeros(R.n_in), None, prob.status, face=True)
+    y_eq = np.zeros(R.n_eq); y_eq[keep_e] = np.asarray(ce.dual_value, dtype=float) * s
+    y_in = np.zeros(R.n_in); y_in[keep_i] = np.asarray(ci.dual_value, dtype=float) * s
+    y_in[R.c_rows] /= cs
+    Z = None if W.value is None else T @ W.value @ T.T   # no point when Clarabel finds none (an infeasible node), as off the face
+    return Solve(float(prob.value), s, y_eq, y_in, Z, prob.status, face=True)
+
+
+def _slack(A, R: Rows, y_eq, y_in):
+    """S = [[0, 0], [0, A]] - sum_k y_k E_k and k = sum_k y_k b_k in rationals, the
+    inequality multipliers clipped at zero."""
+    n = R.n
+    S = np.full((n, n), Q(0), dtype=object)
+    S[1:, 1:] = np.asarray(A, dtype=object)
+    k = Q(0)
+    for rows, bs, ys, clip in ((R.eq, R.beq, y_eq, False), (R.ineq, R.bin, y_in, True)):
+        for r, b, yv in zip(rows, bs, ys):
+            yq = Q(float(yv))
+            if clip and yq < 0:
+                yq = Q(0)
+            if yq == 0:
+                continue
+            k += yq * b
+            for (a, bb), v in r.items():
+                if a == bb:
+                    S[a, a] -= yq * v
+                else:
+                    h = yq * Q(v) / 2
+                    S[a, bb] -= h; S[bb, a] -= h
+    return S, k
+
+
+def bound(A, R: Rows, y_eq, y_in, m) -> Optional[Q]:
+    """k + (1 + m) max(0, lambda_max(S)) with S and k from _slack, in rationals. At
+    least the relaxation's maximum, and so every design's u'Au (module docstring).
+    On the face (R.face) also k + (1 + q) max(0, lambda_max(T'ST)) (face.py), and the
+    smaller of the two; the face's alone when it is already at most zero. None when
+    the eigenvalue bound finds no factor."""
+    S, k = _slack(A, R, y_eq, y_in)
+    if any(q.denominator & (q.denominator - 1) for q in S.flat):
+        raise ValueError("the certificate's matrix must be dyadic: pass lam through dyadic_below "
+                         "(mlsynth's _from_fractions reads every entry as a dyadic rational)")
+    D = _from_fractions(S.tolist())
+    on_face = None
+    if R.face is not None:
+        t = _face.trace_term(R.face, D)
+        on_face = None if t is None else k + t
+        if on_face is not None and on_face <= 0:
+            return on_face
+    low = lambda_min_lower(Dyadic(-D.N, D.e))   # lambda_max(S) <= -low
+    if low is None:  # pragma: no cover - 40 quadrupled shifts factor any finite symmetric matrix, and S is finite
+        return on_face
+    full = k + (1 + m) * max(Q(0), -low)
+    return full if on_face is None else min(full, on_face)
+
+
+def separate_triangles(u, U, k=400, tol=1e-6):
+    """The ``k`` most violated triangle inequalities at (u, U), as
+    (violation, kind, (i, j, k)): kind 0 is U_ij + U_ik - U_jk <= u_i, kind 1 is
+    u_i + u_j + u_k - U_ij - U_ik - U_jk <= 1."""
+    u = np.asarray(u, float); U = np.asarray(U, float); p = u.size
+    if p < 3:
+        return []
+    t = np.array(list(itertools.combinations(range(p), 3)))
+    a, b, d = t.T
+    out = []
+    for i, j, kk in ((a, b, d), (b, a, d), (d, a, b)):
+        v = U[i, j] + U[i, kk] - U[j, kk] - u[i]
+        out += [(float(v[q]), 0, (int(i[q]), int(j[q]), int(kk[q]))) for q in np.flatnonzero(v > tol)]
+    v = u[a] + u[b] + u[d] - U[a, b] - U[a, d] - U[b, d] - 1
+    out += [(float(v[q]), 1, (int(a[q]), int(b[q]), int(d[q]))) for q in np.flatnonzero(v > tol)]
+    out.sort(key=lambda r: -r[0])
+    return out[:k]
+
+
+@dataclass
+class Multipliers:
+    """A certificate's multipliers and the level of the rows they belong to."""
+    level: str
+    y_eq: np.ndarray
+    y_in: np.ndarray
+
+
+@dataclass
+class SizeResult:
+    certified: bool
+    bound: Optional[Q]
+    rounds: int
+    triangles: int
+    seconds: float
+    u: Optional[np.ndarray] = None       # the relaxation's last u, for branching
+    tier: str = "full"                   # the cascade's tier that decided: reuse, dual, triangles, shor or full
+    #                                      (first-order: open after the first-order tiers, no relaxation solved)
+    multipliers: Optional[Multipliers] = None   # those of the certificate that closed it
+
+
+def _capped(v, T):
+    """The projection of v onto {z >= 0, sum z <= T}: max(v - theta, 0), with
+    theta >= 0 the smallest shift that brings the sum to at most T. When the sum of
+    max(v, 0) is above T the projection is onto the scaled simplex, by the sort and
+    scan of Duchi, Shalev-Shwartz, Singer and Chandra (2008); the capped form is
+    derived here from its KKT conditions."""
+    z = np.maximum(v, 0.0)
+    if z.sum() <= T:
+        return z
+    u = np.sort(v)[::-1]
+    css = np.cumsum(u)
+    ok = np.nonzero(u - (css - T) / np.arange(1, len(u) + 1) > 0)[0]
+    rho = ok[-1] if ok.size else 0       # in doubles none passes when u_1 dwarfs T; the largest is kept
+    z = np.maximum(v - (css[rho] - T) / (rho + 1), 0.0)
+    if not z.any():
+        z = np.where(v == u[0], 1.0, 0.0)
+    return z * min(1.0, T / z.sum())
+
+
+class _Dual:
+    """The certificate of bound() as a function of the multipliers, in the solver's
+    units (the objective divided by s, the rows carrying c by cs, as solve does):
+    F(y) = b'y + T max(0, lambda_max(S(y))), T = 1 + m, and its smoothing
+    b'y + max {<Z, S(y)> - a/2 ||Z||^2 : Z >= 0, tr Z <= T}, whose maximiser is
+    Q diag(_capped(lambda / a, T)) Q' and whose gradient in y is b - rows(Z)."""
+
+    def __init__(self, A, R: Rows, m, c):
+        A = np.asarray(A, dtype=float)
+        self.n, self.T, self.ne = R.n, 1.0 + m, R.n_eq
+        self.s = _pow2(float(np.abs(A).max()))
+        self.cs = _pow2(float(np.max(np.abs(np.asarray(c, dtype=float)))))
+        Me, Mi = R.matrices(self.cs)
+        self.M = sp.vstack([Me, Mi]).tocsr()
+        self.MT = self.M.T.tocsr()
+        self.b = np.concatenate([np.asarray(R.beq, dtype=float), np.asarray(R.bin, dtype=float)])
+        self.size = len(self.b)
+        self.c_idx = self.ne + np.asarray(R.c_rows, dtype=int)
+        self.A0 = np.zeros((self.n, self.n)); self.A0[1:, 1:] = A / self.s
+        self.scale = max(1e-300, float(np.abs(np.linalg.eigvalsh(self.A0)).max()))
+
+    def S(self, y):
+        E = (self.MT @ y).reshape(self.n, self.n, order="F")
+        return self.A0 - (E + E.T) / 2
+
+    def value(self, y):
+        return float(self.b @ y + self.T * max(0.0, np.linalg.eigvalsh(self.S(y))[-1]))
+
+    def smoothed(self, y, a):
+        return self.smoothed_and_value(y, a)[:2]
+
+    def smoothed_and_value(self, y, a):
+        """The smoothing and its gradient, and value(y) from the same eigendecomposition:
+        lambda_max is the last of eigh's eigenvalues, so S(y) is built and decomposed
+        once an evaluation, not twice."""
+        lam, Q = np.linalg.eigh(self.S(y))
+        z = _capped(lam / a, self.T)
+        Z = (Q * z) @ Q.T
+        by = float(self.b @ y)
+        return (by + float(z @ lam) - a / 2 * float(z @ z), self.b - self.M @ Z.reshape(-1, order="F"),
+                by + self.T * max(0.0, float(lam[-1])))
+
+    def start(self, w: Optional["Multipliers"]):
+        y = np.zeros(self.size)
+        if w is not None and w.level == "full" and len(w.y_eq) + len(w.y_in) == self.size:
+            y[:self.ne] = np.asarray(w.y_eq, dtype=float) / self.s
+            y[self.ne:] = np.maximum(np.asarray(w.y_in, dtype=float), 0.0) / self.s
+            y[self.c_idx] *= self.cs
+        return y
+
+    def back(self, y):
+        """The multipliers in the data's units, as bound() reads them."""
+        out = np.asarray(y, dtype=float) * self.s
+        out[self.c_idx] /= self.cs
+        return out[:self.ne], out[self.ne:]
+
+
+#: The dual's evaluations before it gives up: on the 242 root sizes of the four-geo
+#: GeoLift search the 240 it closed took a median of 9, at most 309.
+DUAL_BUDGET = 400
+
+#: The correction pairs L-BFGS-B stores in the first-order dual (scipy's ``maxcor``).
+#: At 96 candidate controls its own work per call (setulb, linear in the pairs times
+#: the 18,627 multipliers) was 65% of a schedule's time at twenty pairs. With five,
+#: the three size-24 nodes of the 100-geo group (4, 27, 33, 58) that the first-order
+#: triangle rounds closed closed in the same round at 64-67 s, against 118-121 s for
+#: twenty and 90-101 s for ten; with three one of them took a second round (106 s).
+#: On the five test beds the dual took 24% less time (196.5 s to 149.6 s) for 8 more
+#: nodes of 4,710, and every group certified the same design (results/dual_memory.log).
+DUAL_MEMORY = 5
+
+#: Whether a size's relaxation is solved and certified on its face (face.py). Every
+#: point of the relaxation has the null directions sum u = m and the fixings force, so
+#: it has no interior: on s30_k4 Clarabel returned optimal_inaccurate on 199 of 222
+#: Shor solves and 254 of 260 full solves. On the face the forced directions are gone.
+FACE = True
+
+#: The relaxations' solvers. Clarabel is an interior-point method: each iteration
+#: factors the cone's block, 2.5 to 3 s at 96 candidate controls. SCS (O'Donoghue,
+#: Chu, Parikh and Boyd 2016) is ADMM on the homogeneous self-dual embedding: an
+#: iteration projects onto the cone and solves one sparse system. Its multipliers go
+#: to the same exact certificate as Clarabel's.
+SOLVERS = ("clarabel", "scs", "workspace")
+SOLVER = "clarabel"
+
+#: From this many candidate controls certify_slope_free solves a size's full
+#: relaxations on the SCS workspace (workspace.py) unless a solver is named.
+WORKSPACE_FROM = 40
+
+
+def default_solver(p: int) -> str:
+    """The relaxations' solver for a group of ``p`` candidate controls."""
+    return "workspace" if p >= WORKSPACE_FROM else SOLVER
+
+
+def _one_relaxation(solver: str) -> str:
+    """The solver of a relaxation solved once, outside a size's search (the group
+    screen, the Shor tier): the workspace pays for itself across a size's nodes, so
+    those go to Clarabel."""
+    return "clarabel" if solver == "workspace" else solver
+
+#: SCS's absolute and relative tolerances. The certificate at SCS's multipliers is
+#: loosened by at most (1 + m) times its dual residual, so at 1e-6 the size-21 root
+#: of the 100-geo group bounds within 1.3e-4 of its value (results/scs.log).
+SCS_EPS = 1e-6
+
+#: Whether size_certificate solves the Shor relaxation between the dual tier and the
+#: full relaxation. The dual tier bounds the full rows, so a size the weaker Shor
+#: relaxation could close it closes first: over every bed group the Shor tier closed
+#: 0 of the 756 sizes it was asked to, and on the GeoLift window at k = 4 0 of 3, each
+#: solved again at the full level (results/shor_tier.log).
+SHOR_TIER = False
+
+
+def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
+                     maxfun=150, stages=6, budget: Optional[int] = None):
+    """Multipliers at which the float certificate of R is below zero, or None.
+
+    L-BFGS-B (bounds y_in >= 0) on the smoothed certificate of _Dual, from ``warm``
+    when it is the full rows' and of their shape, else from zero; the smoothing
+    starts with a T^2 / 2 at about |F| at the start and shrinks tenfold per stage,
+    and the search stops at the first iterate whose unsmoothed F is below zero, or
+    gives up after ``budget`` evaluations (DUAL_BUDGET when not given). The
+    float value only decides whether the exact bound is tried: size_certificate
+    certifies with bound() at the multipliers returned.
+
+    ``info["point"]`` is, when it gives up, the smoothing's maximiser at the best
+    iterate and the last smoothing, scaled to a corner entry of one: an approximate
+    point of the relaxation, from which size_certificate separates triangles. It is
+    None when the search closes."""
+    from scipy.optimize import Bounds, minimize
+
+    D = _Dual(A, R, m, c)
+    y = D.start(warm)
+    info = {"evals": 1, "point": None}
+    f0 = D.value(y)
+    if f0 < 0:
+        return Multipliers("full", *D.back(y)), info
+    best = [f0, y]
+
+    limit = DUAL_BUDGET if budget is None else budget
+
+    class _Closed(Exception):
+        pass
+
+    class _Spent(Exception):
+        pass
+
+    def fun(yv, a):
+        info["evals"] += 1
+        if info["evals"] > limit:
+            raise _Spent
+        f, g, true = D.smoothed_and_value(yv, a)
+        if true < best[0]:
+            best[0], best[1] = true, yv.copy()
+        if true < 0:
+            raise _Closed
+        return f, g
+
+    # one Bounds for every stage: a list of (lo, hi) pairs is converted on each call
+    bounds = Bounds(np.r_[np.full(D.ne, -np.inf), np.zeros(D.size - D.ne)], np.full(D.size, np.inf))
+    a = max(abs(f0), 1e-6 * D.scale) / D.T ** 2   # a start at F = 0 would leave a near zero and lambda / a past 1e17
+    last = a
+    try:
+        for _ in range(stages):
+            last = a
+            y = minimize(fun, y, args=(a,), jac=True, method="L-BFGS-B", bounds=bounds,
+                         options=dict(maxfun=maxfun, maxcor=DUAL_MEMORY)).x
+            a *= 0.1
+    except _Closed:
+        return Multipliers("full", *D.back(best[1])), info
+    except _Spent:
+        pass
+    lam_s, V = np.linalg.eigh(D.S(best[1]))
+    Z = (V * _capped(lam_s / last, D.T)) @ V.T
+    info["point"] = Z / Z[0, 0] if Z[0, 0] > 0 else None
+    return None, info
+
+
+#: The first-order triangle rounds a size tries, on SCREEN_SCHEDULES' last schedule,
+#: before the Shor and full relaxations, when the screen's longer schedules run. On
+#: the incumbent's group of the 100-geo, four-treated search the sizes that needed
+#: triangles closed after one round (21, 22, 26) or two (23, 24); 25 was open after
+#: three, at 6.0 times y'y and falling, and went to Clarabel.
+FIRST_ORDER_ROUNDS = 3
+
+#: A size tries the screen's longer schedules and the rounds from this many candidate
+#: controls; below it the cascade is the size certificates' of before. On the 100-geo
+#: incumbent's group (97 controls) a Clarabel solve took 100-145 s and a first-order
+#: round about 45 s, and the two took the group from 2,321 s to 1,272 s. On the
+#: 80-geo one (76 controls) Clarabel's first solve took 43-48 s, about a round's cost:
+#: with the rounds the group took 479 s, with the schedules alone 447 s (they closed
+#: three sizes at about 7 s that Clarabel took 43-48 s on, and cost about 50 s each on
+#: three that went to Clarabel anyway), against 439 s. Two groups, one either side.
+SIZE_LADDER_FROM = 90
+
+
+def size_schedules(p: int, solver: Optional[str] = None) -> Tuple[Tuple[int, int, int], ...]:
+    """The schedules a size of a group with ``p`` candidate controls tries. With the
+    workspace the first only: a relaxation on it costs about what a longer schedule
+    does, and closes more."""
+    if solver == "workspace":
+        return SCREEN_SCHEDULES[:1]
+    return SCREEN_SCHEDULES if p >= SIZE_LADDER_FROM else SCREEN_SCHEDULES[:1]
+
+
+def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
+                     warm: Optional[Multipliers] = None,
+                     schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None,
+                     first_order_rounds: Optional[int] = None, relaxations: bool = True,
+                     face: bool = None, solver: Optional[str] = None,
+                     shor: Optional[bool] = None, workspaces=None) -> SizeResult:
+    """Whether no design of size m (within the fixings) has u'(cc' - lam G)u > 0,
+    by the cheapest certificate of a cascade (module docstring): ``warm``, another
+    size's multipliers, at this size's rows; then the first-order tiers; with
+    ``shor`` (SHOR_TIER when None) the Shor relaxation's; then the full
+    relaxation's, with up to ``rounds`` rounds of the ``per_round`` most violated
+    triangle inequalities where it is above zero.
+
+    The first-order tier tries each of ``schedules`` in turn (size_schedules(p)
+    when None), ``warm`` given to the first only, and then up to
+    ``first_order_rounds`` rounds of triangles separated from the last schedule's
+    smoothed point (FIRST_ORDER_ROUNDS when None, there is more than one schedule and
+    there are SIZE_LADDER_FROM controls, else none), each on the last schedule
+    from zero; with ``relaxations`` False the cascade stops there, and a size the
+    first-order tiers leave open is returned open with no point (tier
+    "first-order"), for a node that branches on its parent's point. Warm-starting a
+    round from
+    the last round's multipliers left three sizes of the 100-geo incumbent's group
+    open after six rounds that two rounds from zero closed.
+
+    With ``face`` (FACE when None) every relaxation is solved and certified on its
+    face, Z = T W T' (face.py).
+
+    With ``solver`` "workspace" the full relaxations are solved on ``workspaces``
+    (workspace.Workspaces; a new one when None), every one starting from its
+    triangle pool, with the box rows that carry the fixings; the first-order tier
+    takes size_schedules' first schedule and no triangle rounds. A certificate the
+    solve already computed (Solve.bound) is not computed again."""
+    t0 = time.perf_counter()
+    face = FACE if face is None else face
+    solver = _checked_solver(solver)
+    shor = SHOR_TIER if shor is None else shor
+    ws = None
+    if solver == "workspace":
+        from .workspace import Workspaces
+        ws = Workspaces() if workspaces is None else workspaces
+    schedules = size_schedules(len(c), solver) if schedules is None else _checked(schedules)
+    if first_order_rounds is None:
+        first_order_rounds = FIRST_ORDER_ROUNDS if (len(schedules) > 1 and len(c) >= SIZE_LADDER_FROM
+                                                   and ws is None) else 0
+    elif type(first_order_rounds) is not int or first_order_rounds < 0:
+        raise MlsynthConfigError(f"first_order_rounds is a count of rounds, an int at least 0, not {first_order_rounds!r}.")
+    lam = dyadic_below(lam)
+    A = objective(c, G, lam)
+    af = fbound.objective_float(A)
+    if warm is not None:
+        R = Rows(c, m, cuts=cuts, fixes=fixes, face=face, level=warm.level)
+        if len(warm.y_eq) == R.n_eq and len(warm.y_in) == R.n_in:
+            b = fbound.certificate(A, R, warm.y_eq, warm.y_in, m, af)
+            if b is not None and b <= 0:
+                return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="reuse", multipliers=warm)
+    R = Rows(c, m, cuts=cuts, fixes=fixes, face=face)
+    point = None
+    for rung, (maxfun, stages, budget) in enumerate(schedules):
+        t1 = time.perf_counter()
+        w, info = dual_multipliers(A, R, m, c, warm=warm if rung == 0 else None,
+                                   maxfun=maxfun, stages=stages, budget=budget)
+        point = info.get("point") if info else None
+        b = fbound.certificate(A, R, w.y_eq, w.y_in, m, af) if w is not None else None
+        closed = b is not None and b <= 0
+        emit("schedule", m=m, rung=rung, maxfun=maxfun, closed=closed, seconds=time.perf_counter() - t1)
+        if closed:
+            return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="dual", multipliers=w)
+    tri: List = []
+    for r in range(1, first_order_rounds + 1):
+        if point is None:
+            break
+        new = [(kind, idx) for _, kind, idx in separate_triangles(point[0, 1:], point[1:, 1:], k=per_round)
+               if (kind, idx) not in set(tri)]
+        if not new:
+            break
+        tri += new
+        t1 = time.perf_counter()
+        Rt = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes, face=face)
+        maxfun, stages, budget = schedules[-1]
+        w, info = dual_multipliers(A, Rt, m, c, maxfun=maxfun, stages=stages, budget=budget)
+        point = info.get("point") if info else None
+        b = fbound.certificate(A, Rt, w.y_eq, w.y_in, m, af) if w is not None else None
+        closed = b is not None and b <= 0
+        emit("triangles", m=m, round=r, triangles=len(tri), closed=closed, seconds=time.perf_counter() - t1)
+        if closed:
+            return SizeResult(True, b, r, len(tri), time.perf_counter() - t0, tier="triangles")
+    if not relaxations:
+        return SizeResult(False, None, 0, len(tri), time.perf_counter() - t0, None, tier="first-order")
+    sol = None
+    if shor:                             # SHOR_TIER: off unless asked for
+        R = Rows(c, m, cuts=cuts, fixes=fixes, face=face, level="shor")
+        try:
+            sol = solve(c, G, lam, R, solver=_one_relaxation(solver))
+        except cp.error.SolverError:
+            sol = None                   # the full relaxation decides
+    if sol is not None:
+        b = fbound.certificate(A, R, sol.y_eq, sol.y_in, m, af)
+        if b is not None and b <= 0:
+            return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="shor",
+                              multipliers=Multipliers("shor", sol.y_eq, sol.y_in))
+    tri: List = [] if ws is None else list(ws.pool)
+    u = None
+    for r in range(rounds + 1):
+        R = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes, face=face, box=ws is not None)
+        try:
+            sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R, early=r < rounds)
+        except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved
+            return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)
+        b = sol.bound if sol.bound is not None else fbound.certificate(A, R, sol.y_eq, sol.y_in, m, af)
+        u = None if sol.Z is None else np.asarray(sol.Z)[0, 1:]
+        if b is not None and b <= 0:
+            w = Multipliers("full", sol.y_eq, sol.y_in) if not tri else None
+            return SizeResult(True, b, r, len(tri), time.perf_counter() - t0, u, multipliers=w)
+        new = [] if sol.Z is None else separate_triangles(sol.Z[0, 1:], sol.Z[1:, 1:], k=per_round)
+        new = [(kind, idx) for _, kind, idx in new if (kind, idx) not in set(tri)]
+        if not new or r == rounds:
+            return SizeResult(False, b, r, len(tri), time.perf_counter() - t0, u)
+        tri += new
+    return SizeResult(False, None, rounds, len(tri), time.perf_counter() - t0)  # pragma: no cover - the loop returns
+
+
+@dataclass
+class GroupResult:
+    certified: bool
+    bound: Optional[Q]
+    tier: str                            # dual, full, or open when neither closed it
+    seconds: float
+    rung: Optional[int] = None           # the schedule that closed it on the dual tier, None otherwise
+
+
+#: The group screen's first-order schedules, tried in turn until one closes:
+#: (evaluations per smoothing stage, stages, evaluation budget). The first is the
+#: size certificates' (dual_multipliers' defaults). At 150 evaluations a stage the
+#: multipliers stop far from the relaxation's optimum on large groups: on the 19
+#: groups the 100-geo, four-treated search certified, the first schedule closed 4,
+#: and the longer ones with it 17 in 4 to 25 s, where Clarabel took 78 to 140 s a
+#: group; the 2 left open Clarabel left open too.
+SCREEN_SCHEDULES: Tuple[Tuple[int, int, int], ...] = ((150, 6, DUAL_BUDGET), (1000, 8, 8000), (3000, 4, 12000))
+
+#: The longer schedules run from this many candidate controls. Where the second
+#: closes, it took 0.7-1.5 s against Clarabel's 0.8-1.8 s at 36 controls (the
+#: GeoLift groups' size), 1.5-2.6 s against 4.6-8.7 s at 56, and 2.8-8.1 s
+#: against 23-47 s at 76, and a schedule that does not close costs its whole budget.
+SCREEN_LADDER_FROM = 48
+
+
+def screen_schedules(p: int) -> Tuple[Tuple[int, int, int], ...]:
+    """The schedules the group screen tries for ``p`` candidate controls."""
+    return SCREEN_SCHEDULES if p >= SCREEN_LADDER_FROM else SCREEN_SCHEDULES[:1]
+
+
+#: The group screen ends with the size-free relaxation solved by Clarabel only below
+#: this many candidate controls; from here it ends open after its schedules and the
+#: sizes decide. Where the solve closed a screen it took 1.6-1.8 s a group at 36
+#: controls (GeoLift) and 25 s at 56, less than the sizes' certificates it spared. At
+#: 96 controls it took 129-163 s and closed nothing (the hard group of the 100-geo,
+#: four-treated search, exact and at a 1% gap), and at 98 it closed the one survivor
+#: of the 100-geo, two-treated search at 1% in 204 s, where the sizes took 45 s; on
+#: the 19 groups of the 100-geo, four-treated search it took 78-140 s a group and
+#: closed none the schedules left open (README, "The screen's last tier").
+SCREEN_SOLVE_BELOW = 90
+
+
+def screen_solves(p: int) -> bool:
+    """Whether the group screen ends with the relaxation solve for ``p`` candidate
+    controls (SCREEN_SOLVE_BELOW)."""
+    return p < SCREEN_SOLVE_BELOW
+
+
+def _checked(schedules) -> Tuple[Tuple[int, int, int], ...]:
+    if not isinstance(schedules, tuple):
+        raise MlsynthConfigError(f"the screen's schedules are a tuple of (maxfun, stages, budget), not {schedules!r}.")
+    for sch in schedules:
+        if not (isinstance(sch, tuple) and len(sch) == 3 and all(type(v) is int and v >= 1 for v in sch)):
+            raise MlsynthConfigError(f"a screen schedule is (maxfun, stages, budget), each a positive int, not {sch!r}.")
+    return schedules
+
+
+def group_bound(A, R: Rows, y_eq, y_in) -> Optional[Q]:
+    """bound() on the size-free rows (Rows with m None), whose trace is 1 + sum u,
+    at most 1 + p."""
+    return bound(A, R, y_eq, y_in, R.p)
+
+
+def group_certificate(c, G, lam, schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None,
+                      solver: Optional[str] = None, final_solve: Optional[bool] = None) -> GroupResult:
+    """Whether no design of any size has u'(cc' - lam G)u > 0 (with c'u >= 0), by the
+    size-free rows' certificate: the first-order multipliers of each schedule in turn
+    (screen_schedules(p) when ``schedules`` is None), then the relaxation's own
+    (Clarabel) when ``final_solve`` is set (screen_solves(p) when it is None); without the
+    solve a screen no schedule closes ends open. Certified at lam' =
+    dyadic_below(lam) <= lam, so no design's ratio exceeds lam' either."""
+    t0 = time.perf_counter()
+    if len(c) == 0:
+        raise MlsynthDataError("the group screen needs a candidate control: there is no candidate control.")
+    schedules = screen_schedules(len(c)) if schedules is None else _checked(schedules)
+    solver = _checked_solver(solver)
+    if final_solve is not None and type(final_solve) is not bool:
+        raise MlsynthConfigError(f"final_solve is True, False or None, not {final_solve!r}.")
+    if final_solve is None:
+        final_solve = screen_solves(len(c))
+    lam = dyadic_below(lam)
+    A = objective(c, G, lam)
+    af = fbound.objective_float(A)
+    R = Rows(c, None)
+    b = None
+    for rung, (maxfun, stages, budget) in enumerate(schedules):
+        t1 = time.perf_counter()
+        w, _ = dual_multipliers(A, R, R.p, c, maxfun=maxfun, stages=stages, budget=budget)
+        if w is not None:
+            b = fbound.certificate(A, R, w.y_eq, w.y_in, R.p, af)
+        closed = w is not None and b is not None and b <= 0
+        emit("schedule", m=None, rung=rung, maxfun=maxfun, closed=closed, seconds=time.perf_counter() - t1)
+        if closed:
+            return GroupResult(True, b, "dual", time.perf_counter() - t0, rung)
+    if not final_solve:                 # the sizes decide what no schedule closed
+        return GroupResult(False, b, "open", time.perf_counter() - t0)
+    try:
+        sol = solve(c, G, lam, R, solver=_one_relaxation(solver))
+    except cp.error.SolverError:        # pragma: no cover - Clarabel solves the size-free rows of every test panel
+        return GroupResult(False, b, "open", time.perf_counter() - t0)
+    b = fbound.certificate(A, R, sol.y_eq, sol.y_in, R.p, af)
+    if b is not None and b <= 0:
+        return GroupResult(True, b, "full", time.perf_counter() - t0)
+    return GroupResult(False, b, "open", time.perf_counter() - t0)
+
+
+def _ratio(c, G, C):
+    u = np.zeros(len(c), dtype=object); u[:] = Q(0); u[sorted(C)] = Q(1)
+    cu = c @ u
+    return cu, (cu * cu / (u @ G @ u)) if cu > 0 else Q(0)
+
+
+@dataclass
+class SlopeFreeCertificate:
+    """The outcome of :func:`certify_slope_free` for one treatment group."""
+
+    incumbent: Q                          # the incumbent's exact RSS at its best slope
+    controls: List[int]
+    ratio: Q                              # (c'u)^2 / u'Gu at the incumbent, y'y - incumbent
+    sizes_after_hull: List[int]
+    sizes: Dict[int, dict] = field(default_factory=dict)
+    nodes: int = 0
+    open: List[tuple] = field(default_factory=list)
+    certified: bool = False
+    seconds: float = 0.0
+    hull_seconds: float = 0.0
+    ceiling_held: bool = False            # certified: no design has an RSS below the ceiling
+    priced: int = 0                       # designs priced in batched subtrees
+    priced_nodes: int = 0                 # subtrees priced instead of bounded
+    exact: int = 0                        # priced designs the float bound could not discard
+    tiers: Dict[str, int] = field(default_factory=dict)   # sizes and nodes decided by each tier
+    group_tier: Optional[str] = None      # the group screen's tier, None when it was not tried
+    group_seconds: float = 0.0
+    rounded: int = 0                      # incumbents found by rounding a node's relaxed point
+
+
+#: The cost model of the choice between pricing a subtree and bounding it, as MAREX's
+#: branch and bound makes it (search_skeleton.cheaper_to_price): seconds for one
+#: relaxation of a size, 1.5-1.9 s at the root on the GeoLift groups (4.3 s with a
+#: round of triangles), and for one design in the batched pass, 0.6-2.0 us
+#: (README, "Pricing"). The limit, 750,000 designs, prices sizes up to 5 of 38.
+BOUND_SECONDS = 1.5
+PRICE_SECONDS = 2e-6
+PRICE_LIMIT = int(BOUND_SECONDS / PRICE_SECONDS)
+#: Designs per batch, so that the gathered s-by-s blocks stay a few million doubles.
+_CELLS = 2_000_000
+
+
+def _floats(c, G, inc):
+    """The doubles nearest c and G, made once per search and kept on ``inc``."""
+    if "_floats" not in inc:
+        inc["_floats"] = (np.array([float(v) for v in c]), np.array([[float(v) for v in r] for r in G]))
+    return inc["_floats"]
+
+
+def _upper_batch(fixed, cfF, GfF, combos):
+    """An upper bound in doubles on (c'u)^2 / u'Gu for each row of ``combos`` (indices
+    into the free geos), the fixed-in part given exactly in ``fixed``; -inf where c'u
+    cannot be positive, inf where u'Gu cannot be bounded away from zero.
+
+    c'u = c1 + sum_S c_j and u'Gu = G11 + 2 sum_S g1_j + sum_{S x S} G_ij, with c1,
+    G11 and g1 the fixed-in sums, exact in rationals and then rounded. Each double sum
+    of k terms errs by at most gamma_k times the sum of its terms' moduli, and each
+    term's own rounding from the exact value by u times its modulus, so twice
+    _dot_err(k + 1, moduli) bounds both (Bjorck 2015, Lemma 1.4.2, with the underflow
+    allowance of certificate._dot_err; the factor 2 covers the product of the two
+    relative errors, derived here). The bound is (|s| + e_s)^2 / (d - e_d), raised
+    by inflate's 1e-6 for its own three roundings."""
+    c1, G11, g1 = fixed
+    k = combos.shape[1]
+    s = c1[0] + cfF[combos].sum(axis=1)
+    sa = abs(c1[0]) + np.abs(cfF)[combos].sum(axis=1)
+    blk = GfF[combos[:, :, None], combos[:, None, :]]
+    d = G11[0] + 2 * g1[0][combos].sum(axis=1) + blk.sum(axis=(1, 2))
+    da = abs(G11[0]) + 2 * np.abs(g1[0])[combos].sum(axis=1) + np.abs(blk).sum(axis=(1, 2))
+    e_s = 2 * _dot_err(k + 2, sa)
+    e_d = 2 * _dot_err(k * k + k + 2, da)
+    with np.errstate(over="ignore", divide="ignore", invalid="ignore"):
+        ub = (np.abs(s) + e_s) ** 2 / (d - e_d) * (1.0 + 1e-6)
+    ub = np.where(d - e_d > 0, ub, np.inf)
+    return np.where(s + e_s > 0, ub, -np.inf)
+
+
+def _fixed(c, G, cf, ins, F):
+    c1 = sum((c[i] for i in ins), Q(0))
+    G11 = sum((G[i, j] for i in ins for j in ins), Q(0))
+    g1 = np.array([float(sum((G[i, j] for i in ins), Q(0))) for j in F])
+    return (float(c1),), (float(G11),), (g1,)
+
+
+def ratio_upper(c, G, cf, Gf, ins, S) -> float:
+    """The batched bound for the one design ``ins`` + ``S`` (S a list of free geos)."""
+    ins = sorted(ins); F = sorted(set(range(len(c))) - set(ins))
+    fixed = _fixed(c, G, cf, ins, F)
+    pos = [F.index(j) for j in S]
+    c1, G11, g1 = fixed
+    return float(_upper_batch(((c1[0],), (G11[0],), (g1[0],)), cf[F], Gf[np.ix_(F, F)],
+                              np.array([pos]))[0])
+
+
+def price_subtree(c, G, out, m, fixes, inc, excluded):
+    """Price every design of size m within the fixings: discard those whose double
+    bound (_upper_batch) is at most the incumbent's ratio, and evaluate the rest
+    exactly, best bound first, adopting one that beats the incumbent and is not
+    excluded. Every discard is on a rigorous bound, so the subtree is closed."""
+    p = len(c)
+    fx = dict(fixes)
+    ins = sorted(j for j, v in fixes if v)
+    F = [j for j in range(p) if j not in fx]
+    k = m - len(ins)
+    cf, Gf = _floats(c, G, inc)
+    fixed = _fixed(c, G, cf, ins, F)
+    cfF, GfF = cf[F], Gf[np.ix_(F, F)]
+    lam_lo = round_down(inc["lam"])
+    per = max(1, _CELLS // max(1, k * k))
+    gen = itertools.combinations(range(len(F)), k)
+    cands = []
+    out.priced_nodes += 1
+    t0, priced0, exact0 = time.perf_counter(), out.priced, out.exact
+    while True:
+        chunk = list(itertools.islice(gen, per))
+        if not chunk:
+            break
+        combos = np.array(chunk, dtype=np.int64)
+        out.priced += len(chunk)
+        ub = _upper_batch(fixed, cfF, GfF, combos)
+        for i in np.nonzero(ub > lam_lo)[0]:
+            cands.append((float(ub[i]), chunk[i]))
+    cands.sort(key=lambda t: -t[0])
+    for ub, combo in cands:
+        if Q(ub) <= inc["lam"]:                # every later bound is at most this one
+            break
+        C = set(ins) | {F[i] for i in combo}
+        out.exact += 1
+        cu, r = _ratio(c, G, C)
+        if cu > 0 and r > inc["lam"] and C not in excluded:
+            inc.update(lam=r, C=C)
+            emit("incumbent", ratio=r, controls=sorted(C), source="price", m=m, depth=len(fixes))
+    emit("price", m=m, depth=len(fixes), designs=out.priced - priced0, exact=out.exact - exact0,
+         seconds=time.perf_counter() - t0)
+
+
+def rounded_design(u, fixes, m) -> Set[int]:
+    """The design of size m a node's relaxed point rounds to: the controls fixed in
+    and the m - ones free controls with the largest relaxed values, ties to the lower
+    index. Huang et al. (SoCS 2025) fix a relaxation's most decided variables the same
+    way (Relax-Search, Algorithm 2)."""
+    fixed = dict(fixes)
+    ones = {j for j, v in fixes if v}
+    free = [j for j in range(len(u)) if j not in fixed]
+    return ones | set(sorted(free, key=lambda j: (-u[j], j))[:m - len(ones)])
+
+
+#: A node solves the Shor and full relaxations every this many levels (the root of a
+#: size always), and in between branches on its parent's point. On 38 branching groups
+#: of 30 simulated units (20 periods; 4 and 10 treated, enumeration off) every second
+#: level took 35-40% fewer Clarabel solves for 5-11% more nodes, with no group
+#: certified to a different design; every third saved about half and left more groups
+#: open at the depth limit. On 21 groups of 20 markets none of the 127 nodes that
+#: reached the full relaxation closed there: the solve buys the branching point.
+CLARABEL_EVERY = 2
+
+#: Whether an open node that solved the relaxations rounds its point to a design.
+ROUND_NODES = True
+
+
+def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc, excluded, parent_u=None):
+    """Prune the node by its certificate, or branch on its most fractional geo; a
+    node whose fixings leave one design of size m (m geos fixed in, or p - m fixed
+    out) is that design, evaluated exactly, and one better than the incumbent
+    replaces it. Bounding such a node instead branches on geos with one value
+    left, down to the depth limit: on GeoLift a size-9 node with nine geos fixed
+    in was left open that way. The nodes after it are searched at the new ratio; those
+    before it were pruned at a smaller ratio, the stronger claim, and no other node
+    holds the new design, since the fixings partition the designs.
+
+    Every node cuts the incumbent it is bounded against, with the no-good cut of
+    Balas and Jeroslow (1972), beside the caller's ``cuts``. The node holding a design
+    adopted during the search (by rounding, at a leaf or by pricing) bounds that
+    design at the ratio it set, so without its cut the certificate cannot fall below
+    zero and the subtree runs to the depth limit: on the beds 10 of the 14 nodes left
+    open there held the final incumbent. A cut design is the incumbent or one it
+    replaced, so no design the claim is about is cut.
+
+    The relaxations are solved at depths that are multiples of ``inc["every"]``
+    (CLARABEL_EVERY when absent) and wherever the parent had no point; elsewhere the
+    node runs the first-order tiers only and branches on ``parent_u``, its parent's
+    point. Which control is branched on never changes what is proved: a pruned node
+    is pruned by its own certificate.
+
+    A node that solved the relaxations and stays open rounds its point to a design of
+    size m (rounded_design) when ``inc["round"]`` is set, and one better than the
+    incumbent replaces it, so the nodes after it are bounded at the higher ratio.
+    Rounding prunes nothing by itself. On two beds of 30 simulated units (38 branching
+    groups, every second level) it found 72 better incumbents and took 13% fewer nodes
+    and 19% fewer Clarabel solves. The node whose rounding adopted a design is not
+    bounded again under the design's cut: on the beds that re-check took 20% fewer
+    nodes and 19% more full relaxations (results/incumbent_cuts.log)."""
+    p = len(c)
+    ones = sum(v for _, v in fixes)
+    if ones > m or len(fixes) - ones > p - m:
+        return
+    if set(inc["C"]) not in cuts:     # an incumbent adopted since: cut it, or the node holding it cannot close
+        cuts = list(cuts) + [set(inc["C"])]
+    out.nodes += 1
+    t0 = time.perf_counter()
+
+    def node(outcome, tier=None, control=None):
+        emit("node", m=m, depth=depth, ones=ones, outcome=outcome, tier=tier, control=control,
+             seconds=time.perf_counter() - t0)
+
+    if ones == m or len(fixes) - ones == p - m:   # the fixings leave one design: evaluate it
+        C = {j for j, v in fixes if v}
+        if ones < m:                              # every free geo is in
+            C |= {j for j in range(p) if j not in dict(fixes)}
+        cu, r = _ratio(c, G, C)
+        if cu > 0 and r > inc["lam"] and C not in excluded:
+            inc.update(lam=r, C=C)
+            emit("incumbent", ratio=r, controls=sorted(C), source="leaf", m=m, depth=depth)
+        node("leaf")
+        return
+    if math.comb(p - len(fixes), m - ones) <= PRICE_LIMIT:   # cheaper_to_price at the cost model
+        price_subtree(c, G, out, m, fixes, inc, excluded)
+        node("priced")
+        return
+    every = inc.get("every", CLARABEL_EVERY)
+    relax = depth % every == 0 or parent_u is None
+    res = size_certificate(c, G, inc["lam"], m, cuts=cuts, fixes=fixes, rounds=rounds, per_round=per_round,
+                           warm=None if fixes else inc.get("warm"), relaxations=relax,
+                           face=inc.get("face", FACE), solver=inc.get("solver", SOLVER), shor=inc.get("shor", SHOR_TIER),
+                           workspaces=inc.get("workspaces"))
+    out.tiers[res.tier] = out.tiers.get(res.tier, 0) + 1
+    if res.certified:
+        if not fixes and res.multipliers is not None:
+            inc["warm"] = res.multipliers       # the next size's first try
+        node("pruned", res.tier)
+        return
+    if res.u is not None and inc.get("round", ROUND_NODES):   # only a node that solved the relaxations has a point
+        C = rounded_design(res.u, fixes, m)
+        cu, r = _ratio(c, G, C)
+        if cu > 0 and r > inc["lam"] and C not in excluded:
+            inc.update(lam=r, C=C)
+            out.rounded += 1
+            emit("incumbent", ratio=r, controls=sorted(C), source="rounding", m=m, depth=depth)
+    if depth >= max_depth:
+        out.open.append((m, tuple(fixes)))
+        node("open", res.tier)
+        return
+    free = [j for j in range(p) if j not in dict(fixes)]
+    u = res.u if relax else parent_u
+    j = min(free, key=lambda j: abs(u[j] - 0.5)) if u is not None else free[0]
+    node("branched", res.tier, j)
+    for v in (1, 0):
+        _branch(c, G, out, m, cuts, fixes + [(j, v)], rounds, per_round, depth + 1, max_depth, inc, excluded,
+                parent_u=u)
+
+
+class NoDesignLeft(ValueError):
+    """No positive-slope design remains to certify: none has a positive slope, or
+    every one near the incumbent is excluded."""
+
+
+def _best_neighbour(c, G, seeds, excluded):
+    """The best positive-slope design one add, drop or swap from any seed that is
+    not excluded, or None."""
+    p = len(c); cand = set()
+    for S in seeds:
+        S = set(S)
+        for j in range(p):
+            cand.add(frozenset(S ^ {j}))
+            if j not in S:
+                cand.update(frozenset((S - {k}) | {j}) for k in S)
+    best = None
+    for T in cand:
+        if not T or set(T) in excluded:
+            continue
+        cu, r = _ratio(c, G, T)
+        if cu > 0 and (best is None or r > best[0]):
+            best = (r, set(T))
+    return None if best is None else best[1]
+
+
+def certify_slope_free(y: np.ndarray, X: np.ndarray, *, verbose: int = 0, progress=None, log=None,
+                       log_level: int = 3, **search) -> SlopeFreeCertificate:
+    """``_certify_slope_free`` (below) with its progress reported (progress.reporting):
+    ``verbose`` 1-4 prints the events to stderr, ``progress`` is called with each, and
+    ``log`` writes them to a parquet dataset."""
+    with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):
+        out = _certify_slope_free(y, X, **search)
+        emit("slope-free-done", certified=out.certified, nodes=out.nodes, ratio=out.ratio,
+             controls=out.controls, seconds=out.seconds)
+        return out
+
+
+def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, seed: int = 0,
+                        rounds: int = 6, per_round: int = 400, max_depth: int = 12,
+                        hull: bool = True, exclude: Sequence[Set[int]] = (),
+                        ceiling: Optional[Q] = None,
+                        start: Optional[Set[int]] = None,
+                        group_screen: bool = True,
+                        clarabel_every: int = CLARABEL_EVERY,
+                        rounding: bool = ROUND_NODES,
+                        face: bool = FACE,
+                        solver: Optional[str] = None,
+                        shor: bool = SHOR_TIER) -> SlopeFreeCertificate:
+    """Certify that no control group with a positive slope, other than the designs in
+    ``exclude``, has a lower RSS than the incumbent.
+
+    The incumbent comes from the study's RSS descent (search.incumbent), or, when that
+    design is excluded, from its best add, drop or swap neighbour, or that of an
+    excluded design, that is not. The hull stage (search.hull_survivors) rules out
+    every size none of whose slope pieces survives it; each remaining size is
+    certified by the slope-free relaxation at the incumbent's ratio, with a no-good
+    cut for each excluded design and triangle cuts, and branched on where it is not.
+
+    A caller that already holds a design passes it as ``start``, and the search starts
+    from it unless the RSS descent finds one with a lower RSS. A start comes from a
+    cheaper search (the treatment pass descends from 10 starts, this from
+    ``restarts``), and every size is tested at the start's ratio: on GeoLift at five
+    geos a pass design with RSS 5,089,437.7, where the descent reached 4,860,705.3,
+    left sizes 13 to 17 open at the root and the certificate open at the depth limit.
+
+    With a ``ceiling`` above the incumbent's RSS the question is narrower: whether any
+    design has an RSS below the ceiling. Each size is then tested at the ratio
+    y'y - ceiling, larger than the incumbent's, and a leaf replaces the incumbent only
+    when it beats that ratio. When none does the ceiling is held: the incumbent is
+    reported at its own RSS, and ``certified`` means no design is below the ceiling,
+    not that the incumbent is optimal.
+
+    Before any size is searched against a ceiling, ``group_screen`` tries one
+    certificate for every size at that ratio (group_certificate); when it closes,
+    the ceiling is held without the hull stage or a size.
+
+    Within a size's branch and bound the Shor and full relaxations are solved every
+    ``clarabel_every`` levels (_branch); 1 solves them at every node. With
+    ``rounding`` an open node that solved them rounds its point to a design, which
+    replaces the incumbent when it is better (``rounded`` counts those). With ``face``
+    the relaxations are solved and certified on their faces (FACE, face.py). The
+    relaxations are solved by ``solver``, "clarabel", "scs" (solve()) or "workspace"
+    (workspace.py, one Workspaces for the whole search); None takes default_solver(p).
+    With ``shor`` the Shor relaxation is solved before the full one (SHOR_TIER).
+    """
+    from .search import hull_survivors, incumbent, pieces_to
+
+    t_all = time.perf_counter()
+    if type(clarabel_every) is not int or clarabel_every < 1:
+        raise MlsynthConfigError(f"clarabel_every is a number of levels, an int at least 1, not {clarabel_every!r}.")
+    if type(rounding) is not bool:
+        raise MlsynthConfigError(f"rounding is True or False, not {rounding!r}.")
+    if type(face) is not bool:
+        raise MlsynthConfigError(f"face is True or False, not {face!r}.")
+    if solver is not None:
+        _checked_solver(solver)
+    if type(shor) is not bool:
+        raise MlsynthConfigError(f"shor is True or False, not {shor!r}.")
+    p = X.shape[1]
+    solver = default_solver(p) if solver is None else solver
+    excluded = [set(e) for e in exclude]
+    C = set(incumbent(y, X, restarts=restarts, seed=seed)[1])
+    D = ExactData(y, X)
+    c, G = D.c, D.G
+    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:
+        C = set(start)                   # kept unless the descent found a design with a lower RSS
+    cu, lam = _ratio(c, G, C)
+    if set(C) in excluded or not cu > 0:
+        C = _best_neighbour(c, G, [C] + excluded, excluded)
+        if C is None:
+            if excluded:
+                raise NoDesignLeft("no design is left: every positive-slope design near the "
+                                 "incumbent is excluded")
+            raise NoDesignLeft("no control group has a positive slope: every design fails the "
+                               "correlation gate, so there is no incumbent to certify")
+        cu, lam = _ratio(c, G, C)
+    test = lam
+    if ceiling is not None and D.yy - ceiling > lam:
+        test = D.yy - ceiling              # only a design below the ceiling matters
+    emit("slope-free", p=p, ratio=lam, test_ratio=test, excluded=len(excluded))
+    screen = None
+    if group_screen and test > lam:
+        screen = group_certificate(c, G, test, solver=solver)
+        emit("screen", certified=screen.certified, tier=screen.tier, rung=screen.rung, seconds=screen.seconds)
+        if screen.certified:               # no design of any size is below the ceiling
+            return SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=[],
+                                        certified=True, ceiling_held=True, group_tier=screen.tier,
+                                        group_seconds=screen.seconds,
+                                        seconds=time.perf_counter() - t_all)
+    sizes = list(range(1, p + 1)); t_h = 0.0
+    cap = D.slope_cap()
+    if hull and cap is not None:
+        t0 = time.perf_counter()
+        b_inc = float(lam / cu)           # c'u / u'Gu, since lam = (c'u)^2 / u'Gu
+        s1, _ = hull_survivors(y, X, D, pieces_to(b_inc, cap), D.yy - test)
+        sizes = sorted({pc[2] for pc in s1})
+        t_h = time.perf_counter() - t0
+        emit("hull", sizes=sizes, seconds=t_h)
+    inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding, "face": face, "solver": solver, "shor": shor}
+    if solver == "workspace":
+        from .workspace import Workspaces
+        inc["workspaces"] = Workspaces()     # one search's workspaces and triangle pool
+    out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
+                               hull_seconds=t_h, group_tier=None if screen is None else screen.tier,
+                               group_seconds=0.0 if screen is None else screen.seconds)
+    for m in sizes:                      # a size certified at a ratio stays certified at a larger one
+        t0 = time.perf_counter(); n0 = out.nodes; o0 = len(out.open)
+        _branch(c, G, out, m, excluded + [set(inc["C"])], [], rounds, per_round, 0, max_depth, inc, excluded)
+        out.sizes[m] = dict(nodes=out.nodes - n0, seconds=time.perf_counter() - t0)
+        emit("size", m=m, nodes=out.nodes - n0, open=len(out.open) - o0, seconds=out.sizes[m]["seconds"])
+    out.ceiling_held = inc["lam"] == test and test > lam
+    if out.ceiling_held:                  # no design beat the ceiling: report the incumbent itself
+        inc.update(lam=lam)
+    out.incumbent, out.ratio, out.controls = D.yy - inc["lam"], inc["lam"], sorted(inc["C"])
+    out.certified = not out.open
+    out.ceiling_held &= out.certified
+    out.seconds = time.perf_counter() - t_all
+    return out

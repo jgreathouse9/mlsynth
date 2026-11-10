@@ -1,0 +1,345 @@
+"""Branch and bound on geos with smoothed L-BFGS-B as the node solver (#965).
+
+A node prunes when the certificate of its multipliers clears the incumbent: the
+float one (certificate.joint_bound_float), or the exact one (certificate.joint_bound)
+when the float one falls short (certificate.joint_clears). It branches on its
+most fractional geo when it stalls, and stops at a depth limit. The fractional values are read from the eigenvector
+behind the bound, the primal point Z* = T v v' of the dual function
+(oracle.py). Children warm-start from the parent's multipliers, the fixing
+multiplier at zero. Inside a branch and bound an approximate dual solution is
+enough, since every multiplier vector gives a valid bound (Fischer, Gruber,
+Rendl and Sotirov 2006, Sect. 4.1; Palagi et al. in Anjos and Lasserre 2012,
+Ch. 28).
+
+The stall rule is read from measured trajectories (#965): at the end of stage 4
+of the schedule 60 * 2^k <= 800 evaluations (900 evaluations in all), every node
+that never pruned sat below -0.9% of the incumbent and every node that pruned
+later above -1.6%; a node below -2% there, or not pruned by 1700, branches.
+The solver aims HEADROOM past the incumbent: stopping exactly at it left margins
+near 1e-8, which the exact certificate can lose, and a child warm-started from
+such a parent stops at the same margin again, which once grew one node into 511
+open leaves.
+
+Fischer, I., Gruber, G., Rendl, F. and Sotirov, R. (2006). Computational
+    experience with a bundle approach for semidefinite cutting plane relaxations
+    of Max-Cut and Equipartition. Math. Program. 105, 451-469.
+Anjos, M. F. and Lasserre, J. B., eds. (2012). Handbook on Semidefinite, Conic
+    and Polynomial Optimization. Springer.
+"""
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass, field
+from fractions import Fraction
+from typing import List, Optional, Sequence, Set, Tuple
+
+import cvxpy as cp
+import numpy as np
+
+from mlsynth.exceptions import MlsynthDataError
+
+from .certificate import ExactData, hull_clears, joint_clears, shor_bound
+from .dual import smoothed_lbfgs
+from .hull import Band, ControlBound, positive_rss, rss_of
+from .lifts import Lift
+from .oracle import Oracle, unpack  # noqa: F401  (unpack is read from here too)
+
+#: Stage k of the smoothing schedule takes up to this many evaluations
+#: (measured on the 40-geo nodes, #965: shorter early stages and longer late ones
+#: halve an easy prune's cost against a flat 400).
+BUDGET = lambda k: min(60 * 2 ** k, 800)  # noqa: E731
+#: The solver aims this far past the incumbent, relative, so the exact certificate
+#: (which loses up to about 3e-8 relative to the double bound) still clears it.
+HEADROOM = 1e-6
+
+#: Clarabel's stopping tolerance in the Shor stage. The stage prunes only on the
+#: exact certificate (certificate.shor_bound) of the solve's multipliers, so the
+#: tolerance changes the work and how tight that certificate is, never its
+#: validity. Measured on the four GeoLift groups (#965,
+#: results/solver_settings.log): 1e-5 keeps the same survivors as Clarabel's
+#: default 1e-8 at about 89% of the time; 1e-4 keeps 18 pairs on the hardest
+#: group against 15.
+SHOR_TOL = 1e-5
+#: The stall rule: at ``STALL_AT`` evaluations a node below ``STALL_BELOW`` of the
+#: incumbent branches, and every node not pruned by ``STALL_LAST`` does.
+STALL_AT, STALL_BELOW, STALL_LAST = 900, -0.02, 1700
+
+
+@dataclass
+class SearchStats:
+    """What the joint-lift search did."""
+
+    nodes: int = 0
+    pruned: int = 0
+    branched: int = 0
+    infeasible: int = 0
+    cert_failed: int = 0
+    evals: int = 0
+    lbfgs_seconds: float = 0.0
+    cert_seconds: float = 0.0
+    adopted: int = 0                    # better designs found by rounding a node's primal point
+    checks: dict = field(default_factory=dict)  # joint certificates: 'float' tried, 'exact' fallbacks
+    open: List[tuple] = field(default_factory=list)
+
+
+@dataclass
+class Incumbent:
+    """The best design known, its exact RSS, and every design a no-good cut excludes."""
+
+    UB: Fraction
+    C: Set[int]
+    cuts: List[Set[int]]
+    D: Optional[ExactData] = None
+
+    def offer(self, y, X, design: Set[int], stats: "SearchStats") -> None:
+        """Adopt ``design`` when its exact RSS at its double slope beats the incumbent.
+
+        Every design a cut excludes is known, and none of them beats the best, so
+        the cuts stay valid as the incumbent improves: a node they help close
+        holds no design below the incumbent, and a node pruned against an earlier
+        incumbent was pruned against a larger number.
+        """
+        if not design or design == self.C or positive_rss(y, X, design) >= float(self.UB):
+            return
+        x = X[:, sorted(design)].sum(1)
+        rss = self.D.rss(design, float((y @ x) / (x @ x)))
+        if rss < self.UB:
+            self.UB, self.C = rss, set(design)
+            self.cuts.append(set(design))
+            stats.adopted += 1
+
+
+@dataclass
+class Certificate:
+    """The outcome of :func:`certify` for one treatment group."""
+
+    incumbent: Fraction                 # the incumbent's exact RSS at its double slope
+    controls: List[int]                 # the incumbent's control group, indices into X
+    slope: float
+    slope_cap: Fraction
+    pieces: int
+    pairs: int
+    after_hull: int
+    after_shor: int
+    search: SearchStats
+    certified: bool                     # every other design's RSS is at least the incumbent's
+    seconds: float
+
+
+def stalled(evals: int, best: float, target: float) -> bool:
+    margin = (best - target) / abs(target)
+    return (evals >= STALL_AT and margin < STALL_BELOW) or evals >= STALL_LAST
+
+
+def _rounded(u, m, fixed, p):
+    """The node's design nearest its primal point: the fixed-in geos, then the
+    free ones with the largest weights, to size m."""
+    fx = dict(fixed)
+    ones = [j for j, v in fx.items() if v == 1]
+    free = sorted((j for j in range(p) if j not in fx), key=lambda j: -u[j])
+    return set(ones + free[:max(0, m - len(ones))])
+
+
+def run_node(y, X, lift, inc: Incumbent, scale2, lo, hi, m, fixed, y_warm, stats: SearchStats,
+             depth: int = 0, max_depth: int = 10) -> None:
+    """Prune the node, or branch on its most fractional geo; record it open past ``max_depth``."""
+    p = X.shape[1]
+    ones = sum(v for _, v in fixed)
+    if ones > m or len(fixed) - ones > p - m:
+        stats.infeasible += 1
+        return
+    O = Oracle(y, X, lo, hi, m, cuts=inc.cuts, fixes=fixed)
+    y0 = np.zeros(O.dim)
+    if y_warm is not None:
+        # the parent's layout: the cuts it knew, then its fixings; new ones start at 0
+        n_cut, n_fix = y_warm["cuts"], y_warm["fixes"]
+        head = O.sl["fam"].stop
+        y0[:head] = y_warm["y"][:head]
+        y0[O.sl["ng"].start:O.sl["ng"].start + n_cut] = y_warm["y"][head:head + n_cut]
+        y0[O.sl["fix"].start:O.sl["fix"].start + n_fix] = y_warm["y"][head + n_cut:head + n_cut + n_fix]
+    stats.nodes += 1
+    yb = y0
+    O1 = None                           # the node's oracle in the data's units, for the certificate
+    for head in (HEADROOM, 100 * HEADROOM):
+        target = float(inc.UB) / scale2 * (1 + head)
+        t0 = time.perf_counter()
+        th, yb, inf = smoothed_lbfgs(O, y0, target=target, stage_budget=BUDGET, handoff=stalled)
+        stats.lbfgs_seconds += time.perf_counter() - t0
+        stats.evals += inf["evals"]
+        if th < target:
+            break
+        t1 = time.perf_counter()
+        if O1 is None:
+            O1 = Oracle(y, X, lo, hi, m, cuts=O.cuts or None, fixes=O.fixes, unscaled=True)
+        clears = joint_clears(O1, yb * scale2, y, X, lo, hi, m, inc.UB, stats.checks)
+        stats.cert_seconds += time.perf_counter() - t1
+        if clears:
+            stats.pruned += 1
+            return
+        stats.cert_failed += 1
+        y0 = yb
+    if depth >= max_depth or len(fixed) == p:
+        stats.open.append((lo, hi, m, tuple(fixed)))
+        return
+    # the eigen-primal behind the bound: round it to a design, then branch on its
+    # most fractional geo
+    Sm, _ = O.S_k(yb)
+    v = np.linalg.eigh(Sm)[1][:, 0]
+    u = np.clip(v[1:p + 1] / v[0], 0, 1) if abs(v[0]) > 1e-12 else np.full(p, 0.5)
+    inc.offer(y, X, _rounded(u, m, fixed, p), stats)
+    free = [j for j in range(p) if j not in dict(fixed)]
+    j = min(free, key=lambda j: abs(u[j] - 0.5))
+    stats.branched += 1
+    warm = {"y": yb, "cuts": len(O.cuts), "fixes": len(fixed)}
+    for val in (0, 1):
+        run_node(y, X, lift, inc, scale2, lo, hi, m, fixed + [(j, val)], warm, stats, depth + 1, max_depth)
+
+
+def incumbent(y: np.ndarray, X: np.ndarray, *, restarts: int = 200, seed: int = 0) -> Tuple[float, Set[int]]:
+    """The best control group an RSS-only add/drop/swap descent finds from random starts.
+
+    Every move of a step is scored at once from c = X'y, G = X'X and v = G u for the
+    current design u: adding j gives c'u + c_j and u'Gu + 2 v_j + G_jj, dropping a gives
+    c'u - c_a and u'Gu - 2 v_a + G_aa, and swapping a for b gives c'u - c_a + c_b and
+    u'Gu - 2 v_a + G_aa + 2 v_b + G_bb - 2 G_ab (derived here by expanding (u +/- e)'G(u +/- e)).
+    The RSS is y'y - (c'u)^2 / u'Gu when c'u > 0, else y'y (hull.positive_rss). Scored
+    from the series one move at a time the descent took 0.48 s a GeoLift group (10
+    restarts, 36 controls); from the Gram, 0.011 s, with the same designs on the 73
+    groups measured. The Gram scores choose the design; the RSS returned is the
+    design's positive_rss, since the two differ by rounding (1e-12 relative)."""
+    if restarts < 1:
+        raise MlsynthDataError(f"restarts is {restarts}; the descent needs at least one start.")
+    p = X.shape[1]
+    rng = np.random.default_rng(seed)
+    y = np.asarray(y, dtype=float); X = np.asarray(X, dtype=float)
+    yy = float(y @ y); c = X.T @ y; G = X.T @ X; d = np.diag(G).copy()
+
+    def rss(s, q):
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.where((q > 0) & (s > 0), yy - s * s / q, yy)
+
+    def descend(C):
+        u = np.zeros(p, dtype=bool); u[sorted(C)] = True
+        s = float(c[u].sum()); v = G[:, u].sum(axis=1); q = float(v[u].sum())
+        cur = float(rss(s, q))
+        while True:
+            sign = np.where(u, -1.0, 1.0)              # drop the members, add the others
+            toggled = rss(s + sign * c, q + sign * 2.0 * v + d)
+            if u.sum() == 1:
+                toggled[u] = np.inf                     # dropping the only control leaves no design
+            j = int(np.argmin(toggled)); best, move = float(toggled[j]), (j,)
+            A, B = np.flatnonzero(u), np.flatnonzero(~u)
+            if A.size and B.size:
+                swapped = rss(s - c[A][:, None] + c[B][None, :],
+                              q - 2.0 * v[A][:, None] + d[A][:, None] + 2.0 * v[B][None, :] + d[B][None, :]
+                              - 2.0 * G[np.ix_(A, B)])
+                k = int(np.argmin(swapped))
+                if swapped.flat[k] < best:
+                    best, move = float(swapped.flat[k]), (A[k // B.size], B[k % B.size])
+            if not best < cur * (1 - 1e-12):
+                return cur, set(np.flatnonzero(u).tolist())
+            if len(move) == 1:
+                j = move[0]; sg = -1.0 if u[j] else 1.0
+                s += sg * c[j]; q += sg * 2.0 * v[j] + d[j]; v = v + sg * G[:, j]; u[j] = not u[j]
+            else:
+                a, b = move
+                s += c[b] - c[a]; q += -2.0 * v[a] + d[a] + 2.0 * v[b] + d[b] - 2.0 * G[a, b]
+                v = v + G[:, b] - G[:, a]; u[a] = False; u[b] = True
+            cur = best
+
+    starts = [set(rng.choice(p, size=int(rng.integers(1, p + 1)), replace=False).tolist())
+              for _ in range(restarts)]
+    _, C = min((descend(C) for C in starts), key=lambda r: r[0])
+    return positive_rss(y, X, C), C
+
+
+def pieces_to(b_inc: float, cap: Fraction, ratio: float = 1.25) -> List[Tuple[float, float]]:
+    """Geometric slope pieces from ``b_inc / 1000`` past ``cap``, after ``(0, edge_0]``."""
+    edges = [b_inc / 1e3]
+    while Fraction(edges[-1]) < cap:
+        edges.append(edges[-1] * ratio)
+    return [(0.0, edges[0])] + list(zip(edges[:-1], edges[1:]))
+
+
+def hull_survivors(y, X, D: ExactData, pieces, UB, *, two_tier: bool = True):
+    """The (piece, size) pairs the hull stage cannot rule out, and what it did.
+
+    The first tier is the band without the per-geo cap (hull.Band): one NNLS and
+    simplex QPs at the band's ends. Its point is certified by the capped hull's
+    first-order bound, valid for the piece at any point and at least the band's
+    own value there, since its linear minimum is over the smaller set. Only the
+    pairs it cannot rule out reach the second tier, the capped hull, one exact
+    capped simplex QP per pair (hull.ControlBound), so the survivors are the
+    capped hull's. Each certificate is read in floating point first
+    (certificate.hull_clears) and in rationals only when that one cannot clear,
+    so the decisions are the exact certificate's.
+    """
+    p = X.shape[1]
+    band = Band(y, X) if two_tier else None
+    hull = ControlBound(y, X)
+    stats = {"band_pruned": 0, "capped_solved": 0}
+    checks = {}
+    out = []
+    for lo, hi in pieces:
+        for m in range(1, p + 1):
+            if band is not None:
+                v, w = band.value(lo, hi, m)
+                if v >= float(UB) * (1 - 1e-6) and hull_clears(D, y, X, w, lo, hi, m, UB, checks):
+                    stats["band_pruned"] += 1
+                    continue
+            stats["capped_solved"] += 1
+            v = hull.piece(lo, hi, m)
+            if v < float(UB) * (1 - 1e-6) or not hull_clears(D, y, X, hull.point, lo, hi, m, UB, checks):
+                out.append((lo, hi, m))
+    stats["band_solves"] = 0 if band is None else band.solves
+    stats["float_checks"] = checks.get("float", 0)
+    stats["exact_checks"] = checks.get("exact", 0)
+    return out, stats
+
+
+def certify(y: np.ndarray, X: np.ndarray, *, ratio: float = 1.25, restarts: int = 50,
+            seed: int = 0, max_depth: int = 10) -> Certificate:
+    """Certify that no control group with a positive slope has a lower RSS than the incumbent.
+
+    Every prune compares an exact lower bound with the incumbent's exact RSS: the
+    hull's first-order bound, the Shor certificate, and the joint lift's
+    certificate with the no-good cut, each in :mod:`certificate`.
+    """
+    t_all = time.perf_counter()
+    p = X.shape[1]
+    _, C = incumbent(y, X, restarts=restarts, seed=seed)
+    x = X[:, sorted(C)].sum(axis=1)
+    b_inc = float((y @ x) / (x @ x))
+    if not b_inc > 0:
+        raise ValueError("no control group has a positive slope: every design fails the "
+                         "correlation gate, so there is no incumbent to certify")
+    D = ExactData(y, X)
+    UB = D.rss(C, b_inc)
+    cap = D.slope_cap()
+    if cap is None:
+        raise ValueError("the controls' Gram matrix is singular: no slope cap, no certificate")
+    pieces = pieces_to(b_inc, cap, ratio)
+    s1, _ = hull_survivors(y, X, D, pieces, UB)
+    shor = Lift(y, X, "shor")
+    s2 = []; shor_value = {}
+    for pc in s1:
+        v = shor.piece(*pc, tol=SHOR_TOL)
+        shor_value[pc] = v
+        if v < float(UB) * (1 - 1e-4):
+            s2.append(pc)
+            continue
+        b, _, _ = shor_bound(shor, D, *pc, shor.scale)
+        if b is None or b < UB:
+            s2.append(pc)
+    full = Lift(y, X, "full")
+    stats = SearchStats()
+    scale2 = float(np.linalg.norm(y)) ** 2
+    inc = Incumbent(UB=UB, C=set(C), cuts=[set(C)], D=D)
+    # the most promising pairs first, so a better incumbent is found early
+    for pc in sorted(s2, key=lambda pc: shor_value[pc]):
+        run_node(y, X, full, inc, scale2, *pc, [], None, stats, max_depth=max_depth)
+    x = X[:, sorted(inc.C)].sum(axis=1)
+    return Certificate(incumbent=inc.UB, controls=sorted(int(j) for j in inc.C),
+                       slope=float((y @ x) / (x @ x)), slope_cap=cap,
+                       pieces=len(pieces), pairs=len(pieces) * p, after_hull=len(s1), after_shor=len(s2),
+                       search=stats, certified=not stats.open, seconds=time.perf_counter() - t_all)

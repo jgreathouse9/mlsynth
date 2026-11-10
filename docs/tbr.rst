@@ -604,6 +604,73 @@ rest.
 Both alternatives select different markets from the reference, so a design
 chosen under either does not reproduce ``google/matched_markets``.
 
+A local search after the greedy
+-------------------------------
+
+Algorithm 1 stops at the first design no single toggle of a control geo
+improves. Two moves never happen in it: swapping one control geo for another,
+which two toggles reach only by passing through a worse design, and replacing a
+treated geo once it has been added. ``search="local"`` adds them. From each
+size's greedy design, and from ``local_restarts`` random designs of the same
+size, it repeatedly scores every design one move away -- a control geo added,
+dropped or swapped, a treated geo swapped for another -- and takes the best,
+stopping when none improves the objective. The result at each size is the best
+of those descents, so it is never worse than the greedy's design.
+
+Scoring a whole neighbourhood at every step is affordable because every term of
+the reference objective is a quadratic form in the group memberships. With
+:math:`\mathbf{u}_T` and :math:`\mathbf{u}_C` the indicator vectors of the two
+groups and :math:`\mathbf{G}` the Gram matrix of the geo series centred over
+the scoring window,
+
+.. math::
+
+   S_{yy} = \mathbf{u}_T^\top \mathbf{G}\, \mathbf{u}_T, \qquad
+   S_{xy} = \mathbf{u}_T^\top \mathbf{G}\, \mathbf{u}_C, \qquad
+   S_{xx} = \mathbf{u}_C^\top \mathbf{G}\, \mathbf{u}_C,
+
+and the correlation, the slope, the residual scale and the required impact are
+functions of these three numbers. The Durbin-Watson gate uses the same forms over
+the first-differenced series, the A/A test the same forms over its fit window,
+and the Brownian-bridge gate the cumulative residual path. The forms are cached
+once per window, so a neighbourhood of a few hundred designs is scored in one
+array computation. A design whose forms are within rounding of zero is scored
+by the direct fit, and the move the search takes is always rescored by the
+direct fit before it is taken, so the search ranks designs by exactly the
+objective the greedy uses.
+
+Eligibility binds every move: a geo eligible for treatment alone stays treated,
+a geo whose only other role is control stays in the control group, and a geo
+leaving the treatment group goes to whichever role it allows.
+
+On the GeoLift markets (the benchmark's window, ``n_test=14``), every design
+passes the four gates, and the inverse of the smallest detectable impact rises
+over the greedy at every size:
+
+=====  ==================  ==================  ==================
+k      greedy              10 restarts         50 restarts
+=====  ==================  ==================  ==================
+1      0.000999            0.001045 (+5%)      0.001283 (+28%)
+2      0.000450            0.000849 (+89%)     0.000849 (+89%)
+3      0.000433            0.000463 (+7%)      0.000628 (+45%)
+4      0.000369            0.000455 (+24%)     0.000480 (+30%)
+=====  ==================  ==================  ==================
+
+The greedy takes 0.2 seconds; the local search takes 2.8 seconds with 10
+restarts and 11.7 with 50. The rounded group correlation is 0.99 for every
+greedy design and reaches 1.00 at three and four treated geos. On a ten-geo
+subset of the same markets, where every design can be scored, the local search
+with 50 restarts reaches the best design at all four sizes, and with 10
+restarts at one of them; the greedy reaches it at none, and at two to four
+treated geos returns a design that fails the Durbin-Watson gate. More restarts
+buy more of the design space, and nothing short of scoring every design
+certifies the best one: the search is a heuristic.
+
+The local search needs ``objective="reference"``, since the paper's p-values
+are not quadratic forms in the memberships. The restarts at size :math:`k` draw
+from ``local_seed + k``. Each design records ``search`` and, under
+``search="local"``, the greedy's key at its size as ``greedy_key``.
+
 What the search does not do
 ---------------------------
 

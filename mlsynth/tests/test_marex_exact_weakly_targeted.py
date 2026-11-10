@@ -69,14 +69,18 @@ def _objective(B, A, S, C, w, v, beta):
 
 
 def _brute_force(B, A, m, beta, filt=SubsetFilter()):
-    """Every admissible treated set of size ``m``, the coupled oracle each."""
+    """Every admissible treated set of size ``m``, the coupled oracle each. A
+    set whose coupled treated weights leave a market at zero is not a design
+    of its size (jgreathouse9/mlsynth#950)."""
     n = B.shape[1]
     best = (np.inf, None)
     for S in itertools.combinations(range(n), m):
         if not filt.accepts(S):
             continue
         C = [j for j in range(n) if j not in S]
-        value = coupled_fit(B, A, list(S), C, beta)[0]
+        value, w = coupled_fit(B, A, list(S), C, beta)[:2]
+        if np.any(w <= 1e-8):
+            continue
         if value < best[0]:
             best = (value, tuple(S))
     return best
@@ -209,10 +213,14 @@ def test_the_search_reports_the_coupled_weights():
 # ---------------------------------------------------------------------- edge
 def test_a_single_control_market():
     B, A = _problem(6, n=4)
+    value, S = _brute_force(B, A, 3, 1.0)
+    if S is None:                       # every triple leaves a market unweighted
+        with pytest.raises(MlsynthEstimationError, match="weight"):
+            search_cluster(B, A, sizes=[3], filt=SubsetFilter(), beta=1.0)
+        return
     d = search_cluster(B, A, sizes=[3], filt=SubsetFilter(), beta=1.0)[0]
     assert len(d.control) == 1
     assert d.v == pytest.approx([1.0])
-    value, S = _brute_force(B, A, 3, 1.0)
     assert d.treated == S and d.value == pytest.approx(value, rel=1e-9)
 
 
@@ -392,8 +400,12 @@ def test_the_search_is_exact_over_the_domain(seed, n, m, beta):
     if m >= n:
         m = n - 1
     B, A = _problem(seed, n=n, T=8)
-    designs = search_cluster(B, A, sizes=[m], filt=SubsetFilter(), beta=beta)
     value, S = _brute_force(B, A, m, beta)
+    if S is None:                        # no set weights all its markets (#950)
+        with pytest.raises(MlsynthEstimationError, match="weight"):
+            search_cluster(B, A, sizes=[m], filt=SubsetFilter(), beta=beta)
+        return
+    designs = search_cluster(B, A, sizes=[m], filt=SubsetFilter(), beta=beta)
     assert designs[0].value == pytest.approx(value, rel=1e-8, abs=1e-10)
 
 

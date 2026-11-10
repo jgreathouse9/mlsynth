@@ -70,6 +70,8 @@ def solve_marex(
     backend="mip",
     control_penalty=0.0,
     certify=False,
+    market_costs=None,
+    max_total_cost=None,
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
@@ -86,6 +88,9 @@ def solve_marex(
     handing the MIQP to SCIP; it returns the same design dict, so everything
     after the solve is shared. With ``certify=True`` it also certifies the
     design's optimality gap (:mod:`mlsynth.utils.marex_helpers.certify`).
+
+    ``market_costs`` (one per row of ``Y_full``) with ``max_total_cost`` caps the
+    total cost of the treated markets, ``sum_j c_j z_j <= B``, on either backend.
 
     ``cumulative_band=True`` adds a band for the total post-period effect to that
     inference, block-resampling the blank-period effects with block length
@@ -110,6 +115,9 @@ def solve_marex(
         covariate_weight=covariate_weight, standardize=standardize,
         solver=solver, verbose=verbose, control_penalty=control_penalty,
     )
+    if market_costs is not None:
+        # The relaxed path never sees a budget: the config refuses the pair.
+        solve_kw.update(market_costs=market_costs, max_total_cost=max_total_cost)
     if backend == "exact":
         # The search takes the restrictions and none of branch-and-bound's
         # knobs; the config refuses those with this backend.

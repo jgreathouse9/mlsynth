@@ -41,6 +41,17 @@ import numpy as np
 import pandas as pd
 
 
+#: A treated market carries weight above this or it is not treated. Abadie and
+#: Zhao bound ``||w||_0``, the count of nonzero treated weights, and MAREX's
+#: results call a market treated when its weight is above 1e-8.
+WEIGHT_FLOOR = 1e-8
+
+
+def carries_weight(w) -> bool:
+    """Whether every market of a treated set's fit carries weight."""
+    return bool(np.all(np.asarray(w, dtype=float) > WEIGHT_FLOOR))
+
+
 def get_per_cluster_param(param, klabel, default=None):
     """Resolve a possibly-per-cluster parameter to its value for ``klabel``."""
     if param is None:
@@ -174,9 +185,14 @@ def init_cvxpy_variables(N, K, boolean=True):
 
 def build_constraints(w, v, z, M, cluster_members, cluster_labels,
                       m_eq, m_min, m_max, costs, budget_dict, exclusive,
-                      restrictions=None):
+                      restrictions=None, selection_budget=None):
     """Simplex, disjointness, cardinality, cost, exclusivity, and (optional)
-    geographic-restriction constraints."""
+    geographic-restriction constraints.
+
+    ``selection_budget`` is ``(c, B)``, one cost per row and a budget: the
+    treated markets' costs, each counted once across clusters, sum to at most
+    ``B`` (``sum_j c_j sum_k z[j,k] <= B``).
+    """
     N, K = M.shape
     constraints = []
     for k in range(K):
@@ -215,6 +231,9 @@ def build_constraints(w, v, z, M, cluster_members, cluster_labels,
     if restrictions is not None:
         from .restrictions import apply_restrictions_marex
         constraints += apply_restrictions_marex(z, v, M, restrictions)
+    if selection_budget is not None:
+        c, B = selection_budget
+        constraints += [cp.sum(cp.multiply(np.asarray(c, dtype=float), cp.sum(z, axis=1))) <= float(B)]
     return constraints
 
 

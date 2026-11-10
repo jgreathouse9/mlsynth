@@ -417,6 +417,63 @@ class MAREXCertificate:
                    clusters=dict(clusters))
 
 
+@dataclass(frozen=True)
+class MAREXPowerRehearsal:
+    """The planned test, rehearsed where nothing happened.
+
+    Each placebo is MAREX's design re-solved on a random ``n_units`` of the
+    markets and launched ``horizon`` periods before the real launch, with the
+    configured cumulative band run on its ``horizon`` pseudo-post periods. Its
+    band and point are divided by its test composite's pseudo-post total, so
+    every number below is a share of what the test markets would have done: an
+    effect of ``-0.02`` is a 2% drop.
+
+    A relative effect ``e`` moves a placebo's band by ``e``, so the placebo
+    rejects "no effect" at ``e`` when ``0`` is outside ``[lower + e, upper + e]``.
+    ``power_at(e)`` is the share of placebos that do.
+
+    Parameters
+    ----------
+    horizon : int
+        Periods the planned test runs.
+    n_placebos, n_units : int
+        Placebo designs rehearsed, and the markets each draws.
+    share, seed : float, int
+        ``n_units`` as a share of the panel's markets, and the draw's seed.
+    alpha, power_target : float
+        The test's level and the power the MDEs are read at.
+    cumulative_method : str
+        The cumulative band the rehearsal ran: the one the real test reports.
+    lower, upper, estimates : np.ndarray
+        Each placebo's band and point estimate, shape ``(n_placebos,)``, as
+        shares of its composite's pseudo-post total. The estimates are errors:
+        nothing happened.
+    mde_drop, mde_lift : float
+        The smallest drop, and the smallest lift, as a positive share, past
+        which power stays at or above ``power_target``. ``inf`` when unbounded
+        bands keep it out of reach.
+    """
+
+    horizon: int
+    n_placebos: int
+    n_units: int
+    share: float
+    seed: int
+    alpha: float
+    power_target: float
+    cumulative_method: str
+    lower: np.ndarray
+    upper: np.ndarray
+    estimates: np.ndarray
+    mde_drop: float
+    mde_lift: float
+
+    def power_at(self, effect: float) -> float:
+        """Share of placebos that reject "no effect" at the relative ``effect``."""
+        from .rehearsal import rehearsal_power
+        return rehearsal_power(self.lower, self.upper, effect)
+
+
 class MAREXResults(DesignResult):
     """User-facing output of the MAREX estimator.
 
@@ -450,6 +507,9 @@ class MAREXResults(DesignResult):
         candidates each stage decided, the clearances, the bound fallbacks and
         the time by phase (:mod:`~mlsynth.utils.marex_helpers.diagnostics`).
         ``None`` with ``backend='mip'``.
+    power_rehearsal : MAREXPowerRehearsal, optional
+        With ``power_placebos > 0``, the planned test's power and MDE by
+        rehearsal; ``None`` otherwise.
     """
 
     model_config = ConfigDict(
@@ -463,6 +523,7 @@ class MAREXResults(DesignResult):
     recommendation: Optional[Any] = None           # MAREXRecommendation when a pool exists
     certificate: Optional[MAREXCertificate] = None  # certify=True with backend='exact'
     search: Optional[ExactSearchDiagnostics] = None  # backend='exact'
+    power_rehearsal: Optional[MAREXPowerRehearsal] = None  # power_placebos > 0
 
     @property
     def mode(self) -> str:

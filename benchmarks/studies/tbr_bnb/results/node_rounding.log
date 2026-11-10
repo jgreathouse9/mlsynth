@@ -1,0 +1,51 @@
+# Rounding an open node's relaxed point to a design (#965): certify_slope_free(rounding=False / True), the
+# relaxations every second level (CLARABEL_EVERY = 2). Enumeration off (PRICE_LIMIT = 0); restarts = 5.
+# 'rounded' counts rounded designs that replaced the incumbent.
+# An earlier prototype re-checked a node at the new ratio after each improvement; none of 72 re-checks closed one,
+# and they cost up to a Clarabel solve each, so the build does not re-check.
+== 30 simulated units, 10 treated, 20 periods, 13 branching groups
+  rounding off  nodes   871  Clarabel solves  193  uncertified 3
+  rounding on   nodes   685  Clarabel solves  139  uncertified 3  rounded 24  certified a different design 0
+  per group (seed, treated; nodes/solves off, then on, and rounded incumbents):
+    seed   0 T [0, 6, 10, 15, 16, 18, 19, 22, 23, 28]    122/ 29     72/ 16  3
+    seed   4 T [1, 3, 7, 11, 20, 22, 23, 24, 26, 28]      60/ 11     62/ 12  3
+    seed   6 T [0, 1, 2, 13, 17, 21, 22, 24, 27, 28]      38/  7     42/  8  1
+    seed   8 T [3, 4, 5, 6, 10, 11, 20, 21, 26, 28]       32/  3     34/  4  1
+    seed  10 T [4, 6, 13, 15, 16, 19, 21, 24, 25, 27]     36/  4     36/  4  1
+    seed  11 T [0, 2, 4, 11, 14, 15, 18, 19, 21, 28]      66/ 16 open     44/  9 open  1
+    seed  15 T [2, 3, 4, 14, 17, 20, 21, 26, 27, 28]      61/ 13     61/ 13  3
+    seed  20 T [2, 6, 8, 9, 12, 14, 15, 18, 23, 29]       58/ 11     58/ 11  2
+    seed  24 T [0, 6, 7, 10, 15, 16, 17, 18, 20, 25]      52/  9     54/  9  2
+    seed  28 T [2, 4, 6, 7, 10, 16, 18, 20, 21, 22]       42/  9     42/  9  1
+    seed  31 T [1, 2, 10, 11, 13, 14, 17, 19, 20, 22]    122/ 28     70/ 16  3
+    seed  33 T [1, 3, 5, 9, 10, 12, 24, 25, 28, 29]      136/ 44 open     66/ 19 open  2
+    seed  36 T [3, 8, 9, 10, 11, 20, 23, 25, 26, 28]      46/  9 open     44/  9 open  1
+== 30 simulated units, 4 treated, 20 periods, 25 branching groups
+  rounding off  nodes  1524  Clarabel solves  293  uncertified 2
+  rounding on   nodes  1404  Clarabel solves  255  uncertified 3  rounded 48  certified a different design 0
+  per group (seed, treated; nodes/solves off, then on, and rounded incumbents):
+    seed   2 T [3, 7, 8, 22]                              68/ 11     48/  6  1
+    seed   2 T [2, 9, 17, 24]                             38/  3     38/  3  1
+    seed   3 T [2, 5, 7, 21]                             112/ 28     82/ 22  3
+    seed   4 T [15, 19, 25, 26]                           58/ 10     58/ 10  2
+    seed   4 T [2, 8, 12, 17]                             54/  8     54/  8  2
+    seed   7 T [17, 19, 25, 26]                           58/  8     58/  8  3
+    seed   7 T [1, 6, 8, 29]                              54/  7     54/  7  2
+    seed  10 T [4, 14, 23, 29]                            62/ 12     56/ 10  4
+    seed  13 T [23, 24, 25, 27]                           86/ 20     88/ 20  3
+    seed  15 T [1, 12, 16, 29]                            56/  8     56/  8  3
+    seed  16 T [0, 9, 13, 18]                             64/ 17     64/ 17  2
+    seed  17 T [3, 4, 20, 23]                             34/ 10     34/ 10  1
+    seed  20 T [6, 10, 11, 14]                            36/  3     36/  3  1
+    seed  21 T [8, 11, 18, 21]                            92/ 21     74/ 16 open  2
+    seed  21 T [2, 8, 18, 29]                             50/  6     50/  6  1
+    seed  22 T [5, 10, 19, 20]                            70/ 12     74/ 14  3
+    seed  22 T [0, 4, 13, 17]                             40/  4     40/  4  1
+    seed  26 T [14, 19, 21, 23]                           50/  9     36/  5  1
+    seed  27 T [0, 6, 9, 19]                              44/  5     46/  5  1
+    seed  27 T [5, 8, 12, 27]                             68/ 17 open     68/ 18 open  2
+    seed  28 T [0, 1, 4, 25]                              46/  8     46/  8  1
+    seed  30 T [2, 6, 12, 21]                             34/  2     34/  2  1
+    seed  31 T [2, 14, 25, 28]                           136/ 43 open    116/ 31 open  4
+    seed  31 T [9, 12, 19, 20]                            36/  3     36/  3  1
+    seed  32 T [8, 10, 18, 19]                            78/ 18     58/ 11  2

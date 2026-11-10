@@ -35,7 +35,7 @@ import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
-from mlsynth.exceptions import MlsynthConfigError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
 from mlsynth.utils.marex_helpers import exact as exact_mod
 from mlsynth.utils.marex_helpers.exact import (
     CouplingBound,
@@ -118,12 +118,16 @@ def _coupled(B, A, S, C, beta, lam=0.0):
 
 
 def _brute_force(B, A, m, beta, lam=0.0, excluded=(), k=1):
+    """The ``k`` best designs whose coupled treated weights weight every
+    market (jgreathouse9/mlsynth#950), best first."""
     n = B.shape[1]
     vals = []
     for S in itertools.combinations(range(n), m):
         C = _controls(n, S, excluded)
         if C:
-            vals.append((_coupled(B, A, S, C, beta, lam), S))
+            value, w = coupled_fit(B, A, list(S), C, beta, control_penalty=lam)[:2]
+            if np.all(w > 1e-8):
+                vals.append((value, S))
     vals.sort()
     return vals[:k]
 
@@ -634,10 +638,15 @@ def test_the_screened_search_is_exact_over_the_domain(seed, n, m, beta, k,
     B, A = _problem(seed, n=n, T=6)
     lam = 0.5 * (np.sqrt(1.0 + 4.0 / beta) - 1.0) / 2.0 if pen else 0.0
     pairs = ((0, n - 1),) if excl else ()
+    ref = _brute_force(B, A, m, beta, lam, pairs, k=k)
+    if not ref:                          # no set weights all its markets (#950)
+        with pytest.raises(MlsynthEstimationError, match="weight"):
+            search_cluster(B, A, sizes=[m], filt=SubsetFilter(), beta=beta,
+                           control_penalty=lam, donor_exclusion=pairs, top_k=k)
+        return
     designs = search_cluster(B, A, sizes=[m], filt=SubsetFilter(), beta=beta,
                              control_penalty=lam, donor_exclusion=pairs,
                              top_k=k)
-    ref = _brute_force(B, A, m, beta, lam, pairs, k=k)
     np.testing.assert_allclose([d.value for d in designs],
                                [v for v, _ in ref], rtol=1e-8, atol=1e-10)
 

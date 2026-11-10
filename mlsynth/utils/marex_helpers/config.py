@@ -6,7 +6,9 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, List, Literal, Optional, Union
+import numpy as np
 import pandas as pd
 import warnings
 from pydantic import Field, field_validator, model_validator
@@ -102,8 +104,16 @@ class MAREXConfig(BaseMAREXConfig):
             "distance matrix, which is bilinear in two decision variables and "
             "leaves no convex program. Use lambda1_unit, or the 'penalized' "
             "design, which weighs each side against the target separately."))
-    costs: Optional[List[float]] = None
-    budget: Optional[Union[int, Dict[int, int]]] = None
+    costs: Optional[List[float]] = Field(
+        default=None,
+        description="Each unit's cost, in the panel's unit order (sorted by "
+                    "label). With budget, bounds each cluster's treated weights' "
+                    "average cost: sum_j c_j w_j <= budget. Both backends take it; "
+                    "the exact backend fits it on the separable designs.")
+    budget: Optional[Union[float, Dict[Any, float]]] = Field(
+        default=None,
+        description="The bound on the treated weights' average cost: one number, "
+                    "split evenly across clusters, or one per cluster label.")
 
     blank_periods: Optional[int] = Field(
         default=None,
@@ -293,6 +303,17 @@ class MAREXConfig(BaseMAREXConfig):
         "[min_size, max_size] lose treatment eligibility (stay donors).")
     min_size: Optional[float] = Field(default=None, description="Lower size bound.")
     max_size: Optional[float] = Field(default=None, description="Upper size bound.")
+    market_cost_col: Optional[str] = Field(
+        default=None,
+        description="Per-unit-constant column holding each market's cost of being "
+        "in the test (the media held back, the fees to run it). With "
+        "`max_total_cost`, the treated markets' costs must sum to at most the "
+        "budget: sum_j c_j z_j <= B, a rule on which markets are treated. Distinct "
+        "from `costs`/`budget`, which bound the treated weights' average cost.")
+    max_total_cost: Optional[float] = Field(
+        default=None,
+        description="The budget on the total cost of the treated markets. "
+        "Requires `market_cost_col`.")
     cluster_col: Optional[str] = Field(
         default=None,
         description="Per-unit-constant column whose value defines an interference "
@@ -351,6 +372,59 @@ class MAREXConfig(BaseMAREXConfig):
         default=0.80, gt=0.0, lt=1.0,
         description="Target power (1 - beta) for the MDE.",
     )
+    power_placebos: int = Field(
+        default=0, ge=0,
+        description="Rehearse the planned test on this many placebo designs and "
+                    "attach its power curve and MDE as results.power_rehearsal "
+                    "(#947). Each placebo re-solves the design on a random "
+                    "power_share of the markets, launched power_horizon periods "
+                    "before the real launch, and runs the configured cumulative "
+                    "band on the periods in between. 0 (the default) skips it; "
+                    "otherwise at least 10.",
+    )
+    power_horizon: Optional[int] = Field(
+        default=None,
+        description="Periods the planned test runs, for the rehearsal. Defaults "
+                    "to T_post, or to the periods after T0; required when the "
+                    "panel ends at T0. Needs power_placebos.",
+    )
+    power_share: float = Field(
+        default=0.85,
+        description="Share of the markets each rehearsal placebo draws, strictly "
+                    "between 0 and 1. Needs power_placebos.",
+    )
+    power_seed: int = Field(
+        default=0,
+        description="Seed for the rehearsal placebos' market draws. Needs "
+                    "power_placebos.",
+    )
+
+    @model_validator(mode="after")
+    def _validate_power_rehearsal(self) -> "MAREXConfig":
+        """Refuse rehearsal settings without a rehearsal, and impossible ones."""
+        if self.power_placebos == 0:
+            stray = sorted({"power_horizon", "power_share", "power_seed"}
+                           & self.model_fields_set)
+            if stray:
+                raise MlsynthConfigError(
+                    f"{', '.join(stray)} configure the power rehearsal, which "
+                    f"runs only with power_placebos > 0; set power_placebos "
+                    f"(at least 10) or drop them.")
+            return self
+        if self.power_placebos < 10:
+            raise MlsynthConfigError(
+                f"power_placebos must be 0 (no rehearsal) or at least 10, so "
+                f"the power at a 0.8 target rests on more than two placebos; "
+                f"got {self.power_placebos}.")
+        if not 0.0 < float(self.power_share) < 1.0:
+            raise MlsynthConfigError(
+                f"power_share must be strictly between 0 and 1: each placebo "
+                f"draws that share of the markets, and drawing all of them "
+                f"repeats one design. Got {self.power_share}.")
+        if self.power_horizon is not None and self.power_horizon < 1:
+            raise MlsynthConfigError(
+                f"power_horizon must be at least 1 period; got {self.power_horizon}.")
+        return self
 
     @field_validator("lambda2_unit")
     @classmethod
@@ -491,10 +565,15 @@ class MAREXConfig(BaseMAREXConfig):
             problems.append(
                 f"beta={self.beta} makes the weakly-targeted coupling concave, "
                 f"so the design has no minimum to certify; beta must be >= 0")
-        if self.costs is not None or self.budget is not None:
+        if (self.costs is not None or self.budget is not None) \
+                and self.design == "weakly_targeted":
             problems.append(
-                "a cost budget constrains the treated weights, which the "
-                "exact backend's per-candidate fit does not take")
+                "a cost budget on the treated weights is fitted on the treated "
+                "side alone, and the weakly-targeted coupled fit does not take it")
+        if (self.costs is not None or self.budget is not None) and self.certify:
+            problems.append(
+                "certify=True prices each treated set by its unconstrained fit, "
+                "which a cost budget on the treated weights can raise")
         for name in ("warm_start", "time_limit", "solver"):
             if getattr(self, name) is not None:
                 problems.append(
@@ -520,6 +599,45 @@ class MAREXConfig(BaseMAREXConfig):
                 "certify=True splits each candidate into a treated fit and a "
                 "control fit, and the weakly-targeted design couples them; "
                 "certify the standard, penalized or unit_penalized design.")
+        if (self.market_cost_col is not None and self.cluster is not None
+                and self.cluster in self.df.columns
+                and self.df[self.cluster].nunique() > 1):
+            raise MlsynthConfigError(
+                "certify=True certifies each cluster's best design. A total-cost "
+                "budget across clusters can take a cluster's lower-ranked treated "
+                "set, which that certificate does not cover; use certify=False.")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_spend_budget(self) -> "MAREXConfig":
+        col, cap = self.market_cost_col, self.max_total_cost
+        if col is None and cap is None:
+            return self
+        if col is None:
+            raise MlsynthConfigError(
+                "max_total_cost needs market_cost_col, the column of each market's cost.")
+        if cap is None:
+            raise MlsynthConfigError(
+                "market_cost_col needs max_total_cost, the budget the costs are summed against.")
+        if not (math.isfinite(cap) and cap > 0):
+            raise MlsynthConfigError(
+                f"max_total_cost must be a positive number; got {cap!r}.")
+        if col not in self.df.columns:
+            raise MlsynthConfigError(f"market_cost_col '{col}' is not a column of df.")
+        if self.relaxed:
+            raise MlsynthConfigError(
+                "a total-cost budget is a rule on the treated set, which the "
+                "relaxed program's post-hoc rounding cannot guarantee; use relaxed=False.")
+        per_unit = self.df.groupby(self.unitid, observed=True)[col]
+        if (per_unit.nunique(dropna=False) > 1).any():
+            raise MlsynthDataError(
+                f"market_cost_col '{col}' varies within a market; it must hold one "
+                "cost per market.")
+        values = per_unit.first().to_numpy(dtype=float)
+        if not (np.all(np.isfinite(values)) and np.all(values >= 0)):
+            raise MlsynthDataError(
+                f"market_cost_col '{col}' must hold a finite, non-negative cost for "
+                "every market.")
         return self
 
     @model_validator(mode="after")
@@ -644,7 +762,7 @@ class MAREXConfig(BaseMAREXConfig):
 
         # --- budget validation ---
         if values.budget is not None:
-            if isinstance(values.budget, int):
+            if isinstance(values.budget, (int, float)) and not isinstance(values.budget, bool):
                 if values.budget <= 0:
                     raise MlsynthDataError("Scalar 'budget' must be strictly positive.")
             elif isinstance(values.budget, dict):

@@ -356,7 +356,7 @@ def import_graph(root: Path | None = None) -> Dict[str, FrozenSet[str]] | None:
     missing would read that module's imports as none.
     """
     if root is None:
-        return _shipped_graph()
+        return _shipped_graph(PATH.parent.parent)
     base = Path(root)
     files = sorted(
         f.relative_to(base).as_posix()
@@ -380,10 +380,12 @@ def import_graph(root: Path | None = None) -> Dict[str, FrozenSet[str]] | None:
             for rel, tree in trees.items()}
 
 
-@lru_cache(maxsize=1)
-def _shipped_graph() -> Dict[str, FrozenSet[str]] | None:
-    """The graph of the checked-out tree, read once per process."""
-    return import_graph(PATH.parent.parent)
+@lru_cache(maxsize=4)
+def _shipped_graph(root: Path) -> Dict[str, FrozenSet[str]] | None:
+    """The graph of the tree at ``root``, read once per process and kept by root:
+    a test that points ``PATH`` at a temporary tree gets that tree's graph, and
+    the checked-out tree's graph is not replaced by it."""
+    return import_graph(root)
 
 
 def importers_of(path: str,

@@ -31,6 +31,9 @@ from scipy.stats import norm
 
 _ACTIVE = 1e-6
 
+#: The sum np.mean and np.sum compute (pairwise summation), without their dispatch.
+_reduce = np.add.reduce
+
 
 def _soft(x: np.ndarray, lam: float, nopen: np.ndarray) -> np.ndarray:
     """Soft-threshold ``x`` by ``lam``; entries in ``nopen`` are left unpenalised."""
@@ -103,7 +106,10 @@ def calibration_lasso(d: np.ndarray, X: np.ndarray, c: float = 0.03,
 
 def _fista_wls(y: np.ndarray, X: np.ndarray, W: np.ndarray, lam: float,
                nopen, max_iter: int = 200000, tol: float = 1e-6) -> np.ndarray:
-    """FISTA for the weighted-least-squares Lasso ``mean[W (y - X b)^2] + lam||b||_1``."""
+    """FISTA for the weighted-least-squares Lasso ``mean[W (y - X b)^2] + lam||b||_1``.
+
+    Stops at the first iteration whose objective is within ``tol`` of the previous
+    iterate's. Each objective is computed once and carried to the next iteration."""
     sw = np.sqrt(W)
     yw, Xw = sw * y, X * sw[:, None]
     n = X.shape[0]
@@ -115,17 +121,21 @@ def _fista_wls(y: np.ndarray, X: np.ndarray, W: np.ndarray, lam: float,
     theta = 1.0
 
     def obj(b):
-        l1 = np.sum(np.abs(b[pen])) if pen.size else 0.0
-        return float(np.mean((yw - Xw @ b) ** 2) + lam * l1)
+        # np.mean and np.sum are this reduction behind several Python calls; the
+        # objective is evaluated once per iteration, so their overhead was most of it
+        l1 = _reduce(np.abs(b[pen])) if pen.size else 0.0
+        return float(_reduce((yw - Xw @ b) ** 2) / n + lam * l1)
 
+    f_beta = obj(beta)
     for _ in range(max_iter):
         th_o, theta = theta, (1.0 + np.sqrt(1.0 + 4.0 * theta ** 2)) / 2.0
         delta = (1.0 - th_o) / theta
-        b_o = beta
+        b_o, f_o = beta, f_beta
         g = -2.0 * (yw - Xw @ v) @ Xw / n
         beta = _soft(v - eta * g, lam * eta, nopen)
         v = (1.0 - delta) * beta + delta * b_o
-        if abs(obj(beta) - obj(b_o)) < tol:
+        f_beta = obj(beta)                 # the previous iterate's objective is f_o
+        if abs(f_beta - f_o) < tol:
             break
     return beta
 

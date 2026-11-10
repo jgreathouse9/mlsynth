@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Union
 
+import numpy as np
 import pandas as pd
 from pydantic import ValidationError
 
@@ -152,6 +153,12 @@ class MAREX:
         )
         restrictions = None if restrictions.is_empty else restrictions
 
+        # The total-cost budget, as each market's cost in the panel's unit order.
+        market_costs = None
+        if self.config.market_cost_col is not None:
+            per_unit = self.df.groupby(self.unitid, observed=True)[self.config.market_cost_col].first()
+            market_costs = per_unit.reindex(list(panel.unit_index.labels)).to_numpy(dtype=float)
+
         # Resolve warm-start labels to row indices against the canonical
         # unit_index (the same source of truth restrictions use).
         warm_idx = None
@@ -192,6 +199,8 @@ class MAREX:
                 backend=self.config.backend,
                 control_penalty=self.control_penalty,
                 certify=self.config.certify,
+                market_costs=market_costs,
+                max_total_cost=self.config.max_total_cost,
             )
         except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
             raise
@@ -225,6 +234,8 @@ class MAREX:
                     costs=self.costs, budget=self.budget, covariates=panel.covariates,
                     covariate_weight=covariate_weight, standardize=self.standardize,
                     restrictions=restrictions,
+                    market_costs=market_costs,
+                    max_total_cost=self.config.max_total_cost,
                 )
                 if self.config.backend == "exact":
                     # One search keeps each cluster's top_K treated sets; the
@@ -249,6 +260,46 @@ class MAREX:
                 raise
             except Exception as exc:
                 raise MlsynthEstimationError(f"MAREX pool failed: {exc}") from exc
+
+        # Power by rehearsal (#947): the planned test, run on placebo designs
+        # launched before the real launch, on pre-launch periods only.
+        if self.config.power_placebos:
+            from ..utils.marex_helpers.rehearsal import rehearse_power
+            n_post = int(panel.Y_full.shape[1] - panel.T0)
+            horizon = (self.config.power_horizon or self.config.T_post
+                       or n_post)
+            if not horizon:
+                raise MlsynthConfigError(
+                    "power_placebos needs power_horizon when the panel ends at "
+                    "T0: the rehearsal has to know how long the planned test runs.")
+            import cvxpy as cp
+            try:
+                rehearsal = rehearse_power(
+                    np.asarray(panel.Y_full, dtype=float)[:, :panel.T0], horizon=int(horizon),
+                    n_treated=len(results.selected_units),
+                    n_placebos=self.config.power_placebos,
+                    share=self.config.power_share, seed=self.config.power_seed,
+                    alpha=self.config.alpha, power_target=self.config.power_target,
+                    blank_periods=panel.blank_periods, cumulative_method=self.config.cumulative_method,
+                    covariates=panel.covariates,
+                    solve_kwargs=dict(
+                        design=self.design, beta=self.beta, lambda1=self.lambda1,
+                        lambda2=self.lambda2, xi=self.xi,
+                        lambda1_unit=self.lambda1_unit, exclusive=self.exclusive,
+                        covariate_names=panel.covariate_names,
+                        standardize=self.standardize, covariate_weight=covariate_weight,
+                        solver=self.solver or cp.SCIP, relaxed=self.relaxed,
+                        backend=self.config.backend,
+                        control_penalty=self.control_penalty,
+                        cumulative_block=self.config.cumulative_block,
+                        cumulative_n_sim=self.config.cumulative_n_sim,
+                        cumulative_seed=self.config.cumulative_seed,
+                        global_test=self.config.global_test))
+            except (MlsynthConfigError, MlsynthDataError, MlsynthEstimationError):
+                raise
+            except Exception as exc:  # pragma: no cover - a solver failure inside a placebo; the translated errors above are what a caller can act on
+                raise MlsynthEstimationError(f"MAREX power rehearsal failed: {exc}") from exc
+            results = results.model_copy(update={"power_rehearsal": rehearsal})
 
         if self.display_graph:
             try:
