@@ -14773,3 +14773,21 @@ timeout = 600.0
   find = "        resolved = values.selection or ("
   replace = "        if (values.selection is None and values.holdout_frac is None\n                and values.top_K is not None and values.top_K >= 2):\n            values.holdout_frac = 0.3\n        resolved = values.selection or ("
   models = "2bbfe352's default: any top_K >= 2 switches to holdout selection on the leading 70 percent, so the pool's first design, its objective and lam differ from top_K=1 ({milwaukee, portland} against {cleveland, new york} on GeoLift with K=2)"
+
+[[target]]
+name = "simplex-qp-pin-negative"
+module-path = "mlsynth/utils/solvers/active_set.py"
+test-command = "python -m pytest mlsynth/tests/test_simplex_qp_pin_negative.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "clamped-free-weight-accepted"
+  find = "            if low.any() or high.any():"
+  replace = "            if False:"
+  models = "a free weight that solved to -7.67e-10 clamped to zero with the others left as solved, so the returned point failed the certificate at 2.92e-10 (found through SparseSC, #934)"
+
+  [[target.mutant]]
+  id = "over-cap-free-weight-accepted"
+  find = "            high = (wF > upper[free]) if upper is not None else np.zeros(nF, dtype=bool)"
+  replace = "            high = np.zeros(nF, dtype=bool)"
+  models = "the cap side of the same clamp: a weight solved just over its cap cut back to it with the others left as solved"
