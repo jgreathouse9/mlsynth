@@ -87,12 +87,13 @@ def _add_down(a, b):
 
 
 @njit(cache=_CACHE)
-def _chol_solve(A, b, idx, k, L, z, x):
-    """x = A[idx, idx]^{-1} b[idx] by Cholesky; False when A[idx, idx] is not positive
-    definite in doubles."""
+def _factor(Gf, rest, idx, k, L):
+    """The Cholesky factor of G[idx[:k], idx[:k]] into L, G being the panel's Gram Gf
+    read through the controls' index ``rest``; False when it is not positive definite
+    in doubles."""
     for i in range(k):
         for j in range(i + 1):
-            s = A[idx[i], idx[j]]
+            s = Gf[rest[idx[i]], rest[idx[j]]]
             for q in range(j):
                 s -= L[i, q] * L[j, q]
             if i == j:
@@ -101,8 +102,34 @@ def _chol_solve(A, b, idx, k, L, z, x):
                 L[i, i] = math.sqrt(s)
             else:
                 L[i, j] = s / L[j, j]
+    return True
+
+
+@njit(cache=_CACHE)
+def _extend(Gf, rest, idx, k, j, L):
+    """Column j appended to the factor of idx[:k] as its row k, the same arithmetic as
+    _factor's on the extended set, in O(k^2); False when the column is in the span of
+    the set in doubles, leaving idx and L as they were."""
     for i in range(k):
-        s = b[idx[i]]
+        s = Gf[rest[idx[i]], rest[j]]
+        for q in range(i):
+            s -= L[i, q] * L[k, q]
+        L[k, i] = s / L[i, i]
+    s = Gf[rest[j], rest[j]]
+    for q in range(k):
+        s -= L[k, q] * L[k, q]
+    if s <= 0.0:
+        return False
+    L[k, k] = math.sqrt(s)
+    idx[k] = j
+    return True
+
+
+@njit(cache=_CACHE)
+def _tri_solve(c, idx, k, L, z, x):
+    """x = G[idx, idx]^{-1} c[idx] from the factor L: two triangular solves."""
+    for i in range(k):
+        s = c[idx[i]]
         for q in range(i):
             s -= L[i, q] * z[q]
         z[i] = s / L[i, i]
@@ -111,12 +138,39 @@ def _chol_solve(A, b, idx, k, L, z, x):
         for q in range(i + 1, k):
             s -= L[q, i] * x[q]
         x[i] = s / L[i, i]
-    return True
 
 
 @njit(cache=_CACHE)
-def _nnls_gram(G, c, passive, w, idx, L, z, x, maxit):
-    """min w'Gw - 2c'w over w >= 0, Lawson and Hanson's active set from ``passive``."""
+def _canonical(Gf, rest, c, passive, w, idx, L, z, x):
+    """The point re-solved on its support in ascending column order, the order the
+    support's own factor would have from scratch: the point then depends on the
+    support alone, not on the order its columns joined, so a group's floor is the same
+    whatever group came before it (and however the groups are split among processes).
+    A re-solve that is not positive, or a support that is not positive definite in
+    doubles, leaves the point as it was."""
+    m = c.shape[0]
+    k = 0
+    for j in range(m):
+        if passive[j]:
+            idx[k] = j
+            k += 1
+    if k == 0 or not _factor(Gf, rest, idx, k, L):
+        return
+    _tri_solve(c, idx, k, L, z, x)
+    for q in range(k):
+        if not (x[q] > 0.0):
+            return
+    for q in range(k):
+        w[idx[q]] = x[q]
+
+
+@njit(cache=_CACHE)
+def _nnls_gram(Gf, rest, c, passive, w, idx, L, z, x, maxit):
+    """min w'Gw - 2c'w over w >= 0, G = Gf[rest, rest], by Lawson and Hanson's active
+    set from ``passive``, which is left holding the support. G is read through
+    ``rest``, not copied; the gradient c - Gw is summed over the support, where w is
+    nonzero; a column joining the set extends its Cholesky factor by a row (_extend),
+    and the factor is rebuilt only after columns leave."""
     m = c.shape[0]
     cmax = 1.0
     for j in range(m):
@@ -125,6 +179,7 @@ def _nnls_gram(G, c, passive, w, idx, L, z, x, maxit):
     tol = 1e-12 * cmax
     for j in range(m):
         w[j] = 0.0
+    k = 0
     while True:                                  # a feasible start: drop until the solve is positive
         k = 0
         for j in range(m):
@@ -133,7 +188,9 @@ def _nnls_gram(G, c, passive, w, idx, L, z, x, maxit):
                 k += 1
         if k == 0:
             break
-        ok = _chol_solve(G, c, idx, k, L, z, x)
+        ok = _factor(Gf, rest, idx, k, L)
+        if ok:
+            _tri_solve(c, idx, k, L, z, x)
         bad = False
         for q in range(k):
             if (not ok) or not (x[q] > 0.0):
@@ -149,31 +206,27 @@ def _nnls_gram(G, c, passive, w, idx, L, z, x, maxit):
         for j in range(m):                       # the coordinate that most lowers the objective
             if not passive[j]:
                 g = c[j]
-                for q in range(m):
-                    g -= G[j, q] * w[q]
+                rj = rest[j]
+                for q in range(k):
+                    g -= Gf[rj, rest[idx[q]]] * w[idx[q]]
                 if g > best:
                     best = g
                     jbest = j
         if jbest < 0:
+            _canonical(Gf, rest, c, passive, w, idx, L, z, x)
             return
+        if not _extend(Gf, rest, idx, k, jbest, L):
+            _canonical(Gf, rest, c, passive, w, idx, L, z, x)
+            return                               # the column is in the set's span: stop at w, the last feasible point
         passive[jbest] = True
+        k += 1
         while True:
-            k = 0
-            for j in range(m):
-                if passive[j]:
-                    idx[k] = j
-                    k += 1
-            ok = _chol_solve(G, c, idx, k, L, z, x)
-            if not ok:                           # the column is in the set's span: x is stale,
-                passive[jbest] = False           # so stop at w, the last feasible point
-                return
+            _tri_solve(c, idx, k, L, z, x)
             allpos = True
             for q in range(k):
                 if not (x[q] > 0.0):
                     allpos = False
             if allpos:
-                for j in range(m):
-                    w[j] = 0.0
                 for q in range(k):
                     w[idx[q]] = x[q]
                 break
@@ -190,6 +243,15 @@ def _nnls_gram(G, c, passive, w, idx, L, z, x, maxit):
                 if w[j] <= 1e-15 * max(1.0, abs(x[q])):
                     w[j] = 0.0
                     passive[j] = False
+            kk = 0                               # the set without the columns that left, refactored
+            for q in range(k):
+                if passive[idx[q]]:
+                    idx[kk] = idx[q]
+                    kk += 1
+            k = kk
+            if not _factor(Gf, rest, idx, k, L):  # pragma: no cover - a subset of a positive definite set is positive definite
+                return
+    _canonical(Gf, rest, c, passive, w, idx, L, z, x)
 
 
 @njit(cache=_CACHE)
@@ -253,7 +315,7 @@ def _certificate(M, rest, y, w, cap, r, e, ar, g, d):
 
 
 @njit(cache=_CACHE)
-def _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, G, c, w, idx, L, z, x, g, d):
+def _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, c, w, idx, L, z, x, g, d):
     """The floor, bracket and cap of one group (T sorted), the point left in w.
     Returns (floor, lo, hi, cap); nan where the group is left to rss_floor."""
     n, p = M.shape
@@ -291,14 +353,12 @@ def _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, G, c, w, idx, L, z, x, g, d
         if not (qv >= _CAP_LO and qv <= _CAP_HI):
             return nan, lo, hi, nan
         cap = math.sqrt(qv) * (1.0 + 1e-9)
-    for i in range(m):                           # the group's Gram and cross products from the panel's
+    for i in range(m):                           # the group's cross products from the panel's Gram
         acc = 0.0
         for q in range(kk):
             acc += Gf[rest[i], T[q]]
         c[i] = acc
-        for j in range(m):
-            G[i, j] = Gf[rest[i], rest[j]]
-    _nnls_gram(G, c, passive, w, idx, L, z, x, 500)
+    _nnls_gram(Gf, rest, c, passive, w, idx, L, z, x, 500)
     for j in range(m):
         if not (w[j] >= 0.0):
             w[j] = 0.0  # pragma: no cover - the active set keeps w >= 0 (positive solves, step-backs clipped to 0)
@@ -349,24 +409,21 @@ def floors(M, Gf, groups, lamf):
     out_lo = np.empty(N)
     out_hi = np.empty(N)
     y = np.empty(n); r = np.empty(n); e = np.empty(n); ar = np.empty(n)
-    G = np.empty((m, m)); c = np.empty(m); w = np.empty(m)
+    c = np.empty(m); w = np.empty(m)
     idx = np.empty(m, np.int64); L = np.empty((m, m)); z = np.empty(m); x = np.empty(m)
     g = np.empty(m); d = np.empty(m)
     passive = np.zeros(m, np.bool_)
-    prev = np.full(m, -1, np.int64)
-    carry = np.zeros(m, np.bool_)
+    held = np.zeros(p, np.bool_)                 # by geo: in the previous group's support
     for gi in range(N):
         T = _sorted(groups[gi])
         rest = _controls(p, T)
         for i in range(m):                       # the previous support, carried over by geo
-            carry[i] = False
-            for i2 in range(m):
-                if prev[i2] == rest[i] and passive[i2]:
-                    carry[i] = True
+            passive[i] = held[rest[i]]
+        fl, lo, hi, cap = _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, c, w, idx, L, z, x, g, d)
+        for j in range(p):
+            held[j] = False
         for i in range(m):
-            passive[i] = carry[i]
-            prev[i] = rest[i]
-        fl, lo, hi, cap = _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, G, c, w, idx, L, z, x, g, d)
+            held[rest[i]] = passive[i]
         out_f[gi] = fl
         out_lo[gi] = lo
         out_hi[gi] = hi
@@ -382,11 +439,11 @@ def floor_parts(M, Gf, T, lamf):
     rest = _controls(p, T)
     m = rest.shape[0]
     y = np.zeros(n); r = np.empty(n); e = np.empty(n); ar = np.empty(n)
-    G = np.empty((m, m)); c = np.empty(m); w = np.zeros(m)
+    c = np.empty(m); w = np.zeros(m)
     idx = np.empty(m, np.int64); L = np.empty((m, m)); z = np.empty(m); x = np.empty(m)
     g = np.empty(m); d = np.empty(m)
     passive = np.zeros(m, np.bool_)
-    fl, lo, hi, cap = _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, G, c, w, idx, L, z, x, g, d)
+    fl, lo, hi, cap = _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, c, w, idx, L, z, x, g, d)
     return fl, lo, hi, w, y, cap
 
 

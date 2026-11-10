@@ -1,0 +1,23 @@
+certify_treatment on geo_panel(0, n=150, p=80): k=4, n_test=14, restarts=50, pass_restarts=10, gap=1/100, n_jobs=4.
+Two alternating rounds of the four checkouts on one host (4 cores, nothing else running), numba kernel warmed first.
+Stage times are wall seconds in the parent: _start, and the floors (_floor_rows, or _screened_floor_rows with the worker screen).
+main = 7ba22969; lean = claude/tbr-floor-nnls d04af2c9; screen = claude/tbr-floor-screen 42c189e4; both = the two merged.
+
+main   wall 107.7s  _start 52.2s _floor_rows 36.5s
+       certified True treatment [6, 32, 43, 68] rss 2525.4 key ['1', '1', '1', '1', '0.99', '0.028788863848090523'] searched 7 screened_out 1581572 survivors 8 replaced 0
+lean   wall 94.8s  _start 50.1s _floor_rows 26.0s
+       certified True treatment [6, 32, 43, 68] rss 2525.4 key ['1', '1', '1', '1', '0.99', '0.028788863848090523'] searched 7 screened_out 1581572 survivors 8 replaced 0
+both   wall 83.3s  _start 49.9s _screened_floor_rows 24.2s
+       certified True treatment [6, 32, 43, 68] rss 2525.4 key ['1', '1', '1', '1', '0.99', '0.028788863848090523'] searched 7 screened_out 1581572 survivors 8 replaced 0
+main   wall 104.9s  _start 49.0s _floor_rows 36.8s
+       certified True treatment [6, 32, 43, 68] rss 2525.4 key ['1', '1', '1', '1', '0.99', '0.028788863848090523'] searched 7 screened_out 1581572 survivors 8 replaced 0
+lean   wall 95.6s  _start 51.1s _floor_rows 26.2s
+       certified True treatment [6, 32, 43, 68] rss 2525.4 key ['1', '1', '1', '1', '0.99', '0.028788863848090523'] searched 7 screened_out 1581572 survivors 8 replaced 0
+both   wall 88.4s  _start 53.4s _screened_floor_rows 25.2s
+       certified True treatment [6, 32, 43, 68] rss 2525.4 key ['1', '1', '1', '1', '0.99', '0.028788863848090523'] searched 7 screened_out 1581572 survivors 8 replaced 0
+
+The kernel alone (fastfloor.floors on 50,000 consecutive four-geo groups of the same panel, one process):
+main                                               us/group at groups 0, 700000, 1500000 (50,000 each): 96.8, 73.0, 90.6
+lean                                               us/group at groups 0, 700000, 1500000 (50,000 each): 66.4, 54.2, 62.3
+lean, support not carried (the accepted mutant)    us/group at groups 0, 700000, 1500000 (50,000 each): 84.2, 72.0, 72.2
+Floors: lean equals main bit for bit on all 150,000 groups; the cold start equals the carried one bit for bit.
