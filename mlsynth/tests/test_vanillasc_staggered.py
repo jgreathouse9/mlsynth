@@ -18,6 +18,10 @@ import pandas as pd
 import pytest
 
 from mlsynth import VanillaSC
+from mlsynth.tests._memo import memo
+
+#: The fits are deterministic and shared across tests (_memo).
+pytestmark = pytest.mark.xdist_group("vanillasc_staggered")
 
 _DATA = os.path.join(os.path.dirname(__file__), "..", "..",
                      "basedata", "scpi_germany.csv")
@@ -39,6 +43,7 @@ def germany_staggered():
     return df[["country", "year", "gdp", "status"]]
 
 
+@memo
 def _fit(df):
     return VanillaSC({
         "df": df, "outcome": "gdp", "treat": "status",
@@ -124,6 +129,7 @@ def test_per_unit_weights_on_simplex():
 # Phase 2: per-unit CFT prediction intervals + aggregated ATT interval
 # ---------------------------------------------------------------------------
 
+@memo
 def _fit_scpi(df, **kw):
     cfg = {"df": df, "outcome": "gdp", "treat": "status", "unitid": "country",
            "time": "year", "display_graphs": False, "inference": "scpi",
