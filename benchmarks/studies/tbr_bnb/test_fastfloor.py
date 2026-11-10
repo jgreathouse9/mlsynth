@@ -81,6 +81,7 @@ def test_property_the_series_is_splits_bit_for_bit(seed, n, p, k):
 @needs_numba
 @SETTINGS
 @given(seed=st.integers(0, 10_000), n=st.integers(5, 60), e=st.integers(-400, 400))
+@example(seed=1, n=33, e=0)                  # the sum rounds up by more than one step: the bottom needs its margin
 def test_property_the_bracket_holds_the_exact_sum_of_squares(seed, n, e):
     M = np.ldexp(_panel(seed, n, 7), e)
     (fl, lo, hi, w, y, cap), _ = _parts(M, (0, 3))
