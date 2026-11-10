@@ -789,7 +789,7 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     for r in range(rounds + 1):
         R = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes, face=face, box=ws is not None)
         try:
-            sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R)
+            sol = solve(c, G, lam, R, solver=solver) if ws is None else ws.solve(c, G, lam, R, early=r < rounds)
         except cp.error.SolverError:    # no bound: the size is open, branched from the last point solved
             return SizeResult(False, None, r, len(tri), time.perf_counter() - t0, u)
         b = sol.bound if sol.bound is not None else fbound.certificate(A, R, sol.y_eq, sol.y_in, m, af)

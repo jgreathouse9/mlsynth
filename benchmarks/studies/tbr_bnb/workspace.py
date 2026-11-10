@@ -30,8 +30,10 @@ bound is valid at every outcome; how tight it is depends on how far SCS got. Eac
 solve ends in one of ``OUTCOMES`` (agents_solvers.md, rule 1): "certified" (a
 chunk's certificate is at most zero), "converged" (SCS's own test passed at the
 last stage, the certificate above zero), "cap" (every stage spent its chunks,
-rule 7) or "infeasible" (SCS reports no point: the node holds no design). Each is
-reported as the solve event's status. An SCS error is reported and the node is
+rule 7), "infeasible" (SCS reports no point: the node holds no design) or
+"separate" (asked for by a triangle round that another round follows: after
+SEPARATE_AFTER chunks the point violates a triangle by more than SEPARATE_TOL, so
+the next round adds triangles). Each is reported as the solve event's status. An SCS error is reported and the node is
 solved again by Clarabel.
 
 ``Workspaces`` holds one search's workspaces and its triangle pool: the triangle
@@ -59,7 +61,7 @@ from .progress import emit
 SQ2 = math.sqrt(2.0)
 
 #: The ends a workspace solve reports (module docstring).
-OUTCOMES = ("certified", "converged", "cap", "infeasible")
+OUTCOMES = ("certified", "converged", "cap", "infeasible", "separate")
 
 #: Each stage's SCS settings and its chunks. alpha is the relaxation parameter and
 #: scale the dual scale factor (SCS 3 settings). On the 100-geo group (4, 35, 58,
@@ -72,6 +74,18 @@ CHUNK = 200
 
 #: SCS's absolute and relative tolerances, which decide only when a stage ends.
 EPS = 1e-7
+
+#: A round that another round follows ends after this many chunks (counted over its
+#: stages) when its point violates a triangle by more than SEPARATE_TOL: the next
+#: round adds the triangles and starts warm, where a round run to its cap had shown
+#: the same triangles chunks earlier. On the 100-geo group (4, 35, 58, 60) the search
+#: took 176.6 s and 42,600 SCS iterations at the default, 108.2 s and 13,000 at 5 and
+#: 1e-2; on (4, 27, 33, 58) at a 1% gap 167.7 s and 137.2 s; the same designs
+#: (results/early_triangles.log). 10 and 1e-2, 5 and 1e-3, 10 and 1e-3 were slower.
+SEPARATE_AFTER = 5
+
+#: The violation above which a point's triangle ends a round early (SEPARATE_AFTER).
+SEPARATE_TOL = 1e-2
 
 #: A triangle row stays in the pool when its multiplier is above this fraction of
 #: the largest triangle multiplier at the root that set the pool.
@@ -199,14 +213,18 @@ class SizeWorkspace:
             Z[i, j] = Z[j, i] = x[k] if i == j else x[k] / SQ2
         return Z
 
-    def solve(self, R: "sf.Rows") -> Outcome:
-        """The node of R (this size, cuts and triangles, R's fixings, R's box rows)."""
+    def solve(self, R: "sf.Rows", early: bool = False) -> Outcome:
+        """The node of R (this size, cuts and triangles, R's fixings, R's box rows).
+        With ``early``, after SEPARATE_AFTER chunks a point that violates a triangle by
+        more than SEPARATE_TOL ends the solve ("separate"); the certificate is checked
+        first at every chunk."""
         t0 = time.perf_counter()
         fixes = R.fixes
         iters, status, b = 0, "unstarted", None
         y_eq = y_in = Z = None
         start = self.last
         done = False
+        solved = 0                                            # chunks over the stages
         for k, (_, chunks) in enumerate(self.stages):          # rule 7: each stage has its chunks
             ws = self._workspace(k, fixes)
             self.last = start
@@ -228,6 +246,10 @@ class SizeWorkspace:
                 b = fbound.certificate(self.A, R, y_eq, y_in, self.m, self.af)
                 if b is not None and b <= 0:
                     return Outcome("certified", status, iters, time.perf_counter() - t0, b, y_eq, y_in, Z)
+                solved += 1
+                if early and not done and solved >= SEPARATE_AFTER and \
+                        sf.separate_triangles(Z[0, 1:], Z[1:, 1:], k=1, tol=SEPARATE_TOL):
+                    return Outcome("separate", status, iters, time.perf_counter() - t0, b, y_eq, y_in, Z)
                 if done:
                     break                                         # this stage converged: the next one
         return Outcome("converged" if done else "cap", status, iters, time.perf_counter() - t0, b, y_eq, y_in, Z)
@@ -241,7 +263,9 @@ class Workspaces:
         self.spaces: Dict[tuple, SizeWorkspace] = {}
         self.pool: Tuple = ()
 
-    def solve(self, c, G, lam, R: "sf.Rows") -> "sf.Solve":
+    def solve(self, c, G, lam, R: "sf.Rows", early: bool = False) -> "sf.Solve":
+        if type(early) is not bool:
+            raise MlsynthConfigError(f"early says whether a round may end at a violated triangle, a bool, not {early!r}.")
         if R.level != "full":
             raise MlsynthConfigError(f"the workspace solves the full relaxation, not the {R.level!r} one.")
         if not R.box:
@@ -261,7 +285,7 @@ class Workspaces:
         ws = self.spaces[key]
         t0 = time.perf_counter()
         try:
-            o = ws.solve(R)
+            o = ws.solve(R, early=early)
         except (RuntimeError, ValueError):                    # reported; Clarabel solves the node
             emit("solve", relaxation="full", solver="workspace", rows_eq=R.n_eq, rows_in=R.n_in, status="error",
                  seconds=time.perf_counter() - t0)

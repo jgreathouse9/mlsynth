@@ -289,7 +289,7 @@ def test_size_certificate_starts_from_the_pool(monkeypatch):
     ws.pool = ((0, (0, 1, 2)), (1, (3, 4, 5)))
     seen = []
     real = Workspaces.solve
-    monkeypatch.setattr(Workspaces, "solve", lambda self, c, G, lam, R: seen.append(R.triangles) or real(self, c, G, lam, R))
+    monkeypatch.setattr(Workspaces, "solve", lambda self, c, G, lam, R, early=False: seen.append(R.triangles) or real(self, c, G, lam, R, early=early))
     size_certificate(D.c, D.G, slopefree.dyadic_below(D.yy / 3), 5, solver="workspace", workspaces=ws,
                      schedules=((1, 1, 1),))
     assert seen and seen[0][:2] == ((0, (0, 1, 2)), (1, (3, 4, 5)))

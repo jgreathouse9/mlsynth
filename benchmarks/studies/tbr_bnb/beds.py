@@ -107,9 +107,9 @@ def counting():
         n[R.level] += 1
         return real(c, G, lam, R, solver=solver)
 
-    def solve_ws(self, c, G, lam, R):
+    def solve_ws(self, c, G, lam, R, **k):
         n[R.level] += 1
-        return real_ws(self, c, G, lam, R)
+        return real_ws(self, c, G, lam, R, **k)
 
     slopefree.solve, Workspaces.solve = solve, solve_ws
     try:
