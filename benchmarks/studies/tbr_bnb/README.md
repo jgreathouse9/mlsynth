@@ -1726,6 +1726,65 @@ Measured and not built:
   multipliers are bounded and many sit at zero, the case L-BFGS-B's Cauchy point and
   subspace minimisation are built for.
 
+## A lean NNLS in the kernel
+
+On 80 geos the floors cover 1,581,580 four-geo groups and took 41.3 s of a 111.5 s
+run on four jobs. Inside the kernel most of a group's time was the NNLS, and most of
+that was work the solve did not need:
+
+- each group copied its 76 x 76 block of the panel's Gram before solving;
+- each step summed the gradient c - Gw over all 76 columns, though w is zero off the
+  support;
+- each column that joined the active set refactored the whole support's Cholesky
+  factor from scratch.
+
+The lean solve (`fastfloor._nnls_gram`) reads the Gram through the controls' index
+`rest`, without a copy, sums the gradient over the support only, and extends the
+factor by one row when a column joins (`_extend`, O(k^2) against O(k^3)). The factor
+is rebuilt only after a column leaves. A column whose extended pivot is not positive
+lies in the span of the support in doubles; the solve refuses it and stops at its
+last feasible point, as the full refactor did.
+
+Carrying the support over from the previous group changes the order in which columns
+join, and so the factor's arithmetic, and so the point in its last bits. A floor that
+depends on the group before it would make the search depend on how the groups are
+cut into chunks and spread over processes. The solve therefore ends by re-solving
+the final support in ascending column order (`_canonical`), the order the support's
+own factor has from scratch: the point is then a function of the support alone. A
+re-solve that is not positive, or a support that is not positive definite in
+doubles, leaves the point as it was. The support itself is carried by geo (`held`),
+not by position in the controls' list, so a group starts from the geos the last
+group used.
+
+The point only decides how tight a floor is, since the certificate holds at any
+point of the box. `test_lean_nnls.py` keeps the old active set as a reference and
+pins the lean solve to it: the same objective to 1e-10 relative, cold and warm, the
+KKT conditions, `rss_floor`'s floors to 1e-9 on three-geo groups of an 18-geo panel,
+and (a property) a group's floor bit for bit the same alone and after any run of
+groups before it.
+
+On 50,000 consecutive four-geo groups of the 80-geo panel, taken at three points of
+the enumeration, the kernel takes 66, 54 and 62 us a group against main's 97, 73 and
+91, and its floors are main's bit for bit on all 150,000. Starting every group cold
+instead of from the last group's support takes 84, 72 and 72 us, with the same
+floors. End to end on 80 geos, 150 periods, k = 4, a 1% gap and four jobs
+(`results/lean_nnls.log`, two alternating rounds on one host):
+
+| | main | lean NNLS | with the worker screen too |
+| --- | --- | --- | --- |
+| wall | 107.7 s, 104.9 s | 94.8 s, 95.6 s | 83.3 s, 88.4 s |
+| the floors | 36.5 s, 36.8 s | 26.0 s, 26.2 s | 24.2 s, 25.2 s |
+| the start | 52.2 s, 49.0 s | 50.1 s, 51.1 s | 49.9 s, 53.4 s |
+
+Every run certifies the same treatment, controls, RSS and key, searches 7 groups,
+screens out 1,581,572 and keeps 8 survivors. The start's 50 restarts in one process
+are now the larger part of the run.
+
+Mutants (`tbr-bnb-lean-nnls`): 10 on the lean solve, all killed but `the-support-is-not-carried`, which
+starts every group cold. It gives the same floors by construction (`_canonical`) and
+only costs time, so no test can tell it from the original; its cost is in
+`results/lean_nnls.log`.
+
 ## The screen in the workers
 
 On 80 geos the floors leave a handful of the 1,581,580 four-geo groups, yet every
