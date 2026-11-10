@@ -14541,6 +14541,66 @@ timeout = 600.0
   models = "the lower bound's test reversed, so a size bound() would close is reported open with the float bound"
 
 [[target]]
+name = "test-memo"
+module-path = "mlsynth/tests/_memo.py"
+test-command = "python -m pytest mlsynth/tests/test_memo.py -q -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "the-keyword-arguments-are-not-in-the-key"
+  find = "k = (_key(args), _key(kwargs))"
+  replace = "k = _key(args)"
+  models = "a key without the keyword arguments, so a fit with another option returns the first option's fit"
+
+  [[target.mutant]]
+  id = "a-frame-is-keyed-without-its-index"
+  find = "pd.util.hash_pandas_object(obj, index=True)"
+  replace = "pd.util.hash_pandas_object(obj, index=False)"
+  models = "a frame keyed by its values alone, so two panels that differ only in their index share a fit"
+
+  [[target.mutant]]
+  id = "a-frame-is-keyed-without-its-columns"
+  find = "return (\"pandas\", type(obj).__name__, h, cols, dtypes)"
+  replace = "return (\"pandas\", type(obj).__name__, h, dtypes)"
+  models = "a frame keyed without its column names, so a panel with a renamed outcome column shares a fit"
+
+  [[target.mutant]]
+  id = "an-array-is-keyed-without-its-shape"
+  find = "return (\"ndarray\", str(obj.dtype), obj.shape, hashlib"
+  replace = "return (\"ndarray\", str(obj.dtype), obj.size, hashlib"
+  models = "an array keyed by its bytes and length, so a reshaped matrix shares the vector's fit"
+
+  [[target.mutant]]
+  id = "a-dict-is-keyed-in-insertion-order"
+  find = "return (\"dict\", tuple(sorted((repr(k), _key(v)) for k, v in obj.items())))"
+  replace = "return (\"dict\", tuple((repr(k), _key(v)) for k, v in obj.items()))"
+  models = "a dict keyed in insertion order, so the same configuration written in another order is fitted again"
+
+[[target]]
+name = "test-threads"
+module-path = "mlsynth/tests/_threads.py"
+test-command = "python -m pytest mlsynth/tests/test_threads.py -q -p no:cacheprovider"
+timeout = 120.0
+
+  [[target.mutant]]
+  id = "a-caller-set-thread-count-is-overwritten"
+  find = "env.setdefault(var, \"1\")"
+  replace = "env[var] = \"1\""
+  models = "the thread variables forced to one, overwriting a count the caller set on purpose"
+
+  [[target.mutant]]
+  id = "the-pools-are-not-limited"
+  find = "    threadpool_limits(1)\n"
+  replace = "    threadpool_limits(None)\n"
+  models = "the environment variables set but the already-loaded BLAS pools left at the machine's size, the case the variables alone come too late for"
+
+  [[target.mutant]]
+  id = "the-limit-applies-outside-xdist"
+  find = "    if not env.get(\"PYTEST_XDIST_WORKER\"):\n        return False\n"
+  replace = "    if False:\n        return False\n"
+  models = "one thread imposed on a plain pytest run, which may use the whole machine"
+
+[[target]]
 name = "tbr-bnb-early-triangles"
 module-path = "benchmarks/studies/tbr_bnb/workspace.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_early_triangles.py -q -x -p no:cacheprovider"

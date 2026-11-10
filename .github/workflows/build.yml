@@ -143,15 +143,15 @@ jobs:
           SHARD="--num-shards 4 --shard ${{ matrix.shard }}"
 
           if [ "$TARGET" = "smoke" ]; then
-            pytest -n auto $SHARD -k "smoke" --tb=short
+            pytest -n auto --dist loadgroup $SHARD -k "smoke" --tb=short
           elif [ "$TARGET" = "all" ]; then
-            pytest -n auto $SHARD --tb=short
+            pytest -n auto --dist loadgroup $SHARD --tb=short
           else
             MATCH=$(find . -name "$TARGET" | head -n 1)
             if [ -z "$MATCH" ]; then
               echo "ERROR: Could not find test file: $TARGET"; find . -name "test_*.py"; exit 1
             fi
-            pytest -n auto $SHARD "$MATCH" --tb=short
+            pytest -n auto --dist loadgroup $SHARD "$MATCH" --tb=short
           fi
 
       # Once, not once per shard: the dist does not depend on which tests ran,
@@ -234,5 +234,5 @@ jobs:
       - name: Run tests
         if: github.event_name != 'pull_request' || steps.filter.outputs.code == 'true'
         run: |
-          pytest -n auto --tb=short \
+          pytest -n auto --dist loadgroup --tb=short \
             --num-shards 4 --shard ${{ matrix.shard }}

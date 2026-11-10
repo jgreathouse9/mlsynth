@@ -26,3 +26,9 @@ from _shard import (  # noqa: E402,F401  (re-export: pytest reads these by name)
     pytest_addoption,
     pytest_collection_modifyitems,
 )
+
+# One BLAS/OpenMP thread in each xdist worker (_threads.py): -n auto with the
+# runtimes' default pools runs a pool per worker on the same cores.
+from _threads import limit_threads  # noqa: E402
+
+limit_threads()

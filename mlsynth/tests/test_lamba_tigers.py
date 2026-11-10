@@ -54,6 +54,8 @@ import pytest
 
 pd = pytest.importorskip("pandas")
 
+pytestmark = pytest.mark.xdist_group("lamba_tigers")
+
 _ROOT = Path(__file__).resolve().parents[2]
 _GOLD = _ROOT / "benchmarks" / "reference" / "lamba_tigers"
 _DATA = _ROOT / "basedata" / "tiger_reserves.csv"
@@ -161,6 +163,21 @@ def _fit(panel, ty, **kw):
             "inference": False, **kw}).fit()
 
 
+#: Fits by (reserve, seed). A fit is a deterministic function of the panel and the
+#: seed (test_the_fit_is_deterministic checks that with a fresh fit), and the same
+#: eleven reserves and seeds are read by several tests, so each is fitted once a
+#: process.
+_FITS = {}
+
+
+def _fit_reserve(raw, name, seed=0):
+    key = (name, seed)
+    if key not in _FITS:
+        panel, ty, _ = build_panel(raw, name)
+        _FITS[key] = _fit(panel, ty, seed=seed)
+    return _FITS[key]
+
+
 class TestTheFixtureIsWhatThePaperDescribes:
     """Asserted, not assumed -- the panel is the premise of everything below."""
 
@@ -241,8 +258,7 @@ class TestMlsynthFitsTheReserves:
 
     def test_every_reserve_fits(self, raw, summary):
         for name in summary.reserve:
-            panel, ty, _ = build_panel(raw, name)
-            res = _fit(panel, ty)
+            res = _fit_reserve(raw, name)
             assert np.isfinite(float(res.effects.att))
 
     def test_avoided_loss_is_not_the_att(self, raw):
@@ -256,7 +272,7 @@ class TestMlsynthFitsTheReserves:
         """
         name = "Nawegaon-Nagzira Tiger Reserve"
         panel, ty, _ = build_panel(raw, name)
-        res = _fit(panel, ty)
+        res = _fit_reserve(raw, name)
         avoided = _averted(panel, ty, name, _weights(res))
         att = float(res.effects.att)
         assert avoided > 0 > att
@@ -267,15 +283,14 @@ class TestMlsynthFitsTheReserves:
         so the two ways of computing it cannot silently diverge."""
         name = "Nawegaon-Nagzira Tiger Reserve"
         panel, ty, _ = build_panel(raw, name)
-        res = _fit(panel, ty)
+        res = _fit_reserve(raw, name)
         cf = float(np.asarray(res.time_series.counterfactual_outcome).ravel()[-1])
         obs = float(panel[(panel.name == name) & (panel.year == 2020)].loss.iloc[0])
         assert _averted(panel, ty, name, _weights(res)) == pytest.approx(
             cf - obs, abs=1e-6)
 
     def test_weights_are_a_simplex(self, raw):
-        panel, ty, _ = build_panel(raw, "Nawegaon-Nagzira Tiger Reserve")
-        w = np.array(list(_fit(panel, ty).weights.donor_weights.values()))
+        w = np.array(list(_fit_reserve(raw, "Nawegaon-Nagzira Tiger Reserve").weights.donor_weights.values()))
         assert w.min() >= -1e-9
         assert w.sum() == pytest.approx(1.0, abs=1e-6)
 
@@ -283,8 +298,8 @@ class TestMlsynthFitsTheReserves:
         """Two runs at the same seed agree exactly. Without this, the
         pinned values below would be untrustworthy."""
         panel, ty, _ = build_panel(raw, "Udanti WLS")
-        a = float(_fit(panel, ty, seed=42).effects.att)
-        b = float(_fit(panel, ty, seed=42).effects.att)
+        a = float(_fit_reserve(raw, "Udanti WLS", seed=42).effects.att)
+        b = float(_fit(panel, ty, seed=42).effects.att)              # a fresh fit
         assert a == b
 
     def test_the_seed_moves_the_answer_slightly_on_some_reserves(self, raw):
@@ -299,7 +314,7 @@ class TestMlsynthFitsTheReserves:
         would mean the reported effect is not well defined and should fail.
         """
         panel, ty, _ = build_panel(raw, "Udanti WLS")
-        vals = [_averted(panel, ty, "Udanti WLS", _weights(_fit(panel, ty, seed=s)))
+        vals = [_averted(panel, ty, "Udanti WLS", _weights(_fit_reserve(raw, "Udanti WLS", seed=s)))
                 for s in (0, 7, 42, 2024)]
         spread = max(vals) - min(vals)
         assert 0.0 < spread < 0.02 * abs(np.mean(vals))
@@ -314,7 +329,7 @@ class TestMlsynthFitsTheReserves:
         """
         name = "Nawegaon-Nagzira Tiger Reserve"
         panel, ty, _ = build_panel(raw, name)
-        vals = [_averted(panel, ty, name, _weights(_fit(panel, ty, seed=s)))
+        vals = [_averted(panel, ty, name, _weights(_fit_reserve(raw, name, seed=s)))
                 for s in (0, 7, 42)]
         assert max(vals) - min(vals) < 1e-3
 
@@ -359,7 +374,7 @@ class TestMlsynthFitsBetterThanTidysynth:
         better, worse = [], []
         for name in summary.reserve:
             panel, ty, _ = build_panel(raw, name)
-            mine = self._pre_mspe(panel, ty, _weights(_fit(panel, ty)))
+            mine = self._pre_mspe(panel, ty, _weights(_fit_reserve(raw, name)))
             ref = float(summary.loc[summary.reserve == name, "pre_mspe"].iloc[0])
             (better if mine < ref else worse).append(name)
         assert len(better) == 10, f"better on {len(better)}: worse = {worse}"
@@ -370,7 +385,7 @@ class TestMlsynthFitsBetterThanTidysynth:
         12521, a factor of 3.6."""
         name = "Nawegaon-Nagzira Tiger Reserve"
         panel, ty, _ = build_panel(raw, name)
-        mine = self._pre_mspe(panel, ty, _weights(_fit(panel, ty)))
+        mine = self._pre_mspe(panel, ty, _weights(_fit_reserve(raw, name)))
         ref = float(summary.loc[summary.reserve == name, "pre_mspe"].iloc[0])
         assert mine < ref / 3.0
 
