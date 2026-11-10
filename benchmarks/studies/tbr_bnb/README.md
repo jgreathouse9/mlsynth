@@ -1726,6 +1726,40 @@ Measured and not built:
   multipliers are bounded and many sit at zero, the case L-BFGS-B's Cauchy point and
   subspace minimisation are built for.
 
+## The screen in the workers
+
+On 80 geos the floors leave a handful of the 1,581,580 four-geo groups, yet every
+floor came back to the parent as a Python row, was sorted, and was screened one at a
+time by `compete_bracket`. Building, sending and sorting rows that the screen then
+dropped was a large part of the floors' wall time once the kernel had made the
+floors themselves cheap.
+
+The search now passes the floors the incumbent's class as it stands when they are
+computed, the start's design (`class_of()`), and each worker drops the rows the float
+screen shows cannot compete (`_floor_chunk_screened`). It counts them as screened
+out, so `screened_out` is what it was. The incumbent only improves, so its ceiling
+only falls: a row that cannot compete with the start's class
+cannot compete with any later one, and the search is the search it was.
+
+With the kernel, the screen reads the kernel's arrays (`_screen_mask`): the same
+doubles, the same products and the same comparisons as `compete_bracket`, element by
+element, with the same margin (`_MARGIN`, 2^-48) and the same guard on subnormal
+ceilings (`_NORMAL`, 2^-1000). A row inside the margin is undecided and kept for the
+parent's exact screen; a row with a nan floor, which the kernel left to `rss_floor`,
+is never dropped. Only the rows kept become Python rows. Without the kernel, or on a
+panel without a Gram floor, each row is screened by `compete_bracket` itself.
+
+`test_worker_screen.py` pins the mask to `compete_bracket` row by row (a property
+over floors, brackets and classes), the screened rows to the unscreened rows less
+those `compete_bracket` refuses, one process to two, and the search with the worker
+screen to the search without it: the same treatment, controls, RSS, key, survivors,
+`screened_out`, groups searched and replacements, at k = 2 and 3, gap 0 and 1/100,
+on one job and two.
+
+TIMING
+
+Mutants (`tbr-bnb-worker-screen`): 7, all killed.
+
 ## Five geos
 
 At five geos GeoLift has 658,008 treatment groups. On one process the search took
