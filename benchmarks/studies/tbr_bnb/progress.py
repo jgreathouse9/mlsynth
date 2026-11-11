@@ -61,6 +61,7 @@ KINDS: Dict[str, Tuple[int, Tuple[str, ...]]] = {
     "node": (2, ("m", "depth", "ones", "outcome", "tier", "control", "seconds")),
     "schedule": (3, ("m", "rung", "maxfun", "closed", "seconds")),
     "triangles": (3, ("m", "round", "triangles", "closed", "seconds")),
+    "pentagons": (3, ("m", "round", "pentagons", "seconds")),
     "solve": (3, ("relaxation", "solver", "rows_eq", "rows_in", "status", "seconds")),
     "price": (3, ("m", "depth", "designs", "exact", "seconds")),
 }
@@ -69,7 +70,7 @@ _INT, _FLOAT, _STR, _BOOL, _INTS = pa.int64(), pa.float64(), pa.string(), pa.boo
 FIELD_TYPES = {
     "k": _INT, "p": _INT, "groups": _INT, "n_jobs": _INT, "m": _INT, "depth": _INT, "ones": _INT,
     "control": _INT, "rung": _INT, "maxfun": _INT, "round": _INT, "triangles": _INT, "rows_eq": _INT,
-    "rows_in": _INT, "designs": _INT, "exact": _INT, "nodes": _INT, "open": _INT, "rounds": _INT,
+    "rows_in": _INT, "pentagons": _INT, "designs": _INT, "exact": _INT, "nodes": _INT, "open": _INT, "rounds": _INT,
     "survivors": _INT, "excluded": _INT,
     "ratio": _FLOAT, "test_ratio": _FLOAT, "rss": _FLOAT, "ceiling": _FLOAT, "seconds": _FLOAT,
     "certified": _BOOL, "passing": _BOOL, "closed": _BOOL,

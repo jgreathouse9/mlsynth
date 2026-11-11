@@ -1414,6 +1414,21 @@ Built, against its base, both at once:
 
 Every case certified the same design, and no bed group missed its enumerated optimum.
 
+### SCS on the face, measured and not built
+
+Every point of a size's relaxation has the null direction `v = (-m, 1, ..., 1)`
+(`sum u = m` and its products say `Z v = 0`), so the relaxation has no interior, and
+Clarabel solves on the face `Z = T W T'` (`face.py`). The SCS workspace solves off it.
+SCS on the face was measured at the root of size 24 of the certified design's group at
+100 geos, its rounds from an empty triangle pool, with the face's reduced rows and the
+pivot row as its own variables (`face.reduce`): the root took 109.7 s against 37.6 s
+off the face, one of its solves spending every chunk without converging. With `T`'s
+columns scaled to unit norm, which the reduction's first column (norm about 24 at
+`m = 24`) is not, two solves spent every chunk and the root branched, 125.5 s. Every
+arm certified the same design. SCS works on the homogeneous self-dual embedding,
+which needs no interior point, and the reduction makes its problem harder, not easier
+(`results/scs_face.log`).
+
 ### Accelerating SCS, measured and not built
 
 Three levers on SCS itself, each measured at the setting above or beside it:
@@ -2157,16 +2172,22 @@ are paid in every group: on the 60-geo panel at four treated geos, `restarts=500
 took 380.1 s against 241.4 s with 50, its slowest group 184.6 s against 202.2 s, with
 the same design and survivors (`results/gap.log`).
 
-### Pentagonal cuts, measured and not built
+### Pentagonal cuts
 
 With `s = 2u - 1`, every design is a vector of signs, and the full relaxation is a
 relaxation of the cut polytope. Beside the triangle inequalities it already carries,
 the next family of that polytope's valid inequalities is the pentagonal one (a
 hypermetric inequality on five points, Deza and Laurent 1997, ch. 28): for any five
-geos and any signs `b` on them, `sum_{a<c} b_a b_c s_a s_c >= -2`. In the lift each
-is a linear row in `Z`, valid for every design, so its multiplier enters the exact
-certificate like any other row. They were separated by a local search over signed
-five-sets of the relaxed point (`results/pentagons.log`).
+indices and any signs `b` on them, `sum_{a<c} b_a b_c s_a s_c >= -2`, since the sum
+of five odd terms `b_a s_a` is odd and its square at least 1. In the lift each is a
+linear row in `Z` (`slopefree.pentagon_row`), valid for every design, so its
+multiplier enters the exact certificate like any other row. A size's relaxation
+rounds separate them from round `PENTAGONS_FROM` on by a local search over signed
+five-sets of the relaxed point (`slopefree.separate_pentagons`), and the next round
+carries them beside its triangles, in the same sequence of rows, so the SCS
+workspace's pool and warm starts take them unchanged. `PENTAGONS` switches them, on
+by default; `certify_slope_free(pentagons=...)` and `size_certificate(pentagons=...)`
+override it.
 
 At the roots they close what triangles do not. On the hard 100-geo group, at the
 optimum's own ratio with the optimum cut out, sizes 28 and 29 stayed open after 1,200
@@ -2174,8 +2195,8 @@ triangles; 400 pentagons closed size 28, and 738 closed size 29. Size 26 under S
 closed with 400 after 1,200 triangles. The size-free screen at the 1% gap's target
 needed no pentagons: it closed with 800 triangles.
 
-End to end, with pentagons added from the second round of a size's relaxation, they
-changed nothing at the gap the search would be run at:
+At a 1% gap they change nothing, since every node closes before the rounds that add
+them:
 
 | case | gap | without | with | nodes |
 | --- | --- | --- | --- | --- |
@@ -2183,12 +2204,39 @@ changed nothing at the gap the search would be run at:
 | `geo_panel(0)`, 60 geos, 4 treated | 0 | 140.1 s | 138.7 s | |
 | `geo_panel(0)`, 60 geos, 4 treated | 1% | 85.5 s | 85.7 s | |
 
-On the hard group at 1% every node closed before the rounds that add them: 33 at the
-first-order dual, 9 at triangles, 2 by reuse. On the 60-geo search they were added at
-ten sizes, which closed in the same round with or without them. The exact certificate
-on the hard group, where the roots say they would bind, ran past two hours in both
-arms with four processes on four cores and was stopped, so that comparison is open.
-Every pair certified the same design.
+The exact certificate is where they bind. On the certified design's own group at
+100 geos (treated geos 4, 27, 33, 58), certified exactly on the current search, every
+size from 22 to 32 closed at its root, where sizes 25 to 29 had branched to 7 nodes
+each:
+
+| size | without: nodes, seconds | with: nodes, seconds |
+| --- | --- | --- |
+| 24 | 1, 32.1 | 1, 8.1 |
+| 25 | 7, 43.4 | 1, 4.4 |
+| 26 | 7, 37.1 | 1, 4.9 |
+| 27 | 7, 66.8 | 1, 13.9 |
+| 28 | 7, 50.3 | 1, 40.6 |
+| 29 | 7, 97.5 | 1, 52.8 |
+| 30 | 1, 22.8 | 1, 27.9 |
+| the group | 80, 414.1 | 50, 209.6 |
+
+The separation took 7.6 s over 11 rounds. The round they start from was chosen on the
+same group: from round 0 the certificate took 283.6 s, from 1 209.6 s and from 2
+228.0 s. At round 0 the point has no triangles yet and its pentagons cut less (sizes
+28 to 30 took 69.4, 67.2 and 58.4 s); from round 2 size 24 waits a round more (27.3 s).
+
+End to end, `certify_treatment` with the study's settings on four cores, every pair
+certified the same treatment group with the same key:
+
+| panel | k | without | with | slowest group |
+| --- | --- | --- | --- | --- |
+| GeoLift | 4 | 17.6 s | 12.1 s | 5.2 s, 4.9 s |
+| GeoLift | 6 | 195.4 s | 192.7 s | 26.8 s, 25.0 s |
+| `geo_panel(0)`, 80 geos | 4 | 303.7 s | 298.7 s | 90.3 s, 88.5 s |
+| `geo_panel(0)`, 100 geos | 4 | 675.7 s | 457.1 s | 458.8 s, 239.8 s |
+
+On the 80-geo panel the second slowest group took 76.9 s against 57.5 s, and the run
+5 s less. The measurements are in `results/pentagons.log`.
 
 ### Near-ties, not symmetry
 
@@ -2378,7 +2426,9 @@ fixing is certified to the solver's value.
 6. Branching rules and node order. The slow group at 100 geos was slow for its
    incumbent: a second RSS descent in each group that reaches the hull stage
    takes that case from 2,091 s to 785 s (see The certified group's own
-   incumbent).
+   incumbent). Its near-ties then branched sizes 25 to 29; pentagonal cuts close
+   every size at its root and take the panel from 675.7 s to 457.1 s (see
+   Pentagonal cuts).
 7. Incumbent from #964's local search, improved during the search (done here).
    Each node rounds its eigen-primal to a design of its size within its
    fixings, descends from it (`search.Incumbent.offer`, on the positive-slope
@@ -2407,7 +2457,7 @@ fixing is certified to the solver's value.
 - `search.py`: the branch and bound on geos and `certify()`.
 - `face.py`: the face Z = T W T' of a size's relaxation, its reduced rows and its exact bound.
 - `slopefree.py`: the slope-free relaxation, its certificate, the cascade of certificates for one size
-  (`size_certificate`) and `certify_slope_free()`.
+  (`size_certificate`), the triangle and pentagonal cuts its rounds separate, and `certify_slope_free()`.
 - `fbound.py`: the slope-free certificate in floating point with rigorous rounding bounds, and `certificate()`, which calls the exact bound only between the float bounds.
 - `workspace.py`: a size's full relaxation on one SCS workspace, and `Workspaces`, one search's
   workspaces and triangle pool.

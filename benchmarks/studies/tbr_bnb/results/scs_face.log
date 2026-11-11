@@ -1,0 +1,7 @@
+# SCS on the face (spike, not built): the root of size 24 of the certified design's group at 100 geos, k = 4,
+# treated (4, 27, 33, 58), at the optimum's ratio, rounds from an empty triangle pool, one process.
+# arm: off (the SCS workspace as built), face (Z = T W T', face.reduce's rows), face-unit (T's columns at unit norm).
+# solves: (inequality rows, outcome, seconds) of the root's rounds; every arm certified the same design.
+{"arm": "off", "root_outcome": "pruned", "root_seconds": 37.6, "nodes": 1, "solves": [[18626, "separate", 4.39], [19026, "separate", 2.27], [19426, "separate", 2.45], [19826, "converged", 10.07], [20226, "converged", 10.62], [20626, "certified", 5.77]]}
+{"arm": "face", "root_outcome": "pruned", "root_seconds": 109.7, "nodes": 1, "solves": [[18626, "separate", 2.02], [19026, "separate", 2.38], [19426, "separate", 2.48], [19826, "cap", 54.3], [20226, "converged", 27.81], [20626, "converged", 9.37], [21026, "certified", 8.54]]}
+{"arm": "face-unit", "root_outcome": "branched", "root_seconds": 125.5, "nodes": 7, "solves": [[18626, "separate", 2.27], [19026, "separate", 2.46], [19425, "separate", 2.55], [19824, "separate", 2.71], [20212, "separate", 2.86], [20611, "cap", 54.23], [21011, "cap", 55.03]]}

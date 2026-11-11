@@ -15105,3 +15105,123 @@ timeout = 900.0
   find = "    search.setdefault(\"deep_restarts\", BED_DEEP_RESTARTS)\n"
   replace = "    pass\n"
   models = "the beds run the second descent, so most groups close at the hull and the beds stop measuring the branch and bound"
+
+[[target]]
+name = "tbr-bnb-pentagons"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_pentagons.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "pentagon-row-sign-flipped"
+  find = "            v, w, t = S[x], S[z], -b[x] * b[z]                 # the row's coefficient on Y_vw"
+  replace = "            v, w, t = S[x], S[z], b[x] * b[z]                 # the row's coefficient on Y_vw"
+  models = "the row is written as sum b b Y <= 2, not -sum b b Y <= 2, so it cuts off designs and the certificate is no longer valid"
+
+  [[target.mutant]]
+  id = "pentagon-constant-term-sign"
+  find = "                add((0, w if v == 0 else v), 2 * t); const -= t"
+  replace = "                add((0, w if v == 0 else v), 2 * t); const += t"
+  models = "Y_0t = 2 Z_0t - 1 is written with + 1, so the right-hand side of a row through the constant is off by two per pair"
+
+  [[target.mutant]]
+  id = "pentagon-geo-pair-loses-its-u-terms"
+  find = "                add((v, w), 4 * t); add((0, v), -2 * t); add((0, w), -2 * t); const += t"
+  replace = "                add((v, w), 4 * t); const += t"
+  models = "Y_vw is written as 4 Z_vw + 1, dropping -2 Z_0v - 2 Z_0w, so the row is not the sign inequality in Z"
+
+  [[target.mutant]]
+  id = "pentagon-right-hand-side-one"
+  find = "    return {k: v for k, v in coef.items() if v != 0}, 2 - const"
+  replace = "    return {k: v for k, v in coef.items() if v != 0}, 1 - const"
+  models = "the row's bound is -1, not -2, tighter than (sum b s)^2 >= 1 allows, so a design that meets it with equality is cut off"
+
+  [[target.mutant]]
+  id = "pentagon-index-past-the-geos-accepted"
+  find = "    if max(S) > p:"
+  replace = "    if max(S) > p + 1:"
+  models = "a pentagonal row naming an index past Z's last is accepted, and its entries land in another row's columns"
+
+  [[target.mutant]]
+  id = "pentagon-matrix-columns-transposed"
+  find = "                put(r + k, [a + n * b for (a, b) in coef], [float(v) for v in coef.values()])"
+  replace = "                put(r + k, [b + n * a for (a, b) in coef], [float(v) for v in coef.values()])"
+  models = "the solver's matrix puts a pentagonal entry at Z_ba's column, so the solver and the certificate read different rows"
+
+  [[target.mutant]]
+  id = "pentagon-right-hand-side-not-in-bin"
+  find = "        bin_ += [_pentagon(idx, p)[1] if kind == PENTAGON else (0 if kind == 0 else 1)"
+  replace = "        bin_ += [2 if kind == PENTAGON else (0 if kind == 0 else 1)"
+  models = "Rows' right-hand sides give every pentagonal row 2, not its own bound, so the solver's rows and the table's differ"
+
+  [[target.mutant]]
+  id = "pentagon-violation-not-halved"
+  find = "            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = (1 - val) / 2"
+  replace = "            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = 1 - val"
+  models = "the separation reports 1 - b'Yb as the violation, twice the row's excess, so rows are ranked and cut on a wrong number"
+
+  [[target.mutant]]
+  id = "pentagon-signs-not-normalised"
+  find = "            if key[0][1] < 0:"
+  replace = "            if False:"
+  models = "a row and its negated signs are kept as two rows, the same row twice in a round"
+
+  [[target.mutant]]
+  id = "pentagon-best-sign-reversed"
+  find = "                    S[t] = v; b[t] = -1 if lin[v] > 0 else 1; val = float(cand[v]); improved = True"
+  replace = "                    S[t] = v; b[t] = 1 if lin[v] > 0 else -1; val = float(cand[v]); improved = True"
+  models = "the local search records the worse sign for the index it moves in, so the row it reports is not the one whose value it tracked"
+
+  [[target.mutant]]
+  id = "pentagon-separation-keeps-every-row"
+  find = "    best = sorted(found.items(), key=lambda kv: (-kv[1], kv[0]))[:k]"
+  replace = "    best = sorted(found.items(), key=lambda kv: (-kv[1], kv[0]))"
+  models = "the separation ignores k and a round can add thousands of pentagonal rows"
+
+  [[target.mutant]]
+  id = "pentagons-never-separated"
+  find = "        if pentagons and sol.Z is not None and PENTAGONS_FROM <= r < rounds:"
+  replace = "        if False:"
+  models = "the switch is accepted, validated and documented but no round separates a pentagon, which cost the 100-geo group 414 s, not 210 s"
+
+  [[target.mutant]]
+  id = "pentagons-start-a-round-late"
+  find = "        if pentagons and sol.Z is not None and PENTAGONS_FROM <= r < rounds:"
+  replace = "        if pentagons and sol.Z is not None and PENTAGONS_FROM < r < rounds:"
+  models = "pentagons start a round after PENTAGONS_FROM, the setting that left size 24 waiting a round"
+
+  [[target.mutant]]
+  id = "pentagons-separated-after-the-last-round"
+  find = "        if pentagons and sol.Z is not None and PENTAGONS_FROM <= r < rounds:"
+  replace = "        if pentagons and sol.Z is not None and PENTAGONS_FROM <= r <= rounds:"
+  models = "the last round separates pentagons no round will carry, a separation spent for nothing"
+
+  [[target.mutant]]
+  id = "pentagons-found-and-dropped"
+  find = "            new += five\n"
+  replace = "            pass\n"
+  models = "the pentagons are separated and reported but never added to the next round's rows"
+
+  [[target.mutant]]
+  id = "pentagons-argument-ignored"
+  find = "    t0 = time.perf_counter()\n    pentagons = PENTAGONS if pentagons is None else pentagons\n"
+  replace = "    t0 = time.perf_counter()\n    pentagons = PENTAGONS\n"
+  models = "size_certificate reads only the module setting, so pentagons=False still separates them"
+
+  [[target.mutant]]
+  id = "pentagons-bad-start-round-accepted"
+  find = "    if pentagons and (type(PENTAGONS_FROM) is not int or PENTAGONS_FROM < 0):"
+  replace = "    if False:"
+  models = "a negative or non-integer PENTAGONS_FROM is accepted, so pentagons start at a round the setting does not say"
+
+  [[target.mutant]]
+  id = "pentagons-switch-not-passed-to-the-sizes"
+  find = "                           workspaces=inc.get(\"workspaces\"), pentagons=inc.get(\"pentagons\", PENTAGONS))"
+  replace = "                           workspaces=inc.get(\"workspaces\"))"
+  models = "certify_slope_free's switch stops at the search, and every size takes the module's default"
+
+  [[target.mutant]]
+  id = "pentagons-switch-not-stored"
+  find = "           \"pentagons\": pentagons}"
+  replace = "           }"
+  models = "the search validates its switch and drops it, so every size takes the module's default"

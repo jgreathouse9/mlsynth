@@ -136,10 +136,18 @@ class Rows:
     With ``m`` None the rows hold the designs of every size: sum u >= 1 and its
     products with 1 - u_i, (sum u - 1)(1 - u_i) >= 0, replace sum u = m and its
     products (the products with u_i follow from U_ii = u_i and U_ij >= 0), and the
-    trace bound is 1 + p (group_bound)."""
+    trace bound is 1 + p (group_bound).
+
+    ``triangles`` are the cutting-plane rows a size's rounds separate, in the order
+    they were added, each (kind, index): kind 0 and 1 are the triangle rows
+    (separate_triangles), with the three geos as index; kind PENTAGON is a pentagonal
+    row (pentagon_row, separate_pentagons), with index (S, b), five indices of Z and
+    their signs. One sequence holds both, so the SCS workspace's pool and warm start,
+    which read the rows as a prefix of the next round's, need no second list; the rows
+    sit between the cuts and the box rows (``triangle_rows``)."""
 
     def __init__(self, c: Sequence, m: Optional[int], cuts: Sequence[Set[int]] = (),
-                 triangles: Sequence[Tuple[int, Tuple[int, int, int]]] = (),
+                 triangles: Sequence[Tuple[int, tuple]] = (),
                  fixes: Sequence[Tuple[int, int]] = (), level: str = "full", face: bool = False,
                  box: bool = False):
         if level not in ("full", "shor"):
@@ -165,7 +173,8 @@ class Rows:
         self.c_rows: List[int] = list(range(t_c, len(bin_)))   # inequality rows carrying c, scaled for the solver
         bin_ += [len(cut) - 1 for cut in self.cuts]
         t0 = len(bin_)
-        bin_ += [0 if kind == 0 else 1 for kind, _ in self.triangles]
+        bin_ += [_pentagon(idx, p)[1] if kind == PENTAGON else (0 if kind == 0 else 1)
+                 for kind, idx in self.triangles]
         self.triangle_rows = (t0, len(bin_))
         if box:                                          # 0 <= u_j <= 1 for each free geo (workspace.py)
             bin_ += [1, 0] * sum(1 for j in range(p) if j not in self._fixed)
@@ -238,7 +247,12 @@ class Rows:
         for cut in cuts:
             le(row(*((u(j), 1 if j in cut else -1) for j in range(p))), len(cut) - 1)
         t0 = len(ineq_rows)
-        for kind, (i, j, k) in triangles:
+        for kind, idx in triangles:
+            if kind == PENTAGON:
+                coef, rhs = _pentagon(idx, p)
+                le(row(*coef.items()), rhs)
+                continue
+            i, j, k = idx
             if kind == 0:
                 le(row((U(i, j), 1), (U(i, k), 1), (U(j, k), -1), (u(i), -1)), 0)
             else:
@@ -343,7 +357,12 @@ class Rows:
             inside = np.isin(ar, cut)
             put(r + k, ucol, np.where(inside, 1.0, -1.0))
         r += len(self.cuts)
-        for k, (kind, (i, j, l)) in enumerate(self.triangles):
+        for k, (kind, idx) in enumerate(self.triangles):
+            if kind == PENTAGON:                                        # Z_ab, a <= b, at a + n b
+                coef, _ = _pentagon(idx, p)
+                put(r + k, [a + n * b for (a, b) in coef], [float(v) for v in coef.values()])
+                continue
+            i, j, l = idx
             if kind == 0:
                 put(r + k, [Ucol(i, j), Ucol(i, l), Ucol(j, l), ucol[i]], [1.0, 1.0, -1.0, -1.0])
             else:
@@ -540,6 +559,144 @@ def bound(A, R: Rows, y_eq, y_in, m) -> Optional[Q]:
         return on_face
     full = k + (1 + m) * max(Q(0), -low)
     return full if on_face is None else min(full, on_face)
+
+
+#: The kind of a pentagonal row among a size's cutting-plane rows (Rows' ``triangles``).
+PENTAGON = 2
+
+#: Whether a size's relaxation rounds add pentagonal rows (size_certificate,
+#: certify_slope_free), read at the call. On the certified design's group at 100 geos,
+#: k = 4, every size from 22 to 32 closed at its root with them, where sizes 25 to 29
+#: had branched to 7 nodes each: the group's exact certificate took 209.6 s, not 414.1 s,
+#: on 50 nodes, not 80, and certify_treatment on that panel 457.1 s, not 675.7 s. On
+#: GeoLift at k = 4 and 6 and 80 geos at k = 4 the runs took 12.1 s, 192.7 s and 298.7 s
+#: against 17.6 s, 195.4 s and 303.7 s, with the same designs and keys
+#: (results/pentagons.log).
+PENTAGONS = True
+
+#: The first round after which a size's rounds separate pentagonal rows: round r's
+#: point gives the rows round r + 1 carries. On the group above, from round 0 the
+#: certificate took 283.6 s, from 1 209.6 s and from 2 228.0 s: at round 0 the point has
+#: no triangles yet, and its pentagons cut less (sizes 28 to 30 took 69.4, 67.2 and
+#: 58.4 s, against 40.6, 52.8 and 27.9 s); from round 2 size 24 waited a round more
+#: (27.3 s against 8.1 s).
+PENTAGONS_FROM = 1
+
+#: Starts of separate_pentagons' local search. At 96 controls a round's separation
+#: took 0.7 s on average, 7.6 s over the 11 rounds of the group above.
+PENTAGON_RESTARTS = 3000
+
+
+def pentagon_row(S, b) -> Tuple[Dict[Tuple[int, int], int], int]:
+    """The pentagonal row of the indices S of Z (0 the constant, j + 1 the geo j) and
+    the signs b, as Rows writes a row: ({(a, b): coefficient}, right-hand side), with
+    a <= b, read as sum coefficient * Z_ab <= right-hand side.
+
+    In signs, s_0 = 1 and s_v = 2 u_v - 1 for a geo, so every design is a vector of
+    +-1. For five of its entries the sum sum_x b_x s_x has five odd terms and is odd,
+    so its square, 5 + 2 sum_{x<z} b_x b_z s_x s_z, is at least 1:
+
+        sum_{x<z} b_x b_z s_x s_z >= -2,
+
+    the pentagonal case of the hypermetric inequalities of the cut polytope (Deza and
+    Laurent 1997, Geometry of Cuts and Metrics, ch. 28; BiqBin, Gusmeroli et al. 2022,
+    separates them in an SDP branch and bound). Written in Z, with Y_vw = s_v s_w,
+    Y_0t = 2 Z_0t - 1 and Y_vw = 4 Z_vw - 2 Z_0v - 2 Z_0w + 1 for geos v, w, the row
+    is -sum b_x b_z Y_xz <= 2, valid at every design (Z = zz', z = (1, u)), so its
+    multiplier enters the certificate like any other row's. It depends on b only up to
+    its sign. A relaxed point violates it when its sign matrix Y = T Z T' gives
+    b'Yb < 1 on S (separate_pentagons); the triangle rows are the three-index case.
+
+    S is five distinct indices, ints at least 0; b five signs, each 1 or -1. Rows
+    checks S against the number of geos."""
+    if not (isinstance(S, (tuple, list)) and len(S) == 5 and all(type(v) is int and v >= 0 for v in S)
+            and len(set(S)) == 5):
+        raise MlsynthConfigError(f"a pentagonal row has five distinct indices of Z, ints at least 0, not {S!r}.")
+    if not (isinstance(b, (tuple, list)) and len(b) == 5 and all(type(v) is int and v in (1, -1) for v in b)):
+        raise MlsynthConfigError(f"a pentagonal row has five signs, each 1 or -1, not {b!r}.")
+    coef: Dict[Tuple[int, int], int] = {}
+    const = 0
+
+    def add(key, v):
+        key = (min(key), max(key))
+        coef[key] = coef.get(key, 0) + v
+
+    for x in range(5):
+        for z in range(x + 1, 5):
+            v, w, t = S[x], S[z], -b[x] * b[z]                 # the row's coefficient on Y_vw
+            if v == 0 or w == 0:
+                add((0, w if v == 0 else v), 2 * t); const -= t
+            else:
+                add((v, w), 4 * t); add((0, v), -2 * t); add((0, w), -2 * t); const += t
+    return {k: v for k, v in coef.items() if v != 0}, 2 - const
+
+
+def _pentagon(idx, p):
+    """pentagon_row of a Rows entry's index (S, b), its S checked against p geos."""
+    if not (isinstance(idx, tuple) and len(idx) == 2):
+        raise MlsynthConfigError(f"a pentagonal row's index is (five indices, five signs), not {idx!r}.")
+    S, b = idx
+    row = pentagon_row(S, b)
+    if max(S) > p:
+        raise MlsynthConfigError(f"a pentagonal row's index {max(S)} is past the {p} geos (Z's indices are 0 to {p}).")
+    return row
+
+
+def separate_pentagons(u, U, k=400, restarts=None, tol=1e-6, seed=0):
+    """The pentagonal rows (pentagon_row) the point (u, U) violates by more than
+    ``tol``, at most ``k`` of them, most violated first, as
+    (violation, PENTAGON, (S, b)): S increasing, b normalised to b_0 = 1 (the row is
+    the same for -b), and the violation the row's excess, its left side less 2.
+
+    The point's sign matrix is Y = T Z T' with Z = [[1, u'], [u, U]]; a row is violated
+    by (1 - b'Y_SS b) / 2, since b'Y_SS b = 5 + 2 sum_{x<z} b_x b_z Y_xz when Y's
+    diagonal is 1 (U_ii = u_i). Finding the most violated row is a quadratic problem
+    over five-sets, so the search is local: from each of ``restarts`` random signed
+    five-sets (PENTAGON_RESTARTS when None, a generator seeded by ``seed``), it
+    replaces one member at a time by the index and sign that lower b'Yb most, until
+    none does. It may miss violated rows, which leaves a bound looser, never invalid:
+    every row it returns is valid at every design. A point with fewer than five
+    indices (four geos) has none."""
+    restarts = PENTAGON_RESTARTS if restarts is None else restarts
+    if type(k) is not int or k < 1:
+        raise MlsynthConfigError(f"k is the number of rows kept, an int at least 1, not {k!r}.")
+    if type(restarts) is not int or restarts < 1:
+        raise MlsynthConfigError(f"restarts is the local search's starts, an int at least 1, not {restarts!r}.")
+    if type(seed) is not int or seed < 0:
+        raise MlsynthConfigError(f"seed seeds the local search's generator, an int at least 0, not {seed!r}.")
+    u = np.asarray(u, float); U = np.asarray(U, float)
+    n = u.size + 1
+    if n < 5:
+        return []
+    Z = np.empty((n, n)); Z[0, 0] = 1.0; Z[0, 1:] = Z[1:, 0] = u; Z[1:, 1:] = U
+    T = np.zeros((n, n)); T[0, 0] = 1.0; T[1:, 0] = -1.0; T[1:, 1:] = 2.0 * np.eye(n - 1)
+    Y = T @ Z @ T.T
+    d = np.diag(Y)
+    rng = np.random.default_rng(seed)
+    found: Dict[tuple, float] = {}
+    for _ in range(restarts):
+        S = list(rng.choice(n, 5, replace=False)); b = [int(v) for v in rng.choice([-1, 1], 5)]
+        val = float(np.array(b) @ Y[np.ix_(S, S)] @ np.array(b))
+        improved = True
+        while improved:
+            improved = False
+            for t in range(5):
+                rest = [q for q in range(5) if q != t]
+                Sr = [S[q] for q in rest]; br = np.array([b[q] for q in rest])
+                base = float(br @ Y[np.ix_(Sr, Sr)] @ br)
+                lin = Y[:, Sr] @ br                   # index v with sign sigma adds d_v + 2 sigma lin_v
+                cand = base + d - 2 * np.abs(lin)     # at its best sign, sigma = -sign(lin_v)
+                cand[Sr] = np.inf
+                v = int(np.argmin(cand))
+                if cand[v] < val - 1e-12:
+                    S[t] = v; b[t] = -1 if lin[v] > 0 else 1; val = float(cand[v]); improved = True
+        if (1 - val) / 2 > tol:
+            key = sorted(zip((int(v) for v in S), b))
+            if key[0][1] < 0:
+                key = [(v, -s_) for v, s_ in key]
+            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = (1 - val) / 2
+    best = sorted(found.items(), key=lambda kv: (-kv[1], kv[0]))[:k]
+    return [(viol, PENTAGON, key) for key, viol in best]
 
 
 def separate_triangles(u, U, k=400, tol=1e-6):
@@ -812,7 +969,8 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
                      schedules: Optional[Tuple[Tuple[int, int, int], ...]] = None,
                      first_order_rounds: Optional[int] = None, relaxations: bool = True,
                      face: bool = None, solver: Optional[str] = None,
-                     shor: Optional[bool] = None, workspaces=None) -> SizeResult:
+                     shor: Optional[bool] = None, workspaces=None,
+                     pentagons: Optional[bool] = None) -> SizeResult:
     """Whether no design of size m (within the fixings) has u'(cc' - lam G)u > 0,
     by the cheapest certificate of a cascade (module docstring): ``warm``, another
     size's multipliers, at this size's rows; then the first-order tiers; with
@@ -839,8 +997,18 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     (workspace.Workspaces; a new one when None), every one starting from its
     triangle pool, with the box rows that carry the fixings; the first-order tier
     takes size_schedules' first schedule and no triangle rounds. A certificate the
-    solve already computed (Solve.bound) is not computed again."""
+    solve already computed (Solve.bound) is not computed again.
+
+    With ``pentagons`` (PENTAGONS when None, read at the call) each round from
+    PENTAGONS_FROM on also separates up to ``per_round`` pentagonal rows at its point
+    (separate_pentagons), which the next round carries beside its triangles; each such
+    separation reports a "pentagons" event."""
     t0 = time.perf_counter()
+    pentagons = PENTAGONS if pentagons is None else pentagons
+    if type(pentagons) is not bool:
+        raise MlsynthConfigError(f"pentagons is True or False, not {pentagons!r}.")
+    if pentagons and (type(PENTAGONS_FROM) is not int or PENTAGONS_FROM < 0):
+        raise MlsynthConfigError(f"PENTAGONS_FROM is a round, an int at least 0, not {PENTAGONS_FROM!r}.")
     face = FACE if face is None else face
     solver = _checked_solver(solver)
     shor = SHOR_TIER if shor is None else shor
@@ -923,6 +1091,13 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
             return SizeResult(True, b, r, len(tri), time.perf_counter() - t0, u, multipliers=w)
         new = [] if sol.Z is None else separate_triangles(sol.Z[0, 1:], sol.Z[1:, 1:], k=per_round)
         new = [(kind, idx) for _, kind, idx in new if (kind, idx) not in set(tri)]
+        if pentagons and sol.Z is not None and PENTAGONS_FROM <= r < rounds:
+            t1 = time.perf_counter()
+            have = set(tri)
+            five = [(kind, idx) for _, kind, idx in separate_pentagons(sol.Z[0, 1:], sol.Z[1:, 1:], k=per_round)
+                    if (kind, idx) not in have]
+            emit("pentagons", m=m, round=r, pentagons=len(five), seconds=time.perf_counter() - t1)
+            new += five
         if not new or r == rounds:
             return SizeResult(False, b, r, len(tri), time.perf_counter() - t0, u)
         tri += new
@@ -1259,7 +1434,7 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
     res = size_certificate(c, G, inc["lam"], m, cuts=cuts, fixes=fixes, rounds=rounds, per_round=per_round,
                            warm=None if fixes else inc.get("warm"), relaxations=relax,
                            face=inc.get("face", FACE), solver=inc.get("solver", SOLVER), shor=inc.get("shor", SHOR_TIER),
-                           workspaces=inc.get("workspaces"))
+                           workspaces=inc.get("workspaces"), pentagons=inc.get("pentagons", PENTAGONS))
     out.tiers[res.tier] = out.tiers.get(res.tier, 0) + 1
     if res.certified:
         if not fixes and res.multipliers is not None:
@@ -1343,7 +1518,8 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
                         face: bool = FACE,
                         solver: Optional[str] = None,
                         shor: bool = SHOR_TIER,
-                        deep_restarts: Optional[int] = None) -> SlopeFreeCertificate:
+                        deep_restarts: Optional[int] = None,
+                        pentagons: Optional[bool] = None) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -1386,6 +1562,9 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
     run again with ``deep_restarts`` restarts, when that is more than ``restarts`` and
     no design is excluded, and its design replaces the incumbent when its ratio is
     larger. None takes DEEP_RESTARTS, read at the call; 0 turns it off.
+
+    With ``pentagons`` every size's relaxation rounds add pentagonal rows
+    (size_certificate); None takes PENTAGONS, read at the call.
     """
     from .search import hull_survivors, incumbent, pieces_to
 
@@ -1403,6 +1582,9 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
     deep_restarts = DEEP_RESTARTS if deep_restarts is None else deep_restarts
     if type(deep_restarts) is not int or deep_restarts < 0:
         raise MlsynthConfigError(f"deep_restarts is a number of restarts, an int at least 0, not {deep_restarts!r}.")
+    pentagons = PENTAGONS if pentagons is None else pentagons
+    if type(pentagons) is not bool:
+        raise MlsynthConfigError(f"pentagons is True or False, not {pentagons!r}.")
     p = X.shape[1]
     solver = default_solver(p) if solver is None else solver
     excluded = [set(e) for e in exclude]
@@ -1450,7 +1632,8 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
         sizes = sorted({pc[2] for pc in s1})
         t_h = time.perf_counter() - t0
         emit("hull", sizes=sizes, seconds=t_h)
-    inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding, "face": face, "solver": solver, "shor": shor}
+    inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding, "face": face, "solver": solver, "shor": shor,
+           "pentagons": pentagons}
     if solver == "workspace":
         from .workspace import Workspaces
         inc["workspaces"] = Workspaces()     # one search's workspaces and triangle pool
