@@ -75,9 +75,12 @@ def one(rep, m):
 
 if __name__ == "__main__":
     reps, out = int(sys.argv[1]), Path(sys.argv[2])
-    rows = []
+    rows = pd.read_csv(out).to_dict("records") if out.exists() else []
+    done = {(r["rep"], r["setting"]) for r in rows}
     for rep in range(reps):
         for m in [20, 100, 1000]:
+            if (rep, f"m={m}") in done:
+                continue
             t0 = time.perf_counter()
             rows += one(rep, m)
             pd.DataFrame(rows).to_csv(out, index=False)

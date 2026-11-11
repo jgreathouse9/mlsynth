@@ -142,9 +142,13 @@ if __name__ == "__main__":
     grid = {"table1": (table1, [0.1, 0.5, 2.0]), "table2": (table2, [5, 25, 100]),
             "table2_swap": (table2_swap, [5, 25, 100])}[which]
     fn, settings = grid
-    all_rows = []
+    all_rows = pd.read_csv(out).to_dict("records") if out.exists() else []
+    done = {(r["rep"], r["setting"]) for r in all_rows}
     for rep in range(reps):
         for s in settings:
+            key = "tau" if which == "table1" else "m"
+            if (rep, f"{key}={s}") in done:
+                continue
             t0 = time.perf_counter()
             all_rows += fn(rep, s)
             pd.DataFrame(all_rows).to_csv(out, index=False)
