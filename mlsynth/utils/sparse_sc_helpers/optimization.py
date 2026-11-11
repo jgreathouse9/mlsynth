@@ -57,6 +57,7 @@ from ...exceptions import MlsynthEstimationError
 from .inner import solve_w
 from .objective import outcome_scale as _outcome_scale
 from .objective import outer_loss, outer_loss_and_grad, selection_mse
+from .inner import WarmStart
 
 
 # Spread of the log-normal restart draws around the cold init, in log units.
@@ -415,10 +416,15 @@ def _minimize_outer(
     ftol: float,
     use_analytical_grad: bool,
 ):
-    """Single L-BFGS-B run with or without analytical Jacobian."""
+    """Single L-BFGS-B run with or without analytical Jacobian.
+
+    Each run carries one ``WarmStart``: L-BFGS-B moves ``v`` a little at a time,
+    so the previous inner answer is a good start for the next (#934).
+    """
+    warm = WarmStart()
     if use_analytical_grad:
         return minimize(
-            outer_loss_and_grad,
+            lambda x, *a: outer_loss_and_grad(x, *a, warm=warm),
             x0=x0,
             args=(X1, X0, Z1_outer, Z0_outer, lam, solver),
             method="L-BFGS-B",
@@ -431,7 +437,7 @@ def _minimize_outer(
     return minimize(
         outer_loss,
         x0=x0,
-        args=(X1, X0, Z1_outer, Z0_outer, lam, solver),
+        args=(X1, X0, Z1_outer, Z0_outer, lam, solver, warm),
         method="L-BFGS-B",
         bounds=bounds,
         options={"maxiter": int(max_outer_iter), "ftol": float(ftol)},
