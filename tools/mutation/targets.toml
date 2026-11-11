@@ -12239,8 +12239,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-refresh-rate-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face, \"solver\": solver, \"shor\": shor}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding, \"face\": face, \"solver\": solver, \"shor\": shor}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face, \"solver\": solver, \"shor\": shor,\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"round\": rounding, \"face\": face, \"solver\": solver, \"shor\": shor,\n"
   models = "clarabel_every accepted and validated but never reaching the branch and bound, which runs the default"
 
   [[target.mutant]]
@@ -12307,8 +12307,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-rounding-flag-is-not-carried"
-  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face, \"solver\": solver, \"shor\": shor}\n"
-  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"face\": face, \"solver\": solver, \"shor\": shor}\n"
+  find = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"round\": rounding, \"face\": face, \"solver\": solver, \"shor\": shor,\n"
+  replace = "    inc = {\"lam\": test, \"C\": set(C), \"every\": clarabel_every, \"face\": face, \"solver\": solver, \"shor\": shor,\n"
   models = "rounding=False accepted and ignored"
 
   [[target.mutant]]
@@ -14170,8 +14170,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-search-forgets-the-shor-flag"
-  find = "\"solver\": solver, \"shor\": shor}"
-  replace = "\"solver\": solver}"
+  find = "\"solver\": solver, \"shor\": shor,\n"
+  replace = "\"solver\": solver,\n"
   models = "shor accepted by certify_slope_free and never handed to the branch and bound"
 
   [[target.mutant]]
@@ -14386,8 +14386,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "each-node-makes-its-own-workspaces"
-  find = "                           workspaces=inc.get(\"workspaces\"))\n"
-  replace = "                           workspaces=None)\n"
+  find = "workspaces=inc.get(\"workspaces\"), pentagons="
+  replace = "workspaces=None, pentagons="
   models = "a fresh Workspaces at every node: no workspace reused across nodes, and no pool carried between sizes"
 
   [[target.mutant]]
