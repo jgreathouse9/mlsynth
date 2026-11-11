@@ -1,0 +1,72 @@
+# Each relaxation solve of certify_slope_free on brute.geo_panel(0, n=90, p=100), treated geos (4, 27, 33, 58),
+# restarts=50, pentagons on (the defaults of #1041, 4fff247c), one process alone. One row per SCS workspace solve:
+# size m, fixings, triangle and pentagon rows, status, the solve's bound in data units (negative closes), early, seconds.
+## exact certificate (no ceiling)
+{"wall": 204.3, "certified": true, "nodes": 50}
+{"m": 18, "fixes": 0, "triangles": 0, "pentagons": 0, "status": "certified", "bound": -142584914.6568604, "early": true, "seconds": 0.52}
+{"m": 19, "fixes": 0, "triangles": 0, "pentagons": 0, "status": "certified", "bound": -47620502.058184855, "early": true, "seconds": 0.52}
+{"m": 20, "fixes": 0, "triangles": 0, "pentagons": 0, "status": "separate", "bound": 18806441.110014595, "early": true, "seconds": 2.13}
+{"m": 20, "fixes": 0, "triangles": 400, "pentagons": 0, "status": "certified", "bound": -59224130.61539098, "early": true, "seconds": 0.6}
+{"m": 21, "fixes": 0, "triangles": 136, "pentagons": 0, "status": "certified", "bound": -12074274.232470727, "early": true, "seconds": 0.51}
+{"m": 22, "fixes": 0, "triangles": 119, "pentagons": 0, "status": "separate", "bound": 65491955.89597658, "early": true, "seconds": 2.23}
+{"m": 22, "fixes": 0, "triangles": 519, "pentagons": 0, "status": "certified", "bound": -15662654.621515464, "early": true, "seconds": 0.59}
+{"m": 23, "fixes": 0, "triangles": 281, "pentagons": 0, "status": "separate", "bound": 71727954.42187348, "early": true, "seconds": 1.91}
+{"m": 23, "fixes": 0, "triangles": 681, "pentagons": 0, "status": "certified", "bound": -1103750.650499488, "early": true, "seconds": 0.58}
+{"m": 24, "fixes": 0, "triangles": 393, "pentagons": 0, "status": "separate", "bound": 90994248.9420362, "early": true, "seconds": 1.99}
+{"m": 24, "fixes": 0, "triangles": 793, "pentagons": 0, "status": "separate", "bound": 15637239.165561045, "early": true, "seconds": 2.53}
+{"m": 24, "fixes": 0, "triangles": 1193, "pentagons": 400, "status": "certified", "bound": -23921876.202772222, "early": true, "seconds": 0.82}
+{"m": 25, "fixes": 0, "triangles": 436, "pentagons": 209, "status": "separate", "bound": 80644583.13413706, "early": true, "seconds": 2.37}
+{"m": 25, "fixes": 0, "triangles": 836, "pentagons": 209, "status": "certified", "bound": -4339247.637459962, "early": true, "seconds": 0.71}
+{"m": 26, "fixes": 0, "triangles": 511, "pentagons": 179, "status": "separate", "bound": 108531531.41043009, "early": true, "seconds": 2.5}
+{"m": 26, "fixes": 0, "triangles": 911, "pentagons": 179, "status": "certified", "bound": -1312858.3842636135, "early": true, "seconds": 1.27}
+{"m": 27, "fixes": 0, "triangles": 538, "pentagons": 143, "status": "separate", "bound": 140489274.73885366, "early": true, "seconds": 2.44}
+{"m": 27, "fixes": 0, "triangles": 938, "pentagons": 143, "status": "separate", "bound": 75572531.87828624, "early": true, "seconds": 2.86}
+{"m": 27, "fixes": 0, "triangles": 1338, "pentagons": 543, "status": "certified", "bound": -3656792.2700797347, "early": true, "seconds": 7.1}
+{"m": 28, "fixes": 0, "triangles": 480, "pentagons": 303, "status": "separate", "bound": 164774862.71498886, "early": true, "seconds": 2.77}
+{"m": 28, "fixes": 0, "triangles": 880, "pentagons": 303, "status": "separate", "bound": 73492653.3879901, "early": true, "seconds": 4.64}
+{"m": 28, "fixes": 0, "triangles": 1279, "pentagons": 703, "status": "separate", "bound": 23392553.186417, "early": true, "seconds": 13.18}
+{"m": 28, "fixes": 0, "triangles": 1679, "pentagons": 1103, "status": "certified", "bound": -547614.0702335942, "early": true, "seconds": 14.41}
+{"m": 29, "fixes": 0, "triangles": 484, "pentagons": 506, "status": "separate", "bound": 173944777.8450536, "early": true, "seconds": 3.02}
+{"m": 29, "fixes": 0, "triangles": 884, "pentagons": 506, "status": "separate", "bound": 122301927.24496941, "early": true, "seconds": 3.64}
+{"m": 29, "fixes": 0, "triangles": 1284, "pentagons": 906, "status": "separate", "bound": 106353867.8676099, "early": true, "seconds": 8.51}
+{"m": 29, "fixes": 0, "triangles": 1682, "pentagons": 1306, "status": "separate", "bound": 103756436.71910977, "early": true, "seconds": 13.45}
+{"m": 29, "fixes": 0, "triangles": 2079, "pentagons": 1595, "status": "certified", "bound": -2608601.5260855043, "early": true, "seconds": 19.85}
+{"m": 30, "fixes": 0, "triangles": 454, "pentagons": 662, "status": "separate", "bound": 211314401.24698025, "early": true, "seconds": 3.21}
+{"m": 30, "fixes": 0, "triangles": 854, "pentagons": 662, "status": "separate", "bound": 134407689.69006646, "early": true, "seconds": 4.7}
+{"m": 30, "fixes": 0, "triangles": 1254, "pentagons": 1060, "status": "certified", "bound": -3958169.530722158, "early": true, "seconds": 16.19}
+{"m": 31, "fixes": 0, "triangles": 957, "pentagons": 878, "status": "separate", "bound": 229172102.98301482, "early": true, "seconds": 4.77}
+{"m": 31, "fixes": 0, "triangles": 1357, "pentagons": 878, "status": "certified", "bound": -6428365.116172871, "early": true, "seconds": 2.33}
+{"m": 32, "fixes": 0, "triangles": 836, "pentagons": 670, "status": "certified", "bound": -68846976.74995258, "early": true, "seconds": 1.4}
+{"m": 33, "fixes": 0, "triangles": 829, "pentagons": 660, "status": "certified", "bound": -140570070.98356518, "early": true, "seconds": 1.06}
+{"m": 34, "fixes": 0, "triangles": 559, "pentagons": 424, "status": "certified", "bound": -346832882.5777199, "early": true, "seconds": 0.67}
+{"m": 35, "fixes": 0, "triangles": 455, "pentagons": 322, "status": "certified", "bound": -548024131.9786158, "early": true, "seconds": 0.67}
+{"m": 36, "fixes": 0, "triangles": 407, "pentagons": 274, "status": "certified", "bound": -744401240.6385144, "early": true, "seconds": 0.64}
+{"m": 37, "fixes": 0, "triangles": 378, "pentagons": 242, "status": "certified", "bound": -938912427.4710574, "early": true, "seconds": 0.7}
+{"m": 38, "fixes": 0, "triangles": 348, "pentagons": 206, "status": "certified", "bound": -1160054113.6873367, "early": true, "seconds": 0.55}
+{"m": 39, "fixes": 0, "triangles": 326, "pentagons": 177, "status": "certified", "bound": -1379342823.794092, "early": true, "seconds": 0.56}
+{"m": 40, "fixes": 0, "triangles": 301, "pentagons": 152, "status": "certified", "bound": -1711933322.0103261, "early": true, "seconds": 0.52}
+## ceiling 1324.8473623832656 (1% gap)
+{"wall": 93.6, "certified": true, "nodes": 50}
+{"m": 19, "fixes": 0, "triangles": 0, "pentagons": 0, "status": "certified", "bound": -120930152.41290283, "early": true, "seconds": 0.54}
+{"m": 20, "fixes": 0, "triangles": 0, "pentagons": 0, "status": "certified", "bound": -49524160.22624063, "early": true, "seconds": 0.5}
+{"m": 21, "fixes": 0, "triangles": 0, "pentagons": 0, "status": "separate", "bound": 17526020.270939652, "early": true, "seconds": 2.17}
+{"m": 21, "fixes": 0, "triangles": 400, "pentagons": 0, "status": "certified", "bound": -92503839.84825113, "early": true, "seconds": 0.78}
+{"m": 22, "fixes": 0, "triangles": 142, "pentagons": 0, "status": "certified", "bound": -76881574.19356607, "early": true, "seconds": 0.46}
+{"m": 23, "fixes": 0, "triangles": 127, "pentagons": 0, "status": "certified", "bound": -36689595.71274295, "early": true, "seconds": 0.44}
+{"m": 24, "fixes": 0, "triangles": 109, "pentagons": 0, "status": "separate", "bound": 36303374.230128735, "early": true, "seconds": 2.15}
+{"m": 24, "fixes": 0, "triangles": 509, "pentagons": 0, "status": "certified", "bound": -53714959.141063884, "early": true, "seconds": 0.73}
+{"m": 25, "fixes": 0, "triangles": 260, "pentagons": 0, "status": "certified", "bound": -27752535.125690438, "early": true, "seconds": 0.54}
+{"m": 26, "fixes": 0, "triangles": 230, "pentagons": 0, "status": "certified", "bound": -14690303.763632547, "early": true, "seconds": 0.49}
+{"m": 27, "fixes": 0, "triangles": 214, "pentagons": 0, "status": "certified", "bound": -5045222.119141034, "early": true, "seconds": 0.47}
+{"m": 28, "fixes": 0, "triangles": 194, "pentagons": 0, "status": "certified", "bound": -3720199.8945534695, "early": true, "seconds": 0.46}
+{"m": 29, "fixes": 0, "triangles": 176, "pentagons": 0, "status": "certified", "bound": -23136615.168763515, "early": true, "seconds": 0.57}
+{"m": 30, "fixes": 0, "triangles": 158, "pentagons": 0, "status": "certified", "bound": -63171814.004439995, "early": true, "seconds": 0.55}
+{"m": 31, "fixes": 0, "triangles": 134, "pentagons": 0, "status": "certified", "bound": -121728431.20123276, "early": true, "seconds": 0.57}
+{"m": 32, "fixes": 0, "triangles": 122, "pentagons": 0, "status": "certified", "bound": -201435461.16626266, "early": true, "seconds": 0.53}
+{"m": 33, "fixes": 0, "triangles": 107, "pentagons": 0, "status": "certified", "bound": -320930583.8582959, "early": true, "seconds": 0.57}
+{"m": 34, "fixes": 0, "triangles": 96, "pentagons": 0, "status": "certified", "bound": -476839596.7310553, "early": true, "seconds": 0.49}
+{"m": 35, "fixes": 0, "triangles": 91, "pentagons": 0, "status": "certified", "bound": -653127640.1178824, "early": true, "seconds": 0.56}
+{"m": 36, "fixes": 0, "triangles": 86, "pentagons": 0, "status": "certified", "bound": -854449277.7196281, "early": true, "seconds": 0.51}
+{"m": 37, "fixes": 0, "triangles": 80, "pentagons": 0, "status": "certified", "bound": -1119461390.3386397, "early": true, "seconds": 0.57}
+{"m": 38, "fixes": 0, "triangles": 72, "pentagons": 0, "status": "certified", "bound": -1362519775.5093622, "early": true, "seconds": 0.46}
+{"m": 39, "fixes": 0, "triangles": 66, "pentagons": 0, "status": "certified", "bound": -1631571631.2822614, "early": true, "seconds": 0.44}

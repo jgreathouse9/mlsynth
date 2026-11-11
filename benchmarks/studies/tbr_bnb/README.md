@@ -2238,6 +2238,37 @@ certified the same treatment group with the same key:
 On the 80-geo panel the second slowest group took 76.9 s against 57.5 s, and the run
 5 s less. The measurements are in `results/pentagons.log`.
 
+### Stopping a size's rounds when the bound stalls, measured and not built
+
+A size's relaxation runs up to `rounds` (6) rounds of cuts before it branches. A rule
+that branches once a round improves the bound by less than some fraction would save
+the rounds of a size that stalls above zero and branches anyway. Every SCS workspace
+solve of the hard 100-geo group, treated geos (4, 27, 33, 58), was recorded with its
+bound, pentagons on (`results/stall.log`):
+
+| case | wall | solves | seconds in solves | solves per size, at most | below a root |
+| --- | --- | --- | --- | --- | --- |
+| exact | 204.3 s | 42 | 155.6 s | 5 | 0 |
+| 1% gap | 93.6 s | 23 | 15.6 s | 2 | 0 |
+
+Every size closed at its root, so no size ran its rounds out and branched; the rule
+has nothing to save on either case. On the exact certificate the bound does not level
+off before it closes. It falls and then crosses zero in one round (bounds in data
+units, millions):
+
+| size | bound after each round | closing solve |
+| --- | --- | --- |
+| 27 | 140, 76, -3.7 | 7.1 s |
+| 28 | 165, 73, 23, -0.5 | 14.4 s |
+| 29 | 174, 122, 106, 104, -2.6 | 19.9 s |
+| 30 | 211, 134, -4.0 | 16.2 s |
+
+Size 29's fourth round improved its bound by 2.4%, so any threshold above that would
+have branched it one round before it closed. The bounds of a size's rounds also come
+from solves that stop early, at the first violated cut (`early`), so they are not the
+round's converged bound, and a stall measured on them is noisy. At the 1% gap, sizes
+21 and 24 took two solves and every other size one.
+
 ### Near-ties, not symmetry
 
 A certificate branches where designs other than the optimum come within the
@@ -2428,7 +2459,9 @@ fixing is certified to the solver's value.
    takes that case from 2,091 s to 785 s (see The certified group's own
    incumbent). Its near-ties then branched sizes 25 to 29; pentagonal cuts close
    every size at its root and take the panel from 675.7 s to 457.1 s (see
-   Pentagonal cuts).
+   Pentagonal cuts). Stopping a size's rounds when its bound stalls has no
+   size to stop on that group (see Stopping a size's rounds when the bound
+   stalls).
 7. Incumbent from #964's local search, improved during the search (done here).
    Each node rounds its eigen-primal to a design of its size within its
    fixings, descends from it (`search.Incumbent.offer`, on the positive-slope
