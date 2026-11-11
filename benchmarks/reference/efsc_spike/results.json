@@ -1,0 +1,362 @@
+{
+  "table1": {
+    "reps": 3,
+    "outcome_mae": {
+      "tau=0.1": {
+        "pmf": 0.1717,
+        "pmf_default": 0.169,
+        "pmfcf_mletr": 0.1717,
+        "sc_means": 0.1878,
+        "mle_sc": 0.1878,
+        "mle_mcnnm": 0.1717,
+        "mom_mcnnm": 0.1797
+      },
+      "tau=0.5": {
+        "pmf": 0.1717,
+        "pmf_default": 0.169,
+        "pmfcf_mletr": 0.1717,
+        "sc_means": 0.1878,
+        "mle_sc": 0.1878,
+        "mle_mcnnm": 0.1717,
+        "mom_mcnnm": 0.1797
+      },
+      "tau=2.0": {
+        "pmf": 0.1717,
+        "pmf_default": 0.169,
+        "pmfcf_mletr": 0.1717,
+        "sc_means": 0.1878,
+        "mle_sc": 0.1878,
+        "mle_mcnnm": 0.1717,
+        "mom_mcnnm": 0.1797
+      }
+    },
+    "eta1_effect_mae": {
+      "tau=0.1": {
+        "pmf": 0.1255,
+        "pmf_default": 0.1275,
+        "pmfcf_mletr": 0.1874,
+        "mle_sc": 0.2037,
+        "mle_mcnnm": 0.1868,
+        "mom_mcnnm": 0.19
+      },
+      "tau=0.5": {
+        "pmf": 0.1313,
+        "pmf_default": 0.1363,
+        "pmfcf_mletr": 0.2083,
+        "mle_sc": 0.2276,
+        "mle_mcnnm": 0.2107,
+        "mom_mcnnm": 0.2105
+      },
+      "tau=2.0": {
+        "pmf": 0.2015,
+        "pmf_default": 0.2073,
+        "pmfcf_mletr": 0.3898,
+        "mle_sc": 0.4097,
+        "mle_mcnnm": 0.3931,
+        "mom_mcnnm": 0.3858
+      }
+    },
+    "cf_eta1_mae": {
+      "tau=0.1": {
+        "pmf": 0.0691,
+        "pmf_default": 0.0707,
+        "pmfcf_mletr": 0.0691,
+        "mle_sc": 0.0993,
+        "mle_mcnnm": 0.0713,
+        "mom_mcnnm": 0.0837
+      },
+      "tau=0.5": {
+        "pmf": 0.0691,
+        "pmf_default": 0.0707,
+        "pmfcf_mletr": 0.0691,
+        "mle_sc": 0.0993,
+        "mle_mcnnm": 0.0713,
+        "mom_mcnnm": 0.0837
+      },
+      "tau=2.0": {
+        "pmf": 0.0691,
+        "pmf_default": 0.0707,
+        "pmfcf_mletr": 0.0691,
+        "mle_sc": 0.0993,
+        "mle_mcnnm": 0.0713,
+        "mom_mcnnm": 0.0837
+      }
+    }
+  },
+  "table2": {
+    "reps": 3,
+    "kl_mae": {
+      "m=100": {
+        "pmf": 0.0105,
+        "pmfcf_mletr": 0.0142,
+        "mle_sc": 0.0161,
+        "mle_mcnnm": 0.0132,
+        "mom_mcnnm": 0.0137,
+        "dsc": 0.0213
+      },
+      "m=25": {
+        "pmf": 0.0259,
+        "pmfcf_mletr": 0.0529,
+        "mle_sc": 0.0546,
+        "mle_mcnnm": 0.0505,
+        "mom_mcnnm": 0.0488,
+        "dsc": 0.0666
+      },
+      "m=5": {
+        "pmf": 0.0776,
+        "pmfcf_mletr": 0.2781,
+        "mle_sc": 0.565,
+        "mle_mcnnm": 0.4268,
+        "mom_mcnnm": 0.2874,
+        "dsc": 0.5413
+      }
+    },
+    "cf_eta1_mae": {
+      "m=100": {
+        "pmf": 0.052,
+        "pmfcf_mletr": 0.052,
+        "mle_sc": 0.0758,
+        "mle_mcnnm": 0.0519,
+        "mom_mcnnm": 0.0594,
+        "dsc": 0.1273
+      },
+      "m=25": {
+        "pmf": 0.0892,
+        "pmfcf_mletr": 0.0892,
+        "mle_sc": 0.1404,
+        "mle_mcnnm": 0.1081,
+        "mom_mcnnm": 0.0995,
+        "dsc": 0.1662
+      },
+      "m=5": {
+        "pmf": 0.1661,
+        "pmfcf_mletr": 0.1661,
+        "mle_sc": 0.8153,
+        "mle_mcnnm": 0.6478,
+        "mom_mcnnm": 0.2035,
+        "dsc": 0.4295
+      }
+    },
+    "cf_mean_mae": {
+      "m=100": {
+        "pmf": 0.0268,
+        "pmfcf_mletr": 0.0268,
+        "mle_sc": 0.04,
+        "mle_mcnnm": 0.0286,
+        "mom_mcnnm": 0.0298,
+        "dsc": 0.0692
+      },
+      "m=25": {
+        "pmf": 0.0462,
+        "pmfcf_mletr": 0.0462,
+        "mle_sc": 0.0684,
+        "mle_mcnnm": 0.0533,
+        "mom_mcnnm": 0.0506,
+        "dsc": 0.0825
+      },
+      "m=5": {
+        "pmf": 0.0907,
+        "pmfcf_mletr": 0.0907,
+        "mle_sc": 0.2535,
+        "mle_mcnnm": 0.1977,
+        "mom_mcnnm": 0.0793,
+        "dsc": 0.1
+      }
+    },
+    "kl_mean": {
+      "m=100": {
+        "truth": 0.0093
+      },
+      "m=25": {
+        "truth": 0.0093
+      },
+      "m=5": {
+        "truth": 0.0093
+      }
+    }
+  },
+  "table2_swap": {
+    "reps": 3,
+    "kl_mae": {
+      "m=100": {
+        "pmf": 0.0105,
+        "mom_mcnnm": 0.0137,
+        "momcf_pmftr": 0.0092,
+        "pmfcf_momtr": 0.0138
+      },
+      "m=25": {
+        "pmf": 0.0259,
+        "mom_mcnnm": 0.0488,
+        "momcf_pmftr": 0.0232,
+        "pmfcf_momtr": 0.0504
+      },
+      "m=5": {
+        "pmf": 0.0776,
+        "mom_mcnnm": 0.2874,
+        "momcf_pmftr": 0.079,
+        "pmfcf_momtr": 0.258
+      }
+    },
+    "tr_eta1_mae": {
+      "m=100": {
+        "pmf": 0.0984,
+        "mom_mcnnm": 0.1297,
+        "momcf_pmftr": 0.0984,
+        "pmfcf_momtr": 0.1297
+      },
+      "m=25": {
+        "pmf": 0.1701,
+        "mom_mcnnm": 0.3077,
+        "momcf_pmftr": 0.1701,
+        "pmfcf_momtr": 0.3077
+      },
+      "m=5": {
+        "pmf": 0.2966,
+        "mom_mcnnm": 1.3917,
+        "momcf_pmftr": 0.2966,
+        "pmfcf_momtr": 1.3917
+      }
+    }
+  },
+  "multinomial": {
+    "reps": 3,
+    "cf_prob_mae": {
+      "m=100": {
+        "efsc": 0.0169,
+        "efsc_cf_obs_tr": 0.0169,
+        "logit_mcnnm": 0.0171,
+        "compsc_halfm": 0.0303,
+        "compsc": 0.0318
+      },
+      "m=1000": {
+        "efsc": 0.0081,
+        "efsc_cf_obs_tr": 0.0081,
+        "logit_mcnnm": 0.0095,
+        "compsc_halfm": 0.017,
+        "compsc": 0.017
+      },
+      "m=20": {
+        "efsc": 0.0359,
+        "efsc_cf_obs_tr": 0.0359,
+        "logit_mcnnm": 0.0313,
+        "compsc_halfm": 0.0454,
+        "compsc": 0.0781
+      }
+    },
+    "cell_effect_mae": {
+      "m=100": {
+        "efsc": 0.0247,
+        "efsc_cf_obs_tr": 0.0339,
+        "logit_mcnnm": 0.0333,
+        "compsc_halfm": 0.041,
+        "compsc": 0.0423
+      },
+      "m=1000": {
+        "efsc": 0.01,
+        "efsc_cf_obs_tr": 0.0116,
+        "logit_mcnnm": 0.0132,
+        "compsc_halfm": 0.0191,
+        "compsc": 0.0191
+      },
+      "m=20": {
+        "efsc": 0.0494,
+        "efsc_cf_obs_tr": 0.0718,
+        "logit_mcnnm": 0.0706,
+        "compsc_halfm": 0.0769,
+        "compsc": 0.0948
+      }
+    },
+    "avg_effect_abs_err": {
+      "m=100": {
+        "efsc": 0.0039,
+        "efsc_cf_obs_tr": 0.0053,
+        "logit_mcnnm": 0.0054,
+        "compsc_halfm": 0.0097,
+        "compsc": 0.0103
+      },
+      "m=1000": {
+        "efsc": 0.0028,
+        "efsc_cf_obs_tr": 0.0023,
+        "logit_mcnnm": 0.0017,
+        "compsc_halfm": 0.0024,
+        "compsc": 0.0024
+      },
+      "m=20": {
+        "efsc": 0.0129,
+        "efsc_cf_obs_tr": 0.013,
+        "logit_mcnnm": 0.0152,
+        "compsc_halfm": 0.017,
+        "compsc": 0.0296
+      }
+    },
+    "medicaid_avg_effect": {
+      "m=100": {
+        "efsc": 0.1806,
+        "efsc_cf_obs_tr": 0.1783,
+        "logit_mcnnm": 0.1766,
+        "compsc_halfm": 0.164,
+        "compsc": 0.1623,
+        "truth": 0.184
+      },
+      "m=1000": {
+        "efsc": 0.1855,
+        "efsc_cf_obs_tr": 0.1846,
+        "logit_mcnnm": 0.1851,
+        "compsc_halfm": 0.1805,
+        "compsc": 0.1805,
+        "truth": 0.184
+      },
+      "m=20": {
+        "efsc": 0.2023,
+        "efsc_cf_obs_tr": 0.1929,
+        "logit_mcnnm": 0.1932,
+        "compsc_halfm": 0.1812,
+        "compsc": 0.149,
+        "truth": 0.184
+      }
+    },
+    "kl_mae": {
+      "m=100": {
+        "efsc": 0.034,
+        "efsc_cf_obs_tr": 0.0459,
+        "logit_mcnnm": 0.0445,
+        "compsc_halfm": 0.0497,
+        "compsc": 0.0528
+      },
+      "m=1000": {
+        "efsc": 0.0122,
+        "efsc_cf_obs_tr": 0.0136,
+        "logit_mcnnm": 0.0181,
+        "compsc_halfm": 0.026,
+        "compsc": 0.026
+      },
+      "m=20": {
+        "efsc": 0.0872,
+        "efsc_cf_obs_tr": 0.1582,
+        "logit_mcnnm": 0.1453,
+        "compsc_halfm": 0.1583,
+        "compsc": 0.4305
+      }
+    },
+    "zero_share_cells": {
+      "m=100": {
+        "truth": 0.0132
+      },
+      "m=1000": {
+        "truth": 0.0
+      },
+      "m=20": {
+        "truth": 0.5583
+      }
+    }
+  },
+  "placebo_null": {
+    "panels": 100,
+    "reject_at_0.05": 0.01,
+    "reject_at_0.10": 0.05,
+    "mean_p": 0.5730000000000001,
+    "observed_mean": 0.003599027026193058,
+    "placebo_mean": 0.004099832875308913,
+    "share_observed_above_all_placebos": 0.01
+  }
+}

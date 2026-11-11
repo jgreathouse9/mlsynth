@@ -1,0 +1,9 @@
+{
+  "case": "efsc_spike",
+  "title": "Exponential family synthetic controls (Rodriguez-Deniz & Blei): reference package, baselines and placebo calibration",
+  "paper": "Rodriguez-Deniz, H. & Blei, D. M. (2026), 'Exponential Family Synthetic Controls', arXiv:2609.23970v1",
+  "reference_impl": "blei-lab/efsc @ adab68e (MIT): efsc.fitting.fit_factorization, the call EFSC.fit makes in causal mode",
+  "path_type": "spike (demonstrate-first; no estimator added)",
+  "command": "python check_fastvi.py && python run_gaussian.py table1 3 table1.csv && python run_gaussian.py table2 3 table2.csv && python run_gaussian.py table2_swap 3 table2_swap.csv && python run_multinomial.py 3 multinomial.csv && python run_placebo.py null 100 19 placebo_null.csv 4 && python run_placebo.py power10 60 19 placebo_power10.csv 4 && python run_placebo.py confounded 60 19 placebo_confounded.csv 4 && python analyse.py",
+  "data": "simulated only (dgp.py); the ACS/IPUMS Medicaid panel needs an IPUMS extract and is not used"
+}

@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-11-11T20:23:46Z",
+  "git_sha": "6ddece2684afe2930959bbc4f0c33e6aeb5c4389",
+  "platform": "Linux-6.18.44-fc-v378-x86_64-with-glibc2.39",
+  "python_version": "3.13.18",
+  "upstream_repo": "https://github.com/blei-lab/efsc",
+  "upstream_sha": "adab68e1da5f55deaa17e5bd3b75d3a127839eb9",
+  "upstream_reproduction_repo": "https://github.com/blei-lab/efsc-paper-reproduction (not reachable: clone asks for credentials)",
+  "thread_settings": "OMP/OPENBLAS/MKL_NUM_THREADS=1; torch threads 2 (tables) or 1 (placebo)",
+  "packages": {
+    "numpy": "2.5.3",
+    "scipy": "1.18.1",
+    "pandas": "3.0.5",
+    "torch": "2.15.0",
+    "efsc": "0.1.0"
+  }
+}
