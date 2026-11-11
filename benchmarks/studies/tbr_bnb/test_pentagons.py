@@ -137,12 +137,7 @@ def test_the_separation_finds_the_violated_pentagon():
 
 
 def test_every_reported_row_is_violated_by_what_it_reports_and_comes_in_order():
-    rng = np.random.default_rng(4)
-    E = rng.uniform(-0.02, 0.02, (9, 9)); E = (E + E.T) / 2
-    W = np.full((9, 9), -0.25) + E; np.fill_diagonal(W, 1.0)   # a sign point with Y_ii = 1, many pentagons violated
-    Z = np.empty_like(W); Z[0, 0] = 1.0
-    Z[0, 1:] = Z[1:, 0] = (W[0, 1:] + 1) / 2
-    Z[1:, 1:] = (W[1:, 1:] + W[0, 1:][:, None] + W[0, 1:][None, :] + 1) / 4
+    Z = _many_pentagons()
     out = separate_pentagons(Z[0, 1:], Z[1:, 1:], k=50)
     assert out
     viols = [v for v, _, _ in out]
@@ -165,9 +160,22 @@ def test_a_design_violates_no_pentagon():
     assert separate_pentagons(Z[0, 1:], Z[1:, 1:]) == []
 
 
-def test_the_separation_keeps_k_rows():
-    Z = _pentagon_point()
-    assert len(separate_pentagons(Z[0, 1:], Z[1:, 1:], k=1)) == 1
+def _many_pentagons():
+    """Eight geos whose sign matrix has Y_ij = -1/4 off the diagonal: every five-set with
+    equal signs is violated by 1/2, and each is where the local search stops, so the
+    point violates C(9, 5) = 126 pentagonal rows and the search finds dozens."""
+    W = np.full((9, 9), -0.25); np.fill_diagonal(W, 1.0)
+    Z = np.empty_like(W); Z[0, 0] = 1.0
+    Z[0, 1:] = Z[1:, 0] = (W[0, 1:] + 1) / 2
+    Z[1:, 1:] = (W[1:, 1:] + W[0, 1:][:, None] + W[0, 1:][None, :] + 1) / 4
+    return Z
+
+
+def test_the_separation_keeps_the_k_most_violated_rows():
+    Z = _many_pentagons()
+    every = separate_pentagons(Z[0, 1:], Z[1:, 1:], k=400)
+    three = separate_pentagons(Z[0, 1:], Z[1:, 1:], k=3)
+    assert len(every) > 3 and three == every[:3]
 
 
 @pytest.mark.parametrize("p", [0, 1, 2, 3])
@@ -294,6 +302,12 @@ def test_a_row_needs_five_signs(b):
 def test_rows_refuse_a_malformed_pentagon():
     with pytest.raises(MlsynthConfigError, match="five"):
         Rows([1, 2, 3, 4, 5], 2, triangles=[(PENTAGON, ((0, 1, 2), (1, 1, 1)))])
+
+
+@pytest.mark.parametrize("idx", [((0, 1, 2, 3, 4),), [(0, 1, 2, 3, 4), (1, 1, 1, 1, 1)], (0, 1, 2, 3, 4)])
+def test_rows_refuse_a_pentagon_index_that_is_not_a_pair(idx):
+    with pytest.raises(MlsynthConfigError, match="five indices, five signs"):
+        Rows([1, 2, 3, 4, 5], 2, triangles=[(PENTAGON, idx)])
 
 
 def test_rows_refuse_a_pentagon_past_the_controls():
