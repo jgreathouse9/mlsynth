@@ -18,7 +18,8 @@ from .posterior import (
     iroas_simulated,
 )
 from .calibration import (QUANTILE_TOL, BlankCalibration, calibrate,
-                          calibrated_band, resolve_blank_periods)
+                          calibrated_band, design_end, resolve_blank_periods)
+from .design.objective import check_positive_levels
 from .design.search import CONTROL, TREATMENT, UNASSIGNED
 from .diagnostics import run_checks
 from .setup import build_inputs
@@ -95,6 +96,11 @@ def _named_blank(config, inputs) -> BlankCalibration:
         f"them.", UserWarning, stacklevel=4)
     where = {u: j for j, u in enumerate(inputs.units)}
     roles = [frozenset({TREATMENT, CONTROL, UNASSIGNED})] * len(inputs.units)
+    if config.objective == "relative":
+        # Every geo may form a placebo group, scored on the design window.
+        check_positive_levels(
+            inputs.wide[:design_end(inputs.n_pre, B)],
+            range(len(inputs.units)), list(inputs.units))
     return calibrate(
         inputs.wide[:inputs.n_pre],
         [where[u] for u in inputs.treated_units],

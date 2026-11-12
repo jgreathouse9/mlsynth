@@ -11223,7 +11223,7 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-paper-objective-is-searched-locally"
-  find = "        if self.search == \"local\" and self.objective != \"reference\":\n"
+  find = "        if self.search == \"local\" and self.objective == \"paper\":\n"
   replace = "        if False:\n"
   models = "search='local' run with objective='paper', whose p-values the batched scorer does not compute, so moves are screened by the wrong objective"
 
@@ -15480,8 +15480,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "rules-not-passed-to-the-local-search"
-  find = "                                 seed=config.local_seed + o.k, rules=rules)\n"
-  replace = "                                 seed=config.local_seed + o.k)\n"
+  find = "                                 seed=config.local_seed + o.k, rules=rules,\n"
+  replace = "                                 seed=config.local_seed + o.k,\n"
   models = "search='local' descends without the rules and replaces the greedy's admissible design with a better-scoring one that breaks them"
 
   [[target.mutant]]
@@ -15817,3 +15817,183 @@ timeout = 600.0
   find = "                and B < 2 * self.n_test:"
   replace = "                and False:"
   models = "a design-only blank window under 2 x n_test accepted at configuration time, although the config alone decides it"
+
+[[target]]
+name = "tbr-relative-objective"
+module-path = "mlsynth/utils/tbr_helpers/design/objective.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_relative_objective.py mlsynth/tests/test_tbr_relative_objective_properties.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-relative-key-is-the-inverse-impact"
+  find = "        value = level / impact if impact > 0 else np.inf\n"
+  replace = "        value = 1.0 / impact if impact > 0 else np.inf\n"
+  models = "the relative key without the treated level, which is the reference's power term in outcome units and favours treatment groups with low sales"
+
+  [[target.mutant]]
+  id = "the-level-is-the-control-aggregates"
+  find = "        level = float(np.mean(y))\n"
+  replace = "        level = float(np.mean(x))\n"
+  models = "the relative MDE taken as a share of the control aggregate's level instead of the treated group's"
+
+  [[target.mutant]]
+  id = "the-scorer-accepts-a-non-positive-level"
+  find = "        if not level > 0.0:\n"
+  replace = "        if False:\n"
+  models = "a treated level of zero or below scored, so the key divides by it and a negative ratio ranks below every positive one for no reason of power"
+
+  [[target.mutant]]
+  id = "the-relative-mde-drops-the-test-length"
+  find = "                    \"relative_mde\": impact / (n_test * level),\n"
+  replace = "                    \"relative_mde\": impact / level,\n"
+  models = "the reported relative MDE compared against one period's level instead of the test's, n_test times too large"
+
+  [[target.mutant]]
+  id = "the-relative-key-keeps-the-correlation-gate"
+  find = "            key=(value,), value=value,\n"
+  replace = "            key=(int(_group_corr(fit.sums) >= MIN_CORR), value), value=value,\n"
+  models = "the reference's correlation gate carried into the relative key, which the objective drops"
+
+  [[target.mutant]]
+  id = "the-positivity-check-is-skipped"
+  find = "    if bad:\n"
+  replace = "    if False:\n"
+  models = "a treatment-eligible geo with a non-positive mean accepted at fit, so a group's level can be non-positive and its relative MDE meaningless"
+
+  [[target.mutant]]
+  id = "the-positivity-check-passes-a-missing-mean"
+  find = "    bad = [labels[j] for j, m in zip(idx, means) if not m > 0.0]\n"
+  replace = "    bad = [labels[j] for j, m in zip(idx, means) if m <= 0.0]\n"
+  models = "a geo whose mean is NaN passed by the positivity check, since NaN compares false both ways"
+
+[[target]]
+name = "tbr-relative-batched"
+module-path = "mlsynth/utils/tbr_helpers/design/batched.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_relative_objective.py mlsynth/tests/test_tbr_relative_objective_properties.py mlsynth/tests/test_tbr_local_search.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-batched-relative-key-drops-the-level"
+  find = "        return _direct_fallback(cache, (level * inv_impact)[:, None], degenerate,\n"
+  replace = "        return _direct_fallback(cache, inv_impact[:, None], degenerate,\n"
+  models = "the screen's relative key without the treated level, so it ranks moves by the reference's power term while the confirmation ranks them by relative MDE"
+
+  [[target.mutant]]
+  id = "the-batched-level-is-the-control-groups"
+  find = "        level = UT @ cache.col_mean\n"
+  replace = "        level = UC @ cache.col_mean\n"
+  models = "the screen's level summed over the control group's columns"
+
+  [[target.mutant]]
+  id = "the-batched-level-is-the-aa-fit-windows"
+  find = "        P=np.cumsum(centred, axis=0), col_mean=y.mean(axis=0))"
+  replace = "        P=np.cumsum(centred, axis=0), col_mean=fit.mean(axis=0))"
+  models = "each geo's mean taken over the A/A fit window instead of the whole scoring window score_split averages over"
+
+  [[target.mutant]]
+  id = "a-degenerate-relative-row-is-scored-by-the-reference"
+  find = "                                  objective=objective, n_test=cache.n_test).key\n"
+  replace = "                                  objective=\"reference\", n_test=cache.n_test).key\n"
+  models = "the direct fallback for a degenerate design scoring the reference key whatever objective the screen was asked for"
+
+  [[target.mutant]]
+  id = "the-relative-screen-returns-reference-keys"
+  find = "    if objective == \"relative\":\n        level = UT @ cache.col_mean\n"
+  replace = "    if False:\n        level = UT @ cache.col_mean\n"
+  models = "objective='relative' accepted by the screen and ignored, so it returns the reference's gated keys"
+
+  [[target.mutant]]
+  id = "the-screen-accepts-the-paper-objective"
+  find = "    if objective not in (\"reference\", \"relative\"):\n        raise MlsynthConfigError(\n            f\"the batched screen"
+  replace = "    if False:\n        raise MlsynthConfigError(\n            f\"the batched screen"
+  models = "objective='paper' accepted by the screen, which then returns reference keys for an objective whose p-values it never computes"
+
+[[target]]
+name = "tbr-relative-local"
+module-path = "mlsynth/utils/tbr_helpers/design/local.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_relative_objective.py mlsynth/tests/test_tbr_relative_objective_properties.py mlsynth/tests/test_tbr_local_search.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-local-confirmation-ignores-the-objective"
+  find = "                           objective=objective, n_test=n_test)\n"
+  replace = "                           objective=\"reference\", n_test=n_test)\n"
+  models = "the local search confirming and reporting every move under the reference key whatever objective it was given"
+
+  [[target.mutant]]
+  id = "the-local-screen-ignores-the-objective"
+  find = "            keys = score_designs(cache, *_rows(N, moves), objective=objective)\n"
+  replace = "            keys = score_designs(cache, *_rows(N, moves))\n"
+  models = "the neighbourhood screened by the reference key while the confirmation reads the relative one, so the descent proposes the move that is best under the wrong objective and stops short"
+
+  [[target.mutant]]
+  id = "the-local-search-accepts-the-paper-objective"
+  find = "    if objective not in (\"reference\", \"relative\"):\n"
+  replace = "    if False:\n"
+  models = "objective='paper' accepted by the local search, which then descends on p-values its screen does not compute"
+
+[[target]]
+name = "tbr-relative-config"
+module-path = "mlsynth/utils/tbr_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_relative_objective.py mlsynth/tests/test_tbr_local_search.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "relative-refused-with-the-local-search"
+  find = "        if self.search == \"local\" and self.objective == \"paper\":\n"
+  replace = "        if self.search == \"local\" and self.objective != \"reference\":\n"
+  models = "search='local' refused under objective='relative', whose key the batched screen computes"
+
+[[target]]
+name = "tbr-relative-wiring"
+module-path = "mlsynth/utils/tbr_helpers/design/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_relative_objective.py mlsynth/tests/test_tbr_local_search.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-local-search-runs-the-default-objective"
+  find = "                                 seed=config.local_seed + o.k, rules=rules,\n                                 objective=config.objective)"
+  replace = "                                 seed=config.local_seed + o.k, rules=rules)"
+  models = "search='local' descending on the reference key from greedy designs chosen under objective='relative'"
+
+  [[target.mutant]]
+  id = "the-level-is-not-checked-at-fit"
+  find = "    if config.objective == \"relative\":\n        # Every window the search"
+  replace = "    if False:\n        # Every window the search"
+  models = "a treatment-eligible geo with a non-positive level left to the scorer, which refuses a group without naming the geo"
+
+  [[target.mutant]]
+  id = "the-level-is-checked-on-every-geo"
+  find = "                              [j for j, r in enumerate(eligibility)\n                               if TREATMENT in r], units)"
+  replace = "                              list(range(len(units))), units)"
+  models = "a geo that cannot be treated refused for its level, which never enters a treated aggregate"
+
+  [[target.mutant]]
+  id = "the-level-is-checked-on-the-whole-pre-period"
+  find = "        check_positive_levels(search_matrix,"
+  replace = "        check_positive_levels(y_matrix,"
+  models = "the level checked over the pre-period with its blank windows, which the search under calibrated inference does not score"
+
+  [[target.mutant]]
+  id = "the-placebos-are-matched-under-the-reference"
+  find = "            rules=rules, objective=config.objective, n_test=config.n_test,"
+  replace = "            rules=rules, objective=\"reference\", n_test=config.n_test,"
+  models = "calibrated inference matching its placebo controls under the reference key while the real design was chosen under objective='relative'"
+
+[[target]]
+name = "tbr-relative-named"
+module-path = "mlsynth/utils/tbr_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_relative_objective.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-named-placebo-levels-are-not-checked"
+  find = "    if config.objective == \"relative\":\n        # Every geo may form a placebo group"
+  replace = "    if False:\n        # Every geo may form a placebo group"
+  models = "a named calibrated split under objective='relative' left to the scorer, which refuses a placebo group without naming the geo"
+
+  [[target.mutant]]
+  id = "the-named-level-is-checked-on-the-whole-pre-period"
+  find = "            inputs.wide[:design_end(inputs.n_pre, B)],\n"
+  replace = "            inputs.wide[:inputs.n_pre],\n"
+  models = "the named split's placebo levels checked over the pre-period with its blank windows instead of the design window the placebos are scored on"

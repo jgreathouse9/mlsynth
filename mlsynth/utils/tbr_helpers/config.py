@@ -133,7 +133,7 @@ class TBRConfig(BaseEstimatorConfig):
                     "through the A/A test's window.",
     )
 
-    objective: Literal["reference", "paper"] = Field(
+    objective: Literal["reference", "paper", "relative"] = Field(
         default="reference",
         description="Which objective the hill climb maximises. 'reference' "
                     "(default) is the four assumption gates, then the group "
@@ -146,7 +146,24 @@ class TBRConfig(BaseEstimatorConfig):
                     "the two rank designs at Spearman +0.54 with no overlap in "
                     "their top five, and the reference's ten best are 2.5 times "
                     "better on detectable impact. Reach for 'paper' to reproduce "
-                    "the paper.",
+                    "the paper. 'relative' drops the gates and the correlation "
+                    "and ranks designs by relative MDE, the smallest detectable "
+                    "cumulative effect as a share of the treated group's level "
+                    "over the test (the key is that level over the required "
+                    "impact). Reach for it when the treatment groups on offer "
+                    "differ in size and a lift is judged as a percentage: the "
+                    "reference's power term is in outcome units and favours "
+                    "groups with low sales. In scratch measurements over 300 "
+                    "random treatment groups per window the correlation gate "
+                    "never bound (every winner had correlation of at least "
+                    "0.97), and ranking by relative MDE picked groups with 5 "
+                    "times (monthly beer shipments by state) and about 10 times "
+                    "(simulated panels) the sales, with intervals 1.6 to 3.2 "
+                    "times narrower as a share of sales and the same calibrated "
+                    "coverage; on GeoLift the picks were similar, and the "
+                    "calibrated coverage was 67% against the reference's 80% "
+                    "over 84 overlapping windows. Every treatment-eligible geo "
+                    "needs a positive mean on the scoring window.",
     )
 
     control_start: Literal["carried", "pool", "best"] = Field(
@@ -183,7 +200,7 @@ class TBRConfig(BaseEstimatorConfig):
                     "direct fit confirms it improves the objective, so a design is "
                     "never worse than the greedy's. On the GeoLift markets it "
                     "shrinks the smallest detectable impact by 17% at one treated "
-                    "geo. Requires objective='reference'.",
+                    "geo. Requires objective='reference' or 'relative'.",
     )
 
     local_restarts: int = Field(
@@ -522,11 +539,12 @@ class TBRConfig(BaseEstimatorConfig):
                 "search='local' improves a searched design and a named split has "
                 "nothing to search; drop it, or drop treatment_col/control_col to "
                 "design instead.")
-        if self.search == "local" and self.objective != "reference":
+        if self.search == "local" and self.objective == "paper":
             raise MlsynthConfigError(
-                "search='local' scores its moves with the reference objective, "
-                "whose terms are quadratic forms in the group memberships; the "
-                "paper's p-values are not, so use objective='reference'.")
+                "search='local' scores its moves with the reference or relative "
+                "objective, whose terms are quadratic forms in the group "
+                "memberships; the paper's p-values are not, so use "
+                "objective='reference' or 'relative'.")
 
         if searched:
             if self.n_test is None:

@@ -1,4 +1,4 @@
-"""The two objectives a matched-markets search can climb.
+"""The three objectives a matched-markets search can climb.
 
 Au (2018) section 3.1 states the objective as
 
@@ -40,12 +40,41 @@ own section 3.1 asks for a power term -- the p-values "do not assess the amount
 of statistical power that TBR provides" -- and then leaves it out of ``f``. So
 ``reference`` is the default as the paper's stated intent, and ``paper`` is
 available for fidelity.
+
+The third, ``relative``, keeps the reference's power term and drops the rest. Its
+key is the single scalar
+
+    level / required_impact,
+
+``level`` the mean of the treated aggregate over the scoring window, so a split
+is ranked by its relative MDE ``required_impact / (n_test * level)``: the
+smallest detectable cumulative effect as a share of the treated group's expected
+outcome over the test. Two measurements from scratch spikes motivate it, each
+over a pool of 300 random treatment groups per window with their least-RSS
+controls, on the GeoLift panel, a public panel of monthly beer shipments by
+state, and simulated panels:
+
+* the reference's correlation gate never bound. Every winner under every
+  ranking had a group correlation of at least 0.97, so the 0.8 cap changed no
+  pick;
+* the reference's power term is in outcome units, so across treatment groups it
+  favours the ones with the least sales. Ranking by relative MDE picked groups
+  with 5 times (beer) and about 10 times (simulated) the sales of the
+  absolute-fit winner, with intervals 1.6 to 3.2 times narrower as a share of
+  sales and the same calibrated coverage. On GeoLift the two picked similar
+  groups, and there the relative ranking's calibrated coverage was 67% against
+  80% (84 overlapping windows).
+
+For a fixed treatment group ``level`` is a constant, so the relative key orders
+control groups as the required impact does and control matching is unchanged in
+kind. The ratio needs a positive level, which :func:`check_positive_levels`
+enforces on every treatment-eligible geo.
 """
 from __future__ import annotations
 
 import functools
 from dataclasses import dataclass, field
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Sequence, Tuple
 
 import numpy as np
 from scipy import special
@@ -296,12 +325,59 @@ def required_impact(sigma: float, n: int, n_test: int) -> float:
     return float((tq_sig + tq_pow) * n_test * sq * float(sigma))
 
 
+def check_positive_levels(window: np.ndarray, candidates: Sequence[int],
+                          labels: Sequence[Any]) -> None:
+    """Refuse a candidate geo whose mean over ``window`` is not positive.
+
+    The relative key divides by the treated group's level. A group's level is
+    the sum of its geos' means, so a positive mean for every geo that may be
+    treated makes every candidate group's level positive. ``window`` is periods
+    by geos and ``candidates`` are column indices into it; a missing mean is
+    refused with the rest.
+    """
+    window = np.asarray(window, dtype=float)
+    idx = list(candidates)
+    means = window[:, idx].mean(axis=0)
+    bad = [labels[j] for j, m in zip(idx, means) if not m > 0.0]
+    if bad:
+        raise MlsynthDataError(
+            f"objective='relative' ranks designs by required impact as a share "
+            f"of the treated group's level, which needs a positive level; "
+            f"treatment-eligible geo(s) {bad} have a mean outcome that is not "
+            f"positive on the scoring window. Exclude them from the treatment "
+            f"group or use objective='reference'.")
+
+
+def _group_corr(sums) -> float:
+    """The correlation of the two aggregates, clipped inside (-1, 1)."""
+    # Each sum's square root, not the root of their product: the product leaves
+    # the range of doubles at a scale of about 2^-270 or 2^270, either sum only
+    # near 2^-511 or 2^511 (#990).
+    corr = (float(sums.s_xy / (np.sqrt(sums.s_xx) * np.sqrt(sums.s_yy)))
+            if sums.s_xx > 0.0 and sums.s_yy > 0.0 else 0.0)
+    return float(np.clip(corr, -0.999999, 0.999999))
+
+
 def score_split(y: np.ndarray, x: np.ndarray, *, objective: str,
                 n_test: int) -> SplitScore:
     """Score one candidate split under the named objective."""
     y = np.asarray(y, dtype=float)
     x = np.asarray(x, dtype=float)
     fit, resid, sigma, r2 = _pretest_fit(y, x)
+
+    if objective == "relative":
+        level = float(np.mean(y))
+        if not level > 0.0:
+            raise MlsynthDataError(
+                f"the treated aggregate's level over the scoring window is "
+                f"{level}; a relative MDE needs a positive level.")
+        impact = required_impact(sigma, fit.sums.n, n_test)
+        value = level / impact if impact > 0 else np.inf
+        return SplitScore(
+            key=(value,), value=value,
+            detail={"required_impact": impact, "level": level,
+                    "relative_mde": impact / (n_test * level),
+                    "corr": _group_corr(fit.sums), "r2": r2})
 
     if objective == "paper":
         p_cusum = cusum_pvalue(resid, sigma)
@@ -313,12 +389,7 @@ def score_split(y: np.ndarray, x: np.ndarray, *, objective: str,
                                               "bg" if p_bg == f else "r2")})
 
     sums = fit.sums
-    # Each sum's square root, not the root of their product: the product leaves
-    # the range of doubles at a scale of about 2^-270 or 2^270, either sum only
-    # near 2^-511 or 2^511 (#990).
-    corr = (float(sums.s_xy / (np.sqrt(sums.s_xx) * np.sqrt(sums.s_yy)))
-            if sums.s_xx > 0.0 and sums.s_yy > 0.0 else 0.0)
-    corr = float(np.clip(corr, -0.999999, 0.999999))
+    corr = _group_corr(sums)
     impact = required_impact(sigma, sums.n, n_test)
     dw_ok, dw_stat = durbin_watson_ok(resid)
     gates = (corr >= MIN_CORR, aa_test_ok(y, x, n_test),
