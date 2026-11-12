@@ -276,7 +276,9 @@ into the design stage, and the design stage is where the precision is bought.
 What the search maximises
 -------------------------
 
-Two objectives are available, and they are not the same. ``objective="paper"``
+Three objectives are available. The two that come from the literature are not
+the same, and the third, ``objective="relative"``, is described at the end of
+this section. ``objective="paper"``
 is Au's own, stated in his Section 3.1:
 
 .. math::
@@ -338,6 +340,87 @@ is ranked on power only after passing them. The comparison is lexicographic:
 
 The gates are described under Diagnostics below. All four are the reference
 implementation's; Au names two of them.
+
+Ranking by relative MDE
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The minimum detectable effect :math:`\Delta_{\min}` is in the outcome's own
+units: the smallest cumulative lift, in sales, that the test would detect. That
+is the right yardstick for comparing two control groups for the same treated
+markets, and the wrong one for comparing two sets of treated markets. A small
+market has small absolute noise, so its :math:`\Delta_{\min}` is small, but a
+lift of that size can be a third of what the market sells; a large market has a
+larger :math:`\Delta_{\min}` that is a far smaller share of its sales. A
+campaign's lift is usually judged as a percentage, so the comparison across
+treated groups that matches the question is the relative MDE
+
+.. math::
+
+   \frac{\Delta_{\min}}{T \, \bar{y}},
+
+where :math:`\bar{y}` is the treated aggregate's mean per period over the
+scoring window and :math:`T` the test length, so :math:`T \bar{y}` is what the
+treated group would be expected to sell over the test. A relative MDE of 0.05
+means the test can detect a lift of 5% of the treated group's sales.
+
+``objective="relative"`` ranks designs by it. Its key is the single number
+:math:`\bar{y} / \Delta_{\min}`, larger is better, with no gates and no
+correlation term ahead of it; each design's ``detail`` reports
+``required_impact``, ``level`` (:math:`\bar{y}`), ``relative_mde``, ``corr``
+and ``r2``, and only the first two enter the key. For a fixed treated group
+:math:`\bar{y}` does not change, so control groups are compared exactly as the
+reference's power term compares them. What changes is the comparison across
+treated groups, during the search and in the recommended design, which is the
+size whose relative MDE is smallest. Each size's relative MDE is a share of its
+own group's sales, so that comparison is like for like.
+
+A larger treated group puts more sales in the denominator, so the relative MDE
+usually falls as the group grows and the recommended design is usually the
+largest size allowed. On the GeoLift panel with ``max_treatment_size=4`` and
+``n_test=14`` it falls at every size, from 2.72% at one treated geo to 2.04%,
+1.65% and 1.38% at four, and the recommendation is the four-geo design (the
+reference objective recommends one geo, at 3.04%). Under ``"relative"``,
+``max_treatment_size`` is therefore the setting that decides the test's size
+and what it costs to run; the designs at every smaller size remain in
+``result.designs`` to choose between.
+
+Two measurements, from scratch studies over a pool of 300 random treated
+groups per window, each with the control group of least residual sum of
+squares, on the GeoLift panel, a public panel of monthly beer shipments by
+state, and simulated panels, motivate it:
+
+* The correlation gate never bound. Every winning design under every ranking
+  had a group correlation of at least 0.97, so the reference's 0.8 cap changed
+  no pick.
+* Ranking by absolute fit favours treated groups with low sales, because the
+  residual sum of squares is in sales units. Ranking by relative MDE picked
+  groups with 5 times (beer) and about 10 times (simulated) the sales of the
+  absolute-fit winner, with intervals 1.6 to 3.2 times narrower as a share of
+  sales, and the same calibrated coverage at a nominal 80%: 77% against 76% on
+  beer, and 85% and 81% against 83% and 86% on the two simulated designs. On
+  GeoLift the two rankings picked similar groups, the relative one's 1.2 times
+  the sales of the other's.
+
+The evidence is not one-sided. On GeoLift the relative ranking's calibrated
+intervals covered 67% of the time against 80% for the absolute ranking, over 84
+overlapping windows. A McNemar test puts that at :math:`p = 0.04` if the
+windows are counted as independent, which overlapping windows are not, so the
+true uncertainty is larger than that figure. The shortfall is measured on this
+panel, and ``"reference"`` remains the default.
+
+The estimand does not change. The estimate is still the cumulative effect on
+the treated group the search chose, the average effect of the treatment on
+those treated markets; choosing a larger group changes which markets the answer
+is about, not what kind of answer it is. It is not an effect on the population
+of markets, and the relative MDE is a design yardstick, not a rescaling of the
+estimate.
+
+A relative MDE needs a positive level. The fit refuses, and names, every geo
+that may be treated whose mean on the scoring window is zero or negative, which
+guarantees every candidate group's level is positive; a geo that cannot be
+treated is not checked. The objective works with ``search="local"`` and with
+``inference="calibrated"``, whose placebo control groups are matched under the
+same key.
 
 Diagnostics
 -----------
@@ -666,8 +749,11 @@ treated geos returns a design that fails the Durbin-Watson gate. More restarts
 buy more of the design space, and nothing short of scoring every design
 certifies the best one: the search is a heuristic.
 
-The local search needs ``objective="reference"``, since the paper's p-values
-are not quadratic forms in the memberships. The restarts at size :math:`k` draw
+The local search needs ``objective="reference"`` or ``objective="relative"``,
+since the paper's p-values are not quadratic forms in the memberships. Under
+``"relative"`` the screen also needs the treated level, the indicator vector
+contracted with each geo's mean over the window, and every step is confirmed by
+the direct fit under the relative key. The restarts at size :math:`k` draw
 from ``local_seed + k``. Each design records ``search`` and, under
 ``search="local"``, the greedy's key at its size as ``greedy_key``.
 
@@ -1334,6 +1420,21 @@ measured against each other above.
        max_treatment_size=4, n_test=14,
        objective="paper",
    )
+
+``objective="relative"`` ranks designs by relative MDE, and each design reports
+it:
+
+.. code-block:: python
+
+   result = TBR(TBRConfig(
+       df=panel, unitid="geo", time="date", outcome="Y",
+       max_treatment_size=4, n_test=14,
+       objective="relative",
+   )).fit()
+
+   for design in result.designs:
+       print(design.k, design.treatment_units,
+             f"relative MDE {design.detail['relative_mde']:.1%}")
 
 Verification
 ------------

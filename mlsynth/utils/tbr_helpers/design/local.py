@@ -17,7 +17,9 @@ neighbour, and keeps it only when the direct fit
 (:func:`~mlsynth.utils.tbr_helpers.design.objective.score_split`) confirms that
 it improves the key. The descent stops at the first design whose best neighbour
 does not, which is a local optimum under these moves. The best descent wins, so
-the result is never worse than the greedy's design.
+the result is never worse than the greedy's design. The screen and the
+confirmation score under one objective, ``"reference"`` or ``"relative"``, the
+one the greedy climbed.
 
 Eligibility is Au's ``A_i`` and binds every move. A geo eligible for treatment
 alone is in every treatment group and is never swapped out. A geo outside the
@@ -43,7 +45,7 @@ from typing import FrozenSet, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 
-from ....exceptions import MlsynthDataError
+from ....exceptions import MlsynthConfigError, MlsynthDataError
 from .batched import design_cache, score_designs
 from .objective import score_split
 from .rules import DesignRules
@@ -185,7 +187,8 @@ def _rows(N: int, designs: Sequence[Design]):
 
 def local_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
                  start: SearchOutcome, *, n_test: int, restarts: int,
-                 seed: int, rules: Optional[DesignRules] = None) -> SearchOutcome:
+                 seed: int, rules: Optional[DesignRules] = None,
+                 objective: str = "reference") -> SearchOutcome:
     """Descend from ``start`` and from ``restarts`` random designs of its size.
 
     Returns the best design reached, as a :class:`SearchOutcome` whose trace
@@ -196,7 +199,17 @@ def local_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
 
     Under ``rules`` every design visited satisfies them, ``start`` included,
     which is refused when it does not.
+
+    ``objective`` is ``"reference"`` or ``"relative"``, the two the batched
+    screen computes; the screen and the direct fit that confirms each move
+    score under the same one, so the descent climbs the key ``start`` was
+    scored by. ``"paper"`` is refused.
     """
+    if objective not in ("reference", "relative"):
+        raise MlsynthConfigError(
+            f"the local search scores its moves with objective='reference' or "
+            f"'relative'; got {objective!r}, whose terms are not quadratic "
+            f"forms in the group memberships.")
     if restarts < 0:
         raise MlsynthDataError(f"restarts is {restarts}; it cannot be negative.")
     if rules is not None and not rules.admits_design(start.treatment, start.control):
@@ -213,7 +226,7 @@ def local_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
         nonlocal spent
         spent += 1
         return score_split(y[:, sorted(T)].sum(axis=1), y[:, sorted(C)].sum(axis=1),
-                           objective="reference", n_test=n_test)
+                           objective=objective, n_test=n_test)
 
     def descend(T, C):
         nonlocal spent
@@ -223,7 +236,7 @@ def local_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
             moves = neighbourhood(T, C, roles, rules)
             if not moves:
                 return T, C, current, trace
-            keys = score_designs(cache, *_rows(N, moves))
+            keys = score_designs(cache, *_rows(N, moves), objective=objective)
             spent += len(moves)
             best = int(np.lexsort(keys.T[::-1])[-1])
             T2, C2 = moves[best]

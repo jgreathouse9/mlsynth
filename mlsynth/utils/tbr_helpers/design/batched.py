@@ -18,6 +18,11 @@ cumulative centred series contracted with the two rows. All of it is cached once
 per window in :class:`DesignCache` and applied to a matrix of designs by
 :func:`score_designs`.
 
+The relative objective's key is the treated group's level over its required
+impact. The impact is the reference's power term, from the same three forms, and
+the level is the treated aggregate's mean over the window, ``u_T' m`` with ``m``
+each geo's mean, so the screen computes it for the cost of one more product.
+
 The Gram form loses digits where the direct fit does not
 (``agents/agents_solvers.md``, rule 6): ``S_xx`` and the residual sum of squares
 are differences of large numbers when the control aggregate barely moves or the
@@ -33,7 +38,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import special
 
-from ....exceptions import MlsynthDataError
+from ....exceptions import MlsynthConfigError, MlsynthDataError
 from . import objective as obj
 
 
@@ -51,6 +56,7 @@ class DesignCache:
     fit_mean: np.ndarray   # (N,) each geo's mean over the A/A fit window
     hold_mean: np.ndarray  # (N,) each geo's mean over the held-out window
     P: np.ndarray          # (n, N) cumulative sums of the centred series
+    col_mean: np.ndarray   # (N,) each geo's mean over the whole window
 
     @property
     def n(self) -> int:
@@ -84,7 +90,7 @@ def design_cache(y_matrix: np.ndarray, *, n_test: int) -> DesignCache:
         Gd=diffs.T @ diffs, G1=G1,
         absG1=np.abs(fit_centred).T @ np.abs(fit_centred),
         fit_mean=fit.mean(axis=0), hold_mean=y[n_fit:].mean(axis=0),
-        P=np.cumsum(centred, axis=0))
+        P=np.cumsum(centred, axis=0), col_mean=y.mean(axis=0))
 
 
 def _forms(G: np.ndarray, UT: np.ndarray, UC: np.ndarray):
@@ -113,15 +119,24 @@ def _check_rows(cache: DesignCache, UT: np.ndarray, UC: np.ndarray) -> None:
             "aggregates and share its variance between them.")
 
 
-def score_designs(cache: DesignCache, UT: np.ndarray, UC: np.ndarray) -> np.ndarray:
-    """The reference key of every design, one row each.
+def score_designs(cache: DesignCache, UT: np.ndarray, UC: np.ndarray, *,
+                  objective: str = "reference") -> np.ndarray:
+    """The key of every design under ``objective``, one row each.
 
     ``UT`` and ``UC`` are (m, N) indicator rows of the treatment and control
-    groups. The result is (m, 6): the four gates as 0/1, the correlation rounded
-    to two places, and the inverse required impact, the tuple
-    :func:`~mlsynth.utils.tbr_helpers.design.objective.score_split` returns under
-    ``objective="reference"``.
+    groups. Under ``"reference"`` the result is (m, 6): the four gates as 0/1,
+    the correlation rounded to two places, and the inverse required impact.
+    Under ``"relative"`` it is (m, 1): the treated level over the required
+    impact. Each row is the tuple
+    :func:`~mlsynth.utils.tbr_helpers.design.objective.score_split` returns
+    under the same objective. ``"paper"`` is refused, since its p-values are not
+    quadratic forms in the rows.
     """
+    if objective not in ("reference", "relative"):
+        raise MlsynthConfigError(
+            f"the batched screen scores objective='reference' or 'relative'; "
+            f"got {objective!r}, whose terms are not quadratic forms in the "
+            f"group memberships.")
     UT = np.asarray(UT, dtype=float)
     UC = np.asarray(UC, dtype=float)
     _check_rows(cache, UT, UC)
@@ -158,6 +173,10 @@ def score_designs(cache: DesignCache, UT: np.ndarray, UC: np.ndarray) -> np.ndar
     sq = np.sqrt(const.phi * (n + 1) / (n * n_test * (n - 1))
                  + 1.0 / n + 1.0 / n_test)
     inv_impact = 1.0 / ((const.tq_sig + const.tq_pow) * n_test * sq * sigma)
+    if objective == "relative":
+        level = UT @ cache.col_mean
+        return _direct_fallback(cache, (level * inv_impact)[:, None], degenerate,
+                                UT, UC, objective)
 
     d_yy, d_xy, d_xx = _forms(cache.Gd, UT, UC)
     dw = (d_yy - 2.0 * beta * d_xy + beta * beta * d_xx) / rss
@@ -187,10 +206,17 @@ def score_designs(cache: DesignCache, UT: np.ndarray, UC: np.ndarray) -> np.ndar
 
     keys = np.column_stack([corr >= obj.MIN_CORR, aa_ok, bb_ok, dw_ok,
                             np.round(corr, 2), inv_impact]).astype(float)
+    return _direct_fallback(cache, keys, degenerate, UT, UC, objective)
+
+
+def _direct_fallback(cache: DesignCache, keys: np.ndarray,
+                     degenerate: np.ndarray, UT: np.ndarray, UC: np.ndarray,
+                     objective: str) -> np.ndarray:
+    """Overwrite the degenerate rows with the direct fit's key."""
     for r in np.flatnonzero(degenerate):
         T = np.flatnonzero(UT[r] > 0)
         C = np.flatnonzero(UC[r] > 0)
         keys[r] = obj.score_split(cache.y[:, T].sum(axis=1),
                                   cache.y[:, C].sum(axis=1),
-                                  objective="reference", n_test=n_test).key
+                                  objective=objective, n_test=cache.n_test).key
     return keys

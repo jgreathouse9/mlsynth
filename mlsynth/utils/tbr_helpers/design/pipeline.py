@@ -24,7 +24,7 @@ from ..calibration import calibrate, design_end, resolve_blank_periods
 from ..posterior import fit_pretest
 from .estimate import measure_design
 from .local import local_search
-from .objective import required_impact
+from .objective import check_positive_levels, required_impact
 from .rules import DesignRules
 from .search import CONTROL, TREATMENT, UNASSIGNED, greedy_search
 from .structures import (TBRDesignConstraints, TBRResults, TBRMMDesign,
@@ -195,7 +195,7 @@ def _reference_impact(search_matrix: np.ndarray, treatment: List[int],
     """The reference's required impact for a design, on its search window.
 
     :func:`~.objective.required_impact` from the design's own fit on the window
-    it was chosen on, so under the reference objective it is the
+    it was chosen on, so under the reference and relative objectives it is the
     ``required_impact`` the search scored, and under ``"paper"`` the same
     formula the reference would have.
     """
@@ -229,6 +229,13 @@ def run(config: TBRConfig) -> TBRResults:
                        else int(post_matrix.shape[0]))
         blank_periods = resolve_blank_periods(config.blank_periods, test_length)
         search_matrix = y_matrix[:design_end(y_matrix.shape[0], blank_periods)]
+    if config.objective == "relative":
+        # Every window the search, the local descent and the placebo matching
+        # score is search_matrix, so a positive mean there for every geo that
+        # may be treated keeps every candidate group's level positive.
+        check_positive_levels(search_matrix,
+                              [j for j, r in enumerate(eligibility)
+                               if TREATMENT in r], units)
 
     outcomes = greedy_search(
         search_matrix, eligibility, max_treatment_size=config.max_treatment_size,
@@ -240,7 +247,8 @@ def run(config: TBRConfig) -> TBRResults:
         outcomes = [local_search(search_matrix, eligibility, o,
                                  n_test=config.n_test,
                                  restarts=config.local_restarts,
-                                 seed=config.local_seed + o.k, rules=rules)
+                                 seed=config.local_seed + o.k, rules=rules,
+                                 objective=config.objective)
                     for o in outcomes]
     best = max(range(len(outcomes)), key=lambda i: outcomes[i].score.key)
 
