@@ -9,6 +9,19 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- `objective="relative"` on `TBRConfig`: the searched mode ranks designs by
+  relative MDE, the required impact as a share of the treated group's expected
+  outcome over the test. The key is the single number `level / required_impact`,
+  `level` the treated aggregate's mean over the scoring window, with no gates
+  and no correlation term; each design's `detail` reports `required_impact`,
+  `level`, `relative_mde`, `corr` and `r2`. Control matching for a fixed
+  treatment group is unchanged in kind; the comparison across treatment groups
+  and across sizes is by relative MDE. Every treatment-eligible geo needs a
+  positive mean on the scoring window, and the fit names those that do not.
+  It works with `search="local"`, whose batched screen and confirmation now
+  take the objective, and with `inference="calibrated"`. The default
+  `objective="reference"` and `objective="paper"` are unchanged, pinned by
+  golden values on the GeoLift panel.
 - `inference="calibrated"` on `TBRConfig` (#1043): TBR's cumulative effect keeps
   its point estimate and takes a calibrated interval, a Dirichlet-process
   predictive (Florens and Rolin 2024, eq. 5.13) that mixes the posterior with
