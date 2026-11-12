@@ -366,6 +366,55 @@ class TBRConfig(BaseEstimatorConfig):
                     "the residual variance is constant across the pretest.",
     )
 
+    inference: Literal["posterior", "calibrated"] = Field(
+        default="posterior",
+        description="How the cumulative effect's interval is priced. "
+                    "'posterior' (default) is the paper's conjugate posterior, "
+                    "the interval the replication against google/matched_markets "
+                    "pins. 'calibrated' keeps the same point estimate and "
+                    "replaces only the interval by a Dirichlet-process "
+                    "predictive calibrated on honest blank windows: the "
+                    "regression's standardised errors on the last "
+                    "blank_periods pre-periods, pooled over the real design and "
+                    "placebo designs and trended to the experiment's distance "
+                    "from the design period. In searched mode the design search "
+                    "then runs on the pre-period minus those periods. Reach for "
+                    "it when the residuals are serially correlated or the "
+                    "design was searched for, where the posterior covers well "
+                    "below its level.",
+    )
+
+    blank_periods: Optional[int] = Field(
+        default=None,
+        description="Calibrated inference: B, the last pre-periods held back "
+                    "from the design search and used as honest blank windows. "
+                    "Defaults to three test lengths, the test length being the "
+                    "realised post window, or n_test in a design-only run. "
+                    "Refused below two test lengths.",
+    )
+
+    n_placebos: int = Field(
+        default=24,
+        description="Calibrated inference: placebo treatment groups whose blank "
+                    "errors are pooled with the real design's, at least 8. "
+                    "When the eligibility and design rules admit fewer, all of "
+                    "them are used and the result records how many.",
+    )
+
+    calibration_prior_weight: float = Field(
+        default=2.0,
+        description="Calibrated inference: n0, the Dirichlet-process prior's "
+                    "weight on the posterior against the pooled blank errors, "
+                    "in units of independent blank windows. Zero uses the blank "
+                    "errors alone; a large value returns the posterior band.",
+    )
+
+    calibration_seed: int = Field(
+        default=0,
+        description="Calibrated inference: seed for the placebo draws, so a "
+                    "band can be reproduced. Non-negative.",
+    )
+
     @field_validator("treat", "control_col", "cooldown_col", "cost_col",
                      "post_col", "treatment_col")
     @classmethod
@@ -511,6 +560,48 @@ class TBRConfig(BaseEstimatorConfig):
                 "n_test sizes a search and a named split has nothing to search; "
                 "drop it, or drop treatment_col/control_col to design instead."
             )
+        return self
+
+    @model_validator(mode="after")
+    def _calibration_settings(self):
+        """Refuse a calibration setting that is idle or out of range."""
+        tuning = {"blank_periods", "n_placebos", "calibration_prior_weight",
+                  "calibration_seed"} & self.model_fields_set
+        if self.inference != "calibrated":
+            if tuning:
+                raise MlsynthConfigError(
+                    f"{sorted(tuning)} tune calibrated inference, which runs "
+                    f"only with inference='calibrated'; set it, or drop them.")
+            return self
+        if self.variance == "hac":
+            raise MlsynthConfigError(
+                "variance='hac' and inference='calibrated' both answer serially "
+                "correlated residuals, and the calibration standardises by the "
+                "iid scale; choose one.")
+        if self.n_placebos < 8:
+            raise MlsynthConfigError(
+                f"n_placebos must be at least 8; got {self.n_placebos}.")
+        n0 = self.calibration_prior_weight
+        if not (math.isfinite(n0) and n0 >= 0.0):
+            raise MlsynthConfigError(
+                f"calibration_prior_weight must be finite and non-negative; "
+                f"got {n0!r}.")
+        if self.calibration_seed < 0:
+            raise MlsynthConfigError(
+                f"calibration_seed must be non-negative; got "
+                f"{self.calibration_seed}.")
+        B = self.blank_periods
+        if B is not None and B < 2:
+            raise MlsynthConfigError(
+                f"blank_periods must be at least 2, two periods of a one-period "
+                f"test; got {B}.")
+        # A design-only search has no realised window, so its test length is
+        # n_test and the rule is decidable here. Otherwise the fit checks it.
+        if B is not None and self.mode == "searched" and self.post_col is None \
+                and B < 2 * self.n_test:
+            raise MlsynthConfigError(
+                f"blank_periods is {B} and n_test is {self.n_test}; the blank "
+                f"window has to be at least 2 x the test length.")
         return self
 
     @model_validator(mode="after")

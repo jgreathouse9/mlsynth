@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple
 from pydantic import BaseModel, ConfigDict, Field
 
 from ....config_models import DesignResult
+from ..structures import TBRCalibration
 
 
 class TBRMMPosterior(BaseModel):
@@ -211,6 +212,13 @@ class TBRMMDesign(BaseModel):
                     "of tries and so were not descended from. Business "
                     "constraints that admit few designs raise it; zero under "
                     "'greedy'.")
+    calibrated_required_impact: Optional[float] = Field(
+        default=None,
+        description="Under inference='calibrated', the required impact in "
+                    "`detail` times the calibration's k at n_test, the factor "
+                    "by which the realised blank-window errors exceed the "
+                    "posterior's scale. One k serves every design, so the "
+                    "ranking is unchanged; None under the posterior.")
     effect: Optional[TBRMMEffect] = Field(
         default=None,
         description="This design's realized effect, present only when the panel "
@@ -320,6 +328,14 @@ class TBRResults(DesignResult):
     n_periods_scored: int = Field(
         default=0,
         description="Periods the objective was computed over.")
+    calibration: Optional[TBRCalibration] = Field(
+        default=None,
+        description="Under inference='calibrated', what the calibration "
+                    "measured: the blank window, the placebo designs, the "
+                    "distance trend, k per horizon and both bands. The same "
+                    "object as report.calibration when there is a report; "
+                    "present in a design-only run too, for the calibrated "
+                    "MDE. None under the posterior.")
     design_constraints: Optional[TBRDesignConstraints] = Field(
         default=None,
         description="The business constraints the search ran under, or None "

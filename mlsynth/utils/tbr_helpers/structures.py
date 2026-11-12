@@ -110,6 +110,85 @@ class IROASResult(BaseModel):
                          "simulated from both posteriors.")
 
 
+class TBRCalibration(BaseModel):
+    """What ``inference="calibrated"`` measured on the honest blank windows.
+
+    The calibration keeps TBR's point prediction and replaces its interval by a
+    Dirichlet-process predictive (Florens and Rolin 2024, eq. 5.13) that mixes
+    the posterior with the regression's standardised errors on the last
+    ``blank_periods`` pre-periods, pooled over the real design and placebo
+    designs. Both bands are kept: the calibrated one on
+    ``report.cumulative`` and the posterior one here, so the change is visible.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    blank_periods: int = Field(
+        ..., description="B: the last pre-periods held back as blank windows.")
+    design_periods: int = Field(
+        ..., description="D0 = E - B: the periods the design was chosen on, "
+                         "which in searched mode is the window the search ran "
+                         "on.")
+    horizon: int = Field(
+        ..., description="H: the test length the band and the trend reach, the "
+                         "realised post window, or n_test in a design-only "
+                         "run. In searched mode the larger of that and n_test, "
+                         "so the calibrated MDE has its horizon.")
+    level: float = Field(..., description="Two-sided interval level.")
+    n_placebos: int = Field(
+        ..., description="Placebo designs whose blank errors were pooled with "
+                         "the real design's.")
+    n_placebos_requested: int = Field(
+        ..., description="n_placebos as configured. Above n_placebos when the "
+                         "eligibility and design rules admit fewer groups, or a "
+                         "group left no control group or no defined error.")
+    n_admissible: Optional[int] = Field(
+        default=None,
+        description="Treatment groups other than the real one the rules admit, "
+                    "when they were few enough to enumerate; None when they "
+                    "were drawn by rejection.")
+    placebo_treatment_units: List[List] = Field(
+        default_factory=list,
+        description="Each placebo design's treatment group, in draw order.")
+    prior_weight: float = Field(
+        ..., description="n0, the prior's weight in units of blank windows.")
+    seed: int = Field(..., description="Seed of the placebo draws.")
+    trend_intercept: List[float] = Field(
+        ..., description="alpha per horizon 1..H: the squared-error trend's "
+                         "intercept, z^2 = alpha + beta d.")
+    trend_slope: List[float] = Field(
+        ..., description="beta per horizon, clamped at zero, so an error is "
+                         "never shrunk for sitting further from the design "
+                         "period.")
+    k: List[float] = Field(
+        ..., description="Per horizon, the root mean square of the trended "
+                         "blank errors: the factor by which the posterior's "
+                         "scale understates the realised error. The "
+                         "calibrated MDE is k at n_test times the reference's "
+                         "required impact.")
+    posterior_lower: List[float] = Field(
+        default_factory=list,
+        description="The posterior's lower bound on the cumulative effect per "
+                    "horizon. Empty in a design-only run.")
+    posterior_upper: List[float] = Field(
+        default_factory=list,
+        description="The posterior's upper bound per horizon.")
+    honest_split: bool = Field(
+        ..., description="True when the search chose the groups on the "
+                         "pre-period minus the blank window, so no design "
+                         "choice saw it. False for a named split: the blank "
+                         "windows are honest only if the groups were chosen "
+                         "without them.")
+    calibrated_required_impact: Optional[float] = Field(
+        default=None,
+        description="Searched mode: the recommended design's required impact "
+                    "at n_test times k at n_test. None for a named split, "
+                    "which computes no required impact.")
+    quantile_tolerance: float = Field(
+        ..., description="The bisection's tolerance on a band endpoint, in "
+                         "posterior scales.")
+
+
 class TBREstimate(BaseEstimatorResults):
     """What TBR estimates once the groups are fixed.
 
@@ -126,7 +205,14 @@ class TBREstimate(BaseEstimatorResults):
         default=None, description="The fitted cost relation, when a cost column "
                                   "was supplied.")
     cumulative: Optional[CumulativeEffect] = Field(
-        default=None, description="Posterior of the cumulative response effect.")
+        default=None, description="Posterior of the cumulative response effect. "
+                                  "Under inference='calibrated' its lower and "
+                                  "upper are the calibrated band; the estimate "
+                                  "and scale are the posterior's.")
+    calibration: Optional[TBRCalibration] = Field(
+        default=None,
+        description="What the calibration measured, under "
+                    "inference='calibrated'; None under the posterior.")
     cumulative_cost: Optional[CumulativeEffect] = Field(
         default=None, description="Posterior of the cumulative cost effect.")
     pointwise: Optional[PointwiseEffect] = Field(
