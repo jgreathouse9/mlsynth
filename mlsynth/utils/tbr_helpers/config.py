@@ -6,12 +6,24 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+import math
+from typing import Any, List, Literal, Optional
 
+import numpy as np
+import pandas as pd
 from pydantic import Field, field_validator, model_validator
 
 from ...config_models import BaseEstimatorConfig
 from ...exceptions import MlsynthConfigError, MlsynthDataError
+
+
+#: The constraint fields whose default is None; the boolean and the threshold
+#: are read separately.
+_CONSTRAINT_FIELDS = (
+    "to_be_treated", "not_to_be_treated", "size_col", "min_size", "max_size",
+    "cluster_col", "adjacency", "stratum_col", "min_per_stratum",
+    "max_per_stratum", "market_cost_col", "max_total_cost", "min_controls",
+    "max_controls")
 
 
 class TBRConfig(BaseEstimatorConfig):
@@ -214,6 +226,123 @@ class TBRConfig(BaseEstimatorConfig):
                     "has to end up in one group or the other.",
     )
 
+    # ---- searched mode: business constraints, the vocabulary SYNDES, MAREX
+    # and LEXSCM share (#1046). Forced, forbidden and out-of-band geos are
+    # folded into each geo's eligibility; the rest bind the groups as a whole.
+    to_be_treated: Optional[List[Any]] = Field(
+        default=None,
+        description="Searched mode: geos forced into every treatment group. A "
+                    "forced geo is eligible for treatment alone, so it counts "
+                    "toward k0 like a geo treatment_eligible_col alone admits. "
+                    "At most max_treatment_size geos, disjoint from "
+                    "not_to_be_treated.",
+    )
+
+    not_to_be_treated: Optional[List[Any]] = Field(
+        default=None,
+        description="Searched mode: geos kept out of every treatment group (a "
+                    "regulated market, one already in another test). They lose "
+                    "the treatment role and stay control candidates.",
+    )
+
+    size_col: Optional[str] = Field(
+        default=None,
+        description="Searched mode: per-geo constant size column. Geos outside "
+                    "[min_size, max_size] lose treatment eligibility and stay "
+                    "control candidates. Requires min_size or max_size.",
+    )
+
+    min_size: Optional[float] = Field(
+        default=None,
+        description="Searched mode: lower bound of the treatment size band, "
+                    "inclusive. Requires size_col.",
+    )
+
+    max_size: Optional[float] = Field(
+        default=None,
+        description="Searched mode: upper bound of the treatment size band, "
+                    "inclusive. Requires size_col.",
+    )
+
+    cluster_col: Optional[str] = Field(
+        default=None,
+        description="Searched mode: per-geo constant column; two geos sharing a "
+                    "value conflict and are never both treated, because a "
+                    "campaign in one reaches the other. Combined with adjacency "
+                    "by logical OR.",
+    )
+
+    adjacency: Optional[pd.DataFrame] = Field(
+        default=None,
+        description="Searched mode: square spillover matrix indexed and columned "
+                    "by geo label. Off-diagonal entries strictly above "
+                    "spillover_threshold mark a conflicting pair, never both "
+                    "treated. Combined with cluster_col by logical OR.",
+    )
+
+    spillover_threshold: float = Field(
+        default=0.0,
+        description="Searched mode: adjacency entries strictly above this mark a "
+                    "conflicting pair. Requires adjacency.",
+    )
+
+    stratum_col: Optional[str] = Field(
+        default=None,
+        description="Searched mode: per-geo constant column defining strata for "
+                    "coverage quotas on the treatment group via min_per_stratum "
+                    "and max_per_stratum.",
+    )
+
+    min_per_stratum: Optional[int] = Field(
+        default=None,
+        description="Searched mode: the fewest treated geos in every stratum that "
+                    "has a treatment-eligible geo. Requires stratum_col. A size "
+                    "too small to meet every stratum's minimum has no design and "
+                    "is not reported.",
+    )
+
+    max_per_stratum: Optional[int] = Field(
+        default=None,
+        description="Searched mode: the most treated geos in any stratum. "
+                    "Requires stratum_col.",
+    )
+
+    market_cost_col: Optional[str] = Field(
+        default=None,
+        description="Searched mode: per-geo constant column holding each geo's "
+                    "cost of being treated (the media held back, the fees to run "
+                    "it). With max_total_cost, the treated geos' costs sum to at "
+                    "most the budget. Not cost_col, which is the per-period spend "
+                    "series behind the iROAS estimate.",
+    )
+
+    max_total_cost: Optional[float] = Field(
+        default=None,
+        description="Searched mode: the budget on the treated geos' total "
+                    "market_cost_col. A positive number; requires "
+                    "market_cost_col. Unrelated to cost_col, which feeds iROAS.",
+    )
+
+    exclude_bordering_donors: bool = Field(
+        default=False,
+        description="Searched mode: keep a treated geo's conflict neighbours "
+                    "(from cluster_col / adjacency) out of the control group, so "
+                    "a geo partly treated by spillover never sits in the "
+                    "counterfactual. Requires cluster_col or adjacency.",
+    )
+
+    min_controls: Optional[int] = Field(
+        default=None,
+        description="Searched mode: the smallest control group a design may "
+                    "have, at least 1.",
+    )
+
+    max_controls: Optional[int] = Field(
+        default=None,
+        description="Searched mode: the largest control group a design may "
+                    "have, at least 1 and not below min_controls.",
+    )
+
     variance: Literal["iid", "hac"] = Field(
         default="iid",
         description="Variance behind a measured effect's interval. 'iid' is "
@@ -258,7 +387,9 @@ class TBRConfig(BaseEstimatorConfig):
         for optional in (self.treat, self.post_col, self.treatment_col,
                          self.control_col, self.cooldown_col, self.cost_col,
                          self.treatment_eligible_col, self.control_eligible_col,
-                         self.unassigned_eligible_col):
+                         self.unassigned_eligible_col, self.size_col,
+                         self.cluster_col, self.stratum_col,
+                         self.market_cost_col):
             if optional is not None:
                 required.add(optional)
         if self.df.empty:
@@ -288,6 +419,16 @@ class TBRConfig(BaseEstimatorConfig):
                 f"Rows with a missing unit or period are not observations: "
                 f"{blank}")
         return self
+
+    @property
+    def design_constraint_fields(self) -> List[str]:
+        """The business-constraint fields set away from their defaults."""
+        out = [name for name in _CONSTRAINT_FIELDS if getattr(self, name) is not None]
+        if self.exclude_bordering_donors:
+            out.append("exclude_bordering_donors")
+        if self.spillover_threshold != 0.0:
+            out.append("spillover_threshold")
+        return out
 
     @property
     def mode(self) -> str:
@@ -371,3 +512,147 @@ class TBRConfig(BaseEstimatorConfig):
                 "drop it, or drop treatment_col/control_col to design instead."
             )
         return self
+
+    @model_validator(mode="after")
+    def _design_constraints(self):
+        """Refuse a contradictory or idle constraint before anything is read.
+
+        Every check here is decidable from the config and the per-geo columns
+        alone. Whether some design satisfies the constraints together depends
+        on the eligibility and on K, and the search's audit answers that.
+        """
+        active = self.design_constraint_fields
+        if not active:
+            return self
+        if self.mode == "named":
+            raise MlsynthConfigError(
+                f"{sorted(active)} constrain the design search, and a named "
+                f"split has nothing to search; drop them, or drop "
+                f"treatment_col/control_col and set max_treatment_size to design "
+                f"under them.")
+
+        df, unit = self.df, self.unitid
+        geos = set(df[unit].unique())
+        forced = list(self.to_be_treated or [])
+        forbidden = list(self.not_to_be_treated or [])
+        unknown = sorted(map(str, {g for g in forced + forbidden if g not in geos}))
+        if unknown:
+            raise MlsynthConfigError(
+                f"to_be_treated/not_to_be_treated name geos not in the panel: "
+                f"{unknown}.")
+        clash = sorted(map(str, set(forced) & set(forbidden)))
+        if clash:
+            raise MlsynthConfigError(
+                f"geos cannot be both to_be_treated and not_to_be_treated: {clash}.")
+        if len(set(forced)) > self.max_treatment_size:
+            raise MlsynthConfigError(
+                f"to_be_treated forces {len(set(forced))} geos into every "
+                f"treatment group but max_treatment_size is "
+                f"{self.max_treatment_size}.")
+
+        # The size band.
+        bounds = (self.min_size, self.max_size)
+        if self.size_col is None and bounds != (None, None):
+            raise MlsynthConfigError("min_size / max_size require size_col.")
+        if self.size_col is not None and bounds == (None, None):
+            raise MlsynthConfigError(
+                "size_col bounds nothing without min_size or max_size.")
+        if None not in bounds and self.min_size > self.max_size:
+            raise MlsynthConfigError(
+                f"min_size ({self.min_size}) is above max_size ({self.max_size}).")
+        out_of_band = set()
+        if self.size_col is not None:
+            size = _per_geo(df, unit, self.size_col)
+            lo = -math.inf if self.min_size is None else self.min_size
+            hi = math.inf if self.max_size is None else self.max_size
+            out_of_band = {g for g, v in size.items() if not lo <= v <= hi}
+            outside = sorted(map(str, set(forced) & out_of_band))
+            if outside:
+                raise MlsynthConfigError(
+                    f"to_be_treated geos {outside} fall outside the size band "
+                    f"[{self.min_size}, {self.max_size}], which bars them from "
+                    f"treatment.")
+
+        # Stratum quotas.
+        quota = (self.min_per_stratum, self.max_per_stratum)
+        if self.stratum_col is None and quota != (None, None):
+            raise MlsynthConfigError(
+                "min_per_stratum / max_per_stratum require stratum_col.")
+        if self.stratum_col is not None and quota == (None, None):
+            raise MlsynthConfigError(
+                "stratum_col sets no quota without min_per_stratum or "
+                "max_per_stratum.")
+        for name, value in (("min_per_stratum", self.min_per_stratum),
+                            ("max_per_stratum", self.max_per_stratum)):
+            if value is not None and value < 1:
+                raise MlsynthConfigError(f"{name} must be at least 1; got {value}.")
+        if None not in quota and self.min_per_stratum > self.max_per_stratum:
+            raise MlsynthConfigError(
+                f"min_per_stratum ({self.min_per_stratum}) is above "
+                f"max_per_stratum ({self.max_per_stratum}).")
+        if self.min_per_stratum is not None:
+            stratum = _per_geo(df, unit, self.stratum_col)
+            barred = set(forbidden) | out_of_band
+            eligible: dict = {}
+            for g, s in stratum.items():
+                eligible[s] = eligible.get(s, 0) + (g not in barred)
+            short = sorted(str(s) for s, n in eligible.items()
+                           if 0 < n < self.min_per_stratum)
+            if short:
+                raise MlsynthConfigError(
+                    f"min_per_stratum is {self.min_per_stratum} but stratum(s) "
+                    f"{short} have fewer geos left eligible for treatment.")
+
+        # Conflicts.
+        if "spillover_threshold" in active and self.adjacency is None:
+            raise MlsynthConfigError(
+                "spillover_threshold reads adjacency; supply adjacency or drop it.")
+        if self.exclude_bordering_donors and self.cluster_col is None \
+                and self.adjacency is None:
+            raise MlsynthConfigError(
+                "exclude_bordering_donors keeps a treated geo's neighbours out of "
+                "the control group and needs cluster_col or adjacency to say who "
+                "they are.")
+
+        # The budget.
+        col, cap = self.market_cost_col, self.max_total_cost
+        if col is not None and cap is None:
+            raise MlsynthConfigError(
+                "market_cost_col needs max_total_cost, the budget the costs are "
+                "summed against.")
+        if cap is not None and col is None:
+            raise MlsynthConfigError(
+                "max_total_cost needs market_cost_col, the column of each geo's "
+                "cost.")
+        if cap is not None:
+            if not (math.isfinite(cap) and cap > 0):
+                raise MlsynthConfigError(
+                    f"max_total_cost must be a positive number; got {cap!r}.")
+            cost = np.asarray(list(_per_geo(df, unit, col).values()), dtype=float)
+            if not (np.all(np.isfinite(cost)) and np.all(cost >= 0)):
+                raise MlsynthDataError(
+                    f"market_cost_col {col!r} must hold a finite, non-negative "
+                    f"cost for every geo.")
+
+        # The control band.
+        for name, value in (("min_controls", self.min_controls),
+                            ("max_controls", self.max_controls)):
+            if value is not None and value < 1:
+                raise MlsynthConfigError(f"{name} must be at least 1; got {value}.")
+        if self.min_controls is not None and self.max_controls is not None \
+                and self.min_controls > self.max_controls:
+            raise MlsynthConfigError(
+                f"min_controls ({self.min_controls}) is above max_controls "
+                f"({self.max_controls}).")
+        return self
+
+
+def _per_geo(df: pd.DataFrame, unit: str, col: str) -> dict:
+    """A per-geo constant column as ``{geo: value}``, refused if it varies."""
+    grouped = df.groupby(unit, observed=True)[col]
+    varying = grouped.nunique(dropna=False)
+    if (varying > 1).any():
+        raise MlsynthDataError(
+            f"{col!r} must be constant within each geo; it varies for "
+            f"{list(varying[varying > 1].index)[:5]}.")
+    return dict(grouped.first().items())

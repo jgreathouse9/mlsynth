@@ -36,16 +36,29 @@ search space instead of filtering its output. For a geo outside the treatment
 group, control eligibility with unassigned eligibility makes it free to toggle;
 control eligibility without unassigned eligibility pins it into the control
 group; no control eligibility pins it out.
+
+Business rules (#1046) are statements about the groups, not about one geo, and
+arrive as a :class:`~mlsynth.utils.tbr_helpers.design.rules.DesignRules`. They
+bind every step. Augmentation considers only geos whose addition leaves the
+group extendable to an admissible one of at most K geos, and among those keeps
+the geos that leave it completable soonest, so a size whose quotas can be met is
+met there. A treated geo's banned neighbours leave the control group in the
+same step and are never toggled back. Matching keeps the control group inside
+its size band, bringing a starting group into the band first by the best
+single adds or drops. A size is recorded only when its treatment group admits
+every rule. Without rules every one of these branches is skipped and the walk
+is the one above, step for step.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Dict, FrozenSet, List, Sequence, Set, Tuple
+from typing import Dict, FrozenSet, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 
 from ....exceptions import MlsynthDataError
 from .objective import SplitScore, score_split
+from .rules import DesignRules
 
 TREATMENT = "treatment"
 CONTROL = "control"
@@ -69,6 +82,7 @@ class SearchOutcome:
     trace: List[Tuple[float, ...]]
     converged: bool
     evaluations: int
+    abandoned_restarts: int = 0
 
 
 class _Scorer:
@@ -155,23 +169,52 @@ def _check_feasible(pools: Dict[str, List[int]], max_treatment_size: int) -> Non
             f"{room}.")
 
 
+def _best_toggle(scorer: _Scorer, treatment: Sequence[int], control: Set[int],
+                 geos: Sequence[int]) -> Set[int]:
+    """The control group after the single toggle in ``geos`` that scores best."""
+    best_score, best_geo = None, None
+    for geo in geos:
+        score = scorer(treatment, control ^ {geo})
+        if best_score is None or score.key > best_score.key:
+            best_score, best_geo = score, geo
+    return control ^ {best_geo}
+
+
 def _match(scorer: _Scorer, treatment: Sequence[int], control: Set[int],
-           toggleable: Sequence[int]) -> Tuple[Set[int], List[Tuple[float, ...]], bool]:
+           toggleable: Sequence[int], band: Tuple[int, Optional[int]] = (1, None)
+           ) -> Optional[Tuple[Set[int], List[Tuple[float, ...]], bool]]:
     """Toggle one control membership at a time while the objective improves.
 
     The trace opens with the score of the partition as handed over, so a climb
     that improves nothing still records where it stood, and the returned trace is
     never empty.
+
+    ``band`` bounds the control group's size; the default only keeps it
+    non-empty. A starting group outside the band is first brought inside by the
+    best-scoring single adds or drops, and the trace opens there. When the
+    toggleable geos cannot bring it inside -- too many geos have to be controls
+    -- there is no design and the answer is None.
     """
+    lo, hi = band
     control = set(control)
+    while len(control) < lo:
+        adds = [g for g in toggleable if g not in control]
+        if not adds:      # pragma: no cover - the augmentation keeps at least
+            return None   # lo controls available, and every one is toggleable
+        control = _best_toggle(scorer, treatment, control, adds)
+    while hi is not None and len(control) > hi:
+        drops = [g for g in toggleable if g in control]
+        if not drops:
+            return None
+        control = _best_toggle(scorer, treatment, control, drops)
     trace = [scorer(treatment, control).key]
     while True:
         current = scorer(treatment, control)
         best_score, best_geo = None, None
         for geo in toggleable:
             candidate = control ^ {geo}
-            if not candidate:                     # never empty the control group
-                continue
+            if len(candidate) < lo or (hi is not None and len(candidate) > hi):
+                continue              # never empty the group or leave the band
             score = scorer(treatment, candidate)
             if best_score is None or score.key > best_score.key:
                 best_score, best_geo = score, geo
@@ -181,9 +224,34 @@ def _match(scorer: _Scorer, treatment: Sequence[int], control: Set[int],
         trace.append(best_score.key)
 
 
+def _reachable(rules: DesignRules, treatment: Sequence[int],
+               candidates: Sequence[int], K: int) -> List[int]:
+    """The candidates that leave the group completable soonest.
+
+    A candidate is kept when the group it makes is extendable to an admissible
+    group of at most ``K`` geos. Among those, the ones extendable at the
+    smallest size win: with two strata asking for one geo each, the second
+    geo comes from the stratum the first did not cover, so size two is
+    recorded instead of being skipped on the way to K.
+    """
+    horizon: Dict[int, int] = {}
+    size = len(treatment) + 1
+    for geo in candidates:
+        grown = list(treatment) + [geo]
+        for m in range(size, K + 1):
+            if rules.extendable(grown, m):
+                horizon[geo] = m
+                break
+    if not horizon:
+        return []
+    soonest = min(horizon.values())
+    return [g for g in candidates if horizon.get(g) == soonest]
+
+
 def _augment(scorer: _Scorer, treatment: Sequence[int], control: Set[int],
-             pools: Dict[str, List[int]], *, from_pool: bool = False
-             ) -> Tuple[List[int], Set[int]]:
+             pools: Dict[str, List[int]], *, from_pool: bool = False,
+             rules: Optional[DesignRules] = None, K: int = 0
+             ) -> Optional[Tuple[List[int], Set[int]]]:
     """Add the treatment-eligible geo that most improves the objective.
 
     A candidate already sitting in the control group leaves it in the same step,
@@ -194,24 +262,35 @@ def _augment(scorer: _Scorer, treatment: Sequence[int], control: Set[int],
 
     ``from_pool`` scores every candidate against the whole control pool instead
     of against the incumbent control group. See :func:`greedy_search`.
+
+    Under ``rules`` only the geos :func:`_reachable` keeps are candidates, the
+    new group's banned controls leave the control group with the geo, and a
+    step with no candidate returns None instead of raising: the rules, not K,
+    have capped the group.
     """
     control_pool = set(pools["control"])
+    candidates = [g for g in pools["treatment"] if g not in treatment]
+    if rules is not None:
+        candidates = _reachable(rules, treatment, candidates, K)
     best: Tuple[SplitScore, int, Set[int]] | None = None
-    for geo in pools["treatment"]:
-        if geo in treatment:
-            continue
+    for geo in candidates:
+        banned = (frozenset() if rules is None
+                  else rules.banned_controls(list(treatment) + [geo]))
         if from_pool:
             candidate_control = control_pool - set(treatment) - {geo}
         else:
             candidate_control = set(control) - {geo}
+        candidate_control -= banned
         if not candidate_control:
-            candidate_control = control_pool - set(treatment) - {geo}
+            candidate_control = control_pool - set(treatment) - {geo} - banned
         if not candidate_control:
             continue
         candidate_treatment = list(treatment) + [geo]
         score = scorer(candidate_treatment, candidate_control)
         if best is None or score.key > best[0].key:
             best = (score, geo, candidate_control)
+    if best is None and rules is not None:
+        return None
     if best is None:   # pragma: no cover - _check_feasible is exact, so some
         raise MlsynthDataError(          # candidate always leaves a control geo
             f"no treatment-eligible geo can join a treatment group of "
@@ -222,7 +301,8 @@ def _augment(scorer: _Scorer, treatment: Sequence[int], control: Set[int],
 
 def greedy_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]], *,
                   max_treatment_size: int, n_test: int, objective: str,
-                  control_start: str = "carried") -> List[SearchOutcome]:
+                  control_start: str = "carried",
+                  rules: Optional[DesignRules] = None) -> List[SearchOutcome]:
     """Algorithm 1 over the columns of ``y_matrix``, one outcome per size.
 
     ``y_matrix`` is periods by geos and holds the scoring window only. Columns
@@ -239,6 +319,12 @@ def greedy_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]], *
     local optimum from a different start in 16 of 19 cases, and the two answers
     can straddle a rounded-correlation boundary, which is the element of the key
     above the detectable impact.
+
+    ``rules`` are the business rules on the design, built over the same columns
+    as ``eligibility``. With them a size is recorded only when a design of that
+    size satisfies every rule, the list can skip sizes or stop short of K, and
+    a problem with no recorded size raises :class:`MlsynthDataError`. With
+    ``None`` the search is the one without rules, step for step.
     """
     y_matrix = np.asarray(y_matrix, dtype=float)
     if y_matrix.ndim != 2:
@@ -254,17 +340,6 @@ def greedy_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]], *
         raise MlsynthDataError(
             f"control_start is {control_start!r}; it has to be 'carried', "
             f"'pool' or 'best'.")
-    if control_start == "best":
-        runs = [greedy_search(y_matrix, eligibility,
-                              max_treatment_size=max_treatment_size,
-                              n_test=n_test, objective=objective,
-                              control_start=start)
-                for start in ("carried", "pool")]
-        # ``max`` keeps the first argument on a tie, so an even contest returns
-        # the reference walk's design and the option costs nothing but time.
-        return [replace(max(a, b, key=lambda o: o.score.key),
-                        evaluations=a.evaluations + b.evaluations)
-                for a, b in zip(*runs)]
     if n_periods < MIN_SCORING_PERIODS:
         raise MlsynthDataError(
             f"scoring a candidate split needs at least {MIN_SCORING_PERIODS} "
@@ -273,22 +348,82 @@ def greedy_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]], *
 
     pools = _read_eligibility(eligibility)
     _check_feasible(pools, max_treatment_size)
+    if rules is not None:
+        if rules.n_units != n_units:
+            raise MlsynthDataError(
+                f"the rules cover {rules.n_units} geo(s) but the panel has "
+                f"{n_units}.")
+        rules.audit(pools["forced"], max_treatment_size)
 
+    starts = ("carried", "pool") if control_start == "best" else (control_start,)
+    runs = [_walk(y_matrix, eligibility, pools, max_treatment_size=max_treatment_size,
+                  n_test=n_test, objective=objective, from_pool=start == "pool",
+                  rules=rules)
+            for start in starts]
+    if len(runs) == 1:
+        outcomes = runs[0]
+    elif rules is None:
+        # ``max`` keeps the first argument on a tie, so an even contest returns
+        # the reference walk's design and the option costs nothing but time.
+        outcomes = [replace(max(a, b, key=lambda o: o.score.key),
+                            evaluations=a.evaluations + b.evaluations)
+                    for a, b in zip(*runs)]
+    else:
+        # Under rules the two walks can record different sizes, so they are
+        # paired by size and not by position.
+        by_k = [{o.k: o for o in run} for run in runs]
+        outcomes = []
+        for k in sorted(set(by_k[0]) | set(by_k[1])):
+            pair = [r[k] for r in by_k if k in r]
+            outcomes.append(replace(max(pair, key=lambda o: o.score.key),
+                                    evaluations=sum(o.evaluations for o in pair)))
+    if not outcomes:
+        raise MlsynthDataError(
+            f"no treatment size from {max(len(pools['forced']), 1)} to "
+            f"{max_treatment_size} admits a design the search could find under "
+            f"{', '.join(rules.active)}; loosen one of them or raise "
+            f"max_treatment_size.")
+    return outcomes
+
+
+def _walk(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
+          pools: Dict[str, List[int]], *, max_treatment_size: int, n_test: int,
+          objective: str, from_pool: bool, rules: Optional[DesignRules]
+          ) -> List[SearchOutcome]:
+    """One walk of Algorithm 1 from the forced geos to K, one start rule."""
+    n_units = y_matrix.shape[1]
+    band = (1, None) if rules is None else rules.control_band
     scorer = _Scorer(y_matrix, objective, n_test)
     treatment: List[int] = list(pools["forced"])
     control: Set[int] = set(pools["control"]) - set(treatment)
+    if rules is not None:
+        control -= rules.banned_controls(treatment)
     outcomes: List[SearchOutcome] = []
 
-    from_pool = control_start == "pool"
     for k in range(max(len(pools["forced"]), 1), max_treatment_size + 1):
         spent = scorer.evaluations
         while len(treatment) < k:
-            treatment, control = _augment(scorer, treatment, control, pools,
-                                          from_pool=from_pool)
+            step = _augment(scorer, treatment, control, pools,
+                            from_pool=from_pool, rules=rules,
+                            K=max_treatment_size)
+            if step is None:
+                break
+            treatment, control = step
+        if len(treatment) < k:
+            break                 # the rules cap the group below this size
+        banned = (frozenset() if rules is None
+                  else rules.banned_controls(treatment))
         toggleable = [j for j in pools["control"]
-                      if j not in treatment and UNASSIGNED in eligibility[j]]
-        start = (set(pools["control"]) - set(treatment)) if from_pool else control
-        control, trace, converged = _match(scorer, treatment, start, toggleable)
+                      if j not in treatment and UNASSIGNED in eligibility[j]
+                      and j not in banned]
+        start = ((set(pools["control"]) - set(treatment) - banned) if from_pool
+                 else control)
+        matched = _match(scorer, treatment, start, toggleable, band)
+        if matched is None:
+            continue              # too many geos have to be controls at this size
+        control, trace, converged = matched
+        if rules is not None and not rules.admits(treatment):
+            continue
         assigned = set(treatment) | control
         outcomes.append(SearchOutcome(
             k=k, treatment=list(treatment), control=sorted(control),
