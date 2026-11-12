@@ -350,6 +350,15 @@
       }
     }
   },
+  "placebo_confounded": {
+    "panels": 60,
+    "reject_at_0.05": 0.1,
+    "reject_at_0.10": 0.18333333333333332,
+    "mean_p": 0.4774999999999999,
+    "observed_mean": 0.007516200971700101,
+    "placebo_mean": 0.006972459125038877,
+    "share_observed_above_all_placebos": 0.1
+  },
   "placebo_null": {
     "panels": 100,
     "reject_at_0.05": 0.01,
@@ -358,5 +367,14 @@
     "observed_mean": 0.003599027026193058,
     "placebo_mean": 0.004099832875308913,
     "share_observed_above_all_placebos": 0.01
+  },
+  "placebo_power10": {
+    "panels": 60,
+    "reject_at_0.05": 0.9,
+    "reject_at_0.10": 0.95,
+    "mean_p": 0.05999999999999998,
+    "observed_mean": 0.018676126592224642,
+    "placebo_mean": 0.00415132688718203,
+    "share_observed_above_all_placebos": 0.9
   }
 }
