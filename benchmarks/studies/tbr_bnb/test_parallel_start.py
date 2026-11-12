@@ -141,8 +141,8 @@ def test_a_draw_that_is_no_design_is_skipped_as_local_search_skips_it(monkeypatc
     real = lib_local._random_design
     n = iter(range(1000))
 
-    def sometimes(rng, roles, k):
-        d = real(rng, roles, k)
+    def sometimes(rng, roles, k, rules=None):
+        d = real(rng, roles, k, rules)
         return None if next(n) % 3 == 1 else d
 
     M = geo_panel(5)
