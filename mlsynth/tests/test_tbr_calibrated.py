@@ -718,8 +718,22 @@ def test_a_planned_test_longer_than_the_blank_window_is_refused():
     # 15-period origin
     df = market_panel(n_units=10, T=60, seed=3)
     df["post"] = (df.date >= 56).astype(int)
-    with pytest.raises(MlsynthDataError, match="origin"):
+    with pytest.raises(MlsynthDataError, match="horizon of 15 periods"):
         _fit(_searched_sim(df, n_test=15, post_col="post", blank_periods=12))
+
+
+def test_a_realised_window_shorter_than_planned_sizes_the_blank_window():
+    # four realised periods against a planned five: B is three realised test
+    # lengths, the band covers the four, and the trend reaches n_test for the MDE
+    df = market_panel(n_units=10, T=60, seed=3)
+    df["post"] = (df.date >= 56).astype(int)
+    res = _fit(_searched_sim(df, post_col="post"))
+    k = res.calibration
+    assert k.blank_periods == 12 and k.design_periods == 56 - 12
+    assert k.horizon == 5 and len(k.k) == 5
+    assert len(k.posterior_lower) == len(res.report.cumulative.lower) == 4
+    assert res.recommended.calibrated_required_impact == pytest.approx(
+        k.k[4] * res.recommended.detail["required_impact"], rel=1e-12)
 
 
 def test_the_bisection_tolerance_is_a_stated_constant():

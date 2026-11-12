@@ -9,6 +9,20 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- `inference="calibrated"` on `TBRConfig` (#1043): TBR's cumulative effect keeps
+  its point estimate and takes a calibrated interval, a Dirichlet-process
+  predictive (Florens and Rolin 2024, eq. 5.13) that mixes the posterior with
+  the regression's standardised errors on honest blank windows, the last
+  `blank_periods` pre-periods (default three test lengths), pooled over the
+  real design and `n_placebos` placebo designs and trended to the experiment's
+  distance from the design period. In searched mode the design search runs on
+  the pre-period minus those periods. `report.cumulative` carries the
+  calibrated band; `TBRResults.calibration` (also `report.calibration`) is a
+  frozen `TBRCalibration` with both bands, the trend, the factor `k` per
+  horizon and whether the split was honest. Each design gains
+  `calibrated_required_impact`, k at `n_test` times the reference's required
+  impact, and the power table a column for it; the ranking does not change.
+  The default `inference="posterior"` is unchanged.
 - MAREX's exact backend reports how its search reached the design (#774):
   `res.search`, and `res.clusters[label].search` per cluster, an
   `ExactSearchDiagnostics` that is `None` with `backend="mip"`. It counts each
