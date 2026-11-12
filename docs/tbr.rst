@@ -374,6 +374,16 @@ treated groups, during the search and in the recommended design, which is the
 size whose relative MDE is smallest. Each size's relative MDE is a share of its
 own group's sales, so that comparison is like for like.
 
+A larger treated group puts more sales in the denominator, so the relative MDE
+usually falls as the group grows and the recommended design is usually the
+largest size allowed. On the GeoLift panel with ``max_treatment_size=4`` and
+``n_test=14`` it falls at every size, from 2.72% at one treated geo to 2.04%,
+1.65% and 1.38% at four, and the recommendation is the four-geo design (the
+reference objective recommends one geo, at 3.04%). Under ``"relative"``,
+``max_treatment_size`` is therefore the setting that decides the test's size
+and what it costs to run; the designs at every smaller size remain in
+``result.designs`` to choose between.
+
 Two measurements, from scratch studies over a pool of 300 random treated
 groups per window, each with the control group of least residual sum of
 squares, on the GeoLift panel, a public panel of monthly beer shipments by
