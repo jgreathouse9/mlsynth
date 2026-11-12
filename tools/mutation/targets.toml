@@ -16115,7 +16115,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "the-rules-do-not-name-the-tolerance"
   find = "        if self.tolerance is not None:\n            out.append(\"population_tolerance\")\n"
-  replace = ""
+  replace = "        pass\n"
   models = "a search refused under the tolerance without naming it among the rules that bind"
 
 [[target]]
