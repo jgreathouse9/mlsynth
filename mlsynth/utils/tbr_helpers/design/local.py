@@ -25,6 +25,13 @@ treatment group sits in the control group when control is its only other role,
 outside the experiment when control is not among its roles, and either way when
 both are. A geo leaving the treatment group takes whichever of those it allows.
 
+Business rules (#1046) bind every move as eligibility does: a neighbour is kept
+only when its treatment group admits every rule, its control group holds no
+banned neighbour of the treated geos and its size sits in the control band. A
+random restart draws until it finds an admissible design and gives up after
+:data:`RESTART_DRAWS` tries, which the outcome counts, so a restart never starts
+from a design the rules refuse.
+
 This is a heuristic like the greedy, with a larger move set: it carries no
 optimality guarantee. On a ten-geo subpanel of the GeoLift markets, where every
 design can be scored, it reached the best design at three of four treatment
@@ -32,16 +39,20 @@ sizes.
 """
 from __future__ import annotations
 
-from typing import FrozenSet, List, Sequence, Set, Tuple
+from typing import FrozenSet, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
 
 from ....exceptions import MlsynthDataError
 from .batched import design_cache, score_designs
 from .objective import score_split
+from .rules import DesignRules
 from .search import CONTROL, TREATMENT, UNASSIGNED, SearchOutcome
 
 Design = Tuple[List[int], Set[int]]
+
+#: Tries a random restart makes for an admissible design before it gives up.
+RESTART_DRAWS = 50
 
 
 def _sides(roles: Sequence[FrozenSet[str]]):
@@ -55,7 +66,8 @@ def _sides(roles: Sequence[FrozenSet[str]]):
 
 
 def neighbourhood(treatment: Sequence[int], control: Set[int],
-                  roles: Sequence[FrozenSet[str]]) -> List[Design]:
+                  roles: Sequence[FrozenSet[str]],
+                  rules: Optional[DesignRules] = None) -> List[Design]:
     """Every design one move from ``(treatment, control)`` that ``roles`` allow.
 
     The moves are a free control geo toggled in or out, a free control geo
@@ -63,7 +75,8 @@ def neighbourhood(treatment: Sequence[int], control: Set[int],
     forced swapped for any other treatment-eligible geo. A geo entering the
     treatment group leaves the control group; a geo leaving it goes to the
     control group when it must, outside when it must, and to each in turn when
-    it may. No move empties the control group.
+    it may. No move empties the control group. Under ``rules`` only the
+    neighbours :meth:`DesignRules.admits_design` accepts are returned.
     """
     _, treatable, pinned, free = _sides(roles)
     T = sorted(treatment)
@@ -98,11 +111,26 @@ def neighbourhood(treatment: Sequence[int], control: Set[int],
                 C2 = (C - {g}) | ({t} if to_control else set())
                 if C2:
                     out.append((T2, C2))
+    if rules is not None:
+        out = [(T2, C2) for T2, C2 in out if rules.admits_design(T2, C2)]
     return out
 
 
-def _random_design(rng: np.random.Generator, roles, k: int) -> Design | None:
-    """A uniformly drawn design of size ``k`` that ``roles`` allow, or None."""
+def _random_design(rng: np.random.Generator, roles, k: int,
+                   rules: Optional[DesignRules] = None) -> Design | None:
+    """A uniformly drawn design of size ``k`` that ``roles`` allow, or None.
+
+    Under ``rules`` the draw is repeated until its treatment group admits the
+    rules and a control group fits the band without a banned geo, for at most
+    :data:`RESTART_DRAWS` tries; the control group is then drawn uniformly
+    within the band from the geos the rules leave.
+    """
+    if rules is not None:
+        for _ in range(RESTART_DRAWS):
+            drawn = _admissible_draw(rng, roles, k, rules)
+            if drawn is not None:
+                return drawn
+        return None
     forced, treatable, pinned, free = _sides(roles)
     pool = sorted(treatable - forced)
     need = k - len(forced)
@@ -119,6 +147,33 @@ def _random_design(rng: np.random.Generator, roles, k: int) -> Design | None:
     return (T, C) if C else None
 
 
+def _admissible_draw(rng: np.random.Generator, roles, k: int,
+                     rules: DesignRules) -> Design | None:
+    """One try at a design of size ``k`` that the rules admit, or None."""
+    forced, treatable, pinned, free = _sides(roles)
+    pool = sorted(treatable - forced)
+    need = k - len(forced)
+    if need < 0 or need > len(pool):  # pragma: no cover - the greedy's own size
+        return None                   # is feasible, so a start of it is too
+    T = sorted(forced | set(rng.choice(pool, size=need, replace=False).tolist())
+               if need else forced)
+    if not rules.admits(T):
+        return None
+    banned = rules.banned_controls(T)
+    C = {g for g in pinned if g not in T}
+    if C & banned:
+        return None
+    choices = [g for g in sorted(free) if g not in T and g not in banned]
+    lo, hi = rules.control_band
+    fewest = max(lo - len(C), 0)
+    most = min(len(choices), hi - len(C))
+    if most < fewest:
+        return None
+    size = int(rng.integers(fewest, most + 1))
+    C |= set(rng.choice(choices, size=size, replace=False).tolist())
+    return list(T), C
+
+
 def _rows(N: int, designs: Sequence[Design]):
     UT = np.zeros((len(designs), N))
     UC = np.zeros((len(designs), N))
@@ -130,16 +185,24 @@ def _rows(N: int, designs: Sequence[Design]):
 
 def local_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
                  start: SearchOutcome, *, n_test: int, restarts: int,
-                 seed: int) -> SearchOutcome:
+                 seed: int, rules: Optional[DesignRules] = None) -> SearchOutcome:
     """Descend from ``start`` and from ``restarts`` random designs of its size.
 
     Returns the best design reached, as a :class:`SearchOutcome` whose trace
     opens at ``start``'s key and records every accepted step of the winning
-    descent, and whose ``evaluations`` counts every design scored, batched or
-    direct.
+    descent, whose ``evaluations`` counts every design scored, batched or
+    direct, and whose ``abandoned_restarts`` counts the restarts that drew no
+    design to descend from.
+
+    Under ``rules`` every design visited satisfies them, ``start`` included,
+    which is refused when it does not.
     """
     if restarts < 0:
         raise MlsynthDataError(f"restarts is {restarts}; it cannot be negative.")
+    if rules is not None and not rules.admits_design(start.treatment, start.control):
+        raise MlsynthDataError(
+            "the start design breaks the business rules, so a descent from it "
+            "would not be a design the rules allow.")
     y = np.asarray(y_matrix, dtype=float)
     N = y.shape[1]
     roles = list(eligibility)
@@ -157,9 +220,9 @@ def local_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
         current = direct(T, C)
         trace = [current.key]
         while True:
-            moves = neighbourhood(T, C, roles)
-            if not moves:  # pragma: no cover - a size the greedy reached
-                return T, C, current, trace  # always has a neighbour
+            moves = neighbourhood(T, C, roles, rules)
+            if not moves:
+                return T, C, current, trace
             keys = score_designs(cache, *_rows(N, moves))
             spent += len(moves)
             best = int(np.lexsort(keys.T[::-1])[-1])
@@ -173,9 +236,11 @@ def local_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
     best = descend(list(start.treatment), set(start.control))
     best_trace = [start.score.key] + best[3][1:]
     rng = np.random.default_rng(seed)
+    abandoned = 0
     for _ in range(restarts):
-        drawn = _random_design(rng, roles, start.k)
+        drawn = _random_design(rng, roles, start.k, rules)
         if drawn is None:
+            abandoned += 1
             continue
         run = descend(*drawn)
         if run[2].key > best[2].key:
@@ -189,4 +254,5 @@ def local_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
     return SearchOutcome(
         k=start.k, treatment=sorted(T), control=sorted(C),
         unassigned=sorted(set(range(N)) - assigned), score=score,
-        trace=best_trace, converged=True, evaluations=spent)
+        trace=best_trace, converged=True, evaluations=spent,
+        abandoned_restarts=abandoned)

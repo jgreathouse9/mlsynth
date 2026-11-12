@@ -15225,3 +15225,321 @@ timeout = 900.0
   find = "           \"pentagons\": pentagons}"
   replace = "           }"
   models = "the search validates its switch and drops it, so every size takes the module's default"
+
+[[target]]
+name = "tbr-design-rules"
+module-path = "mlsynth/utils/tbr_helpers/design/rules.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_design_rules.py mlsynth/tests/test_tbr_design_constraints.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "conflicting-geos-both-treated"
+  find = "        if self._conflicted(T) or self._over_maximum(T):\n            return False\n        if any("
+  replace = "        if self._over_maximum(T):\n            return False\n        if any("
+  models = "the final check forgets cluster_col/adjacency, so two geos a campaign would bleed between are recorded as one treatment group"
+
+  [[target.mutant]]
+  id = "stratum-minimum-not-checked"
+  find = "len(members & T) < lo\n"
+  replace = "len(members & T) < 0\n"
+  models = "a size recorded although a stratum is short of its min_per_stratum, the quota the advertiser asked for"
+
+  [[target.mutant]]
+  id = "stratum-maximum-off-by-one"
+  find = "len(members & treatment) > hi\n"
+  replace = "len(members & treatment) > hi + 1\n"
+  models = "max_per_stratum read one too loose, so a stratum can hold one more treated geo than allowed"
+
+  [[target.mutant]]
+  id = "budget-not-checked"
+  find = "        return not self._over(self._cost(T))\n"
+  replace = "        return True\n"
+  models = "the final check forgets max_total_cost, so a treatment group over budget is recorded"
+
+  [[target.mutant]]
+  id = "budget-read-without-slack"
+  find = "            total > self.budget + _BUDGET_SLACK * max(1.0, abs(self.budget))\n"
+  replace = "            total > self.budget\n"
+  models = "a budget met to the last rounding step refused, so a group costing exactly the budget is lost to 0.1 + 0.2 != 0.3"
+
+  [[target.mutant]]
+  id = "bordering-geos-never-banned"
+  find = "        T = frozenset(treatment)\n        return self._blocked(T) - T\n"
+  replace = "        return frozenset()\n"
+  models = "exclude_bordering_donors accepted and recorded while a treated geo's neighbours stay in the control group"
+
+  [[target.mutant]]
+  id = "max-controls-ignored"
+  find = "        hi = self.n_units if self.max_controls is None else self.max_controls\n"
+  replace = "        hi = self.n_units\n"
+  models = "max_controls accepted and recorded while the control group can grow past it"
+
+  [[target.mutant]]
+  id = "min-controls-ignored"
+  find = "        lo = 1 if self.min_controls is None else max(1, self.min_controls)\n"
+  replace = "        lo = 1\n"
+  models = "min_controls accepted and recorded while the control group can shrink below it"
+
+  [[target.mutant]]
+  id = "extendable-forgets-conflicts"
+  find = "        if len(T) > K or self._conflicted(T) or self._over_maximum(T):\n"
+  replace = "        if len(T) > K or self._over_maximum(T):\n"
+  models = "the augmentation adds a geo that conflicts with the group, which no later step can undo, so every larger size is lost"
+
+  [[target.mutant]]
+  id = "deficit-filled-by-unaddable-members"
+  find = "            pool = members & addable\n"
+  replace = "            pool = members & self.treatable\n"
+  models = "a stratum minimum counted as reachable through members that conflict with the group or cost more than the budget left"
+
+  [[target.mutant]]
+  id = "deficits-not-held-to-the-room"
+  find = "        if need > K - len(T) or cheapest > left:\n"
+  replace = "        if cheapest > left:\n"
+  models = "the stratum deficits not compared with the room K leaves, so the augmentation spends the room on one stratum and the quotas become unreachable"
+
+  [[target.mutant]]
+  id = "deficits-not-held-to-the-budget"
+  find = "        if need > K - len(T) or cheapest > left:\n"
+  replace = "        if need > K - len(T):\n"
+  models = "the cheapest way to meet the quotas not compared with the budget left"
+
+  [[target.mutant]]
+  id = "a-banned-must-control-is-extendable"
+  find = "        if must & banned:\n            return False\n"
+  replace = "        if False:\n            return False\n"
+  models = "a group that bans a geo whose roles force it into the control group treated as completable, though that geo then has no group"
+
+  [[target.mutant]]
+  id = "must-controls-never-shed"
+  find = "        if len(must) - min(K - len(T), len(must & self.treatable)) > hi:\n"
+  replace = "        if len(must) > hi:\n"
+  models = "max_controls read as if no geo that has to be a control could be treated instead, which discards completable groups"
+
+  [[target.mutant]]
+  id = "audit-forgets-forced-conflicts"
+  find = "            clash = sorted(self.neighbours[t] & F)\n"
+  replace = "            clash = []\n"
+  models = "two conflicting forced geos refused under a message that does not name the conflict"
+
+  [[target.mutant]]
+  id = "audit-forgets-the-quota-count"
+  find = "        if need > K:\n"
+  replace = "        if False:\n"
+  models = "quotas that need more treated geos than max_treatment_size refused without saying so"
+
+  [[target.mutant]]
+  id = "audit-drains-nothing"
+  find = "        drain = max(0, extra - len(self.treatable - self.controllable - F))\n"
+  replace = "        drain = 0\n"
+  models = "a min_controls the pool meets only before the treatment group is filled accepted by the audit"
+
+  [[target.mutant]]
+  id = "audit-double-counts-the-first-geo"
+  find = "        extra = max(need, 1) - len(F)\n"
+  replace = "        extra = max(1 - len(F), 0) + need - len(F)\n"
+  models = "the audit counts the one geo every design treats on top of the quota geos, so it refuses a feasible control minimum"
+
+[[target]]
+name = "tbr-design-search-rules"
+module-path = "mlsynth/utils/tbr_helpers/design/search.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_design_constraints.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "size-recorded-without-admits"
+  find = "        if rules is not None and not rules.admits(treatment):\n            continue\n"
+  replace = ""
+  models = "a size recorded although its treatment group breaks a rule, the check before recording skipped"
+
+  [[target.mutant]]
+  id = "augmentation-ignores-the-rules"
+  find = "        candidates = _reachable(rules, treatment, candidates, K)\n"
+  replace = "        pass\n"
+  models = "the augmentation adds any treatment-eligible geo, so a conflict or an overrun caps the group early and sizes the rules allow are lost"
+
+  [[target.mutant]]
+  id = "augmentation-takes-any-reachable-geo"
+  find = "    return [g for g in candidates if horizon.get(g) == soonest]\n"
+  replace = "    return [g for g in candidates if g in horizon]\n"
+  models = "the augmentation spends a small size on one stratum, so sizes whose quotas could be met are skipped"
+
+  [[target.mutant]]
+  id = "banned-controls-stay-in-the-carried-group"
+  find = "        candidate_control -= banned\n"
+  replace = ""
+  models = "a geo that joins the treatment group leaves its neighbours in the carried control group, against exclude_bordering_donors"
+
+  [[target.mutant]]
+  id = "banned-controls-toggled-back-in"
+  find = "                      and j not in banned]\n"
+  replace = "                      ]\n"
+  models = "matching toggles a banned neighbour back into the control group"
+
+  [[target.mutant]]
+  id = "the-pool-start-keeps-banned-geos"
+  find = "        start = ((set(pools[\"control\"]) - set(treatment) - banned) if from_pool\n"
+  replace = "        start = ((set(pools[\"control\"]) - set(treatment)) if from_pool\n"
+  models = "control_start='pool' re-derives the control group with the treated geos' banned neighbours in it"
+
+  [[target.mutant]]
+  id = "forced-neighbours-start-in-control"
+  find = "    if rules is not None:\n        control -= rules.banned_controls(treatment)\n    outcomes"
+  replace = "    outcomes"
+  models = "the walk's first control group holds the forced geos' banned neighbours"
+
+  [[target.mutant]]
+  id = "matching-ignores-the-band"
+  find = "        matched = _match(scorer, treatment, start, toggleable, band)\n"
+  replace = "        matched = _match(scorer, treatment, start, toggleable)\n"
+  models = "min_controls / max_controls accepted while matching sizes the control group freely"
+
+  [[target.mutant]]
+  id = "audit-skipped"
+  find = "        rules.audit(pools[\"forced\"], max_treatment_size)\n"
+  replace = ""
+  models = "an infeasible problem climbed before it is refused, with a message that names no rule"
+
+[[target]]
+name = "tbr-design-local-rules"
+module-path = "mlsynth/utils/tbr_helpers/design/local.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_design_constraints.py mlsynth/tests/test_tbr_local_search.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "neighbours-not-filtered-by-the-rules"
+  find = "        out = [(T2, C2) for T2, C2 in out if rules.admits_design(T2, C2)]\n"
+  replace = "        pass\n"
+  models = "the local search moves to a design that breaks a rule because it scores better"
+
+  [[target.mutant]]
+  id = "restarts-drawn-without-the-rules"
+  find = "    if rules is not None:\n        for _ in range(RESTART_DRAWS):\n"
+  replace = "    if False:\n        for _ in range(RESTART_DRAWS):\n"
+  models = "a random restart drawn from the roles alone, so a descent can begin at a design the rules refuse"
+
+  [[target.mutant]]
+  id = "draw-admits-skipped"
+  find = "    if not rules.admits(T):\n        return None\n"
+  replace = ""
+  models = "a restart's treatment group taken without the treatment rules"
+
+  [[target.mutant]]
+  id = "draw-band-ignored"
+  find = "    lo, hi = rules.control_band\n    fewest"
+  replace = "    lo, hi = 1, rules.n_units\n    fewest"
+  models = "a restart's control group drawn outside min_controls / max_controls"
+
+  [[target.mutant]]
+  id = "draw-keeps-banned-pinned-controls"
+  find = "    if C & banned:\n        return None\n"
+  replace = ""
+  models = "a restart that bans a geo pinned to the control group keeps it there"
+
+  [[target.mutant]]
+  id = "abandoned-restarts-not-counted"
+  find = "            abandoned += 1\n"
+  replace = ""
+  models = "restarts that drew no admissible design dropped without saying so"
+
+  [[target.mutant]]
+  id = "inadmissible-start-accepted"
+  find = "    if rules is not None and not rules.admits_design(start.treatment, start.control):\n"
+  replace = "    if False:\n"
+  models = "a local search started from a design that breaks the rules, which it can then return"
+
+[[target]]
+name = "tbr-design-constraints-wiring"
+module-path = "mlsynth/utils/tbr_helpers/design/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_design_constraints.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "forced-geo-not-folded"
+  find = "        roles[j] = frozenset({TREATMENT})\n"
+  replace = "        pass\n"
+  models = "to_be_treated accepted and recorded while the forced geo is only eligible, not forced"
+
+  [[target.mutant]]
+  id = "forbidden-geo-keeps-the-treatment-role"
+  find = "        roles[j] = roles[j] - {TREATMENT}\n"
+  replace = "        pass\n"
+  models = "not_to_be_treated and the size band accepted and recorded while those geos can still be treated"
+
+  [[target.mutant]]
+  id = "forced-geo-the-column-excludes-is-forced"
+  find = "        if TREATMENT not in roles[j]:\n"
+  replace = "        if False:\n"
+  models = "a forced geo treatment_eligible_col bars is treated anyway, overriding one constraint with another without saying so"
+
+  [[target.mutant]]
+  id = "rules-not-passed-to-the-greedy"
+  find = "        control_start=config.control_start, rules=rules)\n"
+  replace = "        control_start=config.control_start)\n"
+  models = "the group-level rules built and recorded but never given to the search"
+
+  [[target.mutant]]
+  id = "rules-not-passed-to-the-local-search"
+  find = "                                 seed=config.local_seed + o.k, rules=rules)\n"
+  replace = "                                 seed=config.local_seed + o.k)\n"
+  models = "search='local' descends without the rules and replaces the greedy's admissible design with a better-scoring one that breaks them"
+
+  [[target.mutant]]
+  id = "bordering-dropped-from-the-rules"
+  find = "        exclude_bordering_donors=config.exclude_bordering_donors,\n        min_controls=config.min_controls, max_controls=config.max_controls)\n\n    stratum_of"
+  replace = "        min_controls=config.min_controls, max_controls=config.max_controls)\n\n    stratum_of"
+  models = "exclude_bordering_donors recorded on the result but not given to the search"
+
+[[target]]
+name = "tbr-design-constraints-config"
+module-path = "mlsynth/utils/tbr_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_design_constraints.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "named-mode-accepts-constraints"
+  find = "        if self.mode == \"named\":\n            raise MlsynthConfigError(\n                f\"{sorted(active)} constrain"
+  replace = "        if False:\n            raise MlsynthConfigError(\n                f\"{sorted(active)} constrain"
+  models = "a named split accepts constraint fields it never reads, so the advertiser believes a rule was applied"
+
+  [[target.mutant]]
+  id = "forced-and-forbidden-may-overlap"
+  find = "        if clash:\n            raise MlsynthConfigError(\n                f\"geos cannot be both"
+  replace = "        if False:\n            raise MlsynthConfigError(\n                f\"geos cannot be both"
+  models = "a geo both forced and forbidden accepted at configuration time"
+
+  [[target.mutant]]
+  id = "forced-count-not-held-to-k"
+  find = "        if len(set(forced)) > self.max_treatment_size:\n"
+  replace = "        if False:\n"
+  models = "more forced geos than max_treatment_size accepted at configuration time"
+
+  [[target.mutant]]
+  id = "forced-geo-outside-the-band-accepted"
+  find = "            outside = sorted(map(str, set(forced) & out_of_band))\n"
+  replace = "            outside = []\n"
+  models = "a forced geo the size band bars accepted at configuration time"
+
+  [[target.mutant]]
+  id = "stratum-minimum-counts-barred-members"
+  find = "            barred = set(forbidden) | out_of_band\n"
+  replace = "            barred = set()\n"
+  models = "a stratum minimum checked against members not_to_be_treated or the size band already bar"
+
+  [[target.mutant]]
+  id = "bordering-without-a-conflict-source"
+  find = "        if self.exclude_bordering_donors and self.cluster_col is None \\\n"
+  replace = "        if False and self.cluster_col is None \\\n"
+  models = "exclude_bordering_donors accepted with nothing to say who borders whom, so it bans nothing"
+
+  [[target.mutant]]
+  id = "budget-without-costs"
+  find = "        if cap is not None and col is None:\n"
+  replace = "        if False:\n"
+  models = "max_total_cost accepted with no market_cost_col to sum against"
+
+  [[target.mutant]]
+  id = "negative-market-cost-accepted"
+  find = "            if not (np.all(np.isfinite(cost)) and np.all(cost >= 0)):\n"
+  replace = "            if not np.all(np.isfinite(cost)):\n"
+  models = "a negative market cost accepted, which buys budget room by treating it"

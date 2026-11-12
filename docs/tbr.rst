@@ -671,6 +671,133 @@ are not quadratic forms in the memberships. The restarts at size :math:`k` draw
 from ``local_seed + k``. Each design records ``search`` and, under
 ``search="local"``, the greedy's key at its size as ``greedy_key``.
 
+Business constraints on the design
+----------------------------------
+
+The eligibility columns decide, geo by geo, which of the three groups a geo may
+join. Advertisers also state rules about the groups as a whole: two markets that
+share a media buy cannot both run the campaign, every sales region needs a
+treated market, the test cannot cost more than the budget. The searched mode
+takes these rules in the vocabulary SYNDES, MAREX and LEXSCM use, field for
+field, so a constraint written for one design estimator reads the same in the
+others. Write :math:`\mathcal{T}` for the treatment group and :math:`\mathcal{C}`
+for the control group.
+
+* ``to_be_treated`` -- geos forced into every treatment group
+  (:math:`i \in \mathcal{T}`). A forced geo is eligible for treatment alone,
+  which is how the search already reads a geo that ``treatment_eligible_col``
+  alone admits, so forced geos count toward :math:`k_0` and the smallest size
+  reported. ``not_to_be_treated`` -- geos kept out of every treatment group (a
+  regulated market, one already in another test); they lose the treatment role
+  and keep the others, so they stay control candidates.
+* ``size_col`` with ``min_size`` / ``max_size`` -- a size band on treated geos.
+  A geo outside it loses the treatment role and stays a control candidate.
+* ``cluster_col`` and/or ``adjacency`` with ``spillover_threshold`` -- a conflict
+  graph. Two geos that share a cluster value, or whose adjacency entry exceeds
+  the threshold, are never both treated, because a campaign in one reaches the
+  other and the two are then not separate treated units.
+* ``stratum_col`` with ``min_per_stratum`` / ``max_per_stratum`` -- coverage
+  quotas, :math:`\min \le |\mathcal{T} \cap s| \le \max` for each stratum
+  :math:`s`. The minimum binds only in a stratum with a treatment-eligible geo,
+  as in SYNDES.
+* ``market_cost_col`` with ``max_total_cost`` -- a budget,
+  :math:`\sum_{i \in \mathcal{T}} c_i \le B`, where :math:`c_i` is the geo's
+  cost of being in the test (the media held back, the fees to run it). This is
+  a different column from ``cost_col``, the per-period spend series the iROAS
+  estimate divides by.
+* ``exclude_bordering_donors`` -- a treated geo's conflict neighbours stay out
+  of the control group. A neighbour partly reached by the campaign would carry
+  some of the effect into the counterfactual and shrink the estimate. Requires
+  ``cluster_col`` or ``adjacency``.
+* ``min_controls`` / ``max_controls`` -- a band on :math:`|\mathcal{C}|`.
+
+Every rule binds every step of the search. Augmentation considers only the geos
+whose addition leaves the treatment group completable: no conflict inside it, no
+stratum over its maximum, the budget not exceeded, and every stratum minimum
+still reachable through geos that can still join, in the room
+``max_treatment_size`` leaves and within the budget left. Among those it keeps
+the geos that let the group be completed at the smallest size, so with two
+strata asking for one treated geo each, the second geo comes from the stratum
+the first did not cover and size two is reported. A treated geo's banned
+neighbours leave the control group in the same step, and matching keeps the
+control group inside its band, first bringing a starting group into the band by
+the best single adds or drops. A size is reported only when its treatment group
+satisfies every rule, so the menu can skip small sizes (three strata with a
+minimum of one have no design below three treated geos) and can stop short of
+``max_treatment_size`` (a cluster structure can cap how many geos are treatable
+together). The local search filters its moves the same way, and a random
+restart draws until it finds a design the rules admit, giving up after 50 tries
+and counting the restart in the design's ``abandoned_restarts``.
+
+The constraints are checked at three points. The configuration refuses
+contradictions in the fields themselves: a geo both forced and forbidden, more
+forced geos than ``max_treatment_size``, a forced geo outside the size band, a
+minimum above its maximum, a stratum whose geos left eligible cannot meet its
+minimum, ``exclude_bordering_donors`` with no conflict source, and either half
+of the budget without the other. Every constraint field is refused for a named
+split, which has nothing to search. Before the climb, an audit refuses a
+problem no treatment size admits and names the binding rule: forced geos that
+conflict, forced geos that cost more than the budget, quotas that need more
+treated geos than ``max_treatment_size`` or more money than the budget, a geo
+that has to be a control bordering a forced geo, a control band no pool can
+meet. Each audit check is a condition every admissible design meets, so a
+refusal is never wrong. The audit cannot catch every infeasible problem: a
+conflict graph and a quota together can close every completion in a way no
+count detects, and the search raises
+:class:`~mlsynth.exceptions.MlsynthDataError` when it records no size. The
+search is a heuristic under rules as without them, so it can also raise on a
+problem some design satisfies, when the greedy walk has committed to geos that
+leave no admissible completion.
+
+The rules in force come back on ``result.design_constraints``: the forced and
+forbidden geos, the geos the size band bars, the conflicting pairs by label, the
+quota of each stratum, each geo's market cost, the budget, the control band,
+and ``rules``, the group-level rules that bound the search. With none of these
+fields set the search is the one above, step for step, and
+``design_constraints`` is ``None``.
+
+.. code-block:: python
+
+   import pandas as pd
+   from mlsynth import TBR
+   from mlsynth.config_models import TBRConfig
+
+   panel = pd.read_csv("basedata/geolift_test_data.csv").rename(
+       columns={"location": "geo"})
+   geos = sorted(panel.geo.unique())
+   volume = panel.groupby("geo").Y.mean()
+
+   # Per-geo attributes, constant within geo: a media market shared by four
+   # geos, a sales tier, and each geo's cost of being in the test.
+   panel["dma"] = panel.geo.map({g: f"dma{i // 4}" for i, g in enumerate(geos)})
+   panel["tier"] = panel.geo.map({g: f"tier{i % 3}" for i, g in enumerate(geos)})
+   panel["test_cost"] = panel.geo.map(100 * volume / volume.sum())
+
+   result = TBR(TBRConfig(
+       df=panel, unitid="geo", time="date", outcome="Y",
+       max_treatment_size=4, n_test=14,
+       to_be_treated=["chicago"],             # leadership committed to it
+       not_to_be_treated=["new york"],        # already in another test
+       cluster_col="dma",                     # one treated geo per market
+       exclude_bordering_donors=True,         # ...and no control beside it
+       stratum_col="tier", max_per_stratum=2,
+       market_cost_col="test_cost", max_total_cost=10.0,
+       min_controls=10,
+   )).fit()
+
+   for design in result.designs:
+       print(design.k, design.treatment_units, len(design.control_units))
+   result.design_constraints.rules
+
+Every design treats Chicago, none treats New York or two geos from one market,
+none holds a treated geo's market neighbour as a control, and each keeps at
+least ten controls. The tests are in
+``mlsynth/tests/test_tbr_design_constraints.py`` and
+``mlsynth/tests/test_tbr_design_rules.py``; the property tests check every
+returned design against the rules over random panels and random rule sets, and
+check against enumeration that the augmentation's filter never discards a
+treatment group some admissible design contains.
+
 What the search does not do
 ---------------------------
 

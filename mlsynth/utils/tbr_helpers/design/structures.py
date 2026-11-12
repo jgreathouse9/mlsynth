@@ -204,12 +204,84 @@ class TBRMMDesign(BaseModel):
         description="Under search='local', the key the greedy's design scored at "
                     "this size, so the improvement can be read off beside "
                     "`matching_trace[-1]`. None under 'greedy'.")
+    abandoned_restarts: int = Field(
+        default=0,
+        description="Under search='local', the random restarts at this size "
+                    "that drew no admissible design within the bounded number "
+                    "of tries and so were not descended from. Business "
+                    "constraints that admit few designs raise it; zero under "
+                    "'greedy'.")
     effect: Optional[TBRMMEffect] = Field(
         default=None,
         description="This design's realized effect, present only when the panel "
                     "carried a post window. Every candidate is measured, not only "
                     "the recommendation, so the menu can be compared after the "
                     "fact as well as before it.")
+
+
+class TBRStratumQuota(BaseModel):
+    """One stratum's quota on the treatment group, as the search enforced it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    stratum: Any = Field(..., description="The stratum's value in stratum_col.")
+    members: List[Any] = Field(
+        ..., description="The geos in the stratum, in sorted label order.")
+    min_treated: Optional[int] = Field(
+        default=None,
+        description="The fewest treated geos the stratum may hold. None when "
+                    "min_per_stratum is unset or no member may be treated, "
+                    "since a minimum binds only where it can be met.")
+    max_treated: Optional[int] = Field(
+        default=None, description="The most treated geos the stratum may hold.")
+
+
+class TBRDesignConstraints(BaseModel):
+    """The business constraints a searched design was found under.
+
+    The same vocabulary SYNDES, MAREX and LEXSCM use, resolved to geo labels.
+    Forced and forbidden geos and the size band also show in the result's
+    ``forced_treatment_units`` and ``eligible_treatment_units``, since they are
+    folded into each geo's eligibility before the search.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    to_be_treated: List[Any] = Field(
+        default_factory=list, description="Geos forced into every treatment group.")
+    not_to_be_treated: List[Any] = Field(
+        default_factory=list,
+        description="Geos kept out of every treatment group; they stay control "
+                    "candidates.")
+    size_ineligible_units: List[Any] = Field(
+        default_factory=list,
+        description="Geos outside the [min_size, max_size] band, which lose the "
+                    "treatment role and stay control candidates.")
+    conflict_pairs: List[Tuple[Any, Any]] = Field(
+        default_factory=list,
+        description="Pairs of geos that may not both be treated, from "
+                    "cluster_col and adjacency.")
+    strata: List[TBRStratumQuota] = Field(
+        default_factory=list, description="The coverage quotas per stratum.")
+    market_costs: Dict[Any, float] = Field(
+        default_factory=dict,
+        description="Each geo's cost of being treated, from market_cost_col.")
+    max_total_cost: Optional[float] = Field(
+        default=None, description="The budget on the treated geos' total cost.")
+    exclude_bordering_donors: bool = Field(
+        default=False,
+        description="True when a treated geo's conflict neighbours were kept out "
+                    "of the control group.")
+    min_controls: Optional[int] = Field(
+        default=None, description="The smallest control group allowed.")
+    max_controls: Optional[int] = Field(
+        default=None, description="The largest control group allowed.")
+    rules: List[str] = Field(
+        default_factory=list,
+        description="The group-level rules that bound the search, named by their "
+                    "config fields. Empty when only forced, forbidden or "
+                    "size-band geos were given, which act through eligibility "
+                    "alone.")
 
 
 class TBRResults(DesignResult):
@@ -248,4 +320,9 @@ class TBRResults(DesignResult):
     n_periods_scored: int = Field(
         default=0,
         description="Periods the objective was computed over.")
+    design_constraints: Optional[TBRDesignConstraints] = Field(
+        default=None,
+        description="The business constraints the search ran under, or None "
+                    "when none was set. Every design in `designs` satisfies "
+                    "them.")
 

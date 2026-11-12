@@ -8,19 +8,24 @@ stages.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Dict, FrozenSet, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
 from ....exceptions import MlsynthDataError
+from ...syndes_helpers.eligibility import unit_attribute_map
+from ...syndes_helpers.restrictions import build_restrictions
 from ..setup import _binary_unit_flag, _block_flag_start
 from .config import TBRConfig
 from ...post_fit import compute_post_fit_tbrmm, to_effect_result
 from .estimate import measure_design
 from .local import local_search
+from .rules import DesignRules
 from .search import CONTROL, TREATMENT, UNASSIGNED, greedy_search
-from .structures import TBRResults, TBRMMDesign
+from .structures import (TBRDesignConstraints, TBRResults, TBRMMDesign,
+                         TBRStratumQuota)
 
 
 def _scoring_window(config: TBRConfig) -> pd.DataFrame:
@@ -104,19 +109,98 @@ def build_inputs(config: TBRConfig) -> Tuple[np.ndarray, List, List[FrozenSet[st
     return wide.to_numpy(dtype=float), units, _eligibility(window, config, units)
 
 
+def design_rules(config: TBRConfig, units: List,
+                 eligibility: List[FrozenSet[str]]
+                 ) -> Tuple[List[FrozenSet[str]], Optional[DesignRules],
+                            Optional[TBRDesignConstraints]]:
+    """The business constraints, resolved against the geo order of the search.
+
+    Returns the eligibility with forced and forbidden geos folded in, the
+    group-level rules (None when no group-level rule is set, so the search is
+    the one without rules) and the record the result carries (None when no
+    constraint field is set).
+
+    Forced geos, forbidden geos and the size band speak about one geo each, so
+    they become roles: a forced geo is eligible for treatment alone, which is
+    what the search already reads as forced, and a forbidden or out-of-band geo
+    loses the treatment role and keeps the others. The labels are resolved by
+    the SYNDES builder, so the vocabulary and its checks are the ones SYNDES,
+    MAREX and LEXSCM share.
+    """
+    if not config.design_constraint_fields:
+        return eligibility, None, None
+    df, unit = config.df, config.unitid
+    restrictions = build_restrictions(
+        df, unit, SimpleNamespace(labels=np.asarray(units)),
+        to_be_treated=config.to_be_treated,
+        not_to_be_treated=config.not_to_be_treated,
+        cluster_col=config.cluster_col, adjacency=config.adjacency,
+        spillover_threshold=config.spillover_threshold,
+        stratum_col=config.stratum_col, min_per_stratum=config.min_per_stratum,
+        max_per_stratum=config.max_per_stratum, size_col=config.size_col,
+        min_size=config.min_size, max_size=config.max_size)
+
+    roles = list(eligibility)
+    for j in restrictions.forced_in:
+        if TREATMENT not in roles[j]:
+            raise MlsynthDataError(
+                f"{units[j]!r} is in to_be_treated but treatment_eligible_col "
+                f"does not allow it in the treatment group.")
+        roles[j] = frozenset({TREATMENT})
+    for j in restrictions.forbidden:
+        roles[j] = roles[j] - {TREATMENT}
+
+    costs = None
+    if config.market_cost_col is not None:
+        by_unit = unit_attribute_map(df, unit, config.market_cost_col)
+        costs = [float(by_unit[u]) for u in units]
+
+    group_level = (restrictions.conflict_pairs or restrictions.strata
+                   or costs is not None or config.exclude_bordering_donors
+                   or config.min_controls is not None
+                   or config.max_controls is not None)
+    rules = DesignRules.build(
+        roles, conflict_pairs=restrictions.conflict_pairs,
+        strata=restrictions.strata, costs=costs, budget=config.max_total_cost,
+        exclude_bordering_donors=config.exclude_bordering_donors,
+        min_controls=config.min_controls, max_controls=config.max_controls)
+
+    stratum_of = (unit_attribute_map(df, unit, config.stratum_col)
+                  if config.stratum_col is not None else {})
+    forbidden_by_name = set(config.not_to_be_treated or [])
+    record = TBRDesignConstraints(
+        to_be_treated=list(config.to_be_treated or []),
+        not_to_be_treated=list(config.not_to_be_treated or []),
+        size_ineligible_units=[units[j] for j in restrictions.forbidden
+                               if units[j] not in forbidden_by_name],
+        conflict_pairs=[(units[i], units[j])
+                        for i, j in restrictions.conflict_pairs],
+        strata=[TBRStratumQuota(stratum=stratum_of[units[min(members)]],
+                                members=[units[j] for j in sorted(members)],
+                                min_treated=lo, max_treated=hi)
+                for members, lo, hi in rules.strata],
+        market_costs=({} if costs is None else dict(zip(units, costs))),
+        max_total_cost=config.max_total_cost,
+        exclude_bordering_donors=config.exclude_bordering_donors,
+        min_controls=config.min_controls, max_controls=config.max_controls,
+        rules=list(rules.active))
+    return roles, (rules if group_level else None), record
+
+
 def run(config: TBRConfig) -> TBRResults:
     """Search the partitions and assemble the design result."""
     y_matrix, units, eligibility = build_inputs(config)
+    eligibility, rules, constraints = design_rules(config, units, eligibility)
     outcomes = greedy_search(
         y_matrix, eligibility, max_treatment_size=config.max_treatment_size,
         n_test=config.n_test, objective=config.objective,
-        control_start=config.control_start)
+        control_start=config.control_start, rules=rules)
     greedy_keys = [None] * len(outcomes)
     if config.search == "local":
         greedy_keys = [o.score.key for o in outcomes]
         outcomes = [local_search(y_matrix, eligibility, o, n_test=config.n_test,
                                  restarts=config.local_restarts,
-                                 seed=config.local_seed + o.k)
+                                 seed=config.local_seed + o.k, rules=rules)
                     for o in outcomes]
 
     # When the panel carries realized periods, every candidate is measured on
@@ -153,6 +237,7 @@ def run(config: TBRConfig) -> TBRResults:
             search=config.search,
             greedy_key=(None if greedy_key is None
                         else tuple(float(v) for v in greedy_key)),
+            abandoned_restarts=o.abandoned_restarts,
             effect=effect,
         ))
     best = max(range(len(outcomes)), key=lambda i: outcomes[i].score.key)
@@ -181,6 +266,7 @@ def run(config: TBRConfig) -> TBRResults:
         eligible_control_units=[units[j] for j, roles in enumerate(eligibility)
                                 if CONTROL in roles],
         n_periods_scored=int(y_matrix.shape[0]),
+        design_constraints=constraints,
         selected_units=list(recommended.treatment_units),
         power=pd.DataFrame([
             {"k": d.k, "objective_value": d.objective_value,
