@@ -3972,6 +3972,7 @@
   "mlsynth/utils/tbr_helpers/design/objective.py",
   "mlsynth/utils/tbr_helpers/design/pipeline.py",
   "mlsynth/utils/tbr_helpers/design/search.py",
+  "mlsynth/utils/tbr_helpers/design/tolerance.py",
   "mlsynth/utils/tbr_helpers/pipeline.py",
   "mlsynth/utils/tbr_helpers/posterior.py"
  ],

@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-11T15:54:59Z",
+ "generated": "2026-11-12T16:52:48Z",
  "cases": 218,
  "files": [
   "basedata/Data.csv",
@@ -1832,6 +1832,7 @@
   "benchmarks/studies/tbr_bnb/results/stall.log",
   "benchmarks/studies/tbr_bnb/results/start_last.log",
   "benchmarks/studies/tbr_bnb/results/treatment.log",
+  "benchmarks/studies/tbr_bnb/results/two_swap.log",
   "benchmarks/studies/tbr_bnb/results/worker_screen.log",
   "benchmarks/studies/tbr_bnb/results/working_set.log",
   "benchmarks/studies/tbr_bnb/results/workspace.log",
@@ -2887,6 +2888,7 @@
   "mlsynth/utils/tasc_helpers/structures.py",
   "mlsynth/utils/tbr_helpers/__init__.py",
   "mlsynth/utils/tbr_helpers/aa.py",
+  "mlsynth/utils/tbr_helpers/calibration.py",
   "mlsynth/utils/tbr_helpers/config.py",
   "mlsynth/utils/tbr_helpers/design/__init__.py",
   "mlsynth/utils/tbr_helpers/design/batched.py",
@@ -2895,8 +2897,10 @@
   "mlsynth/utils/tbr_helpers/design/local.py",
   "mlsynth/utils/tbr_helpers/design/objective.py",
   "mlsynth/utils/tbr_helpers/design/pipeline.py",
+  "mlsynth/utils/tbr_helpers/design/rules.py",
   "mlsynth/utils/tbr_helpers/design/search.py",
   "mlsynth/utils/tbr_helpers/design/structures.py",
+  "mlsynth/utils/tbr_helpers/design/tolerance.py",
   "mlsynth/utils/tbr_helpers/diagnostics.py",
   "mlsynth/utils/tbr_helpers/pipeline.py",
   "mlsynth/utils/tbr_helpers/plotter.py",
