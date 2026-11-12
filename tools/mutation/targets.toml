@@ -15543,3 +15543,277 @@ timeout = 600.0
   find = "            if not (np.all(np.isfinite(cost)) and np.all(cost >= 0)):\n"
   replace = "            if not np.all(np.isfinite(cost)):\n"
   models = "a negative market cost accepted, which buys budget room by treating it"
+
+# --------------------------------------------------------------------------- #
+# TBR calibrated inference (#1043): the blank-window calibration, the band on
+# the report, the honest split in the search, and the config that gates them.
+# --------------------------------------------------------------------------- #
+[[target]]
+name = "tbr-calibration"
+module-path = "mlsynth/utils/tbr_helpers/calibration.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_calibrated.py mlsynth/tests/test_tbr_calibrated_properties.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "forecast-scale-drops-the-window-noise"
+  find = "    scale = np.sqrt(S * (hs + quad))"
+  replace = "    scale = np.sqrt(S * quad)"
+  models = "the forecast scale keeps only the coefficient uncertainty and drops the h unobserved errors of the window itself, so every standardised blank error is inflated and the blank windows report a miscalibration the posterior does not have"
+
+  [[target.mutant]]
+  id = "forecast-residual-variance-on-n"
+  find = "    S = rss / (s - 2)"
+  replace = "    S = rss / s"
+  models = "the residual variance divided by the sample size instead of its degrees of freedom, so the forecast at the experiment is no longer TBR's own posterior predictive"
+
+  [[target.mutant]]
+  id = "forecast-df-off-by-one"
+  find = "    return AdidForecast(centre=centre, scale=scale, df=s - 2)"
+  replace = "    return AdidForecast(centre=centre, scale=scale, df=s - 1)"
+  models = "the t on s - 1 degrees of freedom, one more than a two-parameter fit leaves, which narrows the posterior part of the mixture"
+
+  [[target.mutant]]
+  id = "blank-window-sum-reaches-into-the-fit"
+  find = "        observed = sums[s + 1:s + reach + 1] - sums[s]"
+  replace = "        observed = sums[s + 1:s + reach + 1] - sums[s - 1]"
+  models = "the blank window's observed sum includes the last period the regression was fitted on, so the error is taken over h + 1 periods against a forecast of h"
+
+  [[target.mutant]]
+  id = "exact-fit-not-detected"
+  find = "    if rss <= EXACT_FIT_RTOL * tss or tss == 0.0:"
+  replace = "    if tss == 0.0:"
+  models = "a regression that reproduces a window to rounding is given a scale of 1e-13, and its standardised errors of order 1e12 swamp the pooled ECDF"
+
+  [[target.mutant]]
+  id = "trend-slope-not-clamped"
+  find = "    return alpha, max(beta, 0.0)"
+  replace = "    return alpha, beta"
+  models = "a negative distance slope kept, so errors further from the design period are shrunk on the way to the experiment, the one direction the selection effect never goes"
+
+  [[target.mutant]]
+  id = "errors-not-trended-to-the-experiment"
+  find = "    return np.asarray(z, dtype=float) * np.sqrt((alpha + beta * target) / here)"
+  replace = "    return np.asarray(z, dtype=float)"
+  models = "the distance trend fitted and discarded, so the blank errors speak for their own distance from the design period and not for the experiment's, which sits furthest away"
+
+  [[target.mutant]]
+  id = "trend-distance-measured-from-the-experiment"
+  find = "        dist = np.tile(np.arange(B - h + 1, dtype=float), n_designs)"
+  replace = "        dist = np.tile(np.arange(B - h + 1, dtype=float)[::-1], n_designs)"
+  models = "the distance counted back from the experiment instead of forward from the design period, so the trend's sign flips and the extrapolation runs the wrong way"
+
+  [[target.mutant]]
+  id = "k-from-the-raw-errors"
+  find = "        ks.append(float(np.sqrt(np.mean(z_tilde ** 2))))"
+  replace = "        ks.append(float(np.sqrt(np.mean(z ** 2))))"
+  models = "the calibrated MDE's factor taken from the untrended errors, so it understates the error at the experiment's distance whenever the trend rises"
+
+  [[target.mutant]]
+  id = "n-eff-ignores-the-windows-per-design"
+  find = "        n_eff.append(n_designs * max(1, B // h))"
+  replace = "        n_eff.append(n_designs)"
+  models = "each design counted as one independent window whatever the horizon, so the prior's weight against the blank errors is B / h times too large"
+
+  [[target.mutant]]
+  id = "prior-weight-inverted"
+  find = "    w0 = prior_weight / (prior_weight + n_eff)"
+  replace = "    w0 = n_eff / (prior_weight + n_eff)"
+  models = "the mixture weight given to the posterior where it belongs to the blank errors, so more evidence makes the band more like the posterior it is meant to correct"
+
+  [[target.mutant]]
+  id = "mixture-cdf-ignores-the-weight"
+  find = "    return w0 * t + (1.0 - w0) * float(emp)"
+  replace = "    return 0.5 * t + 0.5 * float(emp)"
+  models = "a fifty-fifty mixture whatever n0 and n_eff say"
+
+  [[target.mutant]]
+  id = "bisection-returns-the-lower-end"
+  find = "    return hi\n"
+  replace = "    return lo\n"
+  models = "the bisection returns the end of the bracket where the CDF has not reached the target, a point just below the quantile, which on an ECDF jump is the previous point's quantile"
+
+  [[target.mutant]]
+  id = "lower-tail-at-one-minus-level"
+  find = "    lo = mixture_quantile(0.5 * (1.0 - level), centre, scale, df, points, w0)"
+  replace = "    lo = mixture_quantile(1.0 - level, centre, scale, df, points, w0)"
+  models = "the lower endpoint cut at 1 - level instead of half of it, an asymmetric interval that undercovers on the low side"
+
+  [[target.mutant]]
+  id = "effect-band-not-flipped"
+  find = "        lower[h] = observed[h] - hi"
+  replace = "        lower[h] = observed[h] - lo"
+  models = "the counterfactual interval subtracted endpoint for endpoint, so the effect's lower bound is the upper one"
+
+  [[target.mutant]]
+  id = "placebo-may-be-the-real-group"
+  find = "        return group != real and (rules is None or rules.admits(group))"
+  replace = "        return rules is None or rules.admits(group)"
+  models = "the real design drawn as its own placebo, which pools its blank errors twice"
+
+  [[target.mutant]]
+  id = "placebo-ignores-the-rules"
+  find = "        return group != real and (rules is None or rules.admits(group))"
+  replace = "        return group != real"
+  models = "placebo groups drawn without the design rules, so the calibration pools errors of designs the search could never return"
+
+  [[target.mutant]]
+  id = "placebo-without-the-forced-geos"
+  find = "    forced = [j for j, r in enumerate(eligibility) if r == frozenset({TREATMENT})]"
+  replace = "    forced = []"
+  models = "a forced geo treated as optional in a placebo group, although every design the search can return contains it"
+
+  [[target.mutant]]
+  id = "placebo-controls-keep-banned-neighbours"
+  find = "    banned = frozenset() if rules is None else rules.banned_controls(T)"
+  replace = "    banned = frozenset()"
+  models = "a placebo's control group allowed to hold a treated geo's neighbour, which exclude_bordering_donors keeps out of every real design"
+
+  [[target.mutant]]
+  id = "undefined-real-errors-not-refused"
+  find = "    if not all(np.all(np.isfinite(v)) for v in real_z):"
+  replace = "    if False:"
+  models = "a real design whose blank errors are undefined carried on into the placebo matching, which then fails on a division by zero instead of reporting the exact fit"
+
+  [[target.mutant]]
+  id = "one-origin-horizon-accepted"
+  find = "    if B - horizon + 1 < 2:"
+  replace = "    if False:"
+  models = "a horizon with one blank origin accepted, so the distance trend is a regression on one distinct x and comes back nan"
+
+  [[target.mutant]]
+  id = "short-pre-period-accepted"
+  find = "    if D0 < MIN_DESIGN_PERIODS:"
+  replace = "    if False:"
+  models = "a blank window that leaves fewer than three periods to fit from accepted, so the first origin's regression has no degree of freedom"
+
+  [[target.mutant]]
+  id = "few-placebos-not-warned"
+  find = "    if len(placebos) < MIN_PLACEBOS:"
+  replace = "    if False:"
+  models = "a calibration on fewer than eight placebo designs reported without the warning that its blank errors are thin"
+
+  [[target.mutant]]
+  id = "default-blank-window-two-test-lengths"
+  find = "    B = 3 * test_length if requested is None else int(requested)"
+  replace = "    B = 2 * test_length if requested is None else int(requested)"
+  models = "the default blank window at the refusal floor instead of three test lengths"
+
+  [[target.mutant]]
+  id = "short-blank-window-accepted"
+  find = "    if B < 2 * test_length:"
+  replace = "    if False:"
+  models = "a blank window under two test lengths accepted, which leaves the longest horizons with a handful of overlapping origins"
+
+[[target]]
+name = "tbr-calibrated-pipeline"
+module-path = "mlsynth/utils/tbr_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_calibrated.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "posterior-default-calibrated"
+  find = "    if config.inference == \"calibrated\":"
+  replace = "    if True:"
+  models = "the calibration run under the default inference too, which moves the band the replication against google/matched_markets pins"
+
+  [[target.mutant]]
+  id = "named-split-reported-honest"
+  find = "        honest = blank is not None"
+  replace = "        honest = True"
+  models = "a named split recorded as chosen on the design window, when nothing was held back from a choice the estimator did not make"
+
+  [[target.mutant]]
+  id = "named-split-not-warned"
+  find = "    warnings.warn(\n        f\"inference='calibrated' on a named split"
+  replace = "    (lambda *a, **k: None)(\n        f\"inference='calibrated' on a named split"
+  models = "a named split calibrated without the warning that its blank windows are honest only if the groups were chosen without them"
+
+  [[target.mutant]]
+  id = "calibrated-band-not-applied"
+  find = "            \"lower\": [float(v) for v in lower],"
+  replace = "            \"lower\": list(cumulative.lower),"
+  models = "the calibration computed and recorded while report.cumulative keeps the posterior's lower bound"
+
+  [[target.mutant]]
+  id = "calibrated-mde-at-the-first-horizon"
+  find = "    k_test = (blank.k[config.n_test - 1] if config.mode == \"searched\" else None)"
+  replace = "    k_test = (blank.k[0] if config.mode == \"searched\" else None)"
+  models = "the calibrated MDE scaled by the one-period factor, which is smallest, instead of the factor at the planned test length"
+
+[[target]]
+name = "tbr-calibrated-search"
+module-path = "mlsynth/utils/tbr_helpers/design/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_calibrated.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "search-sees-the-blank-window"
+  find = "        search_matrix = y_matrix[:design_end(y_matrix.shape[0], blank_periods)]"
+  replace = "        search_matrix = y_matrix"
+  models = "the design search run on the whole pre-period, so the blank windows the interval is calibrated on are ones the search optimised over"
+
+  [[target.mutant]]
+  id = "test-length-is-n-test-in-analysis"
+  find = "        test_length = (config.n_test if post_matrix is None\n                       else int(post_matrix.shape[0]))"
+  replace = "        test_length = config.n_test"
+  models = "the blank window sized from the planned test length when the panel carries a realised one of a different length"
+
+  [[target.mutant]]
+  id = "mde-horizon-not-reached"
+  find = "            horizon=max(test_length, config.n_test), eligibility=eligibility,"
+  replace = "            horizon=test_length, eligibility=eligibility,"
+  models = "the calibration's horizons stopping at the realised window, so the calibrated MDE at a longer n_test has no factor"
+
+  [[target.mutant]]
+  id = "power-table-without-the-calibrated-mde"
+  find = "                {\"calibrated_required_impact\": d.calibrated_required_impact})}"
+  replace = "                {})}"
+  models = "the calibrated MDE on each design but missing from the power table a caller compares designs in"
+
+[[target]]
+name = "tbr-calibrated-config"
+module-path = "mlsynth/utils/tbr_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_calibrated.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "tuning-accepted-under-the-posterior"
+  find = "            if tuning:"
+  replace = "            if False:"
+  models = "calibration settings accepted and ignored under inference='posterior'"
+
+  [[target.mutant]]
+  id = "hac-and-calibrated-together"
+  find = "        if self.variance == \"hac\":"
+  replace = "        if False:"
+  models = "variance='hac' accepted beside calibrated inference, whose standardisation reads the iid scale"
+
+  [[target.mutant]]
+  id = "too-few-placebos-accepted"
+  find = "        if self.n_placebos < 8:"
+  replace = "        if False:"
+  models = "fewer than eight placebo designs accepted at configuration time"
+
+  [[target.mutant]]
+  id = "negative-prior-weight-accepted"
+  find = "        if not (math.isfinite(n0) and n0 >= 0.0):"
+  replace = "        if not math.isfinite(n0):"
+  models = "a negative prior weight accepted, which makes the mixture weight negative and the CDF non-monotone"
+
+  [[target.mutant]]
+  id = "negative-seed-accepted"
+  find = "        if self.calibration_seed < 0:"
+  replace = "        if False:"
+  models = "a negative seed accepted at configuration time and refused by numpy at fit"
+
+  [[target.mutant]]
+  id = "one-blank-period-accepted"
+  find = "        if B is not None and B < 2:"
+  replace = "        if False:"
+  models = "a blank window of one period accepted, which no test length satisfies"
+
+  [[target.mutant]]
+  id = "design-only-rule-deferred"
+  find = "                and B < 2 * self.n_test:"
+  replace = "                and False:"
+  models = "a design-only blank window under 2 x n_test accepted at configuration time, although the config alone decides it"

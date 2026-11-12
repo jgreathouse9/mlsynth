@@ -45,6 +45,10 @@ class TBRInputs:
     unassigned_units: List
     filled_cells: int
     intervention_time: object
+    # Every geo's outcome, periods by geos in ``units`` order, for what reads
+    # the panel below the two aggregates (the calibration's placebo designs).
+    wide: Optional[np.ndarray] = None
+    units: Optional[List] = None
 
 
 def _binary_unit_flag(df: pd.DataFrame, unit: str, col: str) -> pd.Series:
@@ -232,13 +236,18 @@ def build_inputs(config, *, treated=None, controls=None) -> TBRInputs:
                    else _block_flag_start(df, time, config.cooldown_col))
 
     # Section 3.1's aggregation, and the treatment indicator carried with it.
-    def _aggregate(column):
-        wide = df.pivot_table(index=time, columns=unit, values=column,
+    def _wide(column):
+        return df.pivot_table(index=time, columns=unit, values=column,
                               aggfunc="sum").sort_index()
+
+    def _aggregate(column):
+        wide = _wide(column)
         return (wide[treated].sum(axis=1).to_numpy(),
                 wide[controls].sum(axis=1).to_numpy())
 
-    y, x = _aggregate(outcome)
+    outcome_wide = _wide(outcome)
+    y = outcome_wide[treated].sum(axis=1).to_numpy()
+    x = outcome_wide[controls].sum(axis=1).to_numpy()
     periods = np.asarray(sorted(df[time].unique()))
     if treat is not None:
         d_treat = (df[df[unit].isin(treated)].groupby(time, observed=True)[treat].max()
@@ -299,4 +308,6 @@ def build_inputs(config, *, treated=None, controls=None) -> TBRInputs:
         control_units=controls, unassigned_units=unassigned,
         filled_cells=filled,
         intervention_time=(periods[n_pre] if n_pre < periods.size else None),
+        wide=outcome_wide.to_numpy(dtype=float),
+        units=list(outcome_wide.columns),
     )

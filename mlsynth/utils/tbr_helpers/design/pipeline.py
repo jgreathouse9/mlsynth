@@ -20,8 +20,11 @@ from ...syndes_helpers.restrictions import build_restrictions
 from ..setup import _binary_unit_flag, _block_flag_start
 from .config import TBRConfig
 from ...post_fit import compute_post_fit_tbrmm, to_effect_result
+from ..calibration import calibrate, design_end, resolve_blank_periods
+from ..posterior import fit_pretest
 from .estimate import measure_design
 from .local import local_search
+from .objective import required_impact
 from .rules import DesignRules
 from .search import CONTROL, TREATMENT, UNASSIGNED, greedy_search
 from .structures import (TBRDesignConstraints, TBRResults, TBRMMDesign,
@@ -187,21 +190,24 @@ def design_rules(config: TBRConfig, units: List,
     return roles, (rules if group_level else None), record
 
 
+def _reference_impact(search_matrix: np.ndarray, treatment: List[int],
+                      control: List[int], n_test: int) -> float:
+    """The reference's required impact for a design, on its search window.
+
+    :func:`~.objective.required_impact` from the design's own fit on the window
+    it was chosen on, so under the reference objective it is the
+    ``required_impact`` the search scored, and under ``"paper"`` the same
+    formula the reference would have.
+    """
+    fit = fit_pretest(search_matrix[:, treatment].sum(axis=1),
+                      search_matrix[:, control].sum(axis=1))
+    return required_impact(float(np.sqrt(fit.sigma_sq)), fit.n_pretest, n_test)
+
+
 def run(config: TBRConfig) -> TBRResults:
     """Search the partitions and assemble the design result."""
     y_matrix, units, eligibility = build_inputs(config)
     eligibility, rules, constraints = design_rules(config, units, eligibility)
-    outcomes = greedy_search(
-        y_matrix, eligibility, max_treatment_size=config.max_treatment_size,
-        n_test=config.n_test, objective=config.objective,
-        control_start=config.control_start, rules=rules)
-    greedy_keys = [None] * len(outcomes)
-    if config.search == "local":
-        greedy_keys = [o.score.key for o in outcomes]
-        outcomes = [local_search(y_matrix, eligibility, o, n_test=config.n_test,
-                                 restarts=config.local_restarts,
-                                 seed=config.local_seed + o.k, rules=rules)
-                    for o in outcomes]
 
     # When the panel carries realized periods, every candidate is measured on
     # them -- not only the recommendation -- so the menu can be compared after
@@ -211,6 +217,42 @@ def run(config: TBRConfig) -> TBRResults:
     post_wide = (_wide(post_window, config).reindex(columns=units)
                  if post_window is not None else None)
     post_matrix = post_wide.to_numpy(dtype=float) if post_wide is not None else None
+
+    # Calibrated inference holds the last B pre-periods back from the search,
+    # so the blank windows its interval is calibrated on are ones no design
+    # choice saw. The fits that report on a design still use the whole
+    # pre-period.
+    calibrated = config.inference == "calibrated"
+    search_matrix = y_matrix
+    if calibrated:
+        test_length = (config.n_test if post_matrix is None
+                       else int(post_matrix.shape[0]))
+        blank_periods = resolve_blank_periods(config.blank_periods, test_length)
+        search_matrix = y_matrix[:design_end(y_matrix.shape[0], blank_periods)]
+
+    outcomes = greedy_search(
+        search_matrix, eligibility, max_treatment_size=config.max_treatment_size,
+        n_test=config.n_test, objective=config.objective,
+        control_start=config.control_start, rules=rules)
+    greedy_keys = [None] * len(outcomes)
+    if config.search == "local":
+        greedy_keys = [o.score.key for o in outcomes]
+        outcomes = [local_search(search_matrix, eligibility, o,
+                                 n_test=config.n_test,
+                                 restarts=config.local_restarts,
+                                 seed=config.local_seed + o.k, rules=rules)
+                    for o in outcomes]
+    best = max(range(len(outcomes)), key=lambda i: outcomes[i].score.key)
+
+    blank = None
+    if calibrated:
+        blank = calibrate(
+            y_matrix, outcomes[best].treatment, outcomes[best].control,
+            blank_periods=blank_periods,
+            horizon=max(test_length, config.n_test), eligibility=eligibility,
+            rules=rules, objective=config.objective, n_test=config.n_test,
+            n_placebos=config.n_placebos, seed=config.calibration_seed)
+        k_test = blank.k[config.n_test - 1]
 
     designs = []
     measured = []
@@ -238,21 +280,32 @@ def run(config: TBRConfig) -> TBRResults:
             greedy_key=(None if greedy_key is None
                         else tuple(float(v) for v in greedy_key)),
             abandoned_restarts=o.abandoned_restarts,
+            calibrated_required_impact=(
+                k_test * _reference_impact(search_matrix, o.treatment,
+                                           o.control, config.n_test)
+                if calibrated else None),
             effect=effect,
         ))
-    best = max(range(len(outcomes)), key=lambda i: outcomes[i].score.key)
     recommended = designs[best]
 
     # The report is the estimate on the design the search recommends, built by
     # the same code the named mode uses. Before the merge this assembled a
     # generic effect result from the group posterior, so report.cumulative and
     # report.tbr_fit were present in one mode and absent in the other.
+    from ..pipeline import calibration_record, estimate
+    reference = (None if blank is None
+                 else _reference_impact(search_matrix, outcomes[best].treatment,
+                                        outcomes[best].control, config.n_test))
     report = None
     if post_matrix is not None:
-        from ..pipeline import estimate
         report = estimate(config,
                           treated=list(recommended.treatment_units),
-                          controls=list(recommended.control_units))
+                          controls=list(recommended.control_units),
+                          blank=blank, required_impact=reference)
+    calibration = (None if blank is None
+                   else report.calibration if report is not None
+                   else calibration_record(config, blank, units, honest=True,
+                                           required_impact=reference))
 
     return TBRResults(
         report=report,
@@ -265,12 +318,15 @@ def run(config: TBRConfig) -> TBRResults:
                                   if TREATMENT in roles],
         eligible_control_units=[units[j] for j, roles in enumerate(eligibility)
                                 if CONTROL in roles],
-        n_periods_scored=int(y_matrix.shape[0]),
+        n_periods_scored=int(search_matrix.shape[0]),
+        calibration=calibration,
         design_constraints=constraints,
         selected_units=list(recommended.treatment_units),
         power=pd.DataFrame([
             {"k": d.k, "objective_value": d.objective_value,
-             **{key: d.detail[key] for key in sorted(d.detail)}}
+             **{key: d.detail[key] for key in sorted(d.detail)},
+             **({} if blank is None else
+                {"calibrated_required_impact": d.calibrated_required_impact})}
             for d in designs
         ]),
     )

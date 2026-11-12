@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 
 from ...config_models import InferenceResults, WeightsResults
@@ -15,10 +17,13 @@ from .posterior import (
     iroas_fixed_cost,
     iroas_simulated,
 )
+from .calibration import (QUANTILE_TOL, BlankCalibration, calibrate,
+                          calibrated_band, resolve_blank_periods)
+from .design.search import CONTROL, TREATMENT, UNASSIGNED
 from .diagnostics import run_checks
 from .setup import build_inputs
 from .structures import (CumulativeEffect, IROASResult, PointwiseEffect,
-                         TBRFit, TBREstimate)
+                         TBRCalibration, TBRFit, TBREstimate)
 
 FIXED_COST_TOL = 1e-10
 
@@ -73,12 +78,70 @@ def _pointwise(config, inputs, fit, n_pre: int, level: float) -> PointwiseEffect
     )
 
 
-def estimate(config, *, treated=None, controls=None) -> TBREstimate:
+def _named_blank(config, inputs) -> BlankCalibration:
+    """The calibration for a named split, on its own pre-period.
+
+    Nothing is held back from a choice the estimator did not make, so the blank
+    windows are honest only if the caller chose the groups without them. Every
+    geo in the panel may form a placebo group, and the placebos' controls are
+    matched by the search's climb on the design window.
+    """
+    H = inputs.n_test
+    B = resolve_blank_periods(config.blank_periods, H)
+    warnings.warn(
+        f"inference='calibrated' on a named split: the groups were not chosen "
+        f"by the search on the pre-period minus the last {B} periods, so those "
+        f"blank windows are honest only if the groups were chosen without "
+        f"them.", UserWarning, stacklevel=4)
+    where = {u: j for j, u in enumerate(inputs.units)}
+    roles = [frozenset({TREATMENT, CONTROL, UNASSIGNED})] * len(inputs.units)
+    return calibrate(
+        inputs.wide[:inputs.n_pre],
+        [where[u] for u in inputs.treated_units],
+        [where[u] for u in inputs.control_units],
+        blank_periods=B, horizon=H, eligibility=roles, rules=None,
+        objective=config.objective, n_test=H, n_placebos=config.n_placebos,
+        seed=config.calibration_seed)
+
+
+def calibration_record(config, blank: BlankCalibration, units, *,
+                       honest: bool, posterior=None,
+                       required_impact=None) -> TBRCalibration:
+    """The typed record of a calibration, with geo labels for indices."""
+    lower, upper = ([], []) if posterior is None else posterior
+    k_test = (blank.k[config.n_test - 1] if config.mode == "searched" else None)
+    return TBRCalibration(
+        blank_periods=blank.blank_periods, design_periods=blank.design_end,
+        horizon=len(blank.k), level=float(config.level),
+        n_placebos=len(blank.placebos),
+        n_placebos_requested=config.n_placebos,
+        n_admissible=blank.n_admissible,
+        placebo_treatment_units=[[units[j] for j in T]
+                                 for T, _ in blank.placebos],
+        prior_weight=float(config.calibration_prior_weight),
+        seed=config.calibration_seed,
+        trend_intercept=list(blank.alpha), trend_slope=list(blank.beta),
+        k=list(blank.k),
+        posterior_lower=[float(v) for v in lower],
+        posterior_upper=[float(v) for v in upper],
+        honest_split=honest,
+        calibrated_required_impact=(None if required_impact is None
+                                    else float(k_test * required_impact)),
+        quantile_tolerance=QUANTILE_TOL)
+
+
+def estimate(config, *, treated=None, controls=None, blank=None,
+             required_impact=None) -> TBREstimate:
     """TBR on a fixed split: the pretest fit, the posterior, cost, cooldown.
 
     ``treated`` and ``controls`` name the split when the caller already has one
     -- which is how the searched mode reports on the design it chose. Omitted,
     the split is read off the config's columns.
+
+    Under ``inference="calibrated"`` the cumulative band is replaced by the
+    calibrated one. ``blank`` is the searched mode's calibration, made on the
+    pre-period the search held back; a named split computes its own.
+    ``required_impact`` is the recommended design's, for the calibrated MDE.
     """
     inputs = build_inputs(config, treated=treated, controls=controls)
     T0, level = inputs.n_pre, float(config.level)
@@ -96,6 +159,20 @@ def estimate(config, *, treated=None, controls=None) -> TBREstimate:
         loc, scale = cumulative_posterior(fit, y[T0:], x[T0:])
     post_labels = inputs.time_labels[T0:]
     cumulative = _as_cumulative(loc, scale, fit.df, level, post_labels)
+    calibration = None
+    if config.inference == "calibrated":
+        honest = blank is not None
+        if blank is None:
+            blank = _named_blank(config, inputs)
+        lower, upper = calibrated_band(blank, y, x, inputs.n_test, level,
+                                       config.calibration_prior_weight)
+        calibration = calibration_record(
+            config, blank, inputs.units, honest=honest,
+            posterior=(cumulative.lower, cumulative.upper),
+            required_impact=required_impact)
+        cumulative = cumulative.model_copy(update={
+            "lower": [float(v) for v in lower],
+            "upper": [float(v) for v in upper]})
 
     # The fitted relation over the whole window, pretest included. Handing back
     # the observed series for the pretest half would make the standardized
@@ -140,7 +217,8 @@ def estimate(config, *, treated=None, controls=None) -> TBREstimate:
                        "n_control_units": len(inputs.control_units),
                        "n_treated_units": len(inputs.treated_units)})
     std_inference = InferenceResults(
-        method=("tbr_posterior_hac"
+        method=("tbr_calibrated" if calibration is not None
+                else "tbr_posterior_hac"
                 if getattr(config, "variance", "iid") == "hac"
                 else "tbr_posterior"),
         ci_lower=float(cumulative.lower[-1]) / inputs.n_test,
@@ -173,6 +251,7 @@ def estimate(config, *, treated=None, controls=None) -> TBREstimate:
         assumptions=run_checks(config, inputs, fit, T0),
         cost_fit=cost_fit,
         cumulative=cumulative,
+        calibration=calibration,
         pointwise=_pointwise(config, inputs, fit, T0, level),
         cumulative_cost=cumulative_cost,
         iroas=iroas,
@@ -206,6 +285,7 @@ def run(config):
     report = estimate(config)
     return TBRResults(
         report=report,
+        calibration=report.calibration,
         designs=[],
         recommended=None,
         objective=config.objective,

@@ -962,7 +962,9 @@ speaks for, which is assumption 5 above.
 So read the interval as conditional on the design, and treat its width as a
 lower bound on the uncertainty when the same panel chose the design and fitted
 the counterfactual. Where the decision turns on the width, hold periods back
-from the search by hand and fit on those.
+from the search by hand and fit on those, or set ``inference="calibrated"``,
+which holds them back from the search and calibrates the interval on them
+(:ref:`tbr-calibrated`).
 
 When the residuals are serially correlated
 ------------------------------------------
@@ -1043,6 +1045,197 @@ the residual variance is constant across the pretest.
 treated series, so a caller comparing designs does not have to refit it.
 :math:`\hat\delta_2` is the sum of the implied donor weights, and its distance
 from one is how far the design sits from a convex average of the controls.
+
+.. _tbr-calibrated:
+
+Calibrated inference
+--------------------
+
+The posterior interval above is exact for the model it assumes: independent
+errors around a regression whose design was fixed in advance. Neither half
+holds on most geo panels. Weekly and daily sales are serially correlated, so
+errors accumulate over the test window faster than the independent model
+allows, and a searched design is the one whose pretest fit came out best, so
+its residual spread understates what the experiment will see. Together they
+leave the posterior covering 25 to 50 percent at a nominal 80 percent on
+autocorrelated panels.
+
+``inference="calibrated"`` measures how wrong the regression actually is and
+widens the interval to match. The point estimate does not change: the
+counterfactual is the same regression of the treatment-group sum on the
+control-group sum, fitted on the whole pre-period, so ``report.cumulative.estimate``
+is identical under either setting. Only the lower and upper bounds move.
+
+.. code-block:: python
+
+   result = TBR(TBRConfig(
+       df=panel, unitid="geo", time="date", outcome="Y",
+       max_treatment_size=4, n_test=14, post_col="post",
+       inference="calibrated",
+   )).fit()
+
+   c = result.calibration
+   result.report.cumulative.lower[-1], result.report.cumulative.upper[-1]
+   c.posterior_lower[-1], c.posterior_upper[-1]     # the posterior band, kept
+   c.k                                              # the miscalibration factor
+   result.recommended.calibrated_required_impact     # the calibrated MDE
+
+The default stays ``inference="posterior"``, which is the interval the
+replication against ``google/matched_markets`` pins, bit for bit.
+
+The honest split
+~~~~~~~~~~~~~~~~
+
+The calibration needs windows on which the regression's error can be measured
+without the measurement being part of what chose the design. Those are the last
+:math:`B` pre-periods, ``blank_periods``, three test lengths by default. In
+searched mode the design search (the greedy and the local search, under any
+business constraints) runs on the pre-period minus those :math:`B` periods, so
+no design choice saw them; the fit that reports on the chosen design still uses
+the whole pre-period. ``n_periods_scored`` on the result is the shorter window.
+
+A named split is the caller's choice and nothing can be held back from it. The
+calibration runs the same way, ``calibration.honest_split`` is ``False`` and
+the fit warns: the blank windows are honest only if the groups were chosen
+without them.
+
+:math:`B` is refused below two test lengths, so the longest horizon still has
+blank origins to pool over, and below the length that leaves three periods to
+fit from.
+
+How the band is built
+~~~~~~~~~~~~~~~~~~~~~
+
+Index the pre-period :math:`0, \dots, E-1`, with :math:`E` the first test
+period, and let :math:`D_0 = E - B`. For a horizon :math:`h` and an origin
+:math:`s`, the regression fitted by least squares on :math:`[0, s)` predicts the
+sum of :math:`y` over :math:`[s, s+h)`. With
+:math:`a = (h, \sum_{t=s}^{s+h-1} x_t)'` the prediction and its scale are
+
+.. math::
+
+   c_s = a'\hat\beta, \qquad
+   \mathrm{sc}_s = \sqrt{S\,\big(h + a'(X'X)^{-1}a\big)}, \qquad
+   S = \frac{\mathrm{RSS}}{s - 2},
+
+on :math:`s - 2` degrees of freedom. At :math:`s = E` this is the posterior
+above, term for term, so the calibration starts from the interval TBR already
+reports.
+
+1. Blank errors. For the real design and every placebo design, and every origin
+   :math:`s \in [D_0, E - h]`, the standardised error is
+   :math:`z_s = (\sum_{t=s}^{s+h-1} y_t - c_s)/\mathrm{sc}_s`. Under the model
+   these are t-distributed with scale one; on a real panel their spread is the
+   miscalibration.
+2. Distance trend. Errors grow with the distance :math:`d = s - D_0` from the
+   period the design was chosen on, and the experiment sits furthest away, at
+   :math:`d = B`. The pooled squared errors are regressed on the distance,
+   :math:`z^2 = \alpha + \beta d`, the slope is clamped at zero, and each error
+   is carried to the experiment's distance:
+   :math:`\tilde z = z \sqrt{(\alpha + \beta B) / \max(\alpha + \beta d, 10^{-6})}`.
+3. Dirichlet-process predictive (Florens and Rolin 2024, eq. 5.13; Blackwell
+   and MacQueen 1973). A Dirichlet process with base measure the posterior and
+   concentration :math:`n_0` (``calibration_prior_weight``, default 2), updated
+   with the blank errors, has the predictive
+
+   .. math::
+
+      F(v) = w_0\, F_{t}\!\left(\frac{v - c}{\mathrm{sc}}\right)
+             + (1 - w_0)\, \frac{1}{m} \sum_{i=1}^{m}
+               \mathbf{1}\{c + \mathrm{sc}\,\tilde z_i \le v\},
+      \qquad w_0 = \frac{n_0}{n_0 + n_\text{eff}},
+
+   for the counterfactual sum, with :math:`c` and :math:`\mathrm{sc}` the real
+   design's prediction and scale at :math:`s = E`. Overlapping windows are not
+   independent, so the empirical part counts as
+   :math:`n_\text{eff} = (\text{designs}) \times \max(1, \lfloor B/h \rfloor)`
+   windows, not as :math:`m` points.
+4. The band. The counterfactual interval is
+   :math:`[F^{-1}((1-\ell)/2),\, F^{-1}((1+\ell)/2)]` at level :math:`\ell`,
+   found by bisection to ``QUANTILE_TOL`` (:math:`10^{-9}`) posterior scales,
+   and the effect interval is the observed sum minus its endpoints. It is
+   computed at every horizon, so ``report.cumulative`` is a band along the
+   path.
+
+As :math:`n_0` grows the band returns to the posterior; at :math:`n_0 = 0` it is
+the blank errors alone.
+
+Placebo designs carry the selection effect into the blank errors. Each is
+another treatment group of the real group's size, drawn uniformly with
+``calibration_seed`` from the groups the eligibility and the business
+constraints admit, holding every forced geo and excluding the real group, with
+its control group chosen by the search's own matching climb on the design
+window :math:`[0, D_0)`. ``n_placebos`` (default 24, at least 8) are drawn; when
+fewer groups are admissible all are used, the count is recorded on
+``calibration.n_placebos``, and below eight the fit warns.
+
+The calibrated MDE
+~~~~~~~~~~~~~~~~~~
+
+The same blank errors say how much the reference's required impact understates
+the smallest detectable effect. With :math:`k_H` the root mean square of
+:math:`\tilde z` at the planned test length, every design's
+``calibrated_required_impact`` is :math:`k_H` times its ``required_impact``, and
+the power table carries the column. :math:`k_H` is one number per panel, so the
+ranking of designs, and anything the search proves about it, does not change.
+``calibration.k`` holds the factor at every horizon.
+
+What it measured
+~~~~~~~~~~~~~~~~
+
+Coverage at 80 percent nominal of the 14-period cumulative effect, from the
+calibration study behind issue #1043. Each simulated panel has a known truth;
+the two real panels are public.
+
+.. list-table::
+   :header-rows: 1
+
+   * - panel
+     - ``posterior``
+     - ``calibrated``
+   * - iid errors
+     - 78%
+     - 83%
+   * - AR(1), :math:`\rho = 0.5`
+     - 50%
+     - 85%
+   * - AR(1), :math:`\rho = 0.8`
+     - 25%
+     - 81%
+   * - drifting gap
+     - 30%
+     - 76%
+   * - AR(1) :math:`\rho = 0.8` and drift
+     - 29%
+     - 80%
+   * - weekly hotel prices
+     - 25%
+     - 75%
+   * - monthly beer shipments
+     - 38%
+     - 81%
+
+The test suite reproduces the direction on forty seeded AR(1) panels with
+:math:`\rho = 0.8` and a named split: 35 percent for the posterior, 90 percent
+calibrated, with eight placebo designs and a 24-period blank window.
+
+The calibration buys nominal coverage with width. On the simulated panels the
+calibrated band runs 1.1 to 1.5 times the width of the interval from the true
+model, and on
+the GeoLift test panel with a three-market design the 80 percent interval for
+the 15-day effect of +3,097 widens from :math:`[+2{,}120, +4{,}073]` to about
+:math:`[-70, +5{,}160]`.
+
+Its limits. A gap that drifts is the hardest case: the regression has no term
+for it, the distance trend extrapolates a straight line, and coverage on the
+drift-only panel stops at 76 percent. The weekly hotel panel runs five points
+short for the same reason. The blank errors also describe the recent past, so a
+change in regime between the blank window and the experiment is outside what
+they can see. And a named split calibrated on its own pre-period is honest only
+to the extent that the groups were chosen without the blank window.
+``inference="calibrated"`` and ``variance="hac"`` are refused together: both
+answer serial correlation, and the calibration standardises by the
+independent-error scale. The iROAS interval stays the posterior's.
 
 Scoring a named split before the experiment runs
 ------------------------------------------------
@@ -1280,6 +1473,14 @@ References
 
 .. [Au2018] Au, T. C. (2018). *A Time-Based Regression Matched Markets Approach
    for Designing Geo Experiments.* Google LLC.
+
+.. [BlackwellMacQueen1973] Blackwell, D., & MacQueen, J. B. (1973).
+   *Ferguson Distributions via Polya Urn Schemes.* The Annals of Statistics
+   1(2):353-355.
+
+.. [FlorensRolin2024] Florens, J.-P., & Rolin, J.-M. (2024). *Bayes, Bootstrap,
+   and Moments.* In J.-P. Florens & M. Mouchart (Eds.), *Nonparametric
+   Bayesian Inference: Contributions by Jean-Marie Rolin.* Springer.
 
 .. [LiVandenBulte2022] Li, K. T., & Van den Bulte, C. (2022). *Augmented
    Difference-in-Differences.* Marketing Science 42(4):746-767.
