@@ -31,14 +31,30 @@ count detects, which is why the search still records a size only when
 ``admits`` holds. ``banned_controls`` and ``control_band`` bound the control
 group. ``audit`` refuses, before any climbing, a problem no size admits, naming
 the rule that binds.
+
+The population tolerance (``population_tolerance``,
+:mod:`~mlsynth.utils.tbr_helpers.design.tolerance`) is a treatment-side rule
+too, and rides on the rules as :attr:`DesignRules.tolerance`: ``admits`` reads
+it after the business rules, ``admits_rules`` is the business rules alone, and
+every consumer of ``admits`` -- the search's final check, the local search's
+moves and restarts, the calibration's placebo draws -- respects it without a
+branch of its own. ``extendable`` does not read it. A group's anchor distance
+is not monotone as the group grows, so a group outside the tolerance can grow
+into one inside it, and pruning on it would discard designs; ``audit`` does
+not read it either, since every size the business rules admit has a group the
+tolerance admits, its closest one.
 """
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
-from typing import FrozenSet, Iterable, Optional, Sequence, Tuple
+from dataclasses import dataclass, replace
+from typing import (TYPE_CHECKING, FrozenSet, Iterable, Optional, Sequence,
+                    Tuple)
 
 from ....exceptions import MlsynthDataError
+
+if TYPE_CHECKING:  # pragma: no cover - read by type checkers only
+    from .tolerance import PopulationTolerance
 
 TREATMENT = "treatment"
 CONTROL = "control"
@@ -66,6 +82,7 @@ class DesignRules:
     exclude_bordering_donors: bool = False
     min_controls: Optional[int] = None
     max_controls: Optional[int] = None
+    tolerance: Optional["PopulationTolerance"] = None
 
     # ------------------------------------------------------------------ build
     @classmethod
@@ -169,6 +186,8 @@ class DesignRules:
             out.append("min_controls")
         if self.max_controls is not None:
             out.append("max_controls")
+        if self.tolerance is not None:
+            out.append("population_tolerance")
         return tuple(out)
 
     @property
@@ -205,8 +224,19 @@ class DesignRules:
         T = frozenset(treatment)
         return self._blocked(T) - T
 
+    def with_tolerance(self, tolerance: "PopulationTolerance") -> "DesignRules":
+        """These rules with the population tolerance on the treatment group."""
+        return replace(self, tolerance=tolerance)
+
     def admits(self, treatment: Iterable[int]) -> bool:
-        """Every rule on the treatment group holds, stratum minimums included."""
+        """Every rule on the treatment group holds, the tolerance included."""
+        T = frozenset(treatment)
+        return self.admits_rules(T) and \
+            (self.tolerance is None or self.tolerance.admits(sorted(T)))
+
+    def admits_rules(self, treatment: Iterable[int]) -> bool:
+        """Every business rule on the treatment group holds, stratum minimums
+        included; the population tolerance is not read."""
         T = frozenset(treatment)
         if self._conflicted(T) or self._over_maximum(T):
             return False

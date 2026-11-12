@@ -15997,3 +15997,237 @@ timeout = 600.0
   find = "            inputs.wide[:design_end(inputs.n_pre, B)],\n"
   replace = "            inputs.wide[:inputs.n_pre],\n"
   models = "the named split's placebo levels checked over the pre-period with its blank windows instead of the design window the placebos are scored on"
+
+[[target]]
+name = "tbr-population-tolerance"
+module-path = "mlsynth/utils/tbr_helpers/design/tolerance.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_population_tolerance.py mlsynth/tests/test_tbr_population_tolerance_properties.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-distance-uses-the-unscaled-paths"
+  find = "    return float(np.sqrt(np.mean((y / y.mean() - p / p.mean()) ** 2)))\n"
+  replace = "    return float(np.sqrt(np.mean((y - p) ** 2)))\n"
+  models = "the anchor distance on the raw paths, which compares the group's sales with the population's and not the shape of their paths, so it ranks small groups closest"
+
+  [[target.mutant]]
+  id = "the-population-drops-a-geo"
+  find = "    return np.asarray(window, dtype=float).sum(axis=1)\n"
+  replace = "    return np.asarray(window, dtype=float)[:, :-1].sum(axis=1)\n"
+  models = "the population summed over all but one geo, so the anchor is not the market the estimate is meant to stand in for"
+
+  [[target.mutant]]
+  id = "the-enumeration-scores-against-the-treatable-geos"
+  find = "        p = population_path(Y)\n"
+  replace = "        p = population_path(Y[:, [j for j, r in enumerate(eligibility) if TREATMENT in r]])\n"
+  models = "the quadratic form built against a population of the treatment-eligible geos only, so the enumeration ranks groups against the wrong path and returns a witness that is not the closest"
+
+  [[target.mutant]]
+  id = "the-threshold-reads-the-next-size"
+  find = "        bound = self.threshold(len(group))\n"
+  replace = "        bound = self.threshold(len(group) + 1)\n"
+  models = "a group compared with d_min of the wrong size, which refuses the witness itself where the next size is closer"
+
+  [[target.mutant]]
+  id = "the-tie-slack-is-dropped"
+  find = "            self.distance(group) <= bound * (1.0 + TIE_RTOL)\n"
+  replace = "            self.distance(group) <= bound\n"
+  models = "a group equally close as the witness in exact arithmetic refused at C = 1 for landing one rounding step above it"
+
+  [[target.mutant]]
+  id = "the-enumeration-limit-is-flipped"
+  find = "    if total <= limit:\n"
+  replace = "    if total > limit:\n"
+  models = "the enumeration limit read backwards, so small problems are searched and large ones enumerated"
+
+  [[target.mutant]]
+  id = "the-enumeration-limit-is-exclusive"
+  find = "    if total <= limit:\n"
+  replace = "    if total < limit:\n"
+  models = "a problem with exactly the limit's count of candidate groups searched instead of enumerated"
+
+  [[target.mutant]]
+  id = "the-treatable-levels-are-not-checked"
+  find = "    check_positive_levels(\n        window, [j for j, r in enumerate(eligibility) if TREATMENT in r], labels,\n"
+  replace = "    (lambda *a, **k: None)(\n        window, [j for j, r in enumerate(eligibility) if TREATMENT in r], labels,\n"
+  models = "a treatment-eligible geo with a non-positive mean accepted, so a group's path is scaled by a level of zero or below"
+
+  [[target.mutant]]
+  id = "the-population-level-is-not-checked"
+  find = "    if not population_path(window).mean() > 0.0:\n"
+  replace = "    if False:\n"
+  models = "a population whose mean is not positive accepted, so its path is scaled by a level of zero or below"
+
+  [[target.mutant]]
+  id = "a-group-without-controls-can-be-the-witness"
+  find = "        d2 = np.where(self.leaves_control(groups), d2, np.inf)\n"
+  replace = "        d2 = d2 + 0.0\n"
+  models = "a treatment group that leaves no control-eligible geo taken as the witness, which no design can use"
+
+  [[target.mutant]]
+  id = "the-enumeration-reads-one-block"
+  find = "        if r == 0:\n            break\n    return best\n"
+  replace = "        break\n    return best\n"
+  models = "the enumeration stopping after its first block, so d_min is the minimum over a prefix of the candidates"
+
+  [[target.mutant]]
+  id = "the-descent-never-moves"
+  find = "        i = P.first_usable(rows, d2, here)\n"
+  replace = "        i = None\n"
+  models = "the searched path returning its starts unimproved, so its d_min is not a one-swap local minimum"
+
+  [[target.mutant]]
+  id = "a-random-start-the-rules-refuse"
+  find = "            if P.usable(draw):\n"
+  replace = "            if True:\n"
+  models = "a random start descended from although the rules refuse it, so the searched witness can be a group no design may use"
+
+  [[target.mutant]]
+  id = "the-witness-distance-is-not-recomputed"
+  find = "    return Anchor(k=k, d_min=anchor_distance(window, witness), witness=witness,\n"
+  replace = "    return Anchor(k=k, d_min=float(np.sqrt(_Problem(window, eligibility, rules).d2(np.asarray([witness])))[0]) * (1.0 + 1e-7), witness=witness,\n"
+  models = "d_min taken from the screening form and not from the definition, so d_min and the witness's own distance disagree"
+
+[[target]]
+name = "tbr-population-tolerance-rules"
+module-path = "mlsynth/utils/tbr_helpers/design/rules.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_population_tolerance.py mlsynth/tests/test_tbr_population_tolerance_properties.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "admits-ignores-the-tolerance"
+  find = "        return self.admits_rules(T) and \\\n            (self.tolerance is None or self.tolerance.admits(sorted(T)))\n"
+  replace = "        return self.admits_rules(T)\n"
+  models = "the tolerance carried on the rules and never read, so every stage admits groups beyond it"
+
+  [[target.mutant]]
+  id = "the-local-moves-ignore-the-tolerance"
+  find = "        return (self.admits(T) and not (C & self.banned_controls(T))\n"
+  replace = "        return (self.admits_rules(T) and not (C & self.banned_controls(T))\n"
+  models = "the design check the local search filters its moves with reading the business rules alone, so a treatment swap leaves the tolerance"
+
+  [[target.mutant]]
+  id = "extendable-is-pruned-by-the-tolerance"
+  find = "        if len(T) > K or self._conflicted(T) or self._over_maximum(T):\n"
+  replace = "        if self.tolerance is not None and not self.tolerance.admits(sorted(T)):\n            return False\n        if len(T) > K or self._conflicted(T) or self._over_maximum(T):\n"
+  models = "extendable pruned on the anchor distance, which is not monotone as a group grows, so a size with no admitted group stops the walk and later sizes are lost"
+
+  [[target.mutant]]
+  id = "the-rules-do-not-name-the-tolerance"
+  find = "        if self.tolerance is not None:\n            out.append(\"population_tolerance\")\n"
+  replace = ""
+  models = "a search refused under the tolerance without naming it among the rules that bind"
+
+[[target]]
+name = "tbr-population-tolerance-draws"
+module-path = "mlsynth/utils/tbr_helpers/design/local.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_population_tolerance.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-restarts-ignore-the-tolerance"
+  find = "    if not rules.admits(T):\n        return None\n"
+  replace = "    if not rules.admits_rules(T):\n        return None\n"
+  models = "a local-search restart drawn from a treatment group the business rules admit and the tolerance does not, so the descent can end outside it"
+
+[[target]]
+name = "tbr-population-tolerance-placebos"
+module-path = "mlsynth/utils/tbr_helpers/calibration.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_population_tolerance.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-placebos-ignore-the-tolerance"
+  find = "        return group != real and (rules is None or rules.admits(group))\n"
+  replace = "        return group != real and (rules is None or rules.admits_rules(group))\n"
+  models = "placebo treatment groups drawn from every group the business rules admit, so their blank errors miss the selection the tolerance put on the real group"
+
+[[target]]
+name = "tbr-population-tolerance-search"
+module-path = "mlsynth/utils/tbr_helpers/design/search.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_population_tolerance.py mlsynth/tests/test_tbr_population_tolerance_properties.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-augmentation-ignores-the-tolerance"
+  find = "        candidates = [g for g in candidates\n                      if tolerance.admits(list(treatment) + [g])]\n"
+  replace = "        candidates = list(candidates)\n"
+  models = "the greedy adding the best-scoring geo whether or not its group is within the tolerance, so the walk leaves it and has to fall back on the witness"
+
+  [[target.mutant]]
+  id = "the-augmentation-filters-a-size-nothing-satisfies"
+  find = "    if tolerance is not None and tolerance.anchor(len(treatment) + 1) is not None:\n"
+  replace = "    if tolerance is not None:\n"
+  models = "a size with no group the rules admit filtered by the tolerance, which then refuses every candidate and stops the walk before the sizes the rules do admit"
+
+  [[target.mutant]]
+  id = "no-witness-continuation"
+  find = "            if anchor is not None:\n                treatment, control = _reseat("
+  replace = "            if False:\n                treatment, control = _reseat("
+  models = "a walk that cannot reach an admitted group dropping that size and stopping, so sizes the rules and the tolerance allow return no design"
+
+  [[target.mutant]]
+  id = "the-witness-only-when-augmentation-fails"
+  find = "        if tolerance is not None and (len(treatment) < k\n                                      or not rules.admits(treatment)):\n"
+  replace = "        if tolerance is not None and len(treatment) < k:\n"
+  models = "a reached group the rules refuse skipped instead of replaced by the witness, so a size the rules admit returns no design"
+
+  [[target.mutant]]
+  id = "the-witness-is-not-flagged"
+  find = "                from_witness = True\n"
+  replace = "                from_witness = False\n"
+  models = "a size the walk took from the witness reported as reached by augmentation"
+
+  [[target.mutant]]
+  id = "the-witness-keeps-a-banned-control"
+  find = "    banned = rules.banned_controls(witness)\n    kept = set(control) - set(witness) - banned\n"
+  replace = "    banned = frozenset()\n    kept = set(control) - set(witness) - banned\n"
+  models = "the witness's banned neighbours left in the carried control group, so a design puts a spillover geo in the counterfactual"
+
+[[target]]
+name = "tbr-population-tolerance-wiring"
+module-path = "mlsynth/utils/tbr_helpers/design/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_population_tolerance.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-tolerance-is-taken-on-the-whole-pre-period"
+  find = "        tolerance = PopulationTolerance(search_matrix, eligibility, rules,\n"
+  replace = "        tolerance = PopulationTolerance(y_matrix, eligibility, rules,\n"
+  models = "under calibrated inference the anchor distance taken over the blank windows the search does not score"
+
+  [[target.mutant]]
+  id = "d-min-ignores-the-business-rules"
+  find = "        tolerance = PopulationTolerance(search_matrix, eligibility, rules,\n"
+  replace = "        tolerance = PopulationTolerance(search_matrix, eligibility, None,\n"
+  models = "d_min taken over groups the business rules refuse, so the witness can be a group no design may use and the tolerance closes sizes the rules allow"
+
+  [[target.mutant]]
+  id = "the-distance-is-reported-on-the-whole-pre-period"
+  find = "            population_distance=population_distance(search_matrix, o.treatment),\n"
+  replace = "            population_distance=population_distance(y_matrix, o.treatment),\n"
+  models = "each design's distance reported over the blank windows too, which is not the window the search and the tolerance read"
+
+  [[target.mutant]]
+  id = "the-record-misses-the-witness-flag"
+  find = "            greedy_from_witness=from_witness.get(k, False)))\n"
+  replace = "            greedy_from_witness=False))\n"
+  models = "the record reporting every size as reached by augmentation"
+
+[[target]]
+name = "tbr-population-tolerance-config"
+module-path = "mlsynth/utils/tbr_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_population_tolerance.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-tolerance-is-accepted-with-a-named-split"
+  find = "        if self.mode == \"named\":\n            raise MlsynthConfigError(\n                \"population_tolerance bounds"
+  replace = "        if False:\n            raise MlsynthConfigError(\n                \"population_tolerance bounds"
+  models = "population_tolerance accepted with a named split, where there is no search for it to bound"
+
+  [[target.mutant]]
+  id = "a-factor-below-one-is-accepted"
+  find = "        if not (math.isfinite(C) and C >= 1.0):\n"
+  replace = "        if not math.isfinite(C):\n"
+  models = "a factor below one accepted at config, which refuses even the witness and leaves nothing to report"

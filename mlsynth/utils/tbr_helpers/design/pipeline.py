@@ -27,8 +27,10 @@ from .local import local_search
 from .objective import check_positive_levels, required_impact
 from .rules import DesignRules
 from .search import CONTROL, TREATMENT, UNASSIGNED, greedy_search
-from .structures import (TBRDesignConstraints, TBRResults, TBRMMDesign,
+from .structures import (TBRDesignConstraints, TBRPopulationAnchor,
+                         TBRPopulationTolerance, TBRResults, TBRMMDesign,
                          TBRStratumQuota)
+from .tolerance import PopulationTolerance, population_distance
 
 
 def _scoring_window(config: TBRConfig) -> pd.DataFrame:
@@ -204,6 +206,29 @@ def _reference_impact(search_matrix: np.ndarray, treatment: List[int],
     return required_impact(float(np.sqrt(fit.sigma_sq)), fit.n_pretest, n_test)
 
 
+def _tolerance_record(tolerance: PopulationTolerance, units: List,
+                      eligibility: List[FrozenSet[str]], K: int,
+                      from_witness: Dict[int, bool]) -> TBRPopulationTolerance:
+    """What the tolerance bound, per size from the smallest to K.
+
+    A size no group satisfies the rules at has no anchor and no entry.
+    """
+    start = max(sum(r == frozenset({TREATMENT}) for r in eligibility), 1)
+    anchors = []
+    for k in range(start, K + 1):
+        a = tolerance.anchor(k)
+        if a is None:
+            continue
+        anchors.append(TBRPopulationAnchor(
+            k=k, d_min=a.d_min, threshold=tolerance.threshold(k),
+            method=a.method, witness_units=[units[j] for j in a.witness],
+            n_candidate_groups=a.n_candidate_groups,
+            greedy_from_witness=from_witness.get(k, False)))
+    return TBRPopulationTolerance(factor=tolerance.factor,
+                                  enumeration_limit=tolerance.limit,
+                                  anchors=anchors)
+
+
 def run(config: TBRConfig) -> TBRResults:
     """Search the partitions and assemble the design result."""
     y_matrix, units, eligibility = build_inputs(config)
@@ -237,11 +262,24 @@ def run(config: TBRConfig) -> TBRResults:
                               [j for j, r in enumerate(eligibility)
                                if TREATMENT in r], units)
 
+    tolerance = None
+    if config.population_tolerance is not None:
+        # The tolerance is a rule on the treatment group, so it rides on the
+        # rules every stage reads: the greedy, the local search's moves and
+        # restarts, and the calibration's placebo draws. d_min is taken under
+        # the business rules alone, over the window the search scores.
+        tolerance = PopulationTolerance(search_matrix, eligibility, rules,
+                                        config.population_tolerance,
+                                        labels=units)
+        rules = (rules if rules is not None
+                 else DesignRules.build(eligibility)).with_tolerance(tolerance)
+
     outcomes = greedy_search(
         search_matrix, eligibility, max_treatment_size=config.max_treatment_size,
         n_test=config.n_test, objective=config.objective,
         control_start=config.control_start, rules=rules)
     greedy_keys = [None] * len(outcomes)
+    from_witness = {o.k: o.from_witness for o in outcomes}
     if config.search == "local":
         greedy_keys = [o.score.key for o in outcomes]
         outcomes = [local_search(search_matrix, eligibility, o,
@@ -293,6 +331,7 @@ def run(config: TBRConfig) -> TBRResults:
                                            o.control, config.n_test)
                 if calibrated else None),
             effect=effect,
+            population_distance=population_distance(search_matrix, o.treatment),
         ))
     recommended = designs[best]
 
@@ -329,6 +368,10 @@ def run(config: TBRConfig) -> TBRResults:
         n_periods_scored=int(search_matrix.shape[0]),
         calibration=calibration,
         design_constraints=constraints,
+        population_tolerance=(None if tolerance is None else
+                              _tolerance_record(tolerance, units, eligibility,
+                                                config.max_treatment_size,
+                                                from_witness)),
         selected_units=list(recommended.treatment_units),
         power=pd.DataFrame([
             {"k": d.k, "objective_value": d.objective_value,
