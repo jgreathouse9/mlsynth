@@ -1,0 +1,11 @@
+# certify_treatment end to end, main against the two-swap polish with the radius-2 incumbent cut
+# (ARM=base / ARM=sw, SWAP2=1 DEEP2=1); n_jobs=4, restarts=50, pass_restarts=10, n_test=14; same designs in every pair
+# panel  k  arm  wall_s  certified  treatment  survivors  cert_sum_s  slowest_group_s
+geolift  4  base  10.9  True  [1, 9, 22, 32]  32  15.9  4.7
+geolift  4  sw  10.4  True  [1, 9, 22, 32]  32  15.8  3.9
+geolift  6  base  171.4  True  [1, 9, 15, 22, 31, 32]  907  283.3  24.1
+geolift  6  sw  172.3  True  [1, 9, 15, 22, 31, 32]  907  285.4  20.3
+geo:80:0  4  base  279.8  True  [7, 9, 26, 48]  145  579.2  84.1
+geo:80:0  4  sw  282.9  True  [7, 9, 26, 48]  145  590.6  84.8
+geo:100:0  4  base  445.5  True  [4, 27, 33, 58]  34  613.1  231.4
+geo:100:0  4  sw  421.3  True  [4, 27, 33, 58]  34  579.6  216.0

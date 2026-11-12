@@ -2269,6 +2269,38 @@ from solves that stop early, at the first violated cut (`early`), so they are no
 round's converged bound, and a stall measured on them is noisy. At the 1% gap, sizes
 21 and 24 took two solves and every other size one.
 
+### A two-swap polish and a radius-2 incumbent cut, measured and not built
+
+The incumbent of a size is a 1-move local optimum: no single add, drop or swap improves
+it. A design two swaps away can still be better, and on a slow group of a real weekly
+panel it was. Two changes were measured together:
+
+- Every incumbent, at pricing, at a leaf and after rounding, is polished over its 2-swap
+  neighbourhood, every design of the same size that differs in at most two controls in
+  and two out, scored in one vectorised pass of the float ratio. A better design is
+  adopted exactly.
+- When no design in that neighbourhood beats the incumbent, its no-good cut is deepened
+  to radius 2, `sum_{C} u - sum_{not C} u <= |C| - 1 - 2r` with r = 2, inside the
+  nodes of size |C|. This is exact local branching (Fischetti and Lodi 2003). The cut is
+  valid only because every design within two swaps was checked and is no better, and it
+  is cleared at the start of every search.
+
+On the four test beds, end to end, with the same designs in every pair
+(`results/two_swap.log`):
+
+| case | main | two-swap + radius-2 cut |
+| --- | --- | --- |
+| GeoLift, 4 treated | 10.9 s | 10.4 s |
+| GeoLift, 6 treated | 171.4 s | 172.3 s |
+| 80 simulated geos, 4 treated | 279.8 s | 282.9 s |
+| 100 simulated geos, 4 treated | 445.5 s | 421.3 s |
+
+The gain is 5% at 100 geos and nothing elsewhere. The descent's incumbent is almost
+always already the best design within two swaps, so the polish is pure cost, and the
+deeper cut removes few designs that the relaxation does not already rule out. With it on, every exactness
+test passes and seven tests that pin the search's internal steps change. It is not worth
+its code.
+
 ### Near-ties, not symmetry
 
 A certificate branches where designs other than the optimum come within the
@@ -2461,7 +2493,9 @@ fixing is certified to the solver's value.
    every size at its root and take the panel from 675.7 s to 457.1 s (see
    Pentagonal cuts). Stopping a size's rounds when its bound stalls has no
    size to stop on that group (see Stopping a size's rounds when the bound
-   stalls).
+   stalls). A two-swap polish of every incumbent with a radius-2 incumbent cut takes
+   the 100-geo case from 445.5 s to 421.3 s and does nothing on the other beds (see A
+   two-swap polish and a radius-2 incumbent cut).
 7. Incumbent from #964's local search, improved during the search (done here).
    Each node rounds its eigen-primal to a design of its size within its
    fixings, descends from it (`search.Incumbent.offer`, on the positive-slope
@@ -2614,3 +2648,4 @@ fixing is certified to the solver's value.
 - Díaz, M., Izquierdo Lehmann, P., Lu, H. and Yang, J. (2026). Active set
   identification and rapid convergence for degenerate primal-dual problems.
   arXiv:2602.10436v1.
+- Fischetti, M. and Lodi, A. (2003). Local branching. Math. Program. 98, 23-47.
