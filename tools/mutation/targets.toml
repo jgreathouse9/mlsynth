@@ -15367,7 +15367,7 @@ timeout = 600.0
   [[target.mutant]]
   id = "banned-controls-stay-in-the-carried-group"
   find = "        candidate_control -= banned\n"
-  replace = ""
+  replace = "        pass\n"
   models = "a geo that joins the treatment group leaves its neighbours in the carried control group, against exclude_bordering_donors"
 
   [[target.mutant]]
@@ -15397,7 +15397,7 @@ timeout = 600.0
   [[target.mutant]]
   id = "audit-skipped"
   find = "        rules.audit(pools[\"forced\"], max_treatment_size)\n"
-  replace = ""
+  replace = "        pass\n"
   models = "an infeasible problem climbed before it is refused, with a message that names no rule"
 
 [[target]]
@@ -15421,7 +15421,7 @@ timeout = 600.0
   [[target.mutant]]
   id = "draw-admits-skipped"
   find = "    if not rules.admits(T):\n        return None\n"
-  replace = ""
+  replace = "    pass\n"
   models = "a restart's treatment group taken without the treatment rules"
 
   [[target.mutant]]
@@ -15433,13 +15433,13 @@ timeout = 600.0
   [[target.mutant]]
   id = "draw-keeps-banned-pinned-controls"
   find = "    if C & banned:\n        return None\n"
-  replace = ""
+  replace = "    pass\n"
   models = "a restart that bans a geo pinned to the control group keeps it there"
 
   [[target.mutant]]
   id = "abandoned-restarts-not-counted"
   find = "            abandoned += 1\n"
-  replace = ""
+  replace = "            pass\n"
   models = "restarts that drew no admissible design dropped without saying so"
 
   [[target.mutant]]
