@@ -48,6 +48,19 @@ its size band, bringing a starting group into the band first by the best
 single adds or drops. A size is recorded only when its treatment group admits
 every rule. Without rules every one of these branches is skipped and the walk
 is the one above, step for step.
+
+The population tolerance rides on the rules (``DesignRules.tolerance``) and
+binds every recorded size, since each augmentation produces the next size's
+group: a candidate geo is kept only when the group it makes is within the
+tolerance of that size. The anchor distance is not monotone as a group grows,
+so a walk can reach a size where no candidate qualifies, or a group the rules
+refuse. Then the walk continues from that size's witness, the closest group
+the rules admit, which the tolerance admits at every factor of at least one:
+the treatment group becomes the witness, the carried control group loses the
+witness's geos, and the next size grows from there. Every size with a group
+the rules admit therefore records a design, and the outcome says whether it
+came from the witness. A size no group satisfies is not filtered, so the walk
+passes through it as it does without the tolerance.
 """
 from __future__ import annotations
 
@@ -83,6 +96,7 @@ class SearchOutcome:
     converged: bool
     evaluations: int
     abandoned_restarts: int = 0
+    from_witness: bool = False
 
 
 class _Scorer:
@@ -266,10 +280,17 @@ def _augment(scorer: _Scorer, treatment: Sequence[int], control: Set[int],
     Under ``rules`` only the geos :func:`_reachable` keeps are candidates, the
     new group's banned controls leave the control group with the geo, and a
     step with no candidate returns None instead of raising: the rules, not K,
-    have capped the group.
+    have capped the group. Under a population tolerance a candidate is kept
+    only when the group it makes is within the tolerance of its size, unless
+    no group of that size satisfies the rules, when the size is not recorded
+    and nothing is filtered.
     """
     control_pool = set(pools["control"])
     candidates = [g for g in pools["treatment"] if g not in treatment]
+    tolerance = None if rules is None else rules.tolerance
+    if tolerance is not None and tolerance.anchor(len(treatment) + 1) is not None:
+        candidates = [g for g in candidates
+                      if tolerance.admits(list(treatment) + [g])]
     if rules is not None:
         candidates = _reachable(rules, treatment, candidates, K)
     best: Tuple[SplitScore, int, Set[int]] | None = None
@@ -400,6 +421,7 @@ def _walk(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
         control -= rules.banned_controls(treatment)
     outcomes: List[SearchOutcome] = []
 
+    tolerance = None if rules is None else rules.tolerance
     for k in range(max(len(pools["forced"]), 1), max_treatment_size + 1):
         spent = scorer.evaluations
         while len(treatment) < k:
@@ -409,6 +431,14 @@ def _walk(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
             if step is None:
                 break
             treatment, control = step
+        from_witness = False
+        if tolerance is not None and (len(treatment) < k
+                                      or not rules.admits(treatment)):
+            anchor = tolerance.anchor(k)
+            if anchor is not None:
+                treatment, control = _reseat(list(anchor.witness), control,
+                                             pools, rules)
+                from_witness = True
         if len(treatment) < k:
             break                 # the rules cap the group below this size
         banned = (frozenset() if rules is None
@@ -429,5 +459,22 @@ def _walk(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
             k=k, treatment=list(treatment), control=sorted(control),
             unassigned=sorted(set(range(n_units)) - assigned),
             score=scorer(treatment, control), trace=trace,
-            converged=converged, evaluations=scorer.evaluations - spent))
+            converged=converged, evaluations=scorer.evaluations - spent,
+            from_witness=from_witness))
     return outcomes
+
+
+def _reseat(witness: List[int], control: Set[int], pools: Dict[str, List[int]],
+            rules: DesignRules) -> Tuple[List[int], Set[int]]:
+    """The witness as the treatment group, with the carried controls it leaves.
+
+    The witness's geos and their banned neighbours leave the control group.
+    When that empties it, the group is re-derived from every control-eligible
+    geo the witness leaves free, which is not empty: a witness leaves a
+    control group by construction.
+    """
+    banned = rules.banned_controls(witness)
+    kept = set(control) - set(witness) - banned
+    if not kept:
+        kept = set(pools["control"]) - set(witness) - banned
+    return witness, kept

@@ -9,6 +9,25 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- `population_tolerance` on `TBRConfig` (searched mode): a treatment group of
+  size k is admissible only when its anchor distance, the RMS gap between the
+  treated aggregate's path and the population's (the sum of every geo), each
+  scaled to its own mean over the scoring window, is at most the factor times
+  `d_min(k)`, the closest a group of that size the other rules admit comes.
+  `d_min` is enumerated up to two million candidate groups per size and found
+  by a one-swap descent above that, which can only loosen the bound. The greedy
+  keeps every recorded size within the bound and continues from the size's
+  closest group when it cannot reach an admitted one, so every size still
+  returns a design; the local search and the calibrated placebo draws respect
+  it too. Each `TBRMMDesign` gains `population_distance`, reported with the
+  tolerance on or off, and `TBRResults.population_tolerance` is a frozen
+  `TBRPopulationTolerance` with `d_min`, the threshold, the method and the
+  closest group per size. Recommended at 1.5 with `objective="relative"`: in
+  simulated panels where the lift varied with trend sensitivity it cut the
+  bias against the population lift from -1.03 to -0.18 points and raised
+  coverage from 55% to 82%. Treatment-eligible geos and the population need
+  positive means. The default `None` leaves every existing output unchanged,
+  pinned by golden values on the GeoLift panel.
 - `objective="relative"` on `TBRConfig`: the searched mode ranks designs by
   relative MDE, the required impact as a share of the treated group's expected
   outcome over the test. The key is the single number `level / required_impact`,

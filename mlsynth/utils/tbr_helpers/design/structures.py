@@ -225,6 +225,16 @@ class TBRMMDesign(BaseModel):
                     "carried a post window. Every candidate is measured, not only "
                     "the recommendation, so the menu can be compared after the "
                     "fact as well as before it.")
+    population_distance: Optional[float] = Field(
+        default=None,
+        description="The treatment group's anchor distance over the scoring "
+                    "window: the RMS gap between the treated aggregate's path "
+                    "and the population's (the sum of every geo), each scaled "
+                    "to its own mean. Zero when the group moves exactly as the "
+                    "population does, so it says how representative of the "
+                    "population the group's path is. Reported with "
+                    "population_tolerance on or off; None when the group's or "
+                    "the population's mean is not positive.")
 
 
 class TBRStratumQuota(BaseModel):
@@ -292,6 +302,54 @@ class TBRDesignConstraints(BaseModel):
                     "alone.")
 
 
+class TBRPopulationAnchor(BaseModel):
+    """One treatment size's closest achievable group and the bound it sets."""
+
+    model_config = ConfigDict(frozen=True)
+
+    k: int = Field(..., description="The treatment size.")
+    d_min: float = Field(
+        ..., description="The smallest anchor distance found over the groups of "
+                         "this size the business rules admit and that leave a "
+                         "control group. Exact when method is 'enumerated', an "
+                         "upper bound on the exact value when 'searched'.")
+    threshold: float = Field(
+        ..., description="population_tolerance times d_min: the largest anchor "
+                         "distance a design of this size may have.")
+    method: Literal["enumerated", "searched"] = Field(
+        ..., description="'enumerated' when every candidate group was scored, "
+                         "'searched' when they outnumbered enumeration_limit and "
+                         "a one-swap descent from several starts found d_min.")
+    witness_units: List[Any] = Field(
+        ..., description="The group that attains d_min, sorted. The tolerance "
+                         "admits it at every factor of at least one.")
+    n_candidate_groups: int = Field(
+        ..., description="How many treatment groups of this size the "
+                         "eligibility allows, before the business rules.")
+    greedy_from_witness: bool = Field(
+        default=False,
+        description="True when the greedy walk could not reach a group the "
+                    "rules and the tolerance admit at this size and continued "
+                    "from the witness instead.")
+
+
+class TBRPopulationTolerance(BaseModel):
+    """The population tolerance a searched design was found under."""
+
+    model_config = ConfigDict(frozen=True)
+
+    factor: float = Field(
+        ..., description="population_tolerance, C: a design of size k has an "
+                         "anchor distance of at most C times d_min(k).")
+    enumeration_limit: int = Field(
+        ..., description="Candidate groups per size up to which d_min is "
+                         "enumerated; above it, it is searched.")
+    anchors: List[TBRPopulationAnchor] = Field(
+        default_factory=list,
+        description="One entry per treatment size that has a group the rules "
+                    "admit, smallest first.")
+
+
 class TBRResults(DesignResult):
     """What :meth:`mlsynth.TBR.fit` returns, in both modes.
 
@@ -341,4 +399,11 @@ class TBRResults(DesignResult):
         description="The business constraints the search ran under, or None "
                     "when none was set. Every design in `designs` satisfies "
                     "them.")
+    population_tolerance: Optional[TBRPopulationTolerance] = Field(
+        default=None,
+        description="The population tolerance the search ran under: the "
+                    "factor and, per size, d_min, the threshold, how d_min was "
+                    "found and the group that attains it. None when "
+                    "population_tolerance is unset. Every design in `designs` "
+                    "is within its size's threshold.")
 

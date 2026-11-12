@@ -32,7 +32,9 @@ only when its treatment group admits every rule, its control group holds no
 banned neighbour of the treated geos and its size sits in the control band. A
 random restart draws until it finds an admissible design and gives up after
 :data:`RESTART_DRAWS` tries, which the outcome counts, so a restart never starts
-from a design the rules refuse.
+from a design the rules refuse. The population tolerance rides on the rules,
+so a treatment swap and a restart's treatment group are kept only when the
+tolerance admits them too.
 
 This is a heuristic like the greedy, with a larger move set: it carries no
 optimality guarantee. On a ten-geo subpanel of the GeoLift markets, where every

@@ -219,6 +219,37 @@ class TBRConfig(BaseEstimatorConfig):
                     "draws do not depend on how many sizes are searched.",
     )
 
+    population_tolerance: Optional[float] = Field(
+        default=None,
+        description="Searched mode: keep each treatment group close to the "
+                    "population. A group's anchor distance is the RMS gap "
+                    "between its summed path and the population's (the sum of "
+                    "every geo), each scaled to its own mean, over the scoring "
+                    "window. With population_tolerance=C a group of size k is "
+                    "admissible only when its distance is at most C times the "
+                    "smallest distance a group of size k the other rules admit "
+                    "achieves, so 1 keeps only the closest group and larger "
+                    "values loosen the bound; at least 1. The estimate is still "
+                    "the effect on the treated group; the tolerance makes that "
+                    "group a closer stand-in for the population when effects "
+                    "vary with something the pre-period shows, such as "
+                    "sensitivity to the market-wide trend. 1.5 is the setting "
+                    "the measurements support, with objective='relative'. In "
+                    "simulated panels (20 markets, 4 treated, every group "
+                    "enumerated, 80% calibrated intervals, a 5% lift that "
+                    "varies with trend sensitivity) ranking by relative MDE "
+                    "alone missed the population lift by -1.03 points and "
+                    "covered it 55% of the time; at 1.5 the bias was -0.18 "
+                    "points, coverage 82%, RMSE 1.28 against 1.56. With a "
+                    "uniform lift it cost about 10% in RMSE and interval width. "
+                    "On GeoLift (21 windows) it covered 90% against 86%; on "
+                    "monthly beer shipments by state it never bound. The pure "
+                    "anchor (C=1) ignores how well the group can be forecast "
+                    "and covered 43% on GeoLift. None (default) leaves the "
+                    "search as it is. Every treatment-eligible geo, and the "
+                    "population, needs a positive mean on the scoring window.",
+    )
+
     treatment_eligible_col: Optional[str] = Field(
         default=None,
         description="Column marking geos the advertiser allows in the treatment "
@@ -578,6 +609,24 @@ class TBRConfig(BaseEstimatorConfig):
                 "n_test sizes a search and a named split has nothing to search; "
                 "drop it, or drop treatment_col/control_col to design instead."
             )
+        return self
+
+    @model_validator(mode="after")
+    def _population_tolerance(self):
+        """Refuse a tolerance below one, not finite, or with a named split."""
+        C = self.population_tolerance
+        if C is None:
+            return self
+        if self.mode == "named":
+            raise MlsynthConfigError(
+                "population_tolerance bounds the treatment groups the design "
+                "search may choose, and a named split has nothing to search; "
+                "drop it, or drop treatment_col/control_col and set "
+                "max_treatment_size to design under it.")
+        if not (math.isfinite(C) and C >= 1.0):
+            raise MlsynthConfigError(
+                f"population_tolerance must be a finite number of at least 1, "
+                f"the closest achievable distance itself; got {C!r}.")
         return self
 
     @model_validator(mode="after")

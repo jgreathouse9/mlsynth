@@ -325,15 +325,25 @@ def required_impact(sigma: float, n: int, n_test: int) -> float:
     return float((tq_sig + tq_pow) * n_test * sq * float(sigma))
 
 
+_RELATIVE_NEED = ("objective='relative' ranks designs by required impact as a "
+                  "share of the treated group's level, which needs a positive "
+                  "level")
+_RELATIVE_REMEDY = ("Exclude them from the treatment group or use "
+                    "objective='reference'.")
+
+
 def check_positive_levels(window: np.ndarray, candidates: Sequence[int],
-                          labels: Sequence[Any]) -> None:
+                          labels: Sequence[Any], *, need: str = _RELATIVE_NEED,
+                          remedy: str = _RELATIVE_REMEDY) -> None:
     """Refuse a candidate geo whose mean over ``window`` is not positive.
 
     The relative key divides by the treated group's level. A group's level is
     the sum of its geos' means, so a positive mean for every geo that may be
     treated makes every candidate group's level positive. ``window`` is periods
     by geos and ``candidates`` are column indices into it; a missing mean is
-    refused with the rest.
+    refused with the rest. ``need`` says which option divides by the level and
+    ``remedy`` what to do instead; the population tolerance
+    (:mod:`.tolerance`) reads the same check with its own.
     """
     window = np.asarray(window, dtype=float)
     idx = list(candidates)
@@ -341,11 +351,8 @@ def check_positive_levels(window: np.ndarray, candidates: Sequence[int],
     bad = [labels[j] for j, m in zip(idx, means) if not m > 0.0]
     if bad:
         raise MlsynthDataError(
-            f"objective='relative' ranks designs by required impact as a share "
-            f"of the treated group's level, which needs a positive level; "
-            f"treatment-eligible geo(s) {bad} have a mean outcome that is not "
-            f"positive on the scoring window. Exclude them from the treatment "
-            f"group or use objective='reference'.")
+            f"{need}; treatment-eligible geo(s) {bad} have a mean outcome that "
+            f"is not positive on the scoring window. {remedy}")
 
 
 def _group_corr(sums) -> float:

@@ -33,7 +33,9 @@ where nothing happened, and mixes that evidence with the posterior.
 Placebo designs are other treatment groups of the real group's size that the
 design rules admit, each with a control group matched by the search's own
 climb on the design window, so their blank errors carry the same selection the
-real design does.
+real design does. Under ``population_tolerance`` the rules carry the tolerance,
+so the placebo groups are drawn from the groups within it, the same selection
+the real group passed.
 """
 
 from __future__ import annotations
