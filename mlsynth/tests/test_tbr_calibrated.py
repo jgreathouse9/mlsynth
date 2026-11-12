@@ -172,31 +172,38 @@ def _searched_sim(df, **over):
 # --------------------------------------------------------------------------- #
 # the default is unchanged
 # --------------------------------------------------------------------------- #
+# The goldens were computed on origin/main (aa79c4fc). numpy's summation order
+# differs across versions: the Python 3.10 CI shard reproduces them to 5e-11
+# relative. 1e-9 still fails on any change to the default path, which moves
+# these values by several orders of magnitude more.
+GOLDEN_RTOL = 1e-9
+
+
 @pytest.mark.parametrize("explicit", [False, True])
-def test_the_default_named_posterior_is_bit_for_bit_main(explicit):
+def test_the_default_named_posterior_matches_main(explicit):
     over = {"inference": "posterior"} if explicit else {}
     res = _fit(_geolift_named(**over))
     c = res.report.cumulative
-    np.testing.assert_allclose(c.estimate, GOLDEN_NAMED["est"], rtol=1e-12)
-    np.testing.assert_allclose(c.lower, GOLDEN_NAMED["lo"], rtol=1e-12)
-    np.testing.assert_allclose(c.upper, GOLDEN_NAMED["hi"], rtol=1e-12)
+    np.testing.assert_allclose(c.estimate, GOLDEN_NAMED["est"], rtol=GOLDEN_RTOL)
+    np.testing.assert_allclose(c.lower, GOLDEN_NAMED["lo"], rtol=GOLDEN_RTOL)
+    np.testing.assert_allclose(c.upper, GOLDEN_NAMED["hi"], rtol=GOLDEN_RTOL)
     inf = res.report.inference
     assert (inf.ci_lower, inf.ci_upper) == pytest.approx(GOLDEN_NAMED["ci"],
-                                                         rel=1e-12)
+                                                         rel=GOLDEN_RTOL)
     assert inf.method == "tbr_posterior"
     assert res.calibration is None and res.report.calibration is None
 
 
-def test_the_default_searched_posterior_is_bit_for_bit_main():
+def test_the_default_searched_posterior_matches_main():
     res = _fit(_geolift_searched())
     assert res.recommended.treatment_units == GOLDEN_SEARCHED["treated"]
     assert res.recommended.control_units == GOLDEN_SEARCHED["controls"]
     assert res.recommended.detail["required_impact"] == pytest.approx(
-        GOLDEN_SEARCHED["required_impact"], rel=1e-12)
+        GOLDEN_SEARCHED["required_impact"], rel=GOLDEN_RTOL)
     assert res.n_periods_scored == GOLDEN_SEARCHED["n_periods_scored"]
     c = res.report.cumulative
     assert (c.estimate[-1], c.lower[-1], c.upper[-1]) == pytest.approx(
-        GOLDEN_SEARCHED["final"], rel=1e-12)
+        GOLDEN_SEARCHED["final"], rel=GOLDEN_RTOL)
     assert "calibrated_required_impact" not in res.power.columns
     assert res.recommended.calibrated_required_impact is None
     assert res.calibration is None
