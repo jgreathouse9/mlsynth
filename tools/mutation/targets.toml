@@ -15349,7 +15349,7 @@ timeout = 600.0
   [[target.mutant]]
   id = "size-recorded-without-admits"
   find = "        if rules is not None and not rules.admits(treatment):\n            continue\n"
-  replace = ""
+  replace = "        pass\n"
   models = "a size recorded although its treatment group breaks a rule, the check before recording skipped"
 
   [[target.mutant]]
