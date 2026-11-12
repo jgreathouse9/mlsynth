@@ -422,6 +422,179 @@ treated is not checked. The objective works with ``search="local"`` and with
 ``inference="calibrated"``, whose placebo control groups are matched under the
 same key.
 
+Keeping the treated group close to the population
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ranking by relative MDE favours the treatment groups that are easiest to
+forecast. Those are often markets whose sales move least with the market-wide
+trend: a holiday season, a price change across the category, a swing in the
+economy. The estimate is the effect on the markets that were treated, whichever
+they are. An advertiser who reads it as the effect the campaign would have had
+in every market is reading a stand-in, and when the lift is larger in markets
+that respond more to the market-wide trend, the easiest group to forecast is a
+stand-in that comes out too small.
+
+``population_tolerance`` bounds how unlike the population the treated group may
+be. Its yardstick, the anchor distance, compares the shape of the treated
+group's sales path with the shape of the whole panel's. Let
+
+.. math::
+
+   p_t = \sum_{i} m_{i,t}
+
+be the total over every geo in the panel, treated, control or held out, and
+:math:`\bar{y}` and :math:`\bar{p}` the means of :math:`y_t` and :math:`p_t`
+over the :math:`n` periods the search scores (under ``inference="calibrated"``,
+the pre-period minus its blank windows). Dividing each series by its own mean
+removes its size, so a group with a tenth of the population's sales and the same
+seasonal swings sits at distance zero. The anchor distance is the root mean
+squared gap between the two rescaled paths,
+
+.. math::
+
+   d(G_{\mathrm{trt}}) = \Big( \frac{1}{n} \sum_{t=1}^{n}
+   \big( y_t / \bar{y} - p_t / \bar{p} \big)^2 \Big)^{1/2}.
+
+It is MAREX's fit of the treated side to the population mean, with every weight
+zero or one. Each design reports it as ``population_distance``, whether the
+tolerance is on or off, so the menu says how representative each group's path
+is.
+
+With ``population_tolerance=C`` a treatment group of :math:`k` geos is
+admissible only when
+
+.. math::
+
+   d(G_{\mathrm{trt}}) \le C \, d_{\min}(k),
+
+where :math:`d_{\min}(k)` is the smallest anchor distance among the groups of
+:math:`k` geos that the other rules admit (forced and forbidden geos, conflicts,
+quotas, budget) and that leave a control group. The group that attains it is the
+witness. :math:`C = 1` admits the witness alone, up to exact ties, and a larger
+:math:`C` admits every group within that multiple of it. The bound is relative
+to what the panel can achieve at each size, not a fixed share of the path: on a
+noisy daily panel no group comes within 1% or 1.5% of the population's path, and
+on a smooth monthly one many do, so a fixed tolerance is too tight on the first
+and too loose on the second.
+
+Finding :math:`d_{\min}(k)` is a search of its own. When the groups of one size
+number at most two million, every one is scored, which on the 40 GeoLift geos
+takes about 0.02 seconds at four treated geos. Above that, a descent that swaps
+one geo at a time runs from a greedy start and 64 random ones and keeps the
+closest group it reaches. That can only overstate :math:`d_{\min}(k)`, so the
+bound it sets is looser than the exact one, never tighter. On a simulated panel
+of 100 geos, the 3.9 million groups of four take 1.4 seconds to enumerate; the
+descent takes under 0.1 seconds and lands 1.3% above the exact minimum.
+``result.population_tolerance`` records, per size, :math:`d_{\min}(k)`, the
+threshold, whether it was ``"enumerated"`` or ``"searched"`` and the witness.
+
+The bound holds at every stage of the search. The greedy adds a geo only when
+the group it makes is within the bound at its new size, and when no geo
+qualifies it continues from that size's witness, so every size the rules allow
+still returns a design (``greedy_from_witness`` marks those sizes). The local
+search's moves and restarts stay within it, and calibrated inference draws its
+placebo groups from the groups within it, so the placebos carry the same
+selection as the real design.
+
+What the bound buys was measured in scratch studies with 80% calibrated
+intervals and a 5% lift injected into the test window:
+
+* Simulated panels of 20 markets, 4 treated, with all 4,845 groups enumerated
+  and 100 panels per scenario. When the lift varied with each market's
+  sensitivity to the market-wide trend, which the pre-period shows, ranking by
+  relative MDE alone picked low-sensitivity groups: a bias of -1.03 points (of
+  5) against the population lift, which its intervals covered 55% of the time.
+  With the tolerance at 1.5 the bias was -0.18 points, the intervals covered
+  82% of both the population lift and the group's own effect, and the RMSE
+  fell from 1.56 to 1.28. When the lift was the same everywhere the tolerance
+  cost about 10% in RMSE (1.07 against 0.97) and in interval width (2.56
+  against 2.32 points).
+* GeoLift, 21 overlapping test windows with 4 treated geos. The tolerance at
+  1.5 covered 90% against 86% for relative MDE alone, with an RMSE of 1.48
+  against 1.61. The pure anchor, the single closest group, picked one group in
+  17 of the 21 windows whose counterfactual was badly forecast: it covered its
+  own effect 43% of the time with a bias of +3.2 points. Fixed tolerances of 1%
+  and 1.5% of the path admitted no group on this noisy daily panel and fell back
+  to the pure anchor.
+* Monthly beer shipments by state, a public panel, over 62 windows. The
+  tolerance at 1.5 never bound: relative MDE's choice was already within 1.06
+  times the closest group, so the picks were the same. A fixed 2% tolerance was
+  the best rule on beer and the worst on GeoLift, which is why the bound is
+  relative to the closest achievable distance.
+
+The real markets were nearly homogeneous in their sensitivity to the trend, so
+on them the tolerance mostly guards against a failure mode, and those results
+rest on few distinct designs (3 to 10 per rule): they are directional.
+
+The estimand does not change. The estimate is still the cumulative effect on the
+treated group the search chose. The tolerance makes that group a closer
+stand-in for the population only when effects vary with something the
+pre-period shows, such as sensitivity to the market-wide trend. When effects
+vary for reasons the pre-period does not show, such as a competitor's campaign
+in some markets or a local event during the test, no choice of group made from
+the pre-period corrects for it.
+
+The recommended setting is ``population_tolerance=1.5`` with
+``objective="relative"``. :math:`C = 1` is the pure anchor, which ignores how
+well the group can be forecast, the failure measured on GeoLift above; 1.5
+leaves the ranking by relative MDE a choice among groups near the closest one.
+The tolerance works with every objective and with ``search="local"``. On the
+GeoLift window the relative MDE section uses, with ``max_treatment_size=4`` and
+``n_test=14``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 6 28 10 10 28 10 10
+
+   * - k
+     - Treated, no tolerance
+     - Rel. MDE
+     - :math:`d`
+     - Treated, tolerance 1.5
+     - Rel. MDE
+     - :math:`d` / :math:`d_{\min}`
+   * - 1
+     - denver
+     - 2.72%
+     - 0.070
+     - denver
+     - 2.72%
+     - 0.070 / 0.070
+   * - 2
+     - denver, cleveland
+     - 2.04%
+     - 0.090
+     - denver, austin
+     - 1.77%
+     - 0.038 / 0.036
+   * - 3
+     - denver, cleveland, austin
+     - 1.65%
+     - 0.053
+     - denver, austin, minneapolis
+     - 1.45%
+     - 0.036 / 0.028
+   * - 4
+     - denver, cleveland, austin, minneapolis
+     - 1.38%
+     - 0.030
+     - denver, austin, minneapolis, dallas
+     - 1.52%
+     - 0.030 / 0.023
+
+At two treated geos the unbounded walk adds cleveland, whose path sits 2.5 times
+the closest pair's distance from the population, and the bounded walk adds
+austin instead. The greedy is a heuristic, so the changed path also reaches a
+better relative MDE at two and three geos, and the recommendation moves from
+four geos to three. All four sizes were enumerated, and no size needed the
+witness.
+
+The distance needs positive levels. With the tolerance on, the fit refuses, and
+names, every treatment-eligible geo whose mean on the scoring window is zero or
+negative, and refuses a population whose mean is not positive, naming the geos
+with non-positive means. A named split has no search to bound, so the option is
+refused there.
+
 Diagnostics
 -----------
 
@@ -1435,6 +1608,25 @@ it:
    for design in result.designs:
        print(design.k, design.treatment_units,
              f"relative MDE {design.detail['relative_mde']:.1%}")
+
+``population_tolerance`` keeps each treated group's path within a multiple of
+the closest achievable distance from the population's, and the result records
+the bound per size:
+
+.. code-block:: python
+
+   result = TBR(TBRConfig(
+       df=panel, unitid="geo", time="date", outcome="Y",
+       max_treatment_size=4, n_test=14,
+       objective="relative", population_tolerance=1.5,
+   )).fit()
+
+   for design in result.designs:
+       print(design.k, design.treatment_units,
+             f"distance {design.population_distance:.3f}")
+   for anchor in result.population_tolerance.anchors:
+       print(anchor.k, anchor.d_min, anchor.threshold, anchor.method,
+             anchor.witness_units)
 
 Verification
 ------------
