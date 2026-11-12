@@ -338,18 +338,21 @@ def test_the_witness_is_admitted_at_factor_one():
 
 
 def test_a_tie_with_the_witness_is_admitted_at_factor_one():
-    """Two geos, one a scaled copy of the other, have the same distance in
-    exact arithmetic and distances one rounding apart in floating point. Both
-    are the closest single geo, and both are admitted at C = 1."""
+    """A geo and three scaled copies of it have the same distance in exact
+    arithmetic and distances a rounding step apart in floating point. All four
+    are the closest single geo, and all four are admitted at C = 1, including
+    the copies whose computed distance lands above the witness's."""
     Y = sensitivity_panel(n_geos=8, seed=1)
     j = int(np.argmin([literal_distance(Y, [i]) for i in range(8)]))
-    Y = np.column_stack([Y, 0.37 * Y[:, j]])
-    t = tol.PopulationTolerance(Y, [ALL] * 9, None, 1.0)
-    d_j, d_copy = t.distance([j]), t.distance([8])
-    assert d_j != d_copy                                  # a rounding tie
-    assert d_j == pytest.approx(d_copy, rel=1e-12)
-    assert set(t.anchor(1).witness) <= {j, 8}
-    assert t.admits([j]) and t.admits([8])
+    Y = np.column_stack([Y] + [c * Y[:, j] for c in (0.37, 2.9, 11.3)])
+    t = tol.PopulationTolerance(Y, [ALL] * 11, None, 1.0)
+    ties = [j, 8, 9, 10]
+    d = [t.distance([g]) for g in ties]
+    a = t.anchor(1)
+    assert a.witness[0] in ties
+    assert max(d) > a.d_min                      # a rounding tie, above d_min
+    assert max(d) == pytest.approx(a.d_min, rel=1e-12)
+    assert all(t.admits([g]) for g in ties)
 
 
 def test_a_group_beyond_the_tolerance_is_refused():
@@ -575,6 +578,25 @@ def test_a_size_with_no_admitted_group_does_not_stop_the_walk():
     assert_within(res, df)
 
 
+def test_a_reached_group_the_rules_refuse_is_replaced_by_the_witness():
+    """Two strata asking for one treated geo each. On this panel the walk
+    reaches, at two geos, a pair within the tolerance whose geos share a
+    stratum, which the quota refuses; it takes the witness for size two
+    instead of losing the size (measured: skipping the size records [3])."""
+    Y = sensitivity_panel(n_geos=10, seed=45)
+    roles = [ALL] * 10
+    base = DesignRules.build(roles, strata=[(list(range(0, 10, 2)), 1, None),
+                                            (list(range(1, 10, 2)), 1, None)])
+    rules, t = with_tolerance(Y, 1.0, roles, base)
+    out = greedy_search(Y, roles, max_treatment_size=3, n_test=6,
+                        objective="reference", rules=rules)
+    assert [o.k for o in out] == [2, 3]
+    assert out[0].from_witness
+    assert sorted(out[0].treatment) == sorted(t.anchor(2).witness)
+    for o in out:
+        assert rules.admits(o.treatment)
+
+
 def test_forced_geos_and_conflicts_with_the_tolerance():
     df = long(sensitivity_panel())
     df["dma"] = "d" + (df.geo.str[1:].astype(int) // 2).astype(str)
@@ -610,6 +632,8 @@ def test_a_calibrated_fit_draws_selection_aware_placebos():
     t = tol.PopulationTolerance(Y, [ALL] * 10, None, 1.3)
     for group in res.calibration.placebo_treatment_units:
         assert t.admits([units.index(u) for u in group])
+    for a in res.population_tolerance.anchors:     # d_min on the search window
+        assert a.d_min == t.anchor(a.k).d_min
     for d in res.designs:
         T = [units.index(u) for u in d.treatment_units]
         assert d.population_distance == pytest.approx(literal_distance(Y, T),
