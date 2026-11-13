@@ -3,15 +3,20 @@
 % Run from a directory holding the authors' files at ca4d23a
 % (https://github.com/bestzywang/Robust-PCA-via-non-convex-half-quadratic-regularization):
 %
-%   octave-cli --eval "addpath('<that dir>'); run('octave_crosscheck.m')"
+%   HQF_XC_OUT=/some/dir octave-cli --eval "addpath('<that dir>'); run('octave_crosscheck.m')"
+%
+% run() changes into this file's directory, so the output directory is taken
+% from HQF_XC_OUT (default: a 'crosscheck' folder beside this file, about 100 MB
+% of .mat files that are not to be committed).
 %
 % For each (SNR, run) it builds the Table-1 problem, seeds rand so the U drawn
 % inside RPCA_HQF is known, calls the authors' function unmodified, and saves
-% the inputs and output to crosscheck/snr<S>_run<R>.mat. crosscheck.py replays
+% the inputs and output to <HQF_XC_OUT>/snr<S>_run<R>.mat. crosscheck.py replays
 % each case through port.rpca_hqf from the same M_noise and U0 and reports the
 % largest entrywise difference in X.
 pkg load statistics;
-outdir = 'crosscheck';
+outdir = getenv('HQF_XC_OUT');
+if isempty(outdir), outdir = 'crosscheck'; end
 if ~exist(outdir, 'dir'), mkdir(outdir); end
 m = 500; n = m; rak = m / 50;
 for snr = [3 6 9 12 15]

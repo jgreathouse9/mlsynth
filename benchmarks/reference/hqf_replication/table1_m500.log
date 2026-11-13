@@ -1,0 +1,28 @@
+m=500 snr=3 done 18s
+m=500 snr=6 done 35s
+m=500 snr=9 done 51s
+m=500 snr=12 done 67s
+m=500 snr=15 done 82s
+arm       paper  authors  +proper_prox  +recompute  +reset_stall  mlsynth@paper  mlsynth@default
+m   snr                                                                                         
+500 3    0.1508   0.1512        0.1512      0.1509        0.1509         0.1509           2.2280
+    6    0.1074   0.1072        0.1072      0.1070        0.1070         0.1070           1.5833
+    9    0.0757   0.0758        0.0758      0.0757        0.0757         0.0757           1.1140
+    12   0.0534   0.0540        0.0540      0.0539        0.0539         0.0539           0.7911
+    15   0.0383   0.0381        0.0381      0.0381        0.0381         0.0381           0.5556
+
+max |library - port with the same changes| per cell:
+m    snr
+500  3      1.323386e-13
+     6      3.232969e-13
+     9      3.677059e-13
+     12     4.565237e-13
+     15     9.574563e-13
+
+default rank picked (true 10/20):
+m    snr
+500  3      423.0
+     6      409.0
+     9      389.0
+     12     363.0
+     15     330.0

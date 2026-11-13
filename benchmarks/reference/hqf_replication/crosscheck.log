@@ -1,0 +1,27 @@
+snr12_run1       port 2.3e-14  library 5.5e-03  octave RMSE 0.0556
+snr12_run2       port 6.9e-15  library 4.3e-03  octave RMSE 0.0544
+snr12_run3       port 6.1e-15  library 4.7e-03  octave RMSE 0.0545
+snr12_run4       port 2.1e-14  library 4.2e-03  octave RMSE 0.0543
+snr12_run5       port 6.7e-15  library 4.7e-03  octave RMSE 0.0526
+snr15_run1       port 9.0e-15  library 3.1e-03  octave RMSE 0.0376
+snr15_run2       port 8.3e-15  library 3.4e-03  octave RMSE 0.0375
+snr15_run3       port 1.1e-14  library 3.0e-03  octave RMSE 0.0380
+snr15_run4       port 8.6e-15  library 4.1e-03  octave RMSE 0.0382
+snr15_run5       port 7.3e-15  library 3.2e-03  octave RMSE 0.0377
+snr3_run1        port 8.2e-15  library 1.1e-02  octave RMSE 0.1507
+snr3_run2        port 4.0e-15  library 1.2e-02  octave RMSE 0.1545
+snr3_run3        port 6.8e-15  library 1.1e-02  octave RMSE 0.1493
+snr3_run4        port 6.0e-15  library 1.2e-02  octave RMSE 0.1544
+snr3_run5        port 5.8e-15  library 1.2e-02  octave RMSE 0.1491
+snr6_run1        port 5.3e-15  library 1.3e-02  octave RMSE 0.1091
+snr6_run2        port 7.0e-15  library 9.8e-03  octave RMSE 0.1090
+snr6_run3        port 1.0e-14  library 9.3e-03  octave RMSE 0.1082
+snr6_run4        port 7.2e-15  library 1.1e-02  octave RMSE 0.1078
+snr6_run5        port 7.7e-15  library 9.1e-03  octave RMSE 0.1077
+snr9_run1        port 1.1e-14  library 5.8e-03  octave RMSE 0.0760
+snr9_run2        port 9.9e-15  library 6.4e-03  octave RMSE 0.0754
+snr9_run3        port 5.4e-15  library 6.5e-03  octave RMSE 0.0753
+snr9_run4        port 1.3e-14  library 6.5e-03  octave RMSE 0.0750
+snr9_run5        port 6.0e-15  library 6.5e-03  octave RMSE 0.0743
+
+worst relative max-abs: port 2.3e-14, library 1.3e-02

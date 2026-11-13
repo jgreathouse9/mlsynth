@@ -20,7 +20,7 @@ The library draws its own U; it is pinned to the arm's U0 by replacing
 `np.random.default_rng` inside `hqf` for the call, so the comparison is on
 identical starts.
 
-Usage: python run_tableone.py RUNS OUT.csv [M]
+Usage: python run_tableone.py RUNS OUT.parquet [M]
 """
 import sys
 import time
@@ -98,7 +98,7 @@ if __name__ == "__main__":
         for snr in (3, 6, 9, 12, 15):
             for run in range(runs):
                 rows += one(m, snr, run)
-            pd.DataFrame(rows).to_csv(out, index=False)
+            pd.DataFrame(rows).to_parquet(out, index=False)
             print(f"m={m} snr={snr} done {time.perf_counter() - t0:.0f}s", flush=True)
     df = pd.DataFrame(rows)
     arms = ["authors", "+proper_prox", "+recompute", "+reset_stall", "mlsynth@paper", "mlsynth@default"]
