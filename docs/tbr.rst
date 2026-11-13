@@ -496,6 +496,31 @@ search's moves and restarts stay within it, and calibrated inference draws its
 placebo groups from the groups within it, so the placebos carry the same
 selection as the real design.
 
+The tolerance admits few groups, often under 1 in 1,000 of the candidates, so
+the restarts and the placebos take their treatment groups from it directly.
+The quadratic form that finds :math:`d_{\min}(k)` also screens candidates
+against the bound, and every group the screen passes is checked against the
+definition. Candidates are drawn uniformly in batches of 32,768 and the first
+ones within the bound are kept. Up to two million candidates, when 200 draws
+per group asked for do not find them all, every candidate is scored instead
+and the groups are chosen from the full list, whose size is then exact. Above
+two million the draws continue, up to ten million. Either way every group is
+a uniform draw from those the tolerance and the business rules admit.
+
+Before this, the restarts and the placebos drew uniformly over every candidate
+and kept what the rules admitted, 50 tries a restart and 4,800 draws for 24
+placebos. On 200 simulated panels of 80 markets at a tolerance of 1.5, where a
+median of 1 in 1,494 groups of four was admitted, the calibration received a
+median of 3 placebos of the 24 it asked for, and none in 35 panels. Under no
+effect its 80% band covered zero 63% of the time with no placebos and 68% to
+77% with one to three, against 83% to 90% with eight or more. On three of those
+panels, 9 or 10 of 10 local restarts at four geos were abandoned. Both now
+receive every group they ask for whenever that many are admitted. On a
+simulated panel of 80 geos at a tolerance of 1.2, listing the 634 admitted
+groups of four among 1.6 million takes about 0.6 seconds; at 100 geos the
+sampler finds 24 groups admitted at a rate of 1 in 100,000 in about 0.6
+seconds.
+
 What the bound buys was measured in scratch studies with 80% calibrated
 intervals and a 5% lift injected into the test window:
 
@@ -986,7 +1011,10 @@ minimum of one have no design below three treated geos) and can stop short of
 ``max_treatment_size`` (a cluster structure can cap how many geos are treatable
 together). The local search filters its moves the same way, and a random
 restart draws until it finds a design the rules admit, giving up after 50 tries
-and counting the restart in the design's ``abandoned_restarts``.
+and counting the restart in the design's ``abandoned_restarts``. Under
+``population_tolerance`` the restart's treatment group comes from the
+tolerance instead (see that section), and a restart is abandoned only when no
+admitted group is found.
 
 The constraints are checked at three points. The configuration refuses
 contradictions in the fields themselves: a geo both forced and forbidden, more
@@ -1426,7 +1454,11 @@ constraints admit, holding every forced geo and excluding the real group, with
 its control group chosen by the search's own matching climb on the design
 window :math:`[0, D_0)`. ``n_placebos`` (default 24, at least 8) are drawn; when
 fewer groups are admissible all are used, the count is recorded on
-``calibration.n_placebos``, and below eight the fit warns.
+``calibration.n_placebos``, and below eight the fit warns. Up to 20,000
+candidate groups every one is checked, and ``calibration.n_admissible`` records
+how many are admissible. Above that the groups are drawn uniformly, 200 draws
+per placebo, unless ``population_tolerance`` is set: the tolerance then lists
+or samples the groups within it and the business constraints filter them.
 
 The calibrated MDE
 ~~~~~~~~~~~~~~~~~~

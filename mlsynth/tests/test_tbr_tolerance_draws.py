@@ -352,6 +352,19 @@ def test_draws_with_replacement_repeat_groups():
         assert all(g in pool for g in groups)
 
 
+def test_independent_draws_from_the_enumeration_exceed_its_size(monkeypatch):
+    """With the first draws skipped the enumerated pool serves the request,
+    and draws with replacement return all n even when n exceeds the pool."""
+    monkeypatch.setattr(tol, "QUICK_DRAWS", 0)
+    _, roles, t, _ = small()
+    pool = brute(t, roles, 3)
+    n = 4 * len(pool)
+    groups, count = t.draw(3, n, np.random.default_rng(2), eligibility=roles,
+                           distinct=False)
+    assert count == len(pool)
+    assert len(groups) == n and all(g in pool for g in groups)
+
+
 def test_the_sampler_is_uniform_over_the_admitted_groups():
     """A frequency check with a fixed seed: 30,000 draws with replacement over
     the admitted groups, a chi-square statistic against equal frequencies well

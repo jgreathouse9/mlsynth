@@ -153,6 +153,23 @@ now returns and the back-compat guarantee.
   `mlsynth.utils.fscm_helpers.bilevel` is a different package and is unchanged.
 
 ### Fixed
+- TBR under `population_tolerance`: calibrated inference received a fraction
+  of the placebo designs it asked for, and the local search abandoned most of
+  its restarts. Above 20,000 candidate groups the placebos were 4,800 uniform
+  draws kept when the rules admitted them, and each restart had 50 tries; the
+  tolerance admits few groups (a median of 1 in 1,494 groups of four on
+  simulated 80-market panels at 1.5), so on 200 such panels the calibration
+  pooled a median of 3 placebos of the 24 requested and none in 35 of them,
+  and its 80% band covered zero under no effect 63% to 77% of the time with
+  three or fewer. `PopulationTolerance` now lists the groups within it from
+  its closed-form distance, confirming each with `admits`, up to two million
+  candidates per size, and samples them in vectorised batches above that (at
+  most ten million draws); the placebos and the restarts take their treatment
+  groups from it, filtered by the business rules. Each consumer receives
+  `min(requested, admissible)` groups up to that limit, and
+  `calibration.n_admissible` is exact whenever the list was needed. Without
+  `population_tolerance` every output is unchanged, pinned by the GeoLift
+  goldens.
 - SPILLSYNTH accepted an infinite outcome. The missing-cell check uses `isna`,
   which passes `inf`, and every method then returned an ATT of nan or -inf, or
   an IndexError from inside the solver. `prepare_spillsynth_inputs` now raises
