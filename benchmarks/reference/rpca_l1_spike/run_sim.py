@@ -120,10 +120,16 @@ if __name__ == "__main__":
     jobs = [(1000 * i + s, sig, pat) for i, (sig, pat) in
             enumerate([(sg, pt) for sg in NOISE for pt in OUTLIERS]) for s in range(reps)]
     rows, t0 = [], time.perf_counter()
+    if out.exists():                       # resume: keep finished panels
+        prev = pd.read_csv(out)
+        done = set(zip(prev.seed, prev.sigma, prev.pattern))
+        rows = prev.to_dict("records")
+        jobs = [j for j in jobs if j not in done]
     with Pool(workers) as pool:
         for k, r in enumerate(pool.imap_unordered(one, jobs), 1):
             rows += r
             if k % 12 == 0 or k == len(jobs):
-                pd.DataFrame(rows).to_csv(out, index=False)
                 print(f"{k}/{len(jobs)} {time.perf_counter() - t0:.0f}s", flush=True)
+            if k % 12 == 0 or k == len(jobs):
+                pd.DataFrame(rows).to_csv(out, index=False)
     pd.DataFrame(rows).to_csv(out, index=False)

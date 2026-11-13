@@ -1,0 +1,33 @@
+12/240 32s
+24/240 66s
+36/240 101s
+48/240 140s
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+                    ~~~~^^^^^^^^^^^^^^^
+  File "/home/user/mlsynth/benchmarks/reference/rpca_l1_spike/run_sim.py", line 96, in one
+    l1_usvt = l1_lowrank(Y_d, max(r_usvt, 1), seed=seed) if r_usvt != R else l1_true
+              ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/mlsynth/benchmarks/reference/rpca_l1_spike/l1rpca.py", line 118, in l1_lowrank
+    X, Y, n = _alternate(Mn, X0, Y0, sweeps)
+              ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/mlsynth/benchmarks/reference/rpca_l1_spike/l1rpca.py", line 68, in _alternate
+    Y = np.array([lad(X, Mn[:, j]) for j in range(Mn.shape[1])])
+                  ~~~^^^^^^^^^^^^^
+  File "/home/user/mlsynth/benchmarks/reference/rpca_l1_spike/l1rpca.py", line 51, in lad
+    raise RuntimeError(f"LAD LP failed: {res.message}")
+RuntimeError: LAD LP failed: The HiGHS status code was not recognized. (HiGHS Status 15: model_status is Unknown; primal_status is Infeasible)
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/user/mlsynth/benchmarks/reference/rpca_l1_spike/run_sim.py", line 124, in <module>
+    for k, r in enumerate(pool.imap_unordered(one, jobs), 1):
+                ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/multiprocessing/pool.py", line 873, in next
+    raise value
+RuntimeError: LAD LP failed: The HiGHS status code was not recognized. (HiGHS Status 15: model_status is Unknown; primal_status is Infeasible)

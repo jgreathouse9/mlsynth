@@ -45,11 +45,14 @@ def lad(A: np.ndarray, b: np.ndarray) -> np.ndarray:
     n, p = A.shape
     c = np.r_[np.zeros(p), np.ones(n)]
     A_ub = np.block([[A, -np.eye(n)], [-A, -np.eye(n)]])
-    res = linprog(c, A_ub=A_ub, b_ub=np.r_[b, -b],
-                  bounds=[(None, None)] * p + [(0, None)] * n, method="highs")
-    if res.status != 0:  # pragma: no cover - an LAD LP is always feasible and bounded
-        raise RuntimeError(f"LAD LP failed: {res.message}")
-    return res.x[:p]
+    # An LAD LP is always feasible and bounded, so a non-optimal status is the
+    # solver's numerics; HiGHS's dual simplex, then its interior point, retry.
+    for method in ("highs", "highs-ds", "highs-ipm"):
+        res = linprog(c, A_ub=A_ub, b_ub=np.r_[b, -b],
+                      bounds=[(None, None)] * p + [(0, None)] * n, method=method)
+        if res.status == 0:
+            return res.x[:p]
+    raise RuntimeError(f"LAD LP failed under every HiGHS method: {res.message}")
 
 
 @dataclass(frozen=True)
