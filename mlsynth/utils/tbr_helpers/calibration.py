@@ -20,10 +20,14 @@ where nothing happened, and mixes that evidence with the posterior.
    search. Every origin ``s`` in ``[E - B, E - h]`` gives a standardised error
    ``z = (observed sum - centre) / scale`` on a window no design choice saw,
    for the real design and for placebo designs.
-3. Distance trend. Errors grow with the distance from the period the design was
-   chosen on, and the experiment sits furthest away. ``z^2 = alpha + beta d``
-   is fitted by OLS over the pooled errors, the slope is clamped at zero, and
-   each error is rescaled to the experiment's distance ``B``.
+3. Distance trend. The errors change with the distance from the period the
+   design was chosen on, and the experiment sits furthest away. A drifting gap
+   makes them grow; selection makes the errors nearest the design window too
+   large, since those fits rest almost entirely on periods the design was
+   chosen to fit. ``z^2 = alpha + beta d`` is fitted by OLS over the pooled
+   errors, the slope is clamped at zero, and each error is rescaled to the
+   experiment's distance ``B``. The clamp lets the trend widen the band and
+   never narrow it (see :func:`distance_trend`).
 4. Dirichlet-process predictive (Florens and Rolin 2024, eq. 5.13; Blackwell
    and MacQueen 1973). The counterfactual sum's predictive is the mixture
    ``w0 F_t + (1 - w0) ECDF`` of the posterior t and the empirical
@@ -156,6 +160,13 @@ def distance_trend(distance: np.ndarray, z: np.ndarray) -> Tuple[float, float]:
     Clamping keeps the intercept the unconstrained fit gave, which at a
     non-positive slope is at least the mean of ``z^2``, so the trend at the
     experiment is positive whenever any error is non-zero.
+
+    The slope falls on panels with no drift, because selection inflates the
+    errors nearest the design window, and the clamp holds it at zero there. A
+    free slope that follows the fall took coverage at 80 percent nominal to 55
+    to 77 percent on the panels of issue #1043 (75 to 85 percent clamped): the
+    experiment's error stops falling where the line keeps going, and the real
+    design, chosen harder than the placebos, errs more than they do.
     """
     d = np.asarray(distance, dtype=float)
     z2 = np.asarray(z, dtype=float) ** 2
