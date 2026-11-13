@@ -1,0 +1,17 @@
+method              ATT 1990  pre RMSE  wsum | placebo RMSE
+pcp_1000               -1501      88.6  1.16 |        189.6
+pcp_conv               -1500      88.4  1.16 |        189.0
+hqf                    -2147     127.9  1.06 |         91.8
+hsvt_usvt(r=4)         -2247      94.1  1.12 |        766.0
+l1_k1                  -1792     107.7  1.05 |        151.8
+l1_k2                  -1692     106.1  1.08 |         97.8
+l1_k3                  -1947      93.8  1.08 |        325.5
+l1_k4                  -1995      92.8  1.08 |        556.9
+l1_k5                  -2290      80.5  1.11 |        471.2
+l1_k6                  -2513      95.3  1.13 |        494.2
+l1 k=1: certificate 1990 infeasible t*=nan support=0.90 | 1980 window infeasible t*=nan
+l1 k=2: certificate 1990 infeasible t*=nan support=0.80 | 1980 window infeasible t*=nan
+l1 k=3: certificate 1990 infeasible t*=nan support=0.71 | 1980 window infeasible t*=nan
+l1 k=4: certificate 1990 infeasible t*=nan support=0.62 | 1980 window infeasible t*=nan
+l1 k=5: certificate 1990 infeasible t*=nan support=0.53 | 1980 window infeasible t*=nan
+l1 k=6: certificate 1990 infeasible t*=nan support=0.43 | 1980 window infeasible t*=nan
