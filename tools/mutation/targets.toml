@@ -10517,8 +10517,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "restrictions-dropped-on-the-mip"
-  find = '        solve_kw["restrictions"] = restrictions\n        solve_kw["warm_start"] = warm_start'
-  replace = '        solve_kw["warm_start"] = warm_start'
+  find = "        solve_kw[\"restrictions\"] = restrictions\n        solve_kw[\"warm_start\"] = warm_start"
+  replace = "        solve_kw[\"warm_start\"] = warm_start"
   models = "the incident's mechanism on the path that remains: restrictions accepted by the config and never handed to the solver, so a pair or stratum rule is dropped and nothing raises"
 
 # MAREX: a treated market is one the design weights (jgreathouse9/mlsynth#950).
