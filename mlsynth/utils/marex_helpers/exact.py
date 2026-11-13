@@ -155,10 +155,12 @@ sees, since it reads only the treated side. Clusters are searched independently,
 so a conflict pair or a stratum that spans two clusters couples their searches
 and is refused.
 
-What this backend does not solve. A cost budget constrains the treated
-weights; ``relaxed`` and the branch-and-bound knobs (``solver``, ``warm_start``,
-``time_limit``) belong to the MIQP; a negative ``beta`` makes the coupling
-concave. The config refuses each with ``backend="exact"``.
+What this backend does not solve. A cost budget on the treated weights is fit
+on the separable designs, and not by the weakly-targeted coupled fit or under
+``certify=True``, whose certificate prices each set by its unconstrained fit;
+the branch-and-bound knobs (``solver``, ``warm_start``, ``time_limit``) belong
+to the MIQP; a negative ``beta`` makes the coupling concave. The config refuses
+each with ``backend="exact"``.
 
 Above ``CANDIDATE_LIMIT`` candidates in a cluster, enumeration stops being
 affordable. :func:`_designs` then hands the separable designs to the certified

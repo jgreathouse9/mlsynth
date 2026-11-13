@@ -18,8 +18,7 @@ is selected by ``design``:
 Two further penalties appear in the paper's text but have no convex form in
 these variables, and are refused with a reason: ``lambda2_unit`` pairs ``w``
 against ``v`` through a distance matrix (bilinear in two decision variables),
-and ``zeta`` minimises ``z(1 - z)`` (concave). The relaxed path reaches
-integrality by discretising after the solve, not by penalising during it.
+and ``zeta`` minimises ``z(1 - z)`` (concave).
 
 ``xi`` is the eq. (10) unit-level term. It weights each candidate's own
 reproducibility by that candidate's treated weight, so the inner quantity is a
@@ -171,8 +170,9 @@ def precompute_distances(Y_fit, Xbar_clusters, cluster_members):
 def init_cvxpy_variables(N, K, boolean=True):
     """Treated (``w``), control (``v``) weights and selection (``z``).
 
-    ``z`` is binary for the exact MIQP (``boolean=True``) or continuous in
-    ``[0, 1]`` for the relaxed QP (``boolean=False``).
+    ``z`` is binary for the MIQP (``boolean=True``). ``boolean=False`` makes it
+    continuous in ``[0, 1]``, which no design solve uses; the convexity tests
+    build the objective on it to check its curvature without a MIP solver.
     """
     w = cp.Variable((N, K), nonneg=True)
     v = cp.Variable((N, K), nonneg=True)
@@ -291,8 +291,7 @@ def build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
 
     ``lambda2_unit`` and a non-zero ``zeta`` raise
     :class:`~mlsynth.exceptions.MlsynthConfigError`: neither has a convex form
-    in these variables. The relaxed (continuous-``z``) solve discretises after
-    the fact via ``post_hoc_discretize``.
+    in these variables.
     """
     Y_T = Y_fit.T
     obj_terms = []
@@ -381,13 +380,12 @@ def build_objective(Y_fit, Xbar_clusters, cluster_members, w, v, z,
 
     if zeta and zeta > 0:
         # z(1 - z) is concave, so minimising it is non-convex. Nothing in the
-        # package sets this -- the relaxed solver's default is 0 -- so the
-        # parameter has never run, and its docstring claimed otherwise.
+        # package sets this, so the parameter has never run.
         raise MlsynthConfigError(
             "zeta minimises z(1 - z), which is concave, so the program is not "
-            "convex and no solver will accept it. The relaxed path discretises "
-            "after solving (post_hoc_discretize) instead of penalising "
-            "fractional assignments during the solve."
+            "convex and no solver will accept it. The design's selection is "
+            "binary in the MIQP and named outright by the exact backend, so "
+            "there are no fractional assignments to penalise."
         )
 
     return cp.Minimize(cp.sum(obj_terms))

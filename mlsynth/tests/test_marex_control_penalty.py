@@ -225,13 +225,6 @@ def test_exact_matches_the_mip_with_two_clusters():
                                control_penalty=0.2))
 
 
-def test_the_relaxed_path_takes_the_penalty():
-    df, T0 = _panel()
-    res = _fit(df, T0, "mip", m_eq=2, design="weakly_targeted", beta=1.0,
-               control_penalty=0.1, relaxed=True)
-    assert res.globres.control_weights_agg.sum() == pytest.approx(1.0)
-
-
 def test_the_penalty_changes_the_design_somewhere():
     """The parameter reaches the solve: at a large penalty the controls move."""
     moved = False

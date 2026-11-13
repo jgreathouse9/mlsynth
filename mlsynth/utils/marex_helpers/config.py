@@ -130,7 +130,11 @@ class MAREXConfig(BaseMAREXConfig):
     m_min: Optional[int] = Field(default=None)
     m_max: Optional[int] = Field(default=None)
     exclusive: bool = Field(default=True)
-    relaxed: bool = Field(default=False, description="Relax the MIQP (continuous z) and discretise post hoc.")
+    relaxed: bool = Field(
+        default=False,
+        description="Removed. relaxed=True rounded a continuous relaxation of the "
+        "design and is refused; backend='exact' returns the MIQP's optimum and "
+        "runs faster. False is accepted so existing calls keep working.")
     backend: Literal["mip", "exact"] = Field(
         default="mip",
         description=(
@@ -151,7 +155,7 @@ class MAREXConfig(BaseMAREXConfig):
             "bound instead of set by set, and the weakly-targeted design is "
             "refused. It returns the same optimum and the same result. It "
             "does not take "
-            "a cost budget, relaxed=True, a negative beta, or the "
+            "a cost budget, a negative beta, or the "
             "branch-and-bound settings (solver, warm_start, time_limit), and "
             "each cluster is searched on its own, so no border conflict or "
             "stratum quota may span two clusters."
@@ -273,9 +277,8 @@ class MAREXConfig(BaseMAREXConfig):
     # --- geographic design restrictions ---
     # MAREX already covers region-clustering (`cluster`), stratum quotas
     # (`m_min`/`m_max`), cost/budget, and same-region donors natively. These add
-    # the remaining SYNDES/LEXSCM capabilities as constraints on the MIP. Only
-    # supported in the exact MIQP (not `relaxed=True`, whose post-hoc rounding
-    # cannot guarantee them).
+    # the remaining SYNDES/LEXSCM capabilities as constraints on the MIP and on
+    # the exact backend's search.
     to_be_treated: Optional[List] = Field(
         default=None,
         description="Units forced into the treated set; must be disjoint from "
@@ -426,6 +429,24 @@ class MAREXConfig(BaseMAREXConfig):
                 f"power_horizon must be at least 1 period; got {self.power_horizon}.")
         return self
 
+    @field_validator("relaxed")
+    @classmethod
+    def _refuse_relaxed(cls, value: bool) -> bool:
+        """The relaxed program is removed (#1045).
+
+        It rounded a continuous relaxation, took none of the treated-set
+        restrictions, and its designs were 28-52 times the optimum's objective
+        on panels where the exact backend reached that optimum faster.
+        """
+        if value:
+            raise MlsynthConfigError(
+                "relaxed=True has been removed: it rounded a continuous "
+                "relaxation of the design, which could break the design's "
+                "restrictions and was far from the optimum. Use backend='exact', "
+                "which returns the exact design and is faster, or the default "
+                "backend='mip'.")
+        return value
+
     @field_validator("lambda2_unit")
     @classmethod
     def _refuse_lambda2_unit(cls, v):
@@ -557,10 +578,6 @@ class MAREXConfig(BaseMAREXConfig):
         if self.backend != "exact":
             return self
         problems = []
-        if self.relaxed:
-            problems.append(
-                "relaxed=True solves the continuous relaxation and rounds it, "
-                "while the exact backend solves the integer design directly")
         if self.design == "weakly_targeted" and self.beta < 0:
             problems.append(
                 f"beta={self.beta} makes the weakly-targeted coupling concave, "
@@ -624,10 +641,6 @@ class MAREXConfig(BaseMAREXConfig):
                 f"max_total_cost must be a positive number; got {cap!r}.")
         if col not in self.df.columns:
             raise MlsynthConfigError(f"market_cost_col '{col}' is not a column of df.")
-        if self.relaxed:
-            raise MlsynthConfigError(
-                "a total-cost budget is a rule on the treated set, which the "
-                "relaxed program's post-hoc rounding cannot guarantee; use relaxed=False.")
         per_unit = self.df.groupby(self.unitid, observed=True)[col]
         if (per_unit.nunique(dropna=False) > 1).any():
             raise MlsynthDataError(
@@ -739,22 +752,35 @@ class MAREXConfig(BaseMAREXConfig):
             if not non_invariant.empty:
                 raise MlsynthDataError(f"Units with multiple cluster assignments: {non_invariant.to_dict()}")
 
-            # --- m_eq / m_min / m_max validation ---
-            cluster_sizes = df.groupby(cluster_col, observed=True).size()
-            if values.m_eq is not None and values.m_eq > cluster_sizes.max():
-                raise MlsynthDataError(
-                    f"m_eq ({values.m_eq}) cannot be greater than max cluster size ({cluster_sizes.max()})"
-                )
             if values.m_min is not None and values.m_min < 1:
                 raise MlsynthDataError("m_min must be >= 1")
-            if values.m_max is not None and values.m_max > cluster_sizes.min():
-                raise MlsynthDataError(
-                    f"m_max ({values.m_max}) cannot be greater than min cluster size ({cluster_sizes.min()})"
-                )
             if values.m_min is not None and values.m_max is not None and values.m_min > values.m_max:
                 raise MlsynthDataError(
                     f"m_min ({values.m_min}) cannot be greater than m_max ({values.m_max})"
                 )
+
+        # --- treated count against each cluster's markets ---
+        # Every cluster keeps one control (sum v_k = 1 with v <= 1 - z), so it can
+        # treat at most n_k - 1 markets, and m_eq / m_min are required of every
+        # cluster: the smallest one decides. A cluster is measured in markets,
+        # not panel rows. m_max is an upper bound a smaller cluster meets as it
+        # is, so it is not checked against size. Without `cluster` the panel is
+        # one cluster.
+        if cluster_col is not None:
+            markets = df.groupby(cluster_col, observed=True)[values.unitid].nunique()
+        else:
+            markets = pd.Series({"(all)": df[values.unitid].nunique()})
+        smallest = markets.idxmin()
+        n_small = int(markets.min())
+        for name in ("m_eq", "m_min"):
+            m = getattr(values, name)
+            if m is not None and m > n_small - 1:
+                where = (f"cluster {smallest!r} has {n_small} markets"
+                         if cluster_col is not None else f"the panel has {n_small} markets")
+                raise MlsynthDataError(
+                    f"{name}={m} treated markets cannot be met: {where}, and every "
+                    f"cluster keeps at least one control, so at most {n_small - 1} "
+                    f"can be treated in it.")
 
         # --- costs validation ---
         if values.costs is not None and not all(c > 0 for c in values.costs):
@@ -815,23 +841,6 @@ class MAREXConfig(BaseMAREXConfig):
             )
 
         # --- geographic design restrictions ---
-        _restr = (values.to_be_treated is not None
-                  or values.not_to_be_treated is not None
-                  or values.adjacency is not None
-                  or values.exclude_bordering_donors
-                  or values.size_col is not None
-                  or values.min_size is not None or values.max_size is not None)
-        if _restr and values.relaxed:
-            raise MlsynthConfigError(
-                "design restrictions are only supported in the exact MIQP, not "
-                "with relaxed=True (its post-hoc rounding cannot guarantee them)."
-            )
-        if (values.warm_start is not None or values.time_limit is not None) \
-                and values.relaxed:
-            raise MlsynthConfigError(
-                "warm_start / time_limit apply to the exact MIQP only, not "
-                "relaxed=True."
-            )
         units = set(df[values.unitid].unique())
         if values.warm_start is not None:
             unknown_ws = [u for u in values.warm_start if u not in units]

@@ -100,16 +100,6 @@ class TestValidation:
             MAREXConfig(df=panel, outcome="y", unitid="unit", time="time",
                         warm_start=["not_a_unit"])
 
-    def test_warm_start_incompatible_with_relaxed(self, panel):
-        with pytest.raises(MlsynthConfigError):
-            MAREXConfig(df=panel, outcome="y", unitid="unit", time="time",
-                        relaxed=True, warm_start=["u00"])
-
-    def test_time_limit_incompatible_with_relaxed(self, panel):
-        with pytest.raises(MlsynthConfigError):
-            MAREXConfig(df=panel, outcome="y", unitid="unit", time="time",
-                        relaxed=True, time_limit=10.0)
-
     def test_time_limit_must_be_positive(self, panel):
         with pytest.raises(Exception):
             MAREXConfig(df=panel, outcome="y", unitid="unit", time="time",

@@ -477,10 +477,12 @@ so branch-and-bound starts with a real upper bound and prunes aggressively.
 
 ### Why this is attractive
 
-* mlsynth already produces the warm-start candidate for free:
+* mlsynth produced the warm-start candidate for free:
   `marex_helpers.optimization.solve_design_relaxed` -> `post_hoc_discretize`
-  returns a feasible K-unit design. It is currently a *standalone heuristic*; it
-  should instead *seed* the exact solve.
+  returned a feasible K-unit design. Both were removed in #1045: the exact
+  backend (`backend="exact"`) returns the MIQP's optimum faster than the
+  relaxed solve ran, and the rounded designs were 28-52 times the optimum's
+  objective, so neither a standalone heuristic nor a seed is left to build.
 * Could make the **full-panel** exact design tractable on the free SCIP backend
   (no Gurobi, no subsetting) -- raising the MAREX/SYNDES benchmarks from a subset
   to the paper's full instance.
