@@ -1,0 +1,18 @@
+0.0 sparse5 lib cumvar rank on last seed: 15
+0.0 sparse15 lib cumvar rank on last seed: 18
+0.2 sparse5 lib cumvar rank on last seed: 15
+0.2 sparse15 lib cumvar rank on last seed: 18
+0.2 spells lib cumvar rank on last seed: 6
+0.5 sparse5 lib cumvar rank on last seed: 15
+0.5 spells lib cumvar rank on last seed: 9
+0.2 none lib cumvar rank on last seed: 1
+method          hqf_lib(ip=1,cumvar)  hqf_lib(ip=3,cumvar)  hqf_lib(ip=3,rank3)  hqf_paper(rank3)    pcp
+sigma pattern                                                                                           
+0.0   sparse15                 0.900                 0.901                0.288             0.220  0.008
+      sparse5                  0.782                 0.768                0.216             0.214  0.000
+0.2   none                     0.151                 0.159                0.085             0.081  0.087
+      sparse15                 0.881                 0.892                0.382             0.300  0.119
+      sparse5                  0.854                 0.783                0.206             0.227  0.118
+      spells                   0.379                 0.297                0.286             0.336  0.115
+0.5   sparse5                  0.580                 0.673                0.246             0.275  0.259
+      spells                   0.385                 0.395                0.343             0.438  0.291
