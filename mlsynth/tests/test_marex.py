@@ -1,8 +1,8 @@
 """Tests for the MAREX (synthetic experimental design) estimator.
 
 Covers config validation, the design optimizers, clustering, cost/budget and
-cardinality constraints, blank-period inference, the relaxed solver, and
-plotting.
+cardinality constraints, blank-period inference, the removed relaxed
+solver's refusal, and plotting.
 
 Reference: Abadie & Zhao (2026), "Synthetic Controls for Experimental Design."
 """
@@ -20,7 +20,7 @@ import matplotlib.pyplot as _plt
 from mlsynth import MAREX
 from mlsynth.config_models import MAREXConfig
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
-from mlsynth.utils.marex_helpers.optimization import solve_design, solve_design_relaxed
+from mlsynth.utils.marex_helpers.optimization import solve_design
 from mlsynth.utils.marex_helpers.plotter import plot_marex
 from mlsynth.utils.marex_helpers.structures import MAREXInference, MAREXResults
 
@@ -158,10 +158,11 @@ class TestEstimator:
                      "T0": 10, "m_eq": 2, "costs": [1.0] * 8, "budget": 10.0}).fit()
         assert len(res.treated_units) == 2
 
-    def test_relaxed_runs(self, panel):
-        res = MAREX({"df": panel, "outcome": "y", "unitid": "unit", "time": "time",
-                     "T0": 10, "m_eq": 2, "relaxed": True}).fit()
-        assert len(res.treated_units) == 2
+    def test_relaxed_is_refused(self, panel):
+        # Removed in #1045; test_marex_relaxed_refusal.py covers it in full.
+        with pytest.raises(MlsynthConfigError, match="relaxed=True"):
+            MAREX({"df": panel, "outcome": "y", "unitid": "unit", "time": "time",
+                   "T0": 10, "m_eq": 2, "relaxed": True})
 
     def test_covariates_matched(self):
         rng = np.random.default_rng(7)
@@ -213,12 +214,6 @@ class TestHelpers:
         w, v = raw["w_opt"][:, 0], raw["v_opt"][:, 0]
         assert np.all(w * v < 1e-8)
         assert abs(w.sum() - 1) < 1e-6 and abs(v.sum() - 1) < 1e-6
-
-    def test_relaxed_design_discretizes(self):
-        rng = np.random.default_rng(4)
-        Y = rng.normal(0, 1, (8, 12))
-        raw = solve_design_relaxed(Y, T0=10, clusters=np.zeros(8, dtype=int), m_eq=2)
-        assert len(raw["selected_treated"][0]) == 2
 
 
 class TestPlot:
@@ -709,19 +704,15 @@ class TestFormulationGuards:
 
 
 # ----------------------------------------------------------------------
-# Edge cases: optimizer + post-hoc discretizer (optimization.py)
+# Edge cases: optimizer (optimization.py)
 # ----------------------------------------------------------------------
 
-from mlsynth.utils.marex_helpers.optimization import (
-    _augment_fit,
-    post_hoc_discretize,
-)
+from mlsynth.utils.marex_helpers.optimization import _augment_fit
 
 
 class TestOptimizationEdges:
-    """Cover the unusual branches of the optimizer module: 1-D covariates,
-    post-hoc discretization when the relaxed v-mass collapses, and the
-    relaxed blank-window RMSE branch.
+    """Cover the unusual branches of the optimizer module: 1-D covariates and
+    a zero-variance column under standardisation.
     """
 
     def test_augment_fit_accepts_1d_covariates(self):
@@ -737,50 +728,6 @@ class TestOptimizationEdges:
         X = _augment_fit(Y, covariates=None, covariate_weight=1.0,
                           standardize=True)
         assert np.isfinite(X).all()
-
-    def test_post_hoc_discretize_uniform_v_when_relaxed_v_collapses(self):
-        # Relaxed v with all-zero (or sub-threshold) values forces the
-        # uniform-fallback branch (lines 152-153 of optimization.py).
-        cluster_members = [np.array([0, 1, 2, 3])]
-        labels = [0]
-        w_rel = np.zeros((4, 1)); w_rel[:, 0] = [0.6, 0.4, 0.0, 0.0]
-        v_rel = np.zeros((4, 1))  # all-zero -> fallback to uniform on controls
-        w_d, v_d, sel_t, sel_c, rmse_b = post_hoc_discretize(
-            w_rel, v_rel, cluster_members, labels, m_eq=2,
-            trim_threshold=1e-2, Y_fit=None, Y_blank=None,
-        )
-        assert sel_t[0] == [0, 1]
-        assert sel_c[0] == [2, 3]
-        # Uniform fallback: each control gets 0.5
-        np.testing.assert_allclose(v_d[[2, 3], 0], [0.5, 0.5])
-        assert rmse_b == [None]  # no blank window
-
-    def test_post_hoc_discretize_blank_rmse_computed(self):
-        # With Y_blank and both treated + control non-empty, the discretizer
-        # computes the blank-period RMSE (covers lines 157-159).
-        cluster_members = [np.array([0, 1, 2, 3])]
-        labels = [0]
-        w_rel = np.zeros((4, 1)); w_rel[:, 0] = [0.8, 0.2, 0.0, 0.0]
-        v_rel = np.zeros((4, 1)); v_rel[:, 0] = [0.0, 0.0, 0.5, 0.5]
-        Y_blank = np.arange(8).reshape(4, 2).astype(float)
-        _, _, _, _, rmse_b = post_hoc_discretize(
-            w_rel, v_rel, cluster_members, labels, m_eq=2,
-            trim_threshold=1e-2, Y_fit=None, Y_blank=Y_blank,
-        )
-        assert rmse_b[0] is not None and np.isfinite(rmse_b[0])
-
-    def test_post_hoc_discretize_without_m_eq_uses_min_max(self):
-        # No m_eq supplied — discretizer should respect m_min / m_max defaults
-        # (covers lines 135-136).
-        cluster_members = [np.array([0, 1, 2, 3, 4])]
-        labels = [0]
-        w_rel = np.zeros((5, 1)); w_rel[:, 0] = [0.4, 0.3, 0.2, 0.05, 0.05]
-        v_rel = np.zeros((5, 1)); v_rel[:, 0] = [0.0, 0.0, 0.0, 0.5, 0.5]
-        _, _, sel_t, _, _ = post_hoc_discretize(
-            w_rel, v_rel, cluster_members, labels, m_eq=None,
-            m_min=1, m_max=3, trim_threshold=1e-2,
-        )
-        assert 1 <= len(sel_t[0]) <= 3
 
 
 # ----------------------------------------------------------------------
@@ -1329,7 +1276,7 @@ class TestPostFitEdges:
 class TestCoverageMopUp:
     """Branches that need a specific construction to fire: tied-support swap,
     full budget dict, the unit-penalized xi term, the refused penalties, the
-    penalty in the relaxed solver, the MAREXResults convenience properties,
+    MAREXResults convenience properties,
     and the three exception-conversion paths in MAREX.fit().
     """
 

@@ -87,7 +87,6 @@ class MAREX:
         self.verbose: bool = config.verbose
         self.inference: bool = config.inference
         self.T_post = config.T_post
-        self.relaxed: bool = getattr(config, "relaxed", False)
         self.warm_start = config.warm_start
         self.time_limit = config.time_limit
         self.display_graph: bool = config.display_graph
@@ -184,7 +183,7 @@ class MAREX:
                 covariate_weight=covariate_weight,
                 standardize=self.standardize,
                 solver=self.solver or cp.SCIP, verbose=self.verbose,
-                relaxed=self.relaxed, inference=self.inference,
+                inference=self.inference,
                 alpha=self.config.alpha, T_post=self.config.T_post,
                 global_test=self.config.global_test,
                 unit_inference=self.config.unit_inference,
@@ -288,7 +287,7 @@ class MAREX:
                         lambda1_unit=self.lambda1_unit, exclusive=self.exclusive,
                         covariate_names=panel.covariate_names,
                         standardize=self.standardize, covariate_weight=covariate_weight,
-                        solver=self.solver or cp.SCIP, relaxed=self.relaxed,
+                        solver=self.solver or cp.SCIP,
                         backend=self.config.backend,
                         control_penalty=self.control_penalty,
                         cumulative_block=self.config.cumulative_block,

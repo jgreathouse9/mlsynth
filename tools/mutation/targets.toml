@@ -10426,12 +10426,6 @@ timeout = 900.0
   replace = "        if not np.all(np.isfinite(values)):"
   models = "a negative market cost accepted, which buys budget back"
 
-  [[target.mutant]]
-  id = "relaxed-with-budget-accepted"
-  find = "        if self.relaxed:\n            raise MlsynthConfigError(\n                \"a total-cost budget"
-  replace = "        if False:\n            raise MlsynthConfigError(\n                \"a total-cost budget"
-  models = "a budget accepted beside the relaxed program, whose rounding can break it"
-
 [[target]]
 name = "marex-spend-budget-wiring"
 module-path = "mlsynth/estimators/scexp.py"
@@ -10460,9 +10454,72 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "budget-not-forwarded"
-  find = "    if market_costs is not None:\n        # The relaxed path"
-  replace = "    if False:\n        # The relaxed path"
+  find = "    if market_costs is not None:\n        # The total-cost budget goes"
+  replace = "    if False:\n        # The total-cost budget goes"
   models = "the budget accepted by the estimator and never handed to either solver"
+
+# MAREX: relaxed=True removed, and the treated count checked against each
+# cluster's markets (jgreathouse9/mlsynth#1045).
+
+[[target]]
+name = "marex-relaxed-removed"
+module-path = "mlsynth/utils/marex_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_relaxed_refusal.py -q -p no:cacheprovider"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "relaxed-accepted-again"
+  find = "        if value:\n            raise MlsynthConfigError(\n                \"relaxed=True has been removed"
+  replace = "        if False:\n            raise MlsynthConfigError(\n                \"relaxed=True has been removed"
+  models = "relaxed=True accepted again with no solver behind it, so the setting is recorded on the config and the design comes back from the MIQP as though it had been honoured"
+
+  [[target.mutant]]
+  id = "cluster-measured-in-rows"
+  find = "            markets = df.groupby(cluster_col, observed=True)[values.unitid].nunique()"
+  replace = "            markets = df.groupby(cluster_col, observed=True).size()"
+  models = "the defect as found: a cluster measured in panel rows, so four markets over 14 periods read as 56 and an infeasible m_eq passes to the solver"
+
+  [[target.mutant]]
+  id = "largest-cluster-decides"
+  find = "        n_small = int(markets.min())"
+  replace = "        n_small = int(markets.max())"
+  models = "m_eq compared with the largest cluster, the original check's direction, which passes a requirement the smallest cluster cannot meet"
+
+  [[target.mutant]]
+  id = "no-control-kept"
+  find = "            if m is not None and m > n_small - 1:"
+  replace = "            if m is not None and m > n_small:"
+  models = "a cluster allowed to treat every market, forgetting that the program keeps one control in each (sum v_k = 1 with v <= 1 - z)"
+
+  [[target.mutant]]
+  id = "m-min-unchecked"
+  find = '        for name in ("m_eq", "m_min"):'
+  replace = '        for name in ("m_eq",):'
+  models = "the lower bound left unchecked, so m_min equal to a cluster's size passes and fails after the solve"
+
+  [[target.mutant]]
+  id = "m-max-held-to-cluster-size"
+  find = '        for name in ("m_eq", "m_min"):'
+  replace = '        for name in ("m_eq", "m_min", "m_max"):'
+  models = "the upper bound checked like a requirement, the original check's other direction, which refuses an m_max a smaller cluster meets as it is"
+
+  [[target.mutant]]
+  id = "unclustered-panel-unchecked"
+  find = '            markets = pd.Series({"(all)": df[values.unitid].nunique()})'
+  replace = '            markets = pd.Series({"(all)": 10 ** 9})'
+  models = "no check without a cluster column, so m_eq equal to the number of markets reaches the solver"
+
+[[target]]
+name = "marex-restrictions-reach-the-mip"
+module-path = "mlsynth/utils/marex_helpers/orchestration.py"
+test-command = "python -m pytest mlsynth/tests/test_marex_relaxed_refusal.py -q -p no:cacheprovider -k honoured"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "restrictions-dropped-on-the-mip"
+  find = "        solve_kw[\"restrictions\"] = restrictions\n        solve_kw[\"warm_start\"] = warm_start"
+  replace = "        solve_kw[\"warm_start\"] = warm_start"
+  models = "the incident's mechanism on the path that remains: restrictions accepted by the config and never handed to the solver, so a pair or stratum rule is dropped and nothing raises"
 
 # MAREX: a treated market is one the design weights (jgreathouse9/mlsynth#950).
 # Abadie and Zhao bound ||w||_0; every path that fits a treated set refuses one

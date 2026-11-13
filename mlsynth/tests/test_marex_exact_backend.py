@@ -32,7 +32,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from mlsynth import MAREX
-from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
+from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError, MlsynthEstimationError
 from mlsynth.utils.marex_helpers import exact as exact_mod
 from mlsynth.utils.marex_helpers.config import MAREXConfig
 from mlsynth.utils.marex_helpers.exact import (
@@ -332,7 +332,6 @@ def test_duplicate_markets_reach_the_same_objective_as_the_mip():
 
 # -------------------------------------------------------------- failures
 @pytest.mark.parametrize("over, fragment", [
-    ({"relaxed": True}, "relaxed"),
     ({"costs": [1.0] * 9, "budget": 3, "design": "weakly_targeted", "beta": 1.0},
      "weakly-targeted"),
     ({"costs": [1.0] * 9, "budget": 3, "certify": True}, "certify"),
@@ -348,7 +347,6 @@ def test_configurations_the_exact_backend_cannot_solve_are_refused(over, fragmen
 
 def test_the_same_options_stay_valid_for_the_mip():
     df, T0 = _panel()
-    MAREXConfig(**_cfg(df, T0, "mip", m_eq=2, relaxed=True))
     MAREXConfig(**_cfg(df, T0, "mip", m_eq=2, design="weakly_targeted",
                        beta=1.0))
 
@@ -506,11 +504,13 @@ def test_a_direct_call_refuses_what_the_config_refuses(over, fragment):
                                      **over)
 
 
-def test_a_treated_count_that_leaves_no_control_raises_like_the_mip():
+def test_a_treated_count_that_leaves_no_control_is_refused_like_the_mip():
+    # Refused at configuration on both backends since #1045, before any solve;
+    # it used to fail after the solve as an estimation error.
     df, T0 = _panel(J=5, seed=27)
-    with pytest.raises(MlsynthEstimationError):
+    with pytest.raises(MlsynthDataError, match="keeps at least one control"):
         _fit(df, T0, "mip", m_eq=5)
-    with pytest.raises(MlsynthEstimationError):
+    with pytest.raises(MlsynthDataError, match="keeps at least one control"):
         _fit(df, T0, "exact", m_eq=5)
 
 

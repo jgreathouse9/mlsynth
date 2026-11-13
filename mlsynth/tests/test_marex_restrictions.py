@@ -195,10 +195,6 @@ class TestMAREXRestrictionsConfig:
         with pytest.raises(MlsynthConfigError):
             self._make(exclude_bordering_donors=True)
 
-    def test_restrictions_reject_relaxed(self):
-        with pytest.raises(MlsynthConfigError):
-            self._make(relaxed=True, not_to_be_treated=["u0"])
-
     def test_infeasible_restrictions_reported(self):
         # Forbidding every unit of region B leaves its treated synthetic with no
         # member (MAREX needs >=1 treated per cluster) -> translated estimation

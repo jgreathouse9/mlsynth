@@ -389,7 +389,7 @@ DESIGN = [
     pytest.param(
         MAREX,
         {"outcome": "y", "unitid": "unitid", "time": "time",
-         "design": "standard", "post_col": "post", "m_eq": 3, "relaxed": True},
+         "design": "standard", "post_col": "post", "m_eq": 3, "backend": "exact"},
         id="MAREX",
     ),
     # TBR is one estimator with two ways of arriving at the groups, and both

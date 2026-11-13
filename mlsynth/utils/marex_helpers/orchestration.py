@@ -13,7 +13,7 @@ from ..post_fit import compute_post_fit, compute_power_analysis, to_effect_resul
 from .inference import compute_inference
 from .unit_inference import unit_level_inference
 from .exact import solve_design_exact
-from .optimization import solve_design, solve_design_relaxed
+from .optimization import solve_design
 from .structures import (
     MAREXCertificate,
     MAREXClusterDesign,
@@ -49,7 +49,6 @@ def solve_marex(
     standardize=False,
     solver=None,
     verbose=False,
-    relaxed=False,
     inference=False,
     alpha=0.05,
     T_post=None,
@@ -75,8 +74,8 @@ def solve_marex(
 ) -> MAREXResults:
     """Solve the MAREX design and return a frozen :class:`MAREXResults`.
 
-    With ``relaxed=True`` the continuous-``z`` QP with post-hoc discretization is
-    used; otherwise the exact MIQP. With ``inference=True``, blank-period
+    ``backend="mip"`` solves the MIQP with SCIP and ``backend="exact"`` searches
+    treated sets directly; both return the integer optimum. With ``inference=True``, blank-period
     placebo inference is computed for every cluster and the aggregate, at level
     ``alpha`` and over the first ``T_post`` periods after ``T0`` (all of them
     when ``None``). ``unit_inference=True`` adds it for each treated unit
@@ -105,7 +104,6 @@ def solve_marex(
     untreated: a cluster's own unselected members, or every untreated unit for
     the aggregate.
     """
-    solve = solve_design_relaxed if relaxed else solve_design
     solve_kw = dict(
         Y_full=Y_full, T0=T0, clusters=clusters, blank_periods=blank_periods,
         m_eq=m_eq, m_min=m_min, m_max=m_max, exclusive=exclusive, design=design,
@@ -116,7 +114,7 @@ def solve_marex(
         solver=solver, verbose=verbose, control_penalty=control_penalty,
     )
     if market_costs is not None:
-        # The relaxed path never sees a budget: the config refuses the pair.
+        # The total-cost budget goes to both backends when it is set.
         solve_kw.update(market_costs=market_costs, max_total_cost=max_total_cost)
     if backend == "exact":
         # The search takes the restrictions and none of branch-and-bound's
@@ -127,14 +125,10 @@ def solve_marex(
         solve_kw["certify"] = certify
         raw = solve_design_exact(**solve_kw)
     else:
-        # Restrictions are not taken by the relaxed path, whose rounding can't
-        # guarantee them; the config rejects the combination, so only the
-        # MIQP sees them.
-        if not relaxed:
-            solve_kw["restrictions"] = restrictions
-            solve_kw["warm_start"] = warm_start
-            solve_kw["time_limit"] = time_limit
-        raw = solve(**solve_kw)
+        solve_kw["restrictions"] = restrictions
+        solve_kw["warm_start"] = warm_start
+        solve_kw["time_limit"] = time_limit
+        raw = solve_design(**solve_kw)
 
     df = raw["df"]
     Y_full_np = df.to_numpy() if hasattr(df, "to_numpy") else np.asarray(df)
@@ -146,7 +140,7 @@ def solve_marex(
         unit_labels = list(df.index)
     else:
         unit_labels = list(range(Y_full_np.shape[0]))
-    w_opt, v_opt, z_opt = raw["w_opt"], raw["v_opt"], raw.get("z_opt")
+    w_opt, v_opt, z_opt = raw["w_opt"], raw["v_opt"], raw["z_opt"]
     clusters_vec = raw["original_cluster_vector"]
     cluster_labels = raw["cluster_labels"]
     label_to_k = {lab: i for i, lab in enumerate(cluster_labels)}
@@ -211,12 +205,8 @@ def solve_marex(
             return False
         return complement >= 1
 
-    # The exact path carries the selection in ``z``; the relaxed one rounds the
-    # weights and reports ``z_opt=None``, and there the discretised support of
-    # ``w`` is the selection, since post_hoc_discretize puts exactly the chosen
-    # units in it.
-    z_raw = raw.get("z_opt")
-    z_sel = (np.asarray(z_raw) > 0.5) if z_raw is not None else (w_opt > 1e-8)
+    # Both backends carry the selection in ``z``.
+    z_sel = np.asarray(z_opt) > 0.5
     w_sw, v_sw = w_opt.copy(), v_opt.copy()
     for lab in np.unique(clusters_vec):
         k = label_to_k[lab]

@@ -140,8 +140,9 @@ The ``base`` design minimises
 
 with the number of treated units pinned by ``m_eq`` (exactly) or bounded by
 ``m_min``/``m_max``. This is a mixed-integer quadratic program (the binary
-``z``); ``mlsynth`` solves it with SCIP by default, or — via ``relaxed=True`` —
-relaxes ``z`` to :math:`[0, 1]`, solves the QP, and discretises post hoc.
+``z``); ``mlsynth`` solves it with SCIP by default, or searches treated sets
+directly with ``backend="exact"`` (:ref:`marex-search-backend`), which returns
+the same optimum.
 
 A treated unit is one the synthetic treated unit puts weight on. Abadie and Zhao
 bound :math:`\|\mathbf{w}\|_0`, the number of nonzero treated weights, and
@@ -372,8 +373,7 @@ constraints on the MIP:
   never sits in its counterfactual. Requires ``adjacency``.
 
 These are supported in the exact MIQP and in the search backend
-(:ref:`marex-search-backend`), not with ``relaxed=True``, whose post-hoc
-rounding cannot guarantee them. An over-constrained design -- e.g. forbidding
+(:ref:`marex-search-backend`). An over-constrained design -- e.g. forbidding
 every market of a region, leaving its required treated synthetic with no member
 -- raises a translated :class:`~mlsynth.exceptions.MlsynthEstimationError` naming
 the restrictions. The example below runs on the bundled real US DMA contiguity
@@ -798,8 +798,8 @@ naming ``backend="mip"``:
 * ``certify=True`` with a total-cost budget across clusters, since each
   cluster's certificate covers its own best design and the budget can pick a
   lower-ranked one;
-* ``relaxed=True``, and the branch-and-bound settings ``solver``,
-  ``warm_start`` and ``time_limit``, which have nothing to act on.
+* the branch-and-bound settings ``solver``, ``warm_start`` and
+  ``time_limit``, which have nothing to act on.
 
 With ``costs`` and a ``budget`` the search fits each treated set under the
 constraint. When the set's unconstrained fit already meets the budget it is the
@@ -1936,7 +1936,7 @@ and the permutation test fails to reject the null of no effect
 
 .. note::
 
-   This uses the exact MIQP (``relaxed=False``, the default) with
+   This uses the exact MIQP (the default ``backend="mip"``) with
    ``standardize=True``; the unit-variance normalisation is essential here
    because Walmart stores differ enormously in sales level, and without it the
    level differences dominate the match. The solve takes roughly a minute with
@@ -2099,10 +2099,7 @@ subsets, beside the design and its certificate. See
 
 .. note::
 
-   The benchmark uses the exact MIQP (free SCIP), not the relaxed
-   continuous-``z`` mode: the relaxation shares the design objective but drops the
-   integrality that defines the selection, so its top-``m`` rounding is degenerate
-   and non-deterministic for small treated counts. The authors' full 45-store
+   The benchmark uses the exact MIQP (free SCIP). The authors' full 45-store
    MIQP uses Gurobi, so the validator is Path A on a subset, not a live R
    cross-validation.
 

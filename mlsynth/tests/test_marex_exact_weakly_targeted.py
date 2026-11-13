@@ -303,7 +303,6 @@ def test_a_search_given_beta_and_a_penalty_is_refused():
 
 
 @pytest.mark.parametrize("over, fragment", [
-    ({"relaxed": True}, "relaxed"),
     ({"costs": [1.0] * 9, "budget": 3}, "budget"),
     ({"time_limit": 5.0}, "time_limit"),
 ])

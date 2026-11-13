@@ -246,12 +246,6 @@ def test_a_negative_or_missing_cost_is_refused(panel, costs, bad):
         _budgeted(df, T0, "exact", c, budget=5.0)
 
 
-def test_the_relaxed_program_refuses_a_budget(panel, costs):
-    df, T0 = panel
-    with pytest.raises(MlsynthConfigError, match="relaxed"):
-        _budgeted(df, T0, "mip", costs, budget=6.0, relaxed=True)
-
-
 def test_the_mip_takes_a_budget_across_clusters():
     """Region 2's only affordable market is the one it must treat, whatever the
     free design would pick there; the budget counts both regions' markets."""

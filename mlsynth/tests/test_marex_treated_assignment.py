@@ -85,10 +85,7 @@ def _fit_capturing_solver(df, **over):
     else:
         cfg.pop("beta", None)
     cap = {}
-    # ``relaxed=True`` goes through a different solver entry point, so both are
-    # wrapped; whichever runs records its own return.
-    originals = {name: getattr(mx_orch, name)
-                 for name in ("solve_design", "solve_design_relaxed")}
+    originals = {"solve_design": mx_orch.solve_design}
 
     def _wrap(fn):
         def recording(*args, **kwargs):
@@ -134,18 +131,6 @@ class TestTheSolverDecidesWhoIsTreated:
         """``m_eq`` treated markets were requested, so ``m_eq`` come back."""
         res, _, _ = _fit_capturing_solver(_panel(seed), m_eq=m)
         assert len(res.selected_units) == m
-
-    def test_the_relaxed_path_reports_a_treated_group_too(self):
-        """``relaxed=True`` rounds the weights and carries no ``z``.
-
-        The selection is then the discretised support of ``w``. Reading ``z``
-        unconditionally raised ``IndexError`` on this path, which the exact
-        path never reaches.
-        """
-        res, w_sup, _ = _fit_capturing_solver(_panel(3), m_eq=4, relaxed=True)
-        reported = sorted(str(u) for u in res.selected_units)
-        assert reported == w_sup
-        assert len(reported) == 4
 
     def test_treated_and_control_are_disjoint(self):
         res, _, _ = _fit_capturing_solver(_panel(3), m_eq=4)
