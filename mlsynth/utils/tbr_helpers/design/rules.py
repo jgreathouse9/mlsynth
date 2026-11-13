@@ -37,8 +37,12 @@ The population tolerance (``population_tolerance``,
 too, and rides on the rules as :attr:`DesignRules.tolerance`: ``admits`` reads
 it after the business rules, ``admits_rules`` is the business rules alone, and
 every consumer of ``admits`` -- the search's final check, the local search's
-moves and restarts, the calibration's placebo draws -- respects it without a
-branch of its own. ``extendable`` does not read it. A group's anchor distance
+moves -- respects it without a branch of its own. The two stages that draw
+random treatment groups, the local search's restarts and the calibration's
+placebo groups above its enumeration limit, take them from the tolerance
+(:meth:`PopulationTolerance.draw`) filtered by ``admits_rules``, since the
+tolerance can admit under 1 in 1,000 groups and a fixed budget of uniform
+draws checked by ``admits`` mostly finds none. ``extendable`` does not read it. A group's anchor distance
 is not monotone as the group grows, so a group outside the tolerance can grow
 into one inside it, and pruning on it would discard designs; ``audit`` does
 not read it either, since every size the business rules admit has a group the

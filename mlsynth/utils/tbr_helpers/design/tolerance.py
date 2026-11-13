@@ -40,14 +40,29 @@ over ``T``, so ``d(T)^2 = u' H u / (mu' u)^2`` with ``H = R'R / n`` and ``u``
 the group's indicator. No term is a difference of large numbers. The witness's
 distance is then recomputed from the definition, which is the number every
 comparison reads.
+
+The same quadratic form produces the groups the tolerance admits, for the
+stages that need random ones: the calibration's placebo groups and the local
+search's restarts. The tolerance can admit under 1 in 1,000 of the candidates,
+so uniform draws kept when ``admits`` accepts them, on a fixed budget, mostly
+find none. :meth:`PopulationTolerance.admitted` enumerates them exactly,
+screening every candidate by the closed form with a slack of
+:data:`SCREEN_RTOL` and confirming each group the screen passes with
+``admits``. :meth:`PopulationTolerance.sample` draws candidates uniformly in
+vectorised batches, screens and confirms them the same way and keeps the
+first ``n`` accepted, up to :data:`SAMPLE_DRAWS` draws.
+:meth:`PopulationTolerance.draw` samples above the tolerance's ``limit``;
+up to it, it gives the sampler :data:`QUICK_DRAWS` draws per group asked for
+and enumerates when they fall short. It takes a caller's business rules as a
+further filter.
 """
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, replace
 from itertools import chain, combinations, islice
-from typing import (Any, Dict, FrozenSet, List, Optional, Sequence, Tuple,
-                    TYPE_CHECKING)
+from typing import (TYPE_CHECKING, Any, Callable, Dict, FrozenSet, Iterable,
+                    List, Optional, Sequence, Tuple)
 
 import numpy as np
 
@@ -82,6 +97,31 @@ DRAWS_PER_START = 50
 
 #: Seed of the random starts; size k draws from (SEARCH_SEED, k).
 SEARCH_SEED = 0
+
+#: The closed-form screen passes a group whose squared distance is within this
+#: relative slack above the squared bound, so a rounding difference between the
+#: closed form and the definition never screens out a group ``admits`` accepts.
+#: The two agree to about 1e-12 on the panels measured; every group the screen
+#: passes is confirmed by ``admits``.
+SCREEN_RTOL = 1e-6
+
+#: Candidate groups the sampler draws before it stops short of the count asked
+#: for. At 100 geos and groups of four it draws about four million a second,
+#: so 24 groups admitted at a rate of 1 in 100,000 (2.4 million draws expected)
+#: take about 0.6 seconds, and a size with fewer admitted groups than the count
+#: asked for runs to the cap in about 2.3 seconds.
+SAMPLE_DRAWS = 10_000_000
+
+#: Candidate groups the sampler draws per vectorised batch.
+SAMPLE_BATCH = 32_768
+
+#: Draws per group asked for that :meth:`PopulationTolerance.draw` gives the
+#: sampler before it enumerates. A tolerance loose enough to fill the request
+#: this way makes the enumeration confirm a large share of every candidate
+#: with ``admits``: at 80 geos and groups of four, 22 seconds at a factor of 3
+#: and 43 at 1e9, against about a second when few groups are admitted and the
+#: sampler falls short.
+QUICK_DRAWS = 200
 
 
 # --------------------------------------------------------------------------- #
@@ -248,6 +288,16 @@ def _with_forced(P: _Problem, rows: np.ndarray) -> np.ndarray:
     return np.hstack([np.broadcast_to(F, (rows.shape[0], F.size)), rows])
 
 
+def _screen(bound: float) -> float:
+    """The squared closed-form distance at or below which a group may be admitted.
+
+    ``admits`` accepts ``d(T) <= bound (1 + TIE_RTOL)``; the screen squares that
+    and widens it by :data:`SCREEN_RTOL`, so it passes every group ``admits``
+    accepts and a sliver more, which ``admits`` then refuses.
+    """
+    return (bound * (1.0 + TIE_RTOL)) ** 2 * (1.0 + SCREEN_RTOL)
+
+
 def _enumerate(P: _Problem, r: int, block: int) -> Optional[List[int]]:
     """The usable group of smallest distance, over every candidate."""
     best, best_d2 = None, np.inf
@@ -365,6 +415,8 @@ class PopulationTolerance:
         self.limit = int(limit)
         self._anchors: Dict[int, Optional[Anchor]] = {}
         self._distances: Dict[FrozenSet[int], float] = {}
+        self._admitted: Dict[int, np.ndarray] = {}
+        self._problem: Optional[_Problem] = None
 
     def distance(self, group: Sequence[int]) -> float:
         """``d(T)``, kept per group."""
@@ -392,3 +444,152 @@ class PopulationTolerance:
         bound = self.threshold(len(group))
         return bound is not None and \
             self.distance(group) <= bound * (1.0 + TIE_RTOL)
+
+    # ------------------------------------------------------------------ groups
+    def _form(self) -> _Problem:
+        if self._problem is None:
+            self._problem = _Problem(self.window, self.eligibility, self.rules)
+        return self._problem
+
+    def candidates(self, k: int) -> int:
+        """How many groups of size ``k`` the eligibility allows: every forced
+        geo and ``k`` minus their count of the other treatment-eligible geos."""
+        P = self._form()
+        r = k - len(P.forced)
+        return math.comb(len(P.free), r) if 0 <= r <= len(P.free) else 0
+
+    def admitted(self, k: int) -> np.ndarray:
+        """Every group of size ``k`` that :meth:`admits` accepts, one sorted
+        row each, in enumeration order; kept per size.
+
+        Every candidate is scored by the closed form, in vectorised blocks; the
+        groups the screen passes are confirmed by :meth:`admits`, so the set is
+        exactly the one ``admits`` defines. It scores all
+        :meth:`candidates` of them, which :meth:`draw` asks for only up to
+        ``limit``.
+        """
+        if k not in self._admitted:
+            self._admitted[k] = self._enumerate_admitted(k)
+        return self._admitted[k]
+
+    def _enumerate_admitted(self, k: int, block: int = BLOCK) -> np.ndarray:
+        bound = self.threshold(k)
+        P = self._form()
+        r = k - len(P.forced)
+        out: List[List[int]] = []
+        if bound is not None:
+            cut = _screen(bound)
+            combos = combinations(P.free, r)
+            while True:
+                flat = np.fromiter(chain.from_iterable(islice(combos, block)),
+                                   dtype=np.intp)
+                rows = flat.reshape(-1, r) if r else np.empty((1, 0),
+                                                              dtype=np.intp)
+                if rows.shape[0] == 0:
+                    break
+                groups = np.sort(_with_forced(P, rows), axis=1)
+                near = groups[P.d2(groups) <= cut].tolist()
+                out.extend(g for g in near if self.admits(g))
+                if r == 0:
+                    break
+        return np.asarray(out, dtype=np.intp).reshape(-1, k)
+
+    def sample(self, k: int, n: int, rng: np.random.Generator, *,
+               keep: Optional[Callable[[List[int]], bool]] = None,
+               exclude: Iterable[Sequence[int]] = (), distinct: bool = True,
+               cap: Optional[int] = None,
+               batch: int = SAMPLE_BATCH) -> List[List[int]]:
+        """Up to ``n`` groups of size ``k`` drawn uniformly from those
+        :meth:`admits` and ``keep`` accept, none of them in ``exclude``.
+
+        Each draw is a uniformly random candidate: every forced geo and the
+        rest drawn without replacement from the other treatment-eligible geos.
+        Draws come in vectorised batches of ``batch``; the closed form screens
+        each batch and every group it passes is confirmed by :meth:`admits` and
+        then ``keep``, in draw order. A candidate drawn uniformly and kept only
+        when accepted is a uniform draw from the accepted groups. With
+        ``distinct`` a group already returned is skipped, so the groups are a
+        uniform draw without replacement; without it each is an independent
+        draw. The sampler stops at ``n`` groups or after ``cap`` draws
+        (:data:`SAMPLE_DRAWS` by default), whichever comes first, so it can
+        return fewer.
+        """
+        cap = SAMPLE_DRAWS if cap is None else int(cap)
+        bound = self.threshold(k)
+        P = self._form()
+        r = k - len(P.forced)
+        if n <= 0 or bound is None:
+            return []
+        cut = _screen(bound)
+        free = np.asarray(P.free, dtype=np.intp)
+        banned = {tuple(sorted(int(j) for j in g)) for g in exclude}
+        taken: set = set()
+        refused: set = set()
+        found: List[List[int]] = []
+        drawn = 0
+        while drawn < cap:
+            size = min(batch, cap - drawn)
+            drawn += size
+            # Indices drawn with replacement and kept only when distinct are a
+            # uniform draw of r distinct geos, in a uniformly random order.
+            idx = np.sort(rng.integers(0, free.size, size=(size, r)), axis=1)
+            idx = idx[(np.diff(idx, axis=1) != 0).all(axis=1)]
+            groups = np.sort(_with_forced(P, free[idx]), axis=1)
+            for g in groups[P.d2(groups) <= cut].tolist():
+                key = tuple(g)
+                if key in refused or key in banned or (distinct and key in taken):
+                    continue
+                if self.admits(g) and (keep is None or keep(g)):
+                    taken.add(key)
+                    found.append(g)
+                    if len(found) == n:
+                        return found
+                else:
+                    refused.add(key)
+        return found
+
+    def draw(self, k: int, n: int, rng: np.random.Generator, *,
+             eligibility: Sequence[FrozenSet[str]],
+             keep: Optional[Callable[[List[int]], bool]] = None,
+             exclude: Iterable[Sequence[int]] = (),
+             distinct: bool = True) -> Tuple[List[List[int]], Optional[int]]:
+        """Up to ``n`` groups of size ``k`` chosen uniformly from those
+        :meth:`admits` and ``keep`` accept, none of them in ``exclude``, and how
+        many such groups there are.
+
+        Up to ``limit`` candidates, :meth:`sample` first tries
+        :data:`QUICK_DRAWS` draws per group asked for, and returns its groups
+        when it finds all ``n``, with the count ``None``. Otherwise the accepted
+        groups are enumerated (:meth:`admitted`, then ``keep``), and ``n`` of
+        them are chosen with ``rng``, without replacement under ``distinct``
+        (all of them when fewer are accepted) and with replacement otherwise;
+        the count is exact. Either way ``min(n, accepted)`` groups come back,
+        and they are uniform: whether the sampler finds ``n`` within its draws
+        depends on how many groups it has found, not on which. Above ``limit``
+        the groups are drawn by :meth:`sample` alone and the count is ``None``.
+        ``eligibility`` is the caller's, which has to be the one the tolerance
+        was built on, since that decides which geos a group holds.
+        """
+        if list(eligibility) != self.eligibility:
+            raise MlsynthDataError(
+                "the groups are drawn under a different eligibility from the "
+                "one the population tolerance was built on, so they would not "
+                "hold the caller's forced geos.")
+        exclude = [sorted(int(j) for j in g) for g in exclude]
+        if n <= 0:
+            return [], None
+        if self.candidates(k) <= self.limit:
+            quick = self.sample(k, n, rng, keep=keep, exclude=exclude,
+                                distinct=distinct,
+                                cap=min(QUICK_DRAWS * n, SAMPLE_DRAWS))
+            if len(quick) == n:
+                return quick, None
+            pool = [g for g in self.admitted(k).tolist()
+                    if g not in exclude and (keep is None or keep(g))]
+            if not pool:
+                return [], len(pool)
+            take = (rng.choice(len(pool), size=min(n, len(pool)), replace=False)
+                    if distinct else rng.integers(0, len(pool), size=n))
+            return [pool[i] for i in take], len(pool)
+        return self.sample(k, n, rng, keep=keep, exclude=exclude,
+                           distinct=distinct), None

@@ -33,8 +33,13 @@ banned neighbour of the treated geos and its size sits in the control band. A
 random restart draws until it finds an admissible design and gives up after
 :data:`RESTART_DRAWS` tries, which the outcome counts, so a restart never starts
 from a design the rules refuse. The population tolerance rides on the rules,
-so a treatment swap and a restart's treatment group are kept only when the
-tolerance admits them too.
+so a treatment swap is kept only when the tolerance admits it too. The
+tolerance admits a small share of the groups, often under 1 in 1,000, which
+those tries would mostly miss, so under it the restarts' treatment groups come
+from the tolerance itself: uniform draws from the groups the rules and the
+tolerance admit and that leave room for a control group, enumerated or sampled
+by :meth:`~mlsynth.utils.tbr_helpers.design.tolerance.PopulationTolerance.draw`.
+A restart is then abandoned only when the sampler finds none.
 
 This is a heuristic like the greedy, with a larger move set: it carries no
 optimality guarantee. On a ten-geo subpanel of the GeoLift markets, where every
@@ -55,7 +60,8 @@ from .search import CONTROL, TREATMENT, UNASSIGNED, SearchOutcome
 
 Design = Tuple[List[int], Set[int]]
 
-#: Tries a random restart makes for an admissible design before it gives up.
+#: Tries a random restart makes for an admissible design before it gives up,
+#: under rules without a population tolerance.
 RESTART_DRAWS = 50
 
 
@@ -163,6 +169,20 @@ def _admissible_draw(rng: np.random.Generator, roles, k: int,
                if need else forced)
     if not rules.admits(T):
         return None
+    room = _control_room(roles, T, rules)
+    if room is None:
+        return None
+    return list(T), _draw_controls(rng, room)
+
+
+def _control_room(roles, T: Sequence[int], rules: DesignRules):
+    """What a control group for ``T`` may hold, or None when none fits.
+
+    The geos that have to be controls, the geos that may join them, and the
+    fewest and most of those the band allows; None when a geo that has to be
+    a control is banned or the band cannot be met.
+    """
+    _, _, pinned, free = _sides(roles)
     banned = rules.banned_controls(T)
     C = {g for g in pinned if g not in T}
     if C & banned:
@@ -173,9 +193,34 @@ def _admissible_draw(rng: np.random.Generator, roles, k: int,
     most = min(len(choices), hi - len(C))
     if most < fewest:
         return None
+    return C, choices, fewest, most
+
+
+def _draw_controls(rng: np.random.Generator, room) -> Set[int]:
+    """A control group drawn uniformly within the band from ``room``."""
+    C, choices, fewest, most = room
     size = int(rng.integers(fewest, most + 1))
-    C |= set(rng.choice(choices, size=size, replace=False).tolist())
-    return list(T), C
+    return set(C) | set(rng.choice(choices, size=size, replace=False).tolist())
+
+
+def _tolerance_starts(rng: np.random.Generator, roles, k: int,
+                      rules: DesignRules, n: int) -> List[Optional[Design]]:
+    """``n`` restart designs under a population tolerance, None for each the
+    tolerance's sampler could not supply.
+
+    The treatment groups are independent uniform draws from the groups the
+    rules admit, the tolerance included, that leave room for a control group,
+    taken by :meth:`PopulationTolerance.draw` in one call; each control group
+    is then drawn as a rejection restart draws it.
+    """
+    groups, _ = rules.tolerance.draw(
+        k, n, rng, eligibility=roles, distinct=False,
+        keep=lambda T: (rules.admits_rules(T)
+                        and _control_room(roles, T, rules) is not None))
+    starts: List[Optional[Design]] = [
+        (list(T), _draw_controls(rng, _control_room(roles, T, rules)))
+        for T in groups]
+    return starts + [None] * (n - len(starts))
 
 
 def _rows(N: int, designs: Sequence[Design]):
@@ -200,7 +245,10 @@ def local_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
     design to descend from.
 
     Under ``rules`` every design visited satisfies them, ``start`` included,
-    which is refused when it does not.
+    which is refused when it does not. Rules that carry a population tolerance
+    draw the restarts' treatment groups from the tolerance
+    (:func:`_tolerance_starts`); other rules draw each restart by rejection
+    (:func:`_random_design`).
 
     ``objective`` is ``"reference"`` or ``"relative"``, the two the batched
     screen computes; the screen and the direct fit that confirms each move
@@ -251,9 +299,13 @@ def local_search(y_matrix: np.ndarray, eligibility: Sequence[FrozenSet[str]],
     best = descend(list(start.treatment), set(start.control))
     best_trace = [start.score.key] + best[3][1:]
     rng = np.random.default_rng(seed)
+    starts = None
+    if rules is not None and rules.tolerance is not None:
+        starts = iter(_tolerance_starts(rng, roles, start.k, rules, restarts))
     abandoned = 0
     for _ in range(restarts):
-        drawn = _random_design(rng, roles, start.k, rules)
+        drawn = (_random_design(rng, roles, start.k, rules) if starts is None
+                 else next(starts))
         if drawn is None:
             abandoned += 1
             continue
