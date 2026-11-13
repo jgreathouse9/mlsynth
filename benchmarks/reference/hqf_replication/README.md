@@ -53,10 +53,9 @@ m = 1000, 10 runs per cell (`table1_m1000.parquet`):
 | 12 | 0.0757 | 0.0759 | 0.0758 | 1.1147 |
 | 15 | 0.0536 | 0.0537 | 0.0536 | 0.7800 |
 
-Every port cell is within two of the paper's standard deviations except
-m = 500 at 12 dB (0.0540 against 0.0534 +- 0.0006) and m = 1000 at 6 dB
-(0.1523 against 0.1514 +- 0.0012), both within the run-to-run spread of the
-authors' own code under Octave (`crosscheck.parquet`: 0.0526-0.0556 at 12 dB).
+Every port cell is within one of the paper's reported standard deviations of
+its mean; the largest gaps are m = 500 at 12 dB (0.0540 against 0.0534 +-
+0.0006) and m = 1000 at 6 dB (0.1523 against 0.1514 +- 0.0012).
 
 ## Where mlsynth departs from the authors' code
 
