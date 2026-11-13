@@ -1414,12 +1414,26 @@ reports.
    :math:`z_s = (\sum_{t=s}^{s+h-1} y_t - c_s)/\mathrm{sc}_s`. Under the model
    these are t-distributed with scale one; on a real panel their spread is the
    miscalibration.
-2. Distance trend. Errors grow with the distance :math:`d = s - D_0` from the
-   period the design was chosen on, and the experiment sits furthest away, at
-   :math:`d = B`. The pooled squared errors are regressed on the distance,
+2. Distance trend. The errors change with the distance :math:`d = s - D_0`
+   from the period the design was chosen on, and the experiment sits furthest
+   away, at :math:`d = B`. Two forces pull in opposite directions. A gap that
+   drifts makes the errors grow with the distance. Selection makes the errors
+   nearest the design window too large: the regression at those origins is
+   fitted almost entirely on periods the design was chosen to fit, so its scale
+   is too small, and the share of such periods in the fit falls as the origin
+   moves away. The pooled squared errors are regressed on the distance,
    :math:`z^2 = \alpha + \beta d`, the slope is clamped at zero, and each error
    is carried to the experiment's distance:
    :math:`\tilde z = z \sqrt{(\alpha + \beta B) / \max(\alpha + \beta d, 10^{-6})}`.
+   The clamp lets the trend widen the band and never narrow it. On the panels
+   the calibration was chosen on (`#1043
+   <https://github.com/jgreathouse9/mlsynth/issues/1043>`_) the trend falls on
+   the independent and autocorrelated panels and rises on the drifting, hotel
+   and beer panels. A slope left free to fall takes coverage at 80 percent
+   nominal down to 55 to 77 percent on those panels, against 75 to 85 percent
+   with the clamp: the experiment's error stops falling where the line keeps
+   going, and the real design, chosen harder than the placebos, has a larger
+   error at the experiment than they do.
 3. Dirichlet-process predictive (Florens and Rolin 2024, eq. 5.13; Blackwell
    and MacQueen 1973). A Dirichlet process with base measure the posterior and
    concentration :math:`n_0` (``calibration_prior_weight``, default 2), updated
