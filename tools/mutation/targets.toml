@@ -16231,3 +16231,165 @@ timeout = 900.0
   find = "        if not (math.isfinite(C) and C >= 1.0):\n"
   replace = "        if not math.isfinite(C):\n"
   models = "a factor below one accepted at config, which refuses even the witness and leaves nothing to report"
+
+[[target]]
+name = "tbr-tolerance-draws"
+module-path = "mlsynth/utils/tbr_helpers/design/tolerance.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_tolerance_draws.py mlsynth/tests/test_tbr_tolerance_draws_properties.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-enumeration-skips-the-admits-confirmation"
+  find = "                out.extend(g for g in near if self.admits(g))\n"
+  replace = "                out.extend(near)\n"
+  models = "the closed-form screen taken as the verdict in the enumeration, so a group the screen's slack passes and admits refuses joins the admitted set"
+
+  [[target.mutant]]
+  id = "the-sampler-skips-the-admits-confirmation"
+  find = "                if self.admits(g) and (keep is None or keep(g)):\n"
+  replace = "                if keep is None or keep(g):\n"
+  models = "the closed-form screen taken as the verdict in the sampler, so a drawn group just beyond the tolerance is returned"
+
+  [[target.mutant]]
+  id = "the-sampler-skips-the-business-rules"
+  find = "                if self.admits(g) and (keep is None or keep(g)):\n"
+  replace = "                if self.admits(g):\n"
+  models = "the sampler returning groups the tolerance admits and the business rules refuse, so a placebo or a restart breaks a conflict, quota or budget"
+
+  [[target.mutant]]
+  id = "the-enumerated-pool-skips-the-business-rules"
+  find = "                    if g not in exclude and (keep is None or keep(g))]\n"
+  replace = "                    if g not in exclude]\n"
+  models = "the enumerated pool not filtered by the caller's business rules, so a placebo or a restart breaks them and the admissible count is too large"
+
+  [[target.mutant]]
+  id = "the-sampler-repeats-groups"
+  find = "                if key in refused or key in banned or (distinct and key in taken):\n"
+  replace = "                if key in refused or key in banned:\n"
+  models = "deduplication dropped, so the placebos repeat a group and pool its blank errors twice"
+
+  [[target.mutant]]
+  id = "the-sampler-returns-the-real-group"
+  find = "                if key in refused or key in banned or (distinct and key in taken):\n"
+  replace = "                if key in refused or (distinct and key in taken):\n"
+  models = "the real group not excluded from the sampled placebos, so the real design's blank errors enter the pool twice"
+
+  [[target.mutant]]
+  id = "the-quick-draws-return-the-real-group"
+  find = "            quick = self.sample(k, n, rng, keep=keep, exclude=exclude,\n"
+  replace = "            quick = self.sample(k, n, rng, keep=keep, exclude=(),\n"
+  models = "the first draws below the limit not excluding the real group, so a loose tolerance's placebos can include it"
+
+  [[target.mutant]]
+  id = "the-enumerated-pool-holds-the-real-group"
+  find = "                    if g not in exclude and (keep is None or keep(g))]\n"
+  replace = "                    if (keep is None or keep(g))]\n"
+  models = "the real group left in the enumerated pool, so it can be drawn as its own placebo and the admissible count is one too many"
+
+  [[target.mutant]]
+  id = "the-limit-comparison-is-flipped"
+  find = "        if self.candidates(k) <= self.limit:\n"
+  replace = "        if self.candidates(k) > self.limit:\n"
+  models = "the enumeration-versus-sampling limit read backwards, so a large problem is enumerated and a small one sampled without an exact count"
+
+  [[target.mutant]]
+  id = "the-limit-is-exclusive"
+  find = "        if self.candidates(k) <= self.limit:\n"
+  replace = "        if self.candidates(k) < self.limit:\n"
+  models = "a problem with exactly the limit's count of candidates sampled instead of enumerated"
+
+  [[target.mutant]]
+  id = "the-sampler-keeps-repeated-geos"
+  find = "            idx = idx[(np.diff(idx, axis=1) != 0).all(axis=1)]\n"
+  replace = "            idx = idx\n"
+  models = "index draws with a repeated geo kept, so a group holds fewer geos than its size and the proposal is not uniform over groups"
+
+  [[target.mutant]]
+  id = "the-screen-drops-the-tie-slack"
+  find = "    return (bound * (1.0 + TIE_RTOL)) ** 2 * (1.0 + SCREEN_RTOL)\n"
+  replace = "    return bound ** 2\n"
+  models = "the screen cut at the bound itself, so a group admits accepts by its tie slack, or one the closed form puts a rounding step higher, is never confirmed"
+
+  [[target.mutant]]
+  id = "a-short-quick-draw-is-returned"
+  find = "            if len(quick) == n:\n"
+  replace = "            if quick:\n"
+  models = "the first draws returned when they find only some of the groups asked for, so the placebos fall short of min(n, admissible) again"
+
+  [[target.mutant]]
+  id = "the-enumeration-reads-one-block"
+  find = "                if r == 0:\n                    break\n        return np.asarray(out, dtype=np.intp).reshape(-1, k)\n"
+  replace = "                break\n        return np.asarray(out, dtype=np.intp).reshape(-1, k)\n"
+  models = "the admitted set taken over the first block of candidates only"
+
+  [[target.mutant]]
+  id = "draws-with-replacement-are-distinct"
+  find = "                    if distinct else rng.integers(0, len(pool), size=n))\n"
+  replace = "                    if distinct else rng.choice(len(pool), size=min(n, len(pool)), replace=False))\n"
+  models = "independent draws from the enumerated pool taken without replacement, so restarts beyond the pool's size are lost"
+
+  [[target.mutant]]
+  id = "the-draw-ignores-the-eligibility"
+  find = "        if list(eligibility) != self.eligibility:\n"
+  replace = "        if False:\n"
+  models = "groups drawn for a caller whose eligibility differs from the tolerance's, so they need not hold the caller's forced geos"
+
+[[target]]
+name = "tbr-tolerance-draws-placebos"
+module-path = "mlsynth/utils/tbr_helpers/calibration.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_tolerance_draws.py mlsynth/tests/test_tbr_tolerance_draws_properties.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-tolerance-falls-back-to-the-fixed-budget"
+  find = "    if tolerance is not None:\n        # The tolerance admits"
+  replace = "    if False:\n        # The tolerance admits"
+  models = "the defect this target exists for: placebos under the tolerance drawn by 4,800 uniform draws, which find a median of 3 of 24 on 80-market panels"
+
+  [[target.mutant]]
+  id = "the-tolerance-pool-skips-the-business-rules"
+  find = "                              eligibility=eligibility, keep=rules.admits_rules,\n"
+  replace = "                              eligibility=eligibility, keep=None,\n"
+  models = "placebo groups the tolerance admits and the business rules refuse, so the placebos miss the selection the rules put on the real group"
+
+  [[target.mutant]]
+  id = "the-tolerance-pool-holds-the-real-group"
+  find = "                              exclude=[real])\n"
+  replace = "                              exclude=[])\n"
+  models = "the real group drawn as one of its own placebos"
+
+[[target]]
+name = "tbr-tolerance-draws-restarts"
+module-path = "mlsynth/utils/tbr_helpers/design/local.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_tolerance_draws.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-restarts-keep-the-old-draw"
+  find = "    if rules is not None and rules.tolerance is not None:\n        starts = iter("
+  replace = "    if False:\n        starts = iter("
+  models = "the defect this target exists for: restarts under the tolerance drawn by 50 rejection tries, which abandon nearly all of them on 80-market panels"
+
+  [[target.mutant]]
+  id = "the-restart-pool-skips-the-business-rules"
+  find = "        keep=lambda T: (rules.admits_rules(T)\n                        and _control_room(roles, T, rules) is not None))\n"
+  replace = "        keep=lambda T: _control_room(roles, T, rules) is not None)\n"
+  models = "a restart started from a treatment group the tolerance admits and the business rules refuse"
+
+  [[target.mutant]]
+  id = "the-restart-pool-ignores-the-control-room"
+  find = "        keep=lambda T: (rules.admits_rules(T)\n                        and _control_room(roles, T, rules) is not None))\n"
+  replace = "        keep=lambda T: rules.admits_rules(T))\n"
+  models = "a restart's treatment group drawn although it leaves no control group the rules allow"
+
+  [[target.mutant]]
+  id = "the-restarts-are-drawn-without-replacement"
+  find = "        k, n, rng, eligibility=roles, distinct=False,\n"
+  replace = "        k, n, rng, eligibility=roles, distinct=True,\n"
+  models = "the restarts' groups drawn without replacement, so more restarts than admitted groups are abandoned"
+
+  [[target.mutant]]
+  id = "a-short-supply-is-not-padded"
+  find = "    return starts + [None] * (n - len(starts))\n"
+  replace = "    return starts\n"
+  models = "a sampler shortfall leaving the restart loop without a start to count as abandoned"

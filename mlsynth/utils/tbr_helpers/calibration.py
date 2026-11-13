@@ -35,7 +35,9 @@ design rules admit, each with a control group matched by the search's own
 climb on the design window, so their blank errors carry the same selection the
 real design does. Under ``population_tolerance`` the rules carry the tolerance,
 so the placebo groups are drawn from the groups within it, the same selection
-the real group passed.
+the real group passed. Above :data:`ENUMERATION_LIMIT` candidates those groups
+come from the tolerance itself, which enumerates or samples the groups within
+it, since it admits too few for a fixed budget of uniform draws to find.
 """
 
 from __future__ import annotations
@@ -70,10 +72,14 @@ TREND_FLOOR = 1e-6
 MIN_DESIGN_PERIODS = 3
 
 #: Placebo groups are enumerated when the candidates number at most this many,
-#: and drawn by rejection otherwise.
+#: and drawn otherwise: by the population tolerance when the rules carry one,
+#: by rejection when they do not.
 ENUMERATION_LIMIT = 20000
 
-#: Rejection sampling stops after this many draws per wanted placebo.
+#: Rejection sampling stops after this many draws per wanted placebo. The
+#: budget suits rules that admit a sizable share of the candidates; the
+#: population tolerance can admit under 1 in 1,000, so its groups do not come
+#: from here.
 DRAWS_PER_PLACEBO = 200
 
 #: A regression whose residual sum of squares is at most this fraction of the
@@ -229,10 +235,15 @@ def placebo_groups(treatment: Sequence[int],
 
     A group has the real group's size, holds every forced geo (eligible for
     treatment alone, so in every design), draws the rest from the
-    treatment-eligible geos, and is kept only when ``rules`` admit it. Returns
-    the groups, sorted within, and the number of admissible groups other than
-    the real one when they were enumerated, or ``None`` when there were too
-    many candidates to enumerate and the groups were drawn by rejection.
+    treatment-eligible geos, and is kept only when ``rules`` admit it. Up to
+    :data:`ENUMERATION_LIMIT` candidates every one is checked. Above it, rules
+    that carry a population tolerance take the groups from the tolerance,
+    which enumerates the groups within it up to its own limit and samples them
+    above that (:meth:`PopulationTolerance.draw`), the business rules
+    filtering either; other rules are checked on
+    :data:`DRAWS_PER_PLACEBO` uniform draws per placebo. Returns the groups,
+    sorted within, and the number of admissible groups other than the real
+    one when they were enumerated, or ``None`` when they were drawn.
     """
     real = sorted(int(j) for j in treatment)
     forced = [j for j, r in enumerate(eligibility) if r == frozenset({TREATMENT})]
@@ -252,6 +263,15 @@ def placebo_groups(treatment: Sequence[int],
         take = rng.choice(len(pool), size=min(n_placebos, len(pool)),
                           replace=False) if pool else []
         return [pool[i] for i in take], len(pool)
+    tolerance = None if rules is None else rules.tolerance
+    if tolerance is not None:
+        # The tolerance admits a small share of the candidates, often under
+        # 1 in 1,000, which the fixed budget below would mostly miss; it
+        # produces its admitted groups itself and the business rules filter
+        # them.
+        return tolerance.draw(len(real), n_placebos, rng,
+                              eligibility=eligibility, keep=rules.admits_rules,
+                              exclude=[real])
     found: List[List[int]] = []
     seen = set()
     for _ in range(DRAWS_PER_PLACEBO * n_placebos):

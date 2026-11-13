@@ -145,8 +145,10 @@ class TBRCalibration(BaseModel):
     n_admissible: Optional[int] = Field(
         default=None,
         description="Treatment groups other than the real one the rules admit, "
-                    "when they were few enough to enumerate; None when they "
-                    "were drawn by rejection.")
+                    "when they were enumerated: by the calibration up to 20,000 "
+                    "candidate groups, or by the population tolerance up to its "
+                    "own limit when its first draws did not find every placebo; "
+                    "None when the placebos were drawn.")
     placebo_treatment_units: List[List] = Field(
         default_factory=list,
         description="Each placebo design's treatment group, in draw order.")
