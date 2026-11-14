@@ -229,6 +229,8 @@ def run_pcr(
 
     # ------------------------------------------------------------------
     # Algorithm 2 Step 3 (paper) / mlsynth extensions: solve for f̂.
+    # The HSVT rank goes with the design, so the OLS weights are truncated
+    # at r and the rank is not decided again on the reconstruction.
     # ------------------------------------------------------------------
     credible_band: Optional[Tuple[np.ndarray, np.ndarray]] = None
 
@@ -241,6 +243,7 @@ def run_pcr(
                 lambda_penalty=lambda_penalty,
                 p=p,
                 q=q,
+                rank=r,
             )
         else:
             f_hat = solve_simplex(
