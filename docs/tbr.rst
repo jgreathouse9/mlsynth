@@ -422,6 +422,16 @@ treated is not checked. The objective works with ``search="local"`` and with
 ``inference="calibrated"``, whose placebo control groups are matched under the
 same key.
 
+A split whose treated aggregate is an exact linear function of its control
+aggregate over the scoring window leaves no residual, so it has no residual
+scale, no required impact and no interval. Every objective scores such a split
+as infeasible, below any split with a residual, so the search passes over it
+(`#1000 <https://github.com/jgreathouse9/mlsynth/issues/1000>`_). A fit is
+exact when its residual is within :math:`10^{-10}` of the series it is computed
+from, which covers the rounding of any linear relation. A named split that fits
+exactly is still analysed: its estimate is exact and its interval has zero
+width, and the fit warns, naming the geos.
+
 Keeping the treated group close to the population
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

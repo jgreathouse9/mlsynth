@@ -98,6 +98,35 @@ def fit_pretest(y_pre: np.ndarray, x_pre: np.ndarray) -> PretestFit:
     )
 
 
+#: An exact fit's residual, as a share of the series it is computed from
+#: (:func:`fits_exactly`). Affine relations computed in floating point leave
+#: residuals of at most about 400 eps of that scale on panels of 20 to 120
+#: periods across twelve orders of magnitude, so 1e-10 (about 4.5e5 eps) sits
+#: three orders above rounding and many orders below any measured residual.
+EXACT_FIT_RTOL = 1e-10
+
+
+def fits_exactly(fit: PretestFit) -> bool:
+    """Whether eqn 1 leaves no residual beyond the rounding of the data (#1000).
+
+    An exact fit has no residual scale, so the posterior's width, the required
+    impact and every gate that standardises by the scale are undefined. The
+    residual of an affine relation computed in floating point is a rounding of
+    the two terms it subtracts, ``y`` and ``beta x``, so its sum of squares is
+    compared with :data:`EXACT_FIT_RTOL` squared times
+    ``sum(y^2) + beta^2 sum(x^2)``. The uncentred sums set the scale, since a
+    constant treated aggregate has ``S_yy = 0`` and residuals of its own
+    rounding.
+    """
+    sums = fit.sums
+    n = sums.n
+    rss = float(fit.resid @ fit.resid)
+    sum_yy = sums.s_yy + sums.sum_y * sums.sum_y / n
+    sum_xx = sums.s_xx + sums.sum_x * sums.sum_x / n
+    scale = sum_yy + fit.beta * fit.beta * sum_xx
+    return bool(rss <= EXACT_FIT_RTOL * EXACT_FIT_RTOL * scale)
+
+
 def _unscaled_cov(sums: PretestSums, x_pre: np.ndarray) -> np.ndarray:
     """``(X'X)^+`` for ``X = [1, x]``: eqn 6's ``v_a``, ``v_ab`` and ``v_b``.
 

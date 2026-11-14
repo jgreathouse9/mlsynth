@@ -16450,3 +16450,81 @@ timeout = 900.0
   find = "    return starts + [None] * (n - len(starts))\n"
   replace = "    return starts\n"
   models = "a sampler shortfall leaving the restart loop without a start to count as abandoned"
+
+[[target]]
+name = "tbr-exact-fit-predicate"
+module-path = "mlsynth/utils/tbr_helpers/posterior.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_exact_fit.py mlsynth/tests/test_tbr_exact_fit_properties.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-exact-fit-scale-is-centred"
+  find = "    sum_yy = sums.s_yy + sums.sum_y * sums.sum_y / n\n"
+  replace = "    sum_yy = sums.s_yy\n"
+  models = "the scale taken from the centred S_yy, which is zero for a constant treated aggregate, so its rounding residual reads as a real one and the split is scored as a design (#1000)"
+
+  [[target.mutant]]
+  id = "the-exact-fit-scale-drops-the-slope-term"
+  find = "    scale = sum_yy + fit.beta * fit.beta * sum_xx\n"
+  replace = "    scale = sum_yy\n"
+  models = "the rounding scale without beta x, so an affine relation across a large cancelled level (y near 5, x near 1e8) reads as a residual"
+
+  [[target.mutant]]
+  id = "the-exact-fit-tolerance-is-absolute"
+  find = "    return bool(rss <= EXACT_FIT_RTOL * EXACT_FIT_RTOL * scale)\n"
+  replace = "    return bool(rss <= EXACT_FIT_RTOL * EXACT_FIT_RTOL)\n"
+  models = "the tolerance read in outcome units, so whether a split fits exactly depends on the currency of the panel"
+
+  [[target.mutant]]
+  id = "the-exact-fit-tolerance-is-loose"
+  find = "EXACT_FIT_RTOL = 1e-10\n"
+  replace = "EXACT_FIT_RTOL = 1e-6\n"
+  models = "a tolerance far above rounding, so a real design whose residual is small next to its level is thrown out as an exact fit"
+
+[[target]]
+name = "tbr-exact-fit-scoring"
+module-path = "mlsynth/utils/tbr_helpers/design/objective.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_exact_fit.py mlsynth/tests/test_tbr_exact_fit_properties.py mlsynth/tests/test_tbr_relative_objective.py mlsynth/tests/test_tbr_local_search.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "an-exact-fit-is-scored-as-a-design"
+  find = "    if fits_exactly(fit):\n        return infeasible_score(objective)\n"
+  replace = ""
+  models = "the defect of #1000: an exact fit divides by a zero scale under 'reference' and is scored the best design there could be under 'relative'"
+
+  [[target.mutant]]
+  id = "the-infeasible-key-is-the-best-key"
+  find = "    worst = -np.inf\n"
+  replace = "    worst = np.inf\n"
+  models = "an exact fit flagged but ranked above every real design, so the search recommends it"
+
+  [[target.mutant]]
+  id = "the-infeasible-key-has-one-entry"
+  find = "    return SplitScore(key=(worst,) * _KEY_LENGTH.get(objective, 6), value=worst,\n"
+  replace = "    return SplitScore(key=(worst,), value=worst,\n"
+  models = "an infeasible reference key one entry long, which the batched screen broadcasts across its six columns and a tuple comparison ranks by its length"
+
+  [[target.mutant]]
+  id = "the-aa-gate-reads-an-exact-holdout"
+  find = "    if fit.exact_fit:\n        return False\n"
+  replace = ""
+  models = "the A/A test standardising the held-out error by a zero scale when only the fit window is exact"
+
+  [[target.mutant]]
+  id = "the-holdout-never-says-exact"
+  find = "                      exact_fit=fits_exactly(fit))"
+  replace = "                      exact_fit=False)"
+  models = "the holdout fit's exactness never recorded, so the A/A gate's guard never fires"
+
+[[target]]
+name = "tbr-exact-fit-named-split"
+module-path = "mlsynth/utils/tbr_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_exact_fit.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "a-named-exact-fit-is-reported-without-a-word"
+  find = "    if fits_exactly(fit):\n        # No residual scale"
+  replace = "    if False:\n        # No residual scale"
+  models = "a named split analysed with a zero-width interval and nothing telling the caller why"

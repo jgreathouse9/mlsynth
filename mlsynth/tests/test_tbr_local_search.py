@@ -141,12 +141,16 @@ def test_a_control_constant_only_on_the_fit_window_is_scored_directly():
 
 def test_an_exact_fit_is_scored_by_the_direct_fit():
     """Edge: the treatment aggregate is an exact affine function of the control
-    aggregate, so the residual is zero and every gate divides by nothing."""
+    aggregate, so the residual is zero and every gate divides by nothing. The
+    screen hands the design to the direct fit, which scores it infeasible
+    (#1000), and the screen's row is that key."""
     Y = _panel(4, 30, 3)
     Y[:, 0] = 2.0 * Y[:, 1] + 5.0
     cache = design_cache(Y, n_test=5)
     keys = score_designs(cache, *_rows(4, [([0], [1])]))
-    _same(keys[0], _direct(Y, [0], [1], 5))
+    direct = _direct(Y, [0], [1], 5)
+    assert all(v == -np.inf for v in direct)
+    assert tuple(keys[0]) == direct
 
 
 def test_a_single_control_geo_is_scored():
