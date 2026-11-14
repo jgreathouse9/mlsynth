@@ -11333,6 +11333,8 @@ timeout = 900.0
   find = "        if wF.min() >= -tol and (upper is None or np.all(wF <= upper[free] + tol)):\n"
   replace = "        if wF.min() >= -tol:\n"
   models = "the free-set optimum taken although it puts a weight above its cap"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in effect since jgreathouse9/mlsynth#1032. A free-set optimum with a weight over its cap now enters the acceptance branch, where #1032's pin holds every over-cap weight at its cap and solves the free set again; without the mutant the same point takes a ratio step to the first bound. Both reach the certified minimum. Measured on 1,600 capped programs from test_simplex_qp_upper's _case (seeds 0 to 199, 3 to 6 donors, tight and loose caps): 0 answers apart by more than 1e-9, 0 uncertified, 0 above the face enumeration's minimum, in 3,035 pivots against 3,038 without it. Killed at #967 and #970, survived from #1032 on. The clause stays because it keeps the acceptance test's statement complete: the full step is taken only to a point inside the caps."
 
   [[target.mutant]]
   id = "the-certificate-blind-at-the-cap"
