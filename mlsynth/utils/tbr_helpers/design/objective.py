@@ -80,7 +80,8 @@ import numpy as np
 from scipy import special
 
 from mlsynth.exceptions import MlsynthDataError
-from mlsynth.utils.tbr_helpers.posterior import cumulative_posterior, fit_pretest
+from mlsynth.utils.tbr_helpers.posterior import (cumulative_posterior,
+                                                 fit_pretest, fits_exactly)
 
 BB_BOUND = 3.0                     # the reference's Brownian-bridge constant
 DW_RANGE = (1.5, 2.5)              # the reference's acceptable Durbin-Watson band
@@ -250,6 +251,7 @@ class HoldoutFit:
     sigma: float               # the pretest residual standard deviation
     n_pretest: int             # periods the fit used
     df: int                    # degrees of freedom of the posterior
+    exact_fit: bool = False    # the fit window left no residual (#1000)
 
 
 def holdout_fit(y: np.ndarray, x: np.ndarray, n_test: int) -> HoldoutFit:
@@ -274,7 +276,8 @@ def holdout_fit(y: np.ndarray, x: np.ndarray, n_test: int) -> HoldoutFit:
     sigma = float(np.sqrt(fit.sigma_sq))
     half_width = float(window_constants(y.size, n_test).tq_holdout * scale[-1])
     return HoldoutFit(estimate=float(loc[-1]), half_width=half_width,
-                      sigma=sigma, n_pretest=n_pretest, df=fit.df)
+                      sigma=sigma, n_pretest=n_pretest, df=fit.df,
+                      exact_fit=fits_exactly(fit))
 
 
 def false_positive_probability(fit: HoldoutFit, n_test: int) -> float:
@@ -302,8 +305,14 @@ def aa_test_ok(y: np.ndarray, x: np.ndarray, n_test: int) -> bool:
     there is none. An interval excluding zero is not an automatic failure, since
     a narrow interval sitting just off zero is a small error; it fails when the
     probability of that happening exceeds ``AA_THRESHOLD_PROB``.
+
+    A fit window the regression reproduces exactly leaves no scale to judge
+    the held-out error by, so the test fails there (#1000): the design has not
+    shown it can tell a null window from an effect.
     """
     fit = holdout_fit(y, x, n_test)
+    if fit.exact_fit:
+        return False
     lower = fit.estimate - fit.half_width
     upper = fit.estimate + fit.half_width
     if lower * upper < 0.0:
@@ -365,12 +374,37 @@ def _group_corr(sums) -> float:
     return float(np.clip(corr, -0.999999, 0.999999))
 
 
+#: The length of each objective's key, so an infeasible split's key compares
+#: with every other key of its objective.
+_KEY_LENGTH = {"reference": 6, "relative": 1, "paper": 1}
+
+
+def infeasible_score(objective: str) -> SplitScore:
+    """The score of a split no objective can rank: every entry ``-inf``.
+
+    It is below every key a split with a residual can reach, so a search that
+    maximises the key passes over it and never recommends it.
+    """
+    worst = -np.inf
+    return SplitScore(key=(worst,) * _KEY_LENGTH.get(objective, 6), value=worst,
+                      detail={"exact_fit": True})
+
+
 def score_split(y: np.ndarray, x: np.ndarray, *, objective: str,
                 n_test: int) -> SplitScore:
-    """Score one candidate split under the named objective."""
+    """Score one candidate split under the named objective.
+
+    A split whose pretest regression fits exactly
+    (:func:`~mlsynth.utils.tbr_helpers.posterior.fits_exactly`) has no
+    residual scale, so it has no required impact, no interval and no gate that
+    standardises by the scale. It is scored :func:`infeasible_score` under
+    every objective (#1000), and a search over a panel that contains one runs.
+    """
     y = np.asarray(y, dtype=float)
     x = np.asarray(x, dtype=float)
     fit, resid, sigma, r2 = _pretest_fit(y, x)
+    if fits_exactly(fit):
+        return infeasible_score(objective)
 
     if objective == "relative":
         level = float(np.mean(y))

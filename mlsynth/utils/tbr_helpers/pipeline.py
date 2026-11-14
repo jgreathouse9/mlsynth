@@ -13,6 +13,7 @@ from .posterior import (
     cumulative_posterior,
     cumulative_posterior_hac,
     fit_pretest,
+    fits_exactly,
     interval,
     iroas_fixed_cost,
     iroas_simulated,
@@ -154,6 +155,16 @@ def estimate(config, *, treated=None, controls=None, blank=None,
     y, x = inputs.y, inputs.x
 
     fit = fit_pretest(y[:T0], x[:T0])
+    if fits_exactly(fit):
+        # No residual scale: the point estimate is exact and the posterior has
+        # zero width (#1000). A searched design never gets here, since the
+        # search scores such a split infeasible.
+        warnings.warn(
+            f"the treated aggregate of {list(inputs.treated_units)} is an exact "
+            f"linear function of the control aggregate of "
+            f"{list(inputs.control_units)} over the pre-period, so the "
+            f"regression leaves no residual and the interval has zero width.",
+            UserWarning, stacklevel=3)
     # Serial correlation in the pretest residual is a property of the panel and
     # the groups, so the correction belongs here and applies whether the split
     # was named or searched for.

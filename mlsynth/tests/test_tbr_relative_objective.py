@@ -187,12 +187,15 @@ def test_relative_ranks_a_large_noisy_group_above_a_small_quiet_one():
     assert rel_big.detail["relative_mde"] < rel_small.detail["relative_mde"]
 
 
-def test_an_exact_fit_scores_infinitely_well():
-    """Edge: zero residual scale is zero required impact, an unbounded score."""
+def test_an_exact_fit_is_scored_infeasible():
+    """Edge: an exact fit has no residual scale, so no required impact. It is
+    scored infeasible, below every split with a residual (#1000); before, its
+    zero impact made it the best split there could be."""
     x = np.arange(1.0, 21.0)
     rel = score_split(3.0 + 2.0 * x, x, objective="relative", n_test=4)
-    assert rel.value == math.inf
-    assert rel.key == (math.inf,)
+    assert rel.value == -math.inf
+    assert rel.key == (-math.inf,)
+    assert rel.detail["exact_fit"] is True
 
 
 def _zero_mean(n, seed):
