@@ -16584,6 +16584,8 @@ timeout = 600.0
   find = "                q=q,\n                rank=r,\n            )"
   replace = "                q=q,\n            )"
   models = "run_pcr solving the OLS weights without HSVT's rank, so the rank is decided again on the reconstruction, at the rounding floor max(T0, J) * eps * s_1 instead of by construction"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in effect on every input measured, and recorded because the margin is the finding. Without the rank, solve_ols cuts the reconstruction at its numerical rank, max(T0, J) * eps * s_1, and a reconstruction's trailing singular values are rounding: at most 18.3 eps * s_1 on 3,300 random panels with T0 from 3 to 400 and J from 2 to 120, against a floor of at least 60 eps * s_1 at the larger shapes, and none kept. On 400,000 random panels with T0 and J from 2 to 4 none cleared the floor either, but the largest came within 2 percent of it: 0.978 of the floor, a rank-1 reconstruction of a 2 x 2 panel (seed 124898). The rank is passed so that the truncation is fixed by construction, as tslib fixes it, and no input yet found separates the two."
 
 # The shared PCR kernel's numerical-rank guard, which ClusterSC's weights now
 # rest on as SI's and SNN's do.
