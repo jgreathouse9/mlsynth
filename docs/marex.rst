@@ -1642,13 +1642,26 @@ Synthetic-control gap residuals are virtually always serially correlated:
 the donor weighting absorbs the level but the persistent components of the
 factor structure (business cycles, seasonality, slow trends) leak through.
 Ignoring this systematically under-states the SE at long horizons. We model
-it as an AR(1) process with lag-1 autocorrelation
+it as an AR(1) process. Its lag-1 autocorrelation is estimated on the
+demeaned gap over the blank window, with :math:`n = |\mathcal{B}|` periods,
 
 .. math::
 
-   \widehat{\rho} = \frac{\sum_t g_t g_{t-1}}{\sum_t g_t^2},
+   \widetilde{\rho} = \frac{\sum_{t=2}^{n} (g_t - \bar g)(g_{t-1} - \bar g)}
+                           {\sum_{t=1}^{n} (g_t - \bar g)^2},
+   \qquad
+   \widehat{\rho} = \widetilde{\rho} + \frac{1 + 3\widetilde{\rho}}{n},
 
-clipped to :math:`(-0.99, 0.99)` for numerical safety. The variance of the
+clipped to :math:`(-0.99, 0.99)` for numerical safety. Demeaning keeps an
+offset out of the persistence: on a gap with mean :math:`b` and noise
+:math:`\sigma`, the uncentred ratio tends to :math:`b^2 / (b^2 + \sigma^2)`, so
+a design that misses on the blank window would report strong persistence it
+does not have. The offset is priced separately, as the bias term below. The
+second term is the Marriott-Pope (Kendall) correction, applied when
+:math:`n > 4`: a sample autocorrelation on a short window is biased toward
+zero by about :math:`(1 + 3\rho)/n`, which on a 20-40 period window is a large
+share of :math:`\rho` itself, and left in place it shrinks the inflation
+below. The variance of the
 mean of :math:`T` consecutive AR(1) periods, expressed as a multiple of
 :math:`\sigma^2`, is the *variance inflation factor*
 
@@ -1664,23 +1677,55 @@ power module.
 The MDE formula
 """""""""""""""
 
-Combining: the standard error of the mean of :math:`T` post-period contrasts
-under :math:`H_0` is :math:`\mathrm{SE}(T) = \widehat{\sigma}_{\text{placebo}} \,
-\sqrt{\mathrm{VIF}(T, \widehat{\rho})}`. For a two-sided test at level :math:`\alpha`
-with target power :math:`1 - \beta`, the minimum detectable effect is
+Combining: the error scale of the mean of :math:`T` post-period contrasts
+under :math:`H_0` is
 
 .. math::
 
-   \mathrm{MDE}(T) = \bigl(z_{1-\alpha/2} + z_{1-\beta}\bigr) \cdot
-   \widehat{\sigma}_{\text{placebo}} \cdot \sqrt{\mathrm{VIF}(T, \widehat{\rho})}.
+   \mathrm{SE}(T) = \sqrt{\widehat{b}^{\,2} + \widehat{\sigma}^2_{\text{placebo}}
+                         \,\mathrm{VIF}(T, \widehat{\rho})},
+   \qquad
+   \widehat{b}^{\,2} = \max\bigl(0,\; \bar g^{\,2} - \widehat{\sigma}^2_{\text{placebo}}
+                       \,\mathrm{VIF}(n, \widehat{\rho})\bigr),
 
-The corresponding power to detect a *given* true effect :math:`\tau` at
-horizon :math:`T` is
+with :math:`\bar g` the mean gap on the blank window. Under the design's null
+the blank gap is mean-zero, so a nonzero :math:`\bar g` says the synthetic
+control misses on periods it was not fitted to. That miss carries into the
+post window, where it adds to the effect being measured, so its square is
+part of the scale an effect has to clear. The subtraction removes the
+sampling noise in :math:`\bar g` itself, so an unbiased design is not charged
+for the noise in measuring its own bias. The bias term does not shrink with
+:math:`T`: running the test longer cannot get it under a design's bias. The
+mean and its p-value are reported as ``placebo_bias`` and
+``placebo_bias_pvalue``.
+
+The noise scale :math:`\widehat{\sigma}_{\text{placebo}}` is estimated, not
+known, so the critical value is a Student-t quantile on the window's effective
+degrees of freedom :math:`\nu = \max(n_{\text{eff}} - 1,\, 1)`, where
 
 .. math::
 
-   \pi(\tau, T) = \Phi\!\Bigl(\frac{|\tau|}{\mathrm{SE}(T)} - z_{1-\alpha/2}\Bigr)
-                 + \Phi\!\Bigl(-\frac{|\tau|}{\mathrm{SE}(T)} - z_{1-\alpha/2}\Bigr),
+   n_{\text{eff}} = \min\Bigl(n,\; \max\Bigl(2,\; n\,
+                    \frac{1 - \widehat{\rho}}{1 + \widehat{\rho}}\Bigr)\Bigr)
+
+is the number of independent periods a serially correlated window is worth
+(Bartlett). For a two-sided test at level :math:`\alpha` with target power
+:math:`1 - \beta`, the minimum detectable effect is
+
+.. math::
+
+   \mathrm{MDE}(T) = \bigl(t_{1-\alpha/2,\,\nu} + z_{1-\beta}\bigr) \cdot
+   \mathrm{SE}(T).
+
+``mde_pct`` divides it by the mean of the synthetic control over the blank
+window, an untreated level computed without any post-period data. The
+corresponding power to detect a *given* true effect :math:`\tau` at horizon
+:math:`T` is
+
+.. math::
+
+   \pi(\tau, T) = \Phi\!\Bigl(\frac{|\tau|}{\mathrm{SE}(T)} - t_{1-\alpha/2,\,\nu}\Bigr)
+                 + \Phi\!\Bigl(-\frac{|\tau|}{\mathrm{SE}(T)} - t_{1-\alpha/2,\,\nu}\Bigr),
 
 which is reported as ``power_at_observed`` for each horizon point using the
 realised :math:`\widehat{\tau}`.
@@ -1693,8 +1738,8 @@ What the surface looks like
    p = res.post_fit.power                  # PowerAnalysis dataclass
 
    p.headline.mde_absolute                 # MDE at the realised T_post
-   p.headline.mde_pct                      # ... as % of post-period baseline
-   p.headline.se                           # implied SE of mean(g_t) over T_post
+   p.headline.mde_pct                      # ... as % of p.baseline
+   p.headline.se                           # SE(T_post), the bias term included
    p.headline.power_at_observed            # power to detect res.post_fit.ate
 
    p.curve                                 # tuple of MDEPoint, one per horizon
@@ -1706,7 +1751,7 @@ What the surface looks like
    p.placebo_bias                          # mean placebo gap; 0 for an unbiased design
    p.placebo_bias_pvalue                   # is that offset distinguishable from 0?
    p.n_placebo, p.sigma_ci                 # periods σ̂ rests on, and its interval
-   p.baseline                              # mean(synthetic_control) on post window
+   p.baseline                              # mean(synthetic_control) on the blank window
    p.alpha, p.power_target                 # 0.05 / 0.80 by default
    p.method                                # "analytical_ar1_mean_gap"
 
