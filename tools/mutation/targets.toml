@@ -16530,3 +16530,79 @@ timeout = 600.0
   find = "    if fits_exactly(fit):\n        # No residual scale"
   replace = "    if False:\n        # No residual scale"
   models = "a named split analysed with a zero-width interval and nothing telling the caller why"
+
+# The unregularised PCR weights are the truncated SVD solution at the HSVT rank
+# (Golub & Van Loan 2013, Sec. 5.5.4; tslib's pInverseMatrixFromSVD). A rank
+# decided again on the computed reconstruction keeps rounding directions, and
+# the pseudoinverse moves by at least 1/||E|| when the rank changes (Wedin 1973,
+# BIT 13, Lemma 7.5 and Theorem 7.2). The tests and their references are in
+# mlsynth/tests/test_pcr_ols_rank.py.
+[[target]]
+name = "pcr-ols-tsvd-weights"
+module-path = "mlsynth/utils/clustersc_helpers/pcr/frequentist.py"
+test-command = "python -m pytest mlsynth/tests/test_pcr_ols_rank.py mlsynth/tests/test_pcr_ridge.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-rank-is-decided-again-by-pinv"
+  find = "        return pcr_weights(denoised_donor_pre, target_pre, r)\n"
+  replace = "        return np.linalg.pinv(denoised_donor_pre) @ target_pre\n"
+  models = "the shipped solve until this change: numpy.linalg.pinv of the rank-r HSVT reconstruction decides the rank a second time at 1e-15 * s_1, under the reconstruction's rounding (up to 18 eps * s_1 measured), and inverts a rounding direction. rsc_rank_condition_mc's r = 25 cell kept one at 1.27e-15 * s_1 and reached weights of 1.9e12 on OpenBLAS's SkylakeX kernel; the Haswell kernel left it under the tolerance, so the benchmark passed on CI and failed on an AVX-512 machine"
+
+  [[target.mutant]]
+  id = "the-tolerance-is-numpys-pinv-default"
+  find = "        return pcr_weights(denoised_donor_pre, target_pre, r)\n"
+  replace = "        return pcr_weights(denoised_donor_pre, target_pre, r, rcond=1e-15)\n"
+  models = "the truncated SVD solution kept, with the numerical-rank tolerance set back to numpy.linalg.pinv's default. With no rank given, a design's trailing singular values between 1e-15 * s_1 and the rounding floor max(T0, J) * eps * s_1 are kept and inverted"
+
+  [[target.mutant]]
+  id = "the-callers-rank-is-ignored"
+  find = "        r = min(denoised_donor_pre.shape) if rank is None else rank\n"
+  replace = "        r = min(denoised_donor_pre.shape)\n"
+  models = "rank accepted and dropped, so every design is cut at its numerical rank: a trailing singular value above the rounding floor is inverted although the caller fixed r"
+
+  [[target.mutant]]
+  id = "an-empty-design-reaches-the-svd"
+  find = "    if 0 in denoised_donor_pre.shape:\n"
+  replace = "    if False:\n"
+  models = "a design with no pre-period rows or no donors passed to the SVD, which raises an untranslated IndexError where pinv used to return an empty or zero weight vector"
+
+  [[target.mutant]]
+  id = "non-finite-input-reaches-the-svd"
+  find = "    if not (np.isfinite(denoised_donor_pre).all()\n            and np.isfinite(target_pre).all()):\n"
+  replace = "    if False:\n"
+  models = "a NaN in the design reaching LAPACK, which raises numpy's LinAlgError, and an infinite target returning non-finite weights without a word"
+
+[[target]]
+name = "pcr-pipeline-rank-to-weights"
+module-path = "mlsynth/utils/clustersc_helpers/pcr/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_pcr_ols_rank.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-pipeline-drops-the-rank"
+  find = "                q=q,\n                rank=r,\n            )"
+  replace = "                q=q,\n            )"
+  models = "run_pcr solving the OLS weights without HSVT's rank, so the rank is decided again on the reconstruction, at the rounding floor max(T0, J) * eps * s_1 instead of by construction"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in effect on every input measured, and recorded because the margin is the finding. Without the rank, solve_ols cuts the reconstruction at its numerical rank, max(T0, J) * eps * s_1, and a reconstruction's trailing singular values are rounding: at most 18.3 eps * s_1 on 3,300 random panels with T0 from 3 to 400 and J from 2 to 120, against a floor of at least 60 eps * s_1 at the larger shapes, and none kept. On 400,000 random panels with T0 and J from 2 to 4 none cleared the floor either, but the largest came within 2 percent of it: 0.978 of the floor, a rank-1 reconstruction of a 2 x 2 panel (seed 124898). The rank is passed so that the truncation is fixed by construction, as tslib fixes it, and no input yet found separates the two."
+
+# The shared PCR kernel's numerical-rank guard, which ClusterSC's weights now
+# rest on as SI's and SNN's do.
+[[target]]
+name = "pcr-weights-numerical-rank"
+module-path = "mlsynth/utils/pcr/core.py"
+test-command = "python -m pytest mlsynth/tests/test_pcr.py mlsynth/tests/test_pcr_ols_rank.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "a-retained-rounding-direction-is-inverted"
+  find = "    keep = s_r > rcond * s_r[0]\n"
+  replace = "    keep = s_r > 0\n"
+  models = "tslib's own rule, which inverts every retained singular value above zero (tsUtils.pInverseMatrixFromSVD): asked for a rank above the design's numerical rank, as with collinear or duplicated donors, a rounding-level value is retained and inverted (Wedin 1973, Theorem 7.2)"
+
+  [[target.mutant]]
+  id = "the-kernel-tolerance-is-numpys-pinv-default"
+  find = "        rcond = max(design.shape) * np.finfo(float).eps\n"
+  replace = "        rcond = 1e-15\n"
+  models = "the kernel's numerical-rank tolerance set at numpy.linalg.pinv's default, 1e-15 * s_1, under the rounding of a reconstructed design, for every caller that does not pass rcond: ClusterSC without a rank, SI and SNN"

@@ -375,7 +375,24 @@ of canonical synthetic control and solve
               = (\widetilde{\mathbf{M}}^-)^{+} \mathbf{y}_1^-,
 
 with :math:`(\widetilde{\mathbf{M}}^-)^{+}` the Moore-Penrose
-pseudo-inverse. Appendix E of the paper compares this OLS path to
+pseudo-inverse. mlsynth forms it from the leading :math:`r` singular
+triples, the ones that built :math:`\widetilde{\mathbf{M}}^-`,
+
+.. math::
+
+   \widehat{\mathbf{w}} = \sum_{i = 1}^{r}
+        \frac{\mathbf{u}_i^\top \mathbf{y}_1^-}{\sigma_i}\, \mathbf{v}_i,
+
+the truncated SVD solution (Golub and Van Loan 2013, Sec. 5.5.4), as
+Amjad, Shah and Shen's own implementation (``tslib``) does. A
+pseudo-inverse taken of the computed
+:math:`\widetilde{\mathbf{M}}^-` would decide the rank a second time: in
+floating point its trailing singular values are rounding error, not
+zero, and a pseudo-inverse that keeps one of them moves by at least the
+reciprocal of that error (Wedin 1973, Theorem 7.2). With numpy's default
+tolerance this put the weights near :math:`10^{12}` on a panel with
+1,600 pre-periods, 99 donors and :math:`r = 25`.
+Appendix E of the paper compares this OLS path to
 ridge / lasso variants; mlsynth exposes optional elastic-net knobs
 (``lambda_penalty``, ``p``, ``q``) for the same purpose.
 
@@ -2076,6 +2093,9 @@ implementation: https://github.com/nppackages/scpi.
 Chatterjee, S. (2015). "Matrix Estimation by Universal Singular
 Value Thresholding." *Annals of Statistics* 43(1):177-214.
 
+Golub, G. H., & Van Loan, C. F. (2013). *Matrix Computations*, 4th ed.
+Johns Hopkins University Press.
+
 Hartigan, J. A., & Wong, M. A. (1979). "Algorithm AS 136: A K-means
 Clustering Algorithm." *Applied Statistics* 28(1):100-108.
 
@@ -2099,3 +2119,6 @@ https://github.com/deshen24/panel-data-regressions.
 Wang, Z., Li, X. P., So, H. C., & Liu, Z. (2023). "Robust PCA via
 Non-convex Half-quadratic Regularization." *Signal Processing*
 204:108816.
+
+Wedin, P.-A. (1973). "Perturbation Theory for Pseudo-Inverses."
+*BIT* 13:217-232.
