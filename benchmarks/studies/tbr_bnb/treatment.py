@@ -92,7 +92,6 @@ import multiprocessing
 import time
 from collections import deque
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
-from contextlib import nullcontext
 from dataclasses import dataclass, field
 from fractions import Fraction as Q
 from math import comb
@@ -675,7 +674,7 @@ def _waves(rows, n_jobs, admit):
             yield wave
 
 
-def _window(pool, n_jobs, rows, admit, job, commit):
+def _window(pool, n_jobs, rows, admit, job, commit, occupancy=None):
     """Each row ``admit(row)`` accepts, run as fn(*args) for (fn, args, ctx) =
     ``job(row)``, then ``commit(row, ctx, result)``, in queue order.
 
@@ -685,7 +684,9 @@ def _window(pool, n_jobs, rows, admit, job, commit):
     others. ``admit`` and ``job`` are read at submission, against every result
     committed by then; a result is committed once every row ahead of it has been, so
     the commits are the sequential loop's order. A worker's error reaches the caller
-    when its row's turn to commit comes, and nothing after that row is committed."""
+    when its row's turn to commit comes, and nothing after that row is committed.
+    ``occupancy``, when given, is told how many rows run each time the window has
+    filled what it can, and 0 when it is done."""
     if pool is None:
         for row in rows:
             if admit(row):
@@ -709,9 +710,36 @@ def _window(pool, n_jobs, rows, admit, job, commit):
                 fut = pool.submit(_star, fn, args)
                 ahead.append((row, ctx, fut))
                 running.add(fut)
+        if occupancy is not None:
+            occupancy(len(running))
         if not running:                     # a row not committed above has a head still running
             return
         running = wait(running, return_when=FIRST_COMPLETED).not_done
+
+
+class _Lender:
+    """The workers of the search's pool that have nothing to run, lent to a group's
+    size loop (slopefree.SPARE): the window sets how many are free, and take(want)
+    lends up to ``want`` of those not already lent. Two shared integers, made before
+    the pool forks, so every worker reads and takes from the same ones."""
+
+    def __init__(self):
+        ctx = multiprocessing.get_context("fork")
+        self.free = ctx.Value("i", 0)
+        self.lent = ctx.Value("i", 0)
+
+    def set_free(self, n: int) -> None:
+        self.free.value = n
+
+    def take(self, want: int) -> int:
+        with self.lent.get_lock():
+            got = max(0, min(want, self.free.value - self.lent.value))
+            self.lent.value += got
+            return got
+
+    def give(self, n: int) -> None:
+        with self.lent.get_lock():
+            self.lent.value -= n
 
 
 def _optimum_timed(M, T, n_test, restarts, ceiling=None, start=None):
@@ -780,11 +808,20 @@ def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, ga
         raise MlsynthDataError(f"n_jobs is {n_jobs!r}; it has to be a positive integer.")
     g = _checked_gap(gap)
     emit("treatment", k=k, p=p, groups=comb(p, k), n_jobs=n_jobs)
-    with (_pool(n_jobs) if n_jobs > 1 else nullcontext(None)) as pool:
-        return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0)
+    if n_jobs == 1:
+        return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0)
+    from . import slopefree
+    lender, before = _Lender(), slopefree.SPARE
+    slopefree.SPARE = (lender.take, lender.give)       # read in the workers, which fork with it
+    try:
+        with _pool(n_jobs) as pool:
+            return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0,
+                                      lender=lender)
+    finally:
+        slopefree.SPARE = before
 
 
-def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0):
+def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0, lender=None):
     if start is not None and len(set(start)) != k:
         raise MlsynthDataError(f"the start treatment group has {len(set(start))} geos, not {k}.")
     if start is not None:
@@ -870,7 +907,10 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
             take(T, res, C)
             out.replaced += 1
 
-    _window(pool, n_jobs, rows, admit, job, commit)
+    occupancy = None if lender is None else (lambda running: lender.set_free(n_jobs - running))
+    _window(pool, n_jobs, rows, admit, job, commit, occupancy=occupancy)
+    if lender is not None:
+        lender.set_free(n_jobs - 1)          # the retries run here, with the pool idle
     for T, yy, c_then in left_open:         # the incumbent only improves, so its ceiling only falls
         c = ceiling(yy, *class_of())
         if c is not None and (c_then is None or c < c_then):

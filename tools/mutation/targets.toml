@@ -12804,8 +12804,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-excluded-designs-are-not-cut"
-  find = "        _branch(c, G, out, m, excluded + [set(inc[\"C\"])], [], rounds, per_round, 0, max_depth, inc, excluded)\n"
-  replace = "        _branch(c, G, out, m, [set(inc[\"C\"])], [], rounds, per_round, 0, max_depth, inc, excluded)\n"
+  find = "        _branch(c, G, into, m, excluded + [set(state[\"C\"])], [], rounds, per_round, 0, max_depth, state, excluded)\n"
+  replace = "        _branch(c, G, into, m, [set(state[\"C\"])], [], rounds, per_round, 0, max_depth, state, excluded)\n"
   models = "the excluded designs left out of the relaxation, so a size holding one cannot be certified below it"
 
   [[target.mutant]]
@@ -12918,8 +12918,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-size-reports-the-running-total"
-  find = "        emit(\"size\", m=m, nodes=out.nodes - n0,"
-  replace = "        emit(\"size\", m=m, nodes=out.nodes,"
+  find = "        return into.nodes - n0, len(into.open) - o0, time.perf_counter() - t0\n"
+  replace = "        return into.nodes, len(into.open) - o0, time.perf_counter() - t0\n"
   models = "a size's event reporting every node so far, not its own"
 
   [[target.mutant]]
@@ -13300,14 +13300,14 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "a-wave-takes-no-incumbent"
-  find = "        if res.passing and (out.key is None or res.key > out.key):\n            take(T, res, C)\n            out.replaced += 1\n\n    _window("
-  replace = "        if False:\n            take(T, res, C)\n            out.replaced += 1\n\n    _window("
+  find = "        if res.passing and (out.key is None or res.key > out.key):\n            take(T, res, C)\n            out.replaced += 1\n\n    occupancy = None"
+  replace = "        if False:\n            take(T, res, C)\n            out.replaced += 1\n\n    occupancy = None"
   models = "a certification's results recorded but never adopted, so a better design found by a survivor is not the one reported"
 
   [[target.mutant]]
   id = "a-wave-replaces-on-a-tie"
-  find = "        if res.passing and (out.key is None or res.key > out.key):\n            take(T, res, C)\n            out.replaced += 1\n\n    _window("
-  replace = "        if res.passing and (out.key is None or res.key >= out.key):\n            take(T, res, C)\n            out.replaced += 1\n\n    _window("
+  find = "        if res.passing and (out.key is None or res.key > out.key):\n            take(T, res, C)\n            out.replaced += 1\n\n    occupancy = None"
+  replace = "        if res.passing and (out.key is None or res.key >= out.key):\n            take(T, res, C)\n            out.replaced += 1\n\n    occupancy = None"
   models = "an equal key from a later group in the window replacing the incumbent, so a tie reports the later design and counts a replacement, not the first design in queue order"
 
   [[target.mutant]]
@@ -13324,8 +13324,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "one-job-starts-a-pool"
-  find = "    with (_pool(n_jobs) if n_jobs > 1 else nullcontext(None)) as pool:\n"
-  replace = "    with _pool(n_jobs) as pool:\n"
+  find = "    if n_jobs == 1:\n        return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0)\n"
+  replace = "    if False:\n        return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0)\n"
   models = "the sequential search sent through a pool of one worker, paying its start and the pickling for nothing"
 
   [[target.mutant]]
@@ -16902,6 +16902,78 @@ timeout = 900.0
   find = "    tri: List = list(ws.pool) if ws is not None and fixes else []\n"
   replace = "    tri: List = list(ws.pool) if ws is not None else []\n"
   models = "a size's root starting from the rows the size before it left, which on the 100-geo incumbent's group took 435.3 s against 285.2 s from none"
+
+[[target]]
+name = "tbr-bnb-parallel-sizes"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_parallel_sizes.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "sizes-commit-as-they-finish"
+  find = "            while ahead and ahead[0][1].done():\n                item, fut = ahead.popleft()\n                commit(item, fut.result())\n"
+  replace = "            for entry in [e for e in ahead if e[1].done()]:\n                ahead.remove(entry)\n                commit(entry[0], entry[1].result())\n"
+  models = "sizes applied in the order they finish, so a later size's adoption is seen by an earlier one and the commits are not the sequential loop's"
+
+  [[target.mutant]]
+  id = "the-loop-never-borrows"
+  find = "                got = take(1)                    # every thread busy and items left: borrow one\n"
+  replace = "                got = 0\n"
+  models = "the size loop never asking for the idle workers, so the slow group's sizes run one after another as before"
+
+  [[target.mutant]]
+  id = "a-spare-worker-is-not-given-back"
+  find = "                give(back)\n"
+  replace = "                pass\n"
+  models = "a worker lent to a group whose sizes are all started kept until the group ends, so another group cannot borrow it"
+
+  [[target.mutant]]
+  id = "the-workers-are-kept-after-the-loop"
+  find = "        if lent:\n            give(lent)\n"
+  replace = "        if False:\n            give(lent)\n"
+  models = "the workers still lent when the loop ends, or when it raises, never given back"
+
+  [[target.mutant]]
+  id = "a-stale-adoption-is-applied"
+  find = "        if inc[\"lam\"] != lam0 and (adopted or part.open):\n"
+  replace = "        if False:\n"
+  models = "a size run at an older ratio applied as it ran though it adopted a design or left nodes open, which the sequential loop, running it at the committed ratio, may not"
+
+  [[target.mutant]]
+  id = "an-adoption-is-not-committed"
+  find = "        if adopted and state[\"lam\"] > inc[\"lam\"]:\n"
+  replace = "        if False:\n"
+  models = "a size's better design kept to its copy and never adopted, so the later sizes run at the older ratio and the certificate reports a worse design"
+
+  [[target.mutant]]
+  id = "sizes-share-one-workspace"
+  find = "            state[\"workspaces\"] = Workspaces()\n"
+  replace = "            pass\n"
+  models = "every size's thread solving on the search's one Workspaces, whose spaces and pool the threads then rewrite under each other"
+
+[[target]]
+name = "tbr-bnb-lender"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_parallel_sizes.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-lender-lends-what-is-lent"
+  find = "            got = max(0, min(want, self.free.value - self.lent.value))\n"
+  replace = "            got = max(0, min(want, self.free.value))\n"
+  models = "free workers lent again while still lent, so two groups' size loops run on the same idle worker"
+
+  [[target.mutant]]
+  id = "the-window-reports-nothing"
+  find = "    _window(pool, n_jobs, rows, admit, job, commit, occupancy=occupancy)\n"
+  replace = "    _window(pool, n_jobs, rows, admit, job, commit, occupancy=None)\n"
+  models = "the lender never told a worker is free, so nothing is lent and the slow group's sizes run one after another"
+
+  [[target.mutant]]
+  id = "the-workers-never-hold-the-lender"
+  find = "    slopefree.SPARE = (lender.take, lender.give)       # read in the workers, which fork with it\n"
+  replace = "    pass\n"
+  models = "the lender made but not installed before the pool forks, so the workers' size loops see the default and borrow nothing"
 
 [[target]]
 name = "cmbsts-regression"
