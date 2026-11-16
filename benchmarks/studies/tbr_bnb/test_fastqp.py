@@ -286,15 +286,23 @@ def test_loose_caps_are_the_uncapped_program(upper, seed):
     assert fastqp.solve(B, A, upper=upper).tobytes() == LIB(B, A).tobytes()
 
 
-@pytest.mark.parametrize("J", [80, 90, 99])
-@pytest.mark.parametrize("seed", range(3))
-def test_a_cold_large_pool_is_seeded_as_the_library_seeds_it(J, seed):
-    """No warm start on 80 or more donors: the library seeds the loop with FISTA,
-    and so does the kernel, with the library's seed."""
+def _cold_pool(seed):
     r = np.random.default_rng(seed)
-    B, A = r.standard_normal((12, J)), r.standard_normal(12)
-    _same(B, A)
-    _same(np.asfortranarray(B), A, upper=0.05)
+    J, m = int(r.integers(80, 100)), int(r.integers(2, 30))
+    B = r.standard_normal((m, J)) * r.choice([1e-3, 1.0, 37.0])
+    A = r.standard_normal(m) * r.choice([0.5, 1.0, 10.0])
+    kw = {"upper": max(1.0 / J * 1.0000001, r.uniform(0.05, 0.9))} if seed % 3 == 1 else {}
+    return B, A, kw
+
+
+@pytest.mark.parametrize("seed", [62, 76, 198, 240, 383, 399])
+def test_a_cold_large_pool_is_seeded_as_the_library_seeds_it(seed):
+    """No warm start on 80 or more donors: the library seeds the loop with FISTA, and
+    so does the kernel, with the library's seed. Most pools end on the same free set
+    from the uniform start too; these six of the first 400 do not, so they tell the
+    seed's absence apart."""
+    B, A, kw = _cold_pool(seed)
+    _same(B, A, **kw)
 
 
 def test_a_warm_start_off_the_simplex_is_ignored():
