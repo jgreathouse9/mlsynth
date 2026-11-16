@@ -576,7 +576,8 @@ def _floor_chunk_screened(M, lam, groups, cls):
 def _screened_floor_rows(M, groups, lam, pool, n_jobs, cls):
     """_floor_rows screened where the floors are computed (_floor_chunk_screened):
     the rows that may compete with the class ``cls``, in the order given, and how many
-    were dropped. The incumbent only improves, so a row that cannot compete with the
+    were dropped. The search calls _streamed_floor_rows, which builds the groups in the
+    workers; this form over a list of groups is its reference in the tests. The incumbent only improves, so a row that cannot compete with the
     class at this point cannot compete later."""
     if pool is None or len(groups) < 2:
         return _floor_chunk_screened(M, lam, groups, cls)

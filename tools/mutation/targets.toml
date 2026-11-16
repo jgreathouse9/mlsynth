@@ -13198,8 +13198,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "a-kernel-nan-is-taken-as-a-floor"
-  find = "    for f, a, b, T in zip(fl, lo, hi, groups):\n        if math.isnan(f):\n            out.append(_floor_row(M, lam, T))\n"
-  replace = "    for f, a, b, T in zip(fl, lo, hi, groups):\n        if False:\n            out.append(_floor_row(M, lam, T))\n"
+  find = "        T = _group(T)\n        if math.isnan(f):\n            out.append(_floor_row(M, lam, T))\n"
+  replace = "        T = _group(T)\n        if False:\n            out.append(_floor_row(M, lam, T))\n"
   models = "a group the kernel left (a nan floor) kept as a row, not computed by rss_floor"
 
   [[target.mutant]]
@@ -13210,8 +13210,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "the-kernel-runs-without-a-gram-floor"
-  find = "    if lam is None or not fastfloor.AVAILABLE or not groups:\n        return [_floor_row(M, lam, T) for T in groups]\n"
-  replace = "    if not fastfloor.AVAILABLE or not groups:\n        return [_floor_row(M, lam, T) for T in groups]\n"
+  find = "    if lam is None or not fastfloor.AVAILABLE or len(groups) == 0:\n        return [_floor_row(M, lam, _group(T)) for T in groups]\n"
+  replace = "    if not fastfloor.AVAILABLE or len(groups) == 0:\n        return [_floor_row(M, lam, _group(T)) for T in groups]\n"
   models = "the kernel called on a panel with no Gram floor, where every floor is 0"
 
   [[target.mutant]]
@@ -14847,8 +14847,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "one-chunks-drops-counted"
-  find = "    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
-  replace = "    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
+  find = "    parts = _map(pool, _floor_chunk_screened, [(M, lam, c, cls) for c in chunks])\n    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
+  replace = "    parts = _map(pool, _floor_chunk_screened, [(M, lam, c, cls) for c in chunks])\n    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
   models = "a parallel run counting the rows dropped in its first chunk only"
 
   [[target.mutant]]
@@ -16695,6 +16695,12 @@ timeout = 600.0
   find = "        f, T = fl[i], _group(groups[i])\n"
   replace = "        f, T = fl[i], groups[i]\n"
   models = "a kept row's group left as a numpy row, which is not hashable, so the queue's dictionaries and the comparisons with the start group break on it"
+
+  [[target.mutant]]
+  id = "one-ranges-drops-counted"
+  find = "    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, cls) for lo, hi in cuts])\n    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
+  replace = "    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, cls) for lo, hi in cuts])\n    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
+  models = "the screened count of the first worker's range taken for every range's, so over a pool the certificate counts too few groups screened out"
 
 [[target]]
 name = "tbr-bnb-stream-blocks"
