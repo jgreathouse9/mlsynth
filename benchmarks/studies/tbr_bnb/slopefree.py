@@ -82,11 +82,12 @@ Sherali, H. D. and Adams, W. P. (1990). A hierarchy of relaxations between the
 from __future__ import annotations
 
 import itertools
+from collections import deque
 import math
 import time
 from dataclasses import dataclass, field
 from fractions import Fraction as Q
-from typing import Dict, List, Optional, Sequence, Set, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 import cvxpy as cp
 import numpy as np
@@ -1563,6 +1564,62 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
                 parent_u=u)
 
 
+def _lend_none(want: int) -> int:
+    return 0
+
+
+def _take_back(n: int) -> None:
+    return None
+
+
+#: Workers a group's size loop may borrow, as (take, give): take(want) lends up to
+#: ``want`` and returns how many, give(n) gives n back. certify_treatment lends the
+#: workers its pool has idle; the default lends none, and the loop is the sequential one.
+SPARE: Tuple[Callable[[int], int], Callable[[int], None]] = (_lend_none, _take_back)
+
+
+def _size_window(items, start, commit, take, give):
+    """start(item) for each item on threads, one plus as many at once as ``take``
+    lends, and commit(item, result) in the items' order: a result waits for the items
+    before it. A lent worker is asked for each time every thread is busy and items are
+    left, and given back once there is nothing for it to run; all are given back at
+    the end, and an error in start or commit reaches the caller."""
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
+    items = list(items)
+    lent, i = 0, 0
+    ahead = deque()                      # (item, future) in order, not yet committed
+    running = set()
+    pool = ThreadPoolExecutor(max_workers=max(1, len(items)))
+    try:
+        while True:
+            while ahead and ahead[0][1].done():
+                item, fut = ahead.popleft()
+                commit(item, fut.result())
+            while i < len(items):
+                if len(running) < 1 + lent:
+                    fut = pool.submit(start, items[i])
+                    ahead.append((items[i], fut))
+                    running.add(fut)
+                    i += 1
+                    continue
+                got = take(1)                    # every thread busy and items left: borrow one
+                if got <= 0:
+                    break
+                lent += got
+            if i == len(items) and lent > max(0, len(running) - 1):   # more lent than is running
+                back = lent - max(0, len(running) - 1)
+                give(back)
+                lent -= back
+            if not running:
+                return
+            running = wait(running, return_when=FIRST_COMPLETED).not_done
+    finally:
+        pool.shutdown(wait=True)
+        if lent:
+            give(lent)
+
+
 class NoDesignLeft(ValueError):
     """No positive-slope design remains to certify: none has a positive slope, or
     every one near the incumbent is excluded."""
@@ -1586,6 +1643,52 @@ def _best_neighbour(c, G, seeds, excluded):
         if cu > 0 and (best is None or r > best[0]):
             best = (r, set(T))
     return None if best is None else best[1]
+
+
+def _parallel_sizes(sizes, one_size, size_done, out, inc, take, give):
+    """The size loop over lent workers (_size_window): each size runs on a copy of
+    ``inc`` (its own workspaces) into its own certificate, taken at its start, and is
+    applied in ascending size. A size that ran at the committed ratio is applied as it
+    ran, its incumbent adopted when it raised the ratio. One that ran at an older ratio
+    is applied as it ran when it closed and adopted nothing, since a size certified at a
+    ratio stays certified at a larger one; otherwise it runs again at the committed
+    state, so the certified design is the sequential loop's."""
+    def copy_state():
+        state = dict(inc)
+        state["C"] = set(inc["C"])
+        if "workspaces" in inc:
+            from .workspace import Workspaces
+            state["workspaces"] = Workspaces()
+        return state
+
+    def start(m):
+        state = copy_state()
+        part = SlopeFreeCertificate(incumbent=out.incumbent, controls=out.controls, ratio=out.ratio,
+                                    sizes_after_hull=[])
+        lam0, warm0 = state["lam"], state.get("warm")
+        return part, state, lam0, warm0, one_size(m, part, state)
+
+    def commit(m, result):
+        part, state, lam0, warm0, done = result
+        adopted = state["lam"] != lam0
+        if inc["lam"] != lam0 and (adopted or part.open):
+            size_done(m, *one_size(m, out, inc))          # stale and not settled: run again here
+            return
+        out.nodes += part.nodes
+        out.open += part.open
+        out.rounded += part.rounded
+        out.priced += part.priced
+        out.priced_nodes += part.priced_nodes
+        out.exact += part.exact
+        for tier, n in part.tiers.items():
+            out.tiers[tier] = out.tiers.get(tier, 0) + n
+        if adopted and state["lam"] > inc["lam"]:
+            inc.update(lam=state["lam"], C=set(state["C"]))
+        if state.get("warm") is not warm0:
+            inc["warm"] = state["warm"]
+        size_done(m, *done)
+
+    _size_window(sizes, start, commit, take, give)
 
 
 def certify_slope_free(y: np.ndarray, X: np.ndarray, *, verbose: int = 0, progress=None, log=None,
@@ -1742,11 +1845,21 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
     out = SlopeFreeCertificate(incumbent=D.yy - lam, controls=sorted(C), ratio=lam, sizes_after_hull=sizes,
                                hull_seconds=t_h, group_tier=None if screen is None else screen.tier,
                                group_seconds=0.0 if screen is None else screen.seconds)
-    for m in sizes:                      # a size certified at a ratio stays certified at a larger one
-        t0 = time.perf_counter(); n0 = out.nodes; o0 = len(out.open)
-        _branch(c, G, out, m, excluded + [set(inc["C"])], [], rounds, per_round, 0, max_depth, inc, excluded)
-        out.sizes[m] = dict(nodes=out.nodes - n0, seconds=time.perf_counter() - t0)
-        emit("size", m=m, nodes=out.nodes - n0, open=len(out.open) - o0, seconds=out.sizes[m]["seconds"])
+    def one_size(m, into, state):            # a size certified at a ratio stays certified at a larger one
+        t0 = time.perf_counter(); n0 = into.nodes; o0 = len(into.open)
+        _branch(c, G, into, m, excluded + [set(state["C"])], [], rounds, per_round, 0, max_depth, state, excluded)
+        return into.nodes - n0, len(into.open) - o0, time.perf_counter() - t0
+
+    def size_done(m, nodes, opened, secs):
+        out.sizes[m] = dict(nodes=nodes, seconds=secs)
+        emit("size", m=m, nodes=nodes, open=opened, seconds=secs)
+
+    take, give = SPARE
+    if take is _lend_none:
+        for m in sizes:
+            size_done(m, *one_size(m, out, inc))
+    else:
+        _parallel_sizes(sizes, one_size, size_done, out, inc, take, give)
     out.ceiling_held = inc["lam"] == test and test > lam
     if out.ceiling_held:                  # no design beat the ceiling: report the incumbent itself
         inc.update(lam=lam)
