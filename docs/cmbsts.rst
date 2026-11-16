@@ -42,38 +42,45 @@ credible, and for the spillover-specific :doc:`spillsynth` when you want a
 weighting estimator with an explicit spillover coefficient, not a
 Bayesian state-space forecast.
 
-Controls that the trend can absorb
-----------------------------------
+The regression and the level
+----------------------------
 
-CMBSTS fits the structural state first and the regression second. Each Gibbs
-sweep draws the trend, seasonal and cycle components from the observed outcome,
-subtracts them, and offers the remainder to the spike-and-slab regression. The
-reference implementation is built the same way: the ``CausalMBSTS`` state-space
-object never holds the regression block, so the state is drawn from the full
-outcome and the coefficients are fit to what is left over.
+A local level is a random walk, so it can follow almost any pre-period path,
+including one the controls explain. The sampler decides which of the two gets the
+signal. Each iteration draws the selection and the observation covariance given
+the state path, then the coefficients with the state path integrated out, then the
+state path given the coefficients. The level is fit to what the regression leaves,
+and the coefficients are never drawn against a level that has already taken their
+signal.
 
-That ordering decides what happens when a control series resembles something the
-state can already produce. A local level is a random walk, so a control that is
-itself close to a random walk is near-indistinguishable from the trend. The trend
-takes it, the remainder is noise, and the control's coefficient goes to zero
-however informative that control was. The counterfactual is then carried forward
-from the last pre-period level instead of tracked from the control, and the
-credible band widens to the width of a free random-walk forecast.
+The paper's Algorithm 1 and the ``CausalMBSTS`` package draw the state path from
+the observed outcome alone and fit the regression to the residual. The level then
+takes everything it can follow, the coefficients go to zero however informative
+the controls are, and the counterfactual carries the last pre-period level
+forward, so a shock the controls share with the treated series is scored as an
+effect (`issue #1074 <https://github.com/jgreathouse9/mlsynth/issues/1074>`_). The
+model the paper states, :math:`\mathbf{y}_t = \mathbf{Z}\boldsymbol{\alpha}_t +
+\mathbf{X}_t\boldsymbol{\beta} + \boldsymbol{\varepsilon}_t`, draws the state
+given :math:`\boldsymbol{\beta}`, and CMBSTS samples that model's posterior.
+Conditioning the state on the coefficients while the coefficients are drawn given
+the state is not enough: the two blocks can imitate each other, and such a chain
+stays where the level has the signal. Integrating the states out of the
+coefficient draw is what lets it move.
 
-``inclusion_probs`` is the diagnostic. A regressor you expect to matter sitting
-near its prior inclusion probability is the signature, and the pre-period fit
-confirms it: a residual standard deviation far below the noise you expect in the
-series means the trend has taken the signal. Both readings together, and a
-counterfactual close to the last observed pre-period value, identify the case.
+The coefficient prior decides the rest. CMBSTS uses Zellner's g-prior,
+:math:`\boldsymbol{\beta} \sim \mathcal{MN}(\mathbf{0},
+c\,(\mathbf{X}^\top\mathbf{X})^{-1}, \boldsymbol{\Sigma}_\varepsilon)`, whose
+scale is tied to the observation noise. ``CausalMBSTS`` fixes :math:`c = 1`,
+under which the regression is a priori worth one noise term; with a single control,
+or controls that are not collinear, the posterior itself then prefers a level that
+interpolates the series. The default is :math:`c = 100\,T_0`, the slab of the
+``bsts`` package behind Brodersen et al. (2015) (prior information weight 0.01),
+and ``g_prior_scale=1.0`` restores the package's prior.
 
-The regime where this bites is a single near-unit-root control paired with a
-local level, which is the ``CausalImpact`` setup of one outcome series and one
-covariate. CMBSTS is not a drop-in replacement there; reach for :doc:`bscm` or
-:doc:`tasc`. The regime CMBSTS was built for is the opposite — several outcome
-series modelled jointly, a seasonal component, and a regression block of calendar
-dummies, prices and many control paths, none of which a smooth trend reproduces.
-The supermarket replication is that case, and its inclusion probabilities run
-from 0.49 to 0.95 with the two price series at 0.93 and 0.95.
+``coefficients`` and ``inclusion_probs`` on ``result.posterior`` are the
+diagnostics. A control you expect to matter whose coefficient sits near zero,
+together with a pre-period fit far tighter than the noise you expect in the
+series, means the level has the signal.
 
 Notation
 --------
@@ -126,7 +133,9 @@ optionally a slope (``"slope"``), a dummy seasonal of period :math:`S`
 series sharing each component's :math:`d \times d` disturbance covariance, so
 cross-series co-movement carries its own parameters. The
 regression coefficient matrix :math:`\boldsymbol{\beta}` carries a spike-and-slab
-prior, so the model selects which control paths and covariates to keep. The
+prior, so the model selects which control paths and covariates to keep; the slab
+is Zellner's g-prior with scale :math:`c` (``g_prior_scale``, default
+:math:`100\,T_0`). The
 disturbance covariances take conjugate Inverse-Wishart priors with scale
 :math:`s\,\widehat{\boldsymbol{\Sigma}}_{\text{pre}}` (the pre-period outcome
 covariance times a small factor :math:`s`, ``prior_scale``) and an optional
@@ -179,9 +188,9 @@ Assumption 4 (nonanticipating, individualistic assignment).
 Inference and diagnostics
 -------------------------
 
-A Gibbs sampler draws the latent states (by a Durbin–Koopman simulation
-smoother), the disturbance covariances, and the spike-and-slab regression at each
-iteration. The counterfactual is the posterior predictive forecast of the
+Each iteration of the sampler draws the disturbance covariances, the
+spike-and-slab selection, the coefficients with the states integrated out, and the
+latent states given the coefficients (forward filtering, backward sampling). The counterfactual is the posterior predictive forecast of the
 no-intervention outcome over :math:`\mathcal{T}_2`; the per-period effect
 :math:`\tau_{kt}` and the per-series ATT :math:`\widehat{\tau}_k` are summarised
 by their posterior mean and an equal-tailed credible interval at level
@@ -189,8 +198,10 @@ by their posterior mean and an equal-tailed credible interval at level
 reflects posterior predictive uncertainty that grows with the forecast horizon —
 so a long post-window yields wide bands by construction. ``inclusion_probs``
 reports, for each regressor, the posterior probability that the model included
-it; a regressor stuck near its prior probability is the absorption case
-described above, not evidence that the control is uninformative.
+it, and ``coefficients`` its posterior-mean coefficient per series (a draw that
+excludes it counting as zero). A control you expect to matter with a coefficient
+near zero is the case described in "The regression and the level", not evidence
+that the control is uninformative.
 
 Return object
 -------------
@@ -262,8 +273,8 @@ products.
 Verification
 ------------
 
-CMBSTS is cross-validated cell-by-cell against the authors' ``CausalMBSTS`` R
-package. The durable benchmark
+Without a regression block CMBSTS is cross-validated cell-by-cell against the
+authors' ``CausalMBSTS`` R package. The durable benchmark
 `benchmarks/cases/cmbsts_vignette.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cmbsts_vignette.py>`_
 runs the package's own vignette example (a bivariate weekly series with a
 trend-plus-cycle model and a ``+2`` intervention) and confirms that the mlsynth
@@ -272,9 +283,13 @@ bounds to a few hundredths — within Monte-Carlo error of two independent Gibbs
 samplers. A second case,
 `benchmarks/cases/cmbsts_supermarket.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cmbsts_supermarket.py>`_,
 reproduces the paper's empirical Table 3 on the Florence supermarket study at the
-one-month horizon — the store-brand effects cross-validate against the R package
+one-month horizon. Run at the package's coefficient prior (``g_prior_scale=1.0``),
+the store-brand effects agree with the R package's despite the different sampler,
 and the substantive finding (large positive store effects, no significant
-competitor effect) holds. See :doc:`replications/cmbsts` for the full validation.
+competitor effect) holds at that prior and at the default. The regression's reach
+into the forecast is checked on a panel with a known answer, a common shock carried
+by the controls with no effect, in ``mlsynth/tests/test_cmbsts_regression.py``. See
+:doc:`replications/cmbsts` for the full validation.
 
 Core API
 --------

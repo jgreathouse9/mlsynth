@@ -9,6 +9,12 @@ now returns and the back-compat guarantee.
 ## [Unreleased]
 
 ### Added
+- `g_prior_scale` on `CMBSTSConfig`: the scale `c` of the coefficient prior
+  `beta ~ MN(0, c (X'X)^-1, Sigma_eps)`. `None` resolves to `100 * T0`, the slab
+  of `bsts` behind Brodersen et al. (2015); `1.0` is the `CausalMBSTS` prior. It
+  needs a regression block and must be positive. `CMBSTSPosterior.coefficients`
+  reports each regressor's posterior-mean coefficient per series (a draw that
+  excludes it counting as zero), in the order of `inclusion_probs`.
 - `population_tolerance` on `TBRConfig` (searched mode): a treatment group of
   size k is admissible only when its anchor distance, the RMS gap between the
   treated aggregate's path and the population's (the sum of every geo), each
@@ -110,6 +116,12 @@ now returns and the back-compat guarantee.
   reached is a property of the run a caller may need to act on.
 
 ### Changed
+- CMBSTS's default coefficient prior is `c = 100 * T0` (see `g_prior_scale`),
+  not the `CausalMBSTS` package's `c = 1`, under which the regression is a
+  priori worth one observation-noise term and a single control cannot carry a
+  shock the level can follow. On the supermarket study the store effects at
+  the one-month horizon move from `48.1`, `85.9`, `12.6` (package prior) to
+  `58.3`, `92.1`, `13.3`; all are significant and no competitor effect is.
 - SPILLSYNTH's outcome-only per-unit synthetic control (`build_unit_sc`, behind
   `method='iscm'`, `'iterative'` and `'grossi'` without covariates) is solved
   exactly by the active set behind `simplex_qp`, in place of the FISTA primitive
@@ -153,6 +165,18 @@ now returns and the back-compat guarantee.
   `mlsynth.utils.fscm_helpers.bilevel` is a different package and is unchanged.
 
 ### Fixed
+- CMBSTS: the control regression did not reach the counterfactual (#1074).
+  The sampler drew the state path from the outcome alone, as the paper's
+  Algorithm 1 and `CausalMBSTS` do, so the random-walk level absorbed whatever it
+  could follow and the coefficients were fit to the residual. A common shock
+  carried by the controls was scored as an effect: on the issue's panel (true
+  ATT 0) the ATT was `+256.8` with a 90% interval of `[+191.0, +317.2]`, the same
+  as with no controls. Each iteration now draws the coefficients with the states
+  integrated out (a Kalman pass over the outcome and the design together) and
+  the states given the coefficients, a partially collapsed Gibbs sampler for the
+  model the paper states; the same panel gives `+6.3` `[-14.7, +29.2]`. The
+  in-sample fit (`counterfactual_full` before the intervention) now includes the
+  regression. Without a regression block the sampler is unchanged.
 - TBR under `population_tolerance`: calibrated inference received a fraction
   of the placebo designs it asked for, and the local search abandoned most of
   its restarts. Above 20,000 candidate groups the placebos were 4,800 uniform

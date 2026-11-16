@@ -18,7 +18,10 @@ predicted, per series, with credible bands. Under partial interference the
 non-treated group members (e.g. a competitor brand) carry the spillover effect.
 
 The numerical engine lives in :mod:`mlsynth.utils.cmbsts_helpers` and is
-validated cell-by-cell against the authors' ``CausalMBSTS`` R package.
+cross-checked against the authors' ``CausalMBSTS`` R package. With a regression
+block its sampler draws the states given the coefficients and the coefficients
+with the states integrated out, where the package draws the states from the
+outcome alone (see :func:`mlsynth.utils.cmbsts_helpers.engine.run_gibbs`).
 """
 
 from __future__ import annotations
