@@ -16720,3 +16720,69 @@ timeout = 600.0
   find = "        while i >= 0 and c[i] == p - k + i:      # the rightmost position that can still rise\n"
   replace = "        while i >= 0 and c[i] == p - k + i - 1:      # the rightmost position that can still rise\n"
   models = "the largest value at each position taken one too small, so the block stops early at what it reads as the last subset and the groups after it are never floored"
+
+[[target]]
+name = "tbr-bnb-lbfgsb"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_lbfgsb.py benchmarks/studies/tbr_bnb/test_dual_memory.py benchmarks/studies/tbr_bnb/test_dual_reuse.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-loop-evaluates-at-every-request"
+  find = "            if not np.array_equal(x, at):\n"
+  replace = "            if True:\n"
+  models = "the wrapper's cache dropped, so the objective is evaluated again each time setulb asks at the point it already holds: more evaluations against the budget, and runs that stop at a different point from minimize's"
+
+  [[target.mutant]]
+  id = "the-evaluation-limit-is-one-early"
+  find = "            elif nfev > maxfun:\n"
+  replace = "            elif nfev >= maxfun:\n"
+  models = "a run stopped one evaluation before minimize stops it, so each smoothing stage ends at a different point"
+
+  [[target.mutant]]
+  id = "the-bounds-are-not-passed"
+  find = "    nbd = np.where(lo_set & hi_set, 2, np.where(lo_set, 1, np.where(hi_set, 3, 0))).astype(it)\n"
+  replace = "    nbd = np.zeros(lower.shape, dtype=it)\n"
+  models = "every variable free in setulb, so the inequality multipliers can go negative and the dual is no longer the certificate's"
+
+  [[target.mutant]]
+  id = "an-upper-bound-is-coded-as-a-lower-one"
+  find = "np.where(hi_set, 3, 0)"
+  replace = "np.where(hi_set, 1, 0)"
+  models = "a variable bounded above only coded as bounded below, at zero, the way the bounds map could be misread"
+
+  [[target.mutant]]
+  id = "the-start-is-not-clipped"
+  find = "    x = np.clip(np.atleast_1d(np.asarray(x0, dtype=float)), lower, upper)\n"
+  replace = "    x = np.atleast_1d(np.asarray(x0, dtype=float)).copy()\n"
+  models = "a start outside the bounds handed to setulb as it is, where minimize clips it first"
+
+  [[target.mutant]]
+  id = "the-tolerance-is-not-scaled"
+  find = "    factr = ftol / np.finfo(float).eps\n"
+  replace = "    factr = ftol\n"
+  models = "setulb's factr given ftol itself instead of ftol over machine epsilon, so the relative-reduction stop fires at a different iteration"
+
+  [[target.mutant]]
+  id = "the-corrections-are-not-maxcor"
+  find = "    n, m = x.size, maxcor\n"
+  replace = "    n, m = x.size, 10\n"
+  models = "scipy's default ten correction pairs in place of DUAL_MEMORY's five, the memory the dual was tuned away from"
+
+  [[target.mutant]]
+  id = "the-loop-is-not-given-the-memory"
+  find = "                y = _lbfgsb(lambda v: fun(v, a), y, lower, upper, DUAL_MEMORY, maxfun)\n"
+  replace = "                y = _lbfgsb(lambda v: fun(v, a), y, lower, upper, 20, maxfun)\n"
+  models = "the dual's loop run at twenty correction pairs, not DUAL_MEMORY's five: the per-call cost the memory was measured down from (test_dual_memory.py), on the path the search takes"
+
+  [[target.mutant]]
+  id = "the-guard-takes-any-scipy"
+  find = "(int(got.group(1)), int(got.group(2))) <= (1, 18)\n"
+  replace = "(int(got.group(1)), int(got.group(2))) <= (9, 99)\n"
+  models = "the loop used on a scipy whose driver it has not been checked against, where a changed setulb or evaluation rule would make the dual differ from minimize's"
+
+  [[target.mutant]]
+  id = "the-dual-never-takes-the-loop"
+  find = "_LBFGSB_DIRECT = _lbfgsb_supported(_scipy_version())\n"
+  replace = "_LBFGSB_DIRECT = False\n"
+  models = "the guard never accepting, so the search runs through minimize and keeps the cost the loop removes"
