@@ -872,11 +872,92 @@ SCS_EPS = 1e-6
 SHOR_TIER = False
 
 
+def _lbfgsb_supported(version: str) -> bool:
+    """Whether _lbfgsb is scipy's own L-BFGS-B loop for scipy ``version``: setulb with
+    the ``ln_task`` argument from 1.15, and the driver as _minimize_lbfgsb has it
+    through 1.18. Another version, or one that does not read, takes minimize."""
+    import re
+
+    got = re.match(r"(\d+)\.(\d+)", version)
+    return got is not None and (1, 15) <= (int(got.group(1)), int(got.group(2))) <= (1, 18)
+
+
+def _lbfgsb(fun, x0, lower, upper, maxcor, maxfun, ftol=2.2204460492503131e-09, gtol=1e-5,
+            maxiter=15000, maxls=20):
+    """minimize(fun, x0, jac=True, method="L-BFGS-B", bounds=Bounds(lower, upper),
+    options=dict(maxcor=maxcor, maxfun=maxfun)).x, without the wrapper (#1068).
+
+    The loop of scipy's _minimize_lbfgsb over its Fortran routine setulb, with what
+    the wrapper does around it inlined: the start clipped to the bounds, the bounds'
+    codes computed at once (the wrapper loops over the variables in Python), and the
+    ScalarFunction's caching: one evaluation at the start, fun(copy of x) again only
+    when setulb asks at a point that moved, and the limit on evaluations checked at
+    each new iteration, so a run stops where minimize stops. The point returned, and
+    the points fun is called at, are minimize's bit for bit on the scipy versions
+    _lbfgsb_supported accepts (test_lbfgsb.py)."""
+    from scipy.linalg.lapack import HAS_ILP64
+    from scipy.optimize import _lbfgsb as fortran
+
+    it = np.int64 if HAS_ILP64 else np.int32
+    lower = np.asarray(lower, dtype=float)
+    upper = np.asarray(upper, dtype=float)
+    lo_set, hi_set = ~np.isinf(lower), ~np.isinf(upper)
+    nbd = np.where(lo_set & hi_set, 2, np.where(lo_set, 1, np.where(hi_set, 3, 0))).astype(it)
+    low_bnd = np.where(lo_set, lower, 0.0)
+    upper_bnd = np.where(hi_set, upper, 0.0)
+    x = np.clip(np.atleast_1d(np.asarray(x0, dtype=float)), lower, upper)
+    n, m = x.size, maxcor
+    at = x.astype(np.float64)
+    f_at, g_at = fun(np.copy(at))                # the wrapper's evaluation at the start
+    nfev = 1
+    f = np.array(0.0, dtype=np.float64)
+    g = np.zeros((n,), dtype=np.float64)
+    wa = np.zeros(2 * m * n + 5 * n + 11 * m * m + 8 * m, np.float64)
+    iwa = np.zeros(3 * n, dtype=it)
+    task = np.zeros(2, dtype=it)
+    ln_task = np.zeros(2, dtype=it)
+    lsave = np.zeros(4, dtype=it)
+    isave = np.zeros(44, dtype=it)
+    dsave = np.zeros(29, dtype=np.float64)
+    factr = ftol / np.finfo(float).eps
+    iterations = 0
+    while True:
+        g = g.astype(np.float64)
+        fortran.setulb(m, x, low_bnd, upper_bnd, nbd, f, g, factr, gtol, wa, iwa, task, lsave, isave, dsave,
+                       maxls, ln_task)
+        if task[0] == 3:                         # f and g wanted at x
+            if not np.array_equal(x, at):
+                at = x.astype(np.float64)
+                f_at, g_at = fun(np.copy(at))
+                nfev += 1
+            f, g = f_at, np.atleast_1d(g_at)
+        elif task[0] == 1:                       # a new iteration
+            iterations += 1
+            if iterations >= maxiter:
+                task[0], task[1] = 5, 504
+            elif nfev > maxfun:
+                task[0], task[1] = 5, 502
+        else:
+            return x
+
+
+def _scipy_version() -> str:
+    import scipy
+
+    return scipy.__version__
+
+
+#: Whether the first-order dual runs L-BFGS-B through _lbfgsb (this scipy's loop) or
+#: through scipy.optimize.minimize.
+_LBFGSB_DIRECT = _lbfgsb_supported(_scipy_version())
+
+
 def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
                      maxfun=150, stages=6, budget: Optional[int] = None):
     """Multipliers at which the float certificate of R is below zero, or None.
 
-    L-BFGS-B (bounds y_in >= 0) on the smoothed certificate of _Dual, from ``warm``
+    L-BFGS-B (bounds y_in >= 0; _lbfgsb, scipy's loop without its wrapper, where
+    _LBFGSB_DIRECT) on the smoothed certificate of _Dual, from ``warm``
     when it is the full rows' and of their shape, else from zero; the smoothing
     starts with a T^2 / 2 at about |F| at the start and shrinks tenfold per stage,
     and the search stops at the first iterate whose unsmoothed F is below zero, or
@@ -917,15 +998,19 @@ def dual_multipliers(A, R: Rows, m, c, warm: Optional["Multipliers"] = None,
             raise _Closed
         return f, g
 
+    lower, upper = np.r_[np.full(D.ne, -np.inf), np.zeros(D.size - D.ne)], np.full(D.size, np.inf)
     # one Bounds for every stage: a list of (lo, hi) pairs is converted on each call
-    bounds = Bounds(np.r_[np.full(D.ne, -np.inf), np.zeros(D.size - D.ne)], np.full(D.size, np.inf))
+    bounds = None if _LBFGSB_DIRECT else Bounds(lower, upper)
     a = max(abs(f0), 1e-6 * D.scale) / D.T ** 2   # a start at F = 0 would leave a near zero and lambda / a past 1e17
     last = a
     try:
         for _ in range(stages):
             last = a
-            y = minimize(fun, y, args=(a,), jac=True, method="L-BFGS-B", bounds=bounds,
-                         options=dict(maxfun=maxfun, maxcor=DUAL_MEMORY)).x
+            if _LBFGSB_DIRECT:
+                y = _lbfgsb(lambda v: fun(v, a), y, lower, upper, DUAL_MEMORY, maxfun)
+            else:
+                y = minimize(fun, y, args=(a,), jac=True, method="L-BFGS-B", bounds=bounds,
+                             options=dict(maxfun=maxfun, maxcor=DUAL_MEMORY)).x
             a *= 0.1
     except _Closed:
         return Multipliers("full", *D.back(best[1])), info
