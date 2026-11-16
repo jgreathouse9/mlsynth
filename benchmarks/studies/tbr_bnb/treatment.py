@@ -65,13 +65,22 @@ below the target replaces the incumbent and the target falls with it; what was
 proved against a higher target still holds. g = 0 is the exact search.
 
 With ``n_jobs`` above one the floors are computed in chunks over a pool of forked
-processes, and the pass and the certifications run in waves of ``n_jobs`` groups.
-A wave's groups are screened and given their ceilings from the incumbent as the
-wave is filled, and their results are applied in queue order, a group replacing
-the incumbent only with a strictly larger key. A group certified in a wave against
-a ceiling the wave's later results lower holds against the lower one too (no
-design below a ceiling means none below a lower one), and the certified design is
-the one the sequential search finds, ties included: n_jobs = 1 is that search.
+processes, the pass runs in waves of ``n_jobs`` groups, and the certifications run
+over a sliding window (_window, #1069): up to ``n_jobs`` groups at once, the next
+group submitted as soon as a worker is free. A group is screened and given its
+ceiling from the incumbent as it stands when the group is submitted (for the pass,
+when its wave is filled), and results are applied in queue order, a group replacing
+the incumbent only with a strictly larger key. A group's ceiling comes from a
+committed prefix of the queue, so it is at least the one the sequential search gives
+it; a group certified against it holds against the lower one too (no design below a
+ceiling means none below a lower one), and a group whose optimum beats the
+sequential incumbent at its place is found and compared with exactly that
+incumbent. At g = 0 the certified design is the one the sequential search finds,
+ties included: n_jobs = 1 is that search. At g > 0 a higher ceiling can find a
+design within the gap that a lower one closes unseen, so the reported design can
+depend on n_jobs and on the order the workers finish; it is within the gap either
+way. The pass stays in waves because its admissions decide which groups carry a
+local design, and so the certification queue's order.
 
 Hogben, L., ed. (2007). Handbook of Linear Algebra. Chapman & Hall/CRC.
 """
@@ -81,7 +90,8 @@ import functools
 import math
 import multiprocessing
 import time
-from concurrent.futures import ProcessPoolExecutor
+from collections import deque
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from fractions import Fraction as Q
@@ -605,6 +615,45 @@ def _waves(rows, n_jobs, admit):
             yield wave
 
 
+def _window(pool, n_jobs, rows, admit, job, commit):
+    """Each row ``admit(row)`` accepts, run as fn(*args) for (fn, args, ctx) =
+    ``job(row)``, then ``commit(row, ctx, result)``, in queue order.
+
+    Without a pool this is the sequential loop: each row is admitted after the one
+    before it is committed. On a pool up to n_jobs rows run at once, and the next row
+    is read as soon as a worker is free, so a slow row holds one worker and not the
+    others. ``admit`` and ``job`` are read at submission, against every result
+    committed by then; a result is committed once every row ahead of it has been, so
+    the commits are the sequential loop's order. A worker's error reaches the caller
+    when its row's turn to commit comes, and nothing after that row is committed."""
+    if pool is None:
+        for row in rows:
+            if admit(row):
+                fn, args, ctx = job(row)
+                commit(row, ctx, fn(*args))
+        return
+    ahead = deque()                         # (row, ctx, future), in queue order, not yet committed
+    running = set()
+    it = iter(rows)
+    left = True
+    while True:
+        while ahead and ahead[0][2].done():
+            row, ctx, fut = ahead.popleft()
+            commit(row, ctx, fut.result())
+        while left and len(running) < n_jobs:
+            row = next(it, it)
+            if row is it:
+                left = False
+            elif admit(row):
+                fn, args, ctx = job(row)
+                fut = pool.submit(_star, fn, args)
+                ahead.append((row, ctx, fut))
+                running.add(fut)
+        if not running:                     # a row not committed above has a head still running
+            return
+        running = wait(running, return_when=FIRST_COMPLETED).not_done
+
+
 def _optimum_timed(M, T, n_test, restarts, ceiling=None, start=None):
     t0 = time.perf_counter()
     res, C = _optimum(M, T, n_test, restarts, ceiling=ceiling, start=start)
@@ -743,19 +792,25 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
         out.screened_out += 1
         return False
 
-    for wave in _waves(rows, n_jobs, admit):
-        exacts = [(T, exact_yy(T, yy)) for _, yy, T in wave]
-        jobs = [(T, yy, ceiling(yy, *class_of()), *local.get(T, (None, None))) for T, yy in exacts]
-        done = _map(pool, _optimum_timed, [(M, T, n_test, restarts, c, seed) for T, _, c, seed, _ in jobs])
-        for (T, yy, c, seed, pass_key), (res, C, secs) in zip(jobs, done):   # in queue order
-            if not res.certified:
-                left_open.append((list(T), yy, c))
-            out.survivors.append(dict(treatment=list(T), certified=res.certified, passing=res.passing,
-                                      key=res.key, rounds=len(res.rounds), stopped=res.stopped,
-                                      pass_key=pass_key, ceiling=c, seconds=secs, start=list(T) == T0))
-            if res.passing and (out.key is None or res.key > out.key):
-                take(T, res, C)
-                out.replaced += 1
+    def job(row):                           # screened and given its ceiling as it is submitted
+        _, yy, T = row
+        yy = exact_yy(T, yy)
+        c = ceiling(yy, *class_of())
+        seed, pass_key = local.get(T, (None, None))
+        return _optimum_timed, (M, T, n_test, restarts, c, seed), (yy, c, pass_key)
+
+    def commit(row, ctx, result):           # in queue order
+        T, (yy, c, pass_key), (res, C, secs) = row[2], ctx, result
+        if not res.certified:
+            left_open.append((list(T), yy, c))
+        out.survivors.append(dict(treatment=list(T), certified=res.certified, passing=res.passing,
+                                  key=res.key, rounds=len(res.rounds), stopped=res.stopped,
+                                  pass_key=pass_key, ceiling=c, seconds=secs, start=list(T) == T0))
+        if res.passing and (out.key is None or res.key > out.key):
+            take(T, res, C)
+            out.replaced += 1
+
+    _window(pool, n_jobs, rows, admit, job, commit)
     for T, yy, c_then in left_open:         # the incumbent only improves, so its ceiling only falls
         c = ceiling(yy, *class_of())
         if c is not None and (c_then is None or c < c_then):
