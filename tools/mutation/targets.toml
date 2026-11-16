@@ -16786,3 +16786,89 @@ timeout = 600.0
   find = "_LBFGSB_DIRECT = _lbfgsb_supported(_scipy_version())\n"
   replace = "_LBFGSB_DIRECT = False\n"
   models = "the guard never accepting, so the search runs through minimize and keeps the cost the loop removes"
+
+[[target]]
+name = "tbr-bnb-fastqp"
+module-path = "benchmarks/studies/tbr_bnb/fastqp.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastqp.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "short-sums-run-left-to-right"
+  find = "    if n < 8:\n"
+  replace = "    if n < 129:\n"
+  models = "every sum of up to 128 terms added left to right, where numpy keeps eight running sums from eight terms on: the hull's means and norms differ in the last bits and the weights stop being the library's"
+
+  [[target.mutant]]
+  id = "long-sums-split-in-the-middle"
+  find = "            n2 -= n2 % 8\n"
+  replace = ""
+  models = "a sum above 128 terms split at its middle, not at a multiple of eight below it, numpy's split: a different pairing of the same terms"
+
+  [[target.mutant]]
+  id = "a-vertex-is-never-left"
+  find = "            if ri.size:\n"
+  replace = "            if False:\n"
+  models = "at a vertex of the capped simplex (no weight free) the pair release never tried, so the loop stops at the first vertex it reaches whether or not its multiplier interval is empty"
+
+  [[target.mutant]]
+  id = "the-release-margin-is-dropped"
+  find = "            if gv[i] - gv[j] > sv[i] + sv[j] + floor_v:\n"
+  replace = "            if gv[i] - gv[j] > 0.0:\n"
+  models = "a vertex left on a gradient difference inside its rounding margin, where the library stays: the loop pivots on noise"
+
+  [[target.mutant]]
+  id = "a-freed-weight-is-not-capped"
+  find = "                w[free] = np.minimum(w[free], up[free])\n"
+  replace = ""
+  models = "the free weights of an accepted least-squares point not clipped at their caps, so a weight at its cap by rounding sits just above it"
+
+  [[target.mutant]]
+  id = "the-boundary-fallback-is-dropped"
+  find = "    if near:\n        return np.zeros(J), 0, False, 0.0, 2\n"
+  replace = ""
+  models = "a unit scale within 1e-12 of its rounding boundary taken from the kernel's own sum, which can round to the other power of two from the library's einsum"
+
+  [[target.mutant]]
+  id = "a-linear-term-reaches-the-kernel"
+  find = "    if (not AVAILABLE or linear is not None or "
+  replace = "    if (not AVAILABLE or "
+  models = "a call with a linear term solved by the kernel, which has none, so the penalized program is solved as the plain one"
+
+  [[target.mutant]]
+  id = "without-numba-the-kernel-is-called"
+  find = "    if (not AVAILABLE or linear is not None or "
+  replace = "    if (linear is not None or "
+  models = "the kernel called where numba is missing, where it is the interpreted loop and dgelsy is not bound"
+
+  [[target.mutant]]
+  id = "a-cold-large-pool-is-not-seeded"
+  find = "    if ws is None and J >= ACCEL_MIN_DONORS:"
+  replace = "    if False:"
+  models = "a cold solve on 80 or more donors started from the uniform point, where the library seeds it by FISTA: a different path and different weights"
+
+  [[target.mutant]]
+  id = "the-stop-ignores-its-error"
+  find = "                if have_stop and not f < f_stop - noise * f_err:\n"
+  replace = "                if have_stop and not f < f_stop:\n"
+  models = "the release's stop compared without the objective's rounding error, so a release that gained only noise is kept"
+
+  [[target.mutant]]
+  id = "an-uncertified-solve-is-silent"
+  find = "    if not (converged and kkt <= _as.CERTIFY_TOL):\n"
+  replace = "    if False:\n"
+  models = "weights the certificate rejects returned without the library's SimplexQPUncertifiedWarning"
+
+  [[target.mutant]]
+  id = "loose-caps-are-kept"
+  find = "        if code == 0:"
+  replace = "        if code in (0, 4):"
+  models = "caps of one or more kept as caps, where the library drops them and solves the uncapped program"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in its outputs on every input measured. Caps of one or more cannot bind on the simplex, so the bounded-variable loop never pins a weight at one; the only difference is the start, up / sum(up) in place of the uniform point, and the loop ends on the same free set, whose least-squares solve gives the same bits. test_loose_caps_are_the_uncapped_program checks that the kernel solves the uncapped program for scalar, all-one and mixed loose caps on six seeds; the mutant passes it, which is the equivalence."
+
+  [[target.mutant]]
+  id = "the-certificate-ignores-capped-gradients"
+  find = "        neg = max(neg, (g[cap] - nu).max()) if cap.any() else neg\n"
+  replace = ""
+  models = "the KKT error blind to a capped weight whose gradient is above the multiplier, so the warning decision differs from the library's"
