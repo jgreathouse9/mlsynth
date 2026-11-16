@@ -62,21 +62,33 @@ def test_each_evaluation_decomposes_once(monkeypatch):
     assert info["evals"] > 1 and len(calls) == 1
 
 
-def test_the_bounds_are_built_once(monkeypatch):
+@pytest.mark.parametrize("direct", [True, False])
+def test_the_bounds_are_built_once(monkeypatch, direct):
+    """One set of bounds for every stage, through minimize (a Bounds) or through the
+    dual's own loop (the lower and upper arrays, #1068)."""
+    monkeypatch.setattr(sf, "_LBFGSB_DIRECT", direct)
     seen = []
-    real = scipy.optimize.minimize
+    real, real_loop = scipy.optimize.minimize, sf._lbfgsb
 
     def spy(fun, x0, **kw):
-        seen.append(kw["bounds"])
+        b = kw["bounds"]
+        assert isinstance(b, scipy.optimize.Bounds)
+        seen.append((b, b.lb, b.ub))
         return real(fun, x0, **kw)
 
+    def spy_loop(fun, x0, lower, upper, maxcor, maxfun, **kw):
+        seen.append((lower, lower, upper))
+        return real_loop(fun, x0, lower, upper, maxcor, maxfun, **kw)
+
     monkeypatch.setattr(scipy.optimize, "minimize", spy)
+    monkeypatch.setattr(sf, "_lbfgsb", spy_loop)
     sf.dual_multipliers(*_dual_open())
-    assert seen and all(isinstance(b, scipy.optimize.Bounds) for b in seen)
-    assert all(b is seen[0] for b in seen)
+    assert len(seen) > 1
+    assert all(b is seen[0][0] for b, _, _ in seen)
     D = sf._Dual(*_dual_open())
-    assert np.all(seen[0].lb[:D.ne] == -np.inf) and np.all(seen[0].lb[D.ne:] == 0.0)
-    assert np.all(seen[0].ub == np.inf)
+    lb, ub = seen[0][1], seen[0][2]
+    assert np.all(lb[:D.ne] == -np.inf) and np.all(lb[D.ne:] == 0.0)
+    assert np.all(ub == np.inf)
 
 
 def _dual_open(seed=0):

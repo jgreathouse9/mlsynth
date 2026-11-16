@@ -29,8 +29,9 @@ def _bound_every_node(monkeypatch):
 
 
 def _memories(monkeypatch):
-    """Record the memory of every L-BFGS-B call."""
-    real = scipy.optimize.minimize
+    """Record the memory of every L-BFGS-B call, through minimize or through the
+    dual's own loop (slopefree._lbfgsb, #1068), whichever this scipy takes."""
+    real, real_loop = scipy.optimize.minimize, slopefree._lbfgsb
     seen = []
 
     def spy(*a, **k):
@@ -38,7 +39,12 @@ def _memories(monkeypatch):
             seen.append(k["options"]["maxcor"])
         return real(*a, **k)
 
+    def spy_loop(fun, x0, lower, upper, maxcor, maxfun, **k):
+        seen.append(maxcor)
+        return real_loop(fun, x0, lower, upper, maxcor, maxfun, **k)
+
     monkeypatch.setattr(scipy.optimize, "minimize", spy)
+    monkeypatch.setattr(slopefree, "_lbfgsb", spy_loop)
     return seen
 
 
@@ -76,7 +82,10 @@ def test_the_dual_memory_is_the_measured_one():
     assert DUAL_MEMORY == 5
 
 
-def test_the_memory_reaches_l_bfgs_b(monkeypatch):
+@pytest.mark.parametrize("direct", [True, False])
+def test_the_memory_reaches_l_bfgs_b(monkeypatch, direct):
+    """Through the dual's own loop and through minimize (#1068)."""
+    monkeypatch.setattr(slopefree, "_LBFGSB_DIRECT", direct)
     D, lam = _open_size()
     seen = _memories(monkeypatch)
     A = objective(D.c, D.G, lam)

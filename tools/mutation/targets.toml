@@ -16724,7 +16724,7 @@ timeout = 600.0
 [[target]]
 name = "tbr-bnb-lbfgsb"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_lbfgsb.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_lbfgsb.py benchmarks/studies/tbr_bnb/test_dual_memory.py benchmarks/studies/tbr_bnb/test_dual_reuse.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
   [[target.mutant]]
@@ -16768,6 +16768,12 @@ timeout = 600.0
   find = "    n, m = x.size, maxcor\n"
   replace = "    n, m = x.size, 10\n"
   models = "scipy's default ten correction pairs in place of DUAL_MEMORY's five, the memory the dual was tuned away from"
+
+  [[target.mutant]]
+  id = "the-loop-is-not-given-the-memory"
+  find = "                y = _lbfgsb(lambda v: fun(v, a), y, lower, upper, DUAL_MEMORY, maxfun)\n"
+  replace = "                y = _lbfgsb(lambda v: fun(v, a), y, lower, upper, 20, maxfun)\n"
+  models = "the dual's loop run at twenty correction pairs, not DUAL_MEMORY's five: the per-call cost the memory was measured down from (test_dual_memory.py), on the path the search takes"
 
   [[target.mutant]]
   id = "the-guard-takes-any-scipy"
