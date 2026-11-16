@@ -16974,3 +16974,87 @@ timeout = 900.0
   find = "    slopefree.SPARE = (lender.take, lender.give)       # read in the workers, which fork with it\n"
   replace = "    pass\n"
   models = "the lender made but not installed before the pool forks, so the workers' size loops see the default and borrow nothing"
+
+[[target]]
+name = "cmbsts-regression"
+module-path = "mlsynth/utils/cmbsts_helpers/engine.py"
+test-command = "python -m pytest mlsynth/tests/test_cmbsts_regression.py -q -x -p no:cacheprovider --disable-warnings"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-states-ignore-the-regression"
+  find = "        alpha = ffbs(Y_pre - X_pre @ beta, T, Z, Q, Se, rng)"
+  replace = "        alpha = ffbs(Y_pre, T, Z, Q, Se, rng)"
+  models = "the paper's Algorithm 1 and CausalMBSTS: the state path drawn from the outcome alone, so the level absorbs what the controls explain and the regression is fit to the residual (#1074)"
+
+  [[target.mutant]]
+  id = "the-coefficients-are-drawn-given-the-states"
+  find = "            mean, cov = regression_posterior(Y_pre, Xs, T, Z, Q, Se, Hs)"
+  replace = "            mean, cov = Mm.T.reshape(-1), np.kron(Se, W)"
+  models = "the blocked sampler: the coefficients drawn given the current state path, a chain that does not leave the mode where the level has the signal (#1074)"
+
+  [[target.mutant]]
+  id = "the-forecast-drops-the-regression"
+  find = "            state_fc = state_fc + X_post @ beta\n"
+  replace = "            state_fc = state_fc\n"
+  models = "the controls' post-period paths never enter the counterfactual; before #1074 this survived the whole suite"
+
+  [[target.mutant]]
+  id = "the-in-sample-fit-drops-the-regression"
+  find = "            prefit_sum += alpha @ Z.T + X_pre @ beta"
+  replace = "            prefit_sum += alpha @ Z.T"
+  models = "the reported pre-period fit is the state alone, so it reads as interpolation and hides what the regression carries"
+
+  [[target.mutant]]
+  id = "the-coefficients-are-unstacked-by-rows"
+  find = "    return b.reshape(d, -1).T"
+  replace = "    return b.reshape(-1, d)"
+  models = "a column-stacked draw unstacked by rows: with several series each coefficient lands on another control or series"
+
+  [[target.mutant]]
+  id = "the-prior-kronecker-factors-are-swapped"
+  find = "    cov = _inv(prec + np.kron(_inv(Se), _inv(H)))"
+  replace = "    cov = _inv(prec + np.kron(_inv(H), _inv(Se)))"
+  models = "the coefficient prior's Kronecker factors in the wrong order, the series covariance applied across controls"
+
+  [[target.mutant]]
+  id = "the-design-is-not-filtered"
+  find = "        a, A = T @ (a + K @ v), T @ (A + K @ V)"
+  replace = "        a, A = T @ (a + K @ v), T @ A"
+  models = "the regressor design's filtered states never updated, so the coefficients' likelihood ignores how the states respond to the regressors"
+
+  [[target.mutant]]
+  id = "the-design-innovations-ignore-the-states"
+  find = "        V = np.kron(Id, X[t][None, :]) - Z @ A           # the design's innovations"
+  replace = "        V = np.kron(Id, X[t][None, :])           # the design's innovations"
+  models = "the coefficients drawn as an ordinary regression on the raw outcome, the states left out of their likelihood"
+
+[[target]]
+name = "cmbsts-regression-pipeline"
+module-path = "mlsynth/utils/cmbsts_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_cmbsts_regression.py -q -x -p no:cacheprovider --disable-warnings"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-default-prior-is-the-packages"
+  find = "    g_scale = float(config.g_prior_scale) if config.g_prior_scale is not None else 100.0 * T0"
+  replace = "    g_scale = float(config.g_prior_scale) if config.g_prior_scale is not None else 1.0"
+  models = "CausalMBSTS's c = 1 as the default: the regression is a priori worth one noise term and a single control cannot carry a shock the level can follow (#1074)"
+
+  [[target.mutant]]
+  id = "the-coefficients-are-misnamed"
+  find = "        coefficients = {n: [float(b) for b in row] for n, row in zip(reg_names, beta_mean)}"
+  replace = "        coefficients = {n: [float(b) for b in row] for n, row in zip(reg_names[::-1], beta_mean)}"
+  models = "each posterior coefficient reported under another regressor's name"
+
+[[target]]
+name = "cmbsts-regression-config"
+module-path = "mlsynth/utils/cmbsts_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_cmbsts_regression.py -q -x -p no:cacheprovider --disable-warnings -k validated"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-prior-scale-needs-no-regression-block"
+  find = "        if (self.g_prior_scale is not None and not self.control_units and not self.covariates"
+  replace = "        if (False and self.g_prior_scale is not None and not self.control_units and not self.covariates"
+  models = "a coefficient prior scale accepted on a model with no regression block, where it does nothing"

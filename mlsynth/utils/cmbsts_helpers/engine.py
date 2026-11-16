@@ -1,9 +1,13 @@
 """Numerical engine for the multivariate Bayesian structural time series
 (MBSTS) causal model of Menchetti and Bojinov (2022).
 
-This is a faithful, dependency-light (NumPy/SciPy) port of the ``CausalMBSTS``
-R package (Bojinov and Menchetti 2020), validated cell-by-cell against it on the
-package's own vignette and on the Florence supermarket study. The pieces:
+A dependency-light (NumPy/SciPy) port of the ``CausalMBSTS`` R package
+(Bojinov and Menchetti 2020), cross-checked against it on the package's own
+vignette and on the Florence supermarket study. With a regression block it
+departs from the package in :func:`run_gibbs`: the states are drawn given the
+coefficients and the coefficients with the states integrated out, so the
+sampler targets the posterior of the model the paper states, and the scale of
+the coefficient prior is a parameter. The pieces:
 
 * :func:`build_ssm` assembles the multivariate structural state space for a
   subset of ``{"trend", "slope", "seasonal", "cycle"}`` components, with the
@@ -11,9 +15,12 @@ package's own vignette and on the Florence supermarket study. The pieces:
 * :func:`ffbs` draws the latent state path by a forward-filter / backward-sample
   (Carter-Kohn) pass -- the Durbin-Koopman simulation smoother used by the
   reference package, written so it never silently under-disperses.
-* :func:`run_gibbs` is the Gibbs sampler: conjugate Inverse-Wishart updates for
-  each state-disturbance covariance and the observation covariance, plus the
-  spike-and-slab variable-selection branch when regressors are supplied.
+* :func:`run_gibbs` is the sampler: conjugate Inverse-Wishart updates for each
+  state-disturbance covariance and the observation covariance, plus, when
+  regressors are supplied, spike-and-slab selection and the coefficients.
+* :func:`regression_posterior` is the coefficients' posterior with the states
+  integrated out, from one Kalman pass over the outcome and the regressor design
+  together (de Jong 1991).
 * :func:`causal_effect` forecasts the counterfactual from the posterior
   predictive distribution and returns the observed-minus-predicted effect, per
   series, with credible bands.
@@ -26,6 +33,10 @@ time series models." Annals of Applied Statistics 16(1): 414-435.
 Brodersen, K. H., Gallusser, F., Koehler, J., Remy, N. and Scott, S. L. (2015).
 "Inferring causal impact using Bayesian structural time-series models." Annals
 of Applied Statistics 9(1): 247-274.
+de Jong, P. (1991). "The diffuse Kalman filter." Annals of Statistics 19(2):
+1073-1083.
+van Dyk, D. A. and Park, T. (2008). "Partially collapsed Gibbs samplers: theory
+and methods." Journal of the American Statistical Association 103(482): 790-796.
 """
 from __future__ import annotations
 
@@ -220,12 +231,71 @@ def _lpy_X(y: np.ndarray, X: np.ndarray, Hsub: np.ndarray, nu0: float, s0: np.nd
                  - multigammaln(nu0 / 2, d) - (nu / 2) * np.linalg.slogdet(se)[1])
 
 
-def _matrixnormal(Mmean: np.ndarray, U: np.ndarray, Vcol: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """Draw beta ~ MN(Mmean, U rows, Vcol cols), Mmean shape (k, d)."""
-    k, d = Mmean.shape
-    Lu = np.linalg.cholesky(_sym(U) + 1e-12 * np.eye(k))
-    Lv = np.linalg.cholesky(_sym(Vcol) + 1e-12 * np.eye(d))
-    return Mmean + Lu @ rng.standard_normal((k, d)) @ Lv.T
+def regression_posterior(
+    Y: np.ndarray,
+    X: np.ndarray,
+    T: np.ndarray,
+    Z: np.ndarray,
+    Q: np.ndarray,
+    Se: np.ndarray,
+    H: np.ndarray,
+    P1: float = 1e6,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Posterior of the regression coefficients with the states integrated out.
+
+    For ``Y_t = Z alpha_t + beta' x_t + eps_t`` with ``alpha_{t+1} = T alpha_t +
+    eta_t`` and the prior ``beta ~ MN(0, H, Se)``, i.e. ``vec(beta) ~ N(0, Se
+    kron H)`` with ``vec`` stacking the columns of ``beta``. One Kalman pass runs
+    over ``Y`` and over the regressor design alongside it (de Jong 1991): every
+    innovation is affine in ``vec(beta)``, ``v_t = v_t^Y - V_t vec(beta)``, so the
+    likelihood is Gaussian in ``vec(beta)`` with precision ``sum_t V_t' F_t^-1
+    V_t``. The initial state is ``N(0, P1 I)``, the approximate diffuse start of
+    :func:`ffbs`.
+
+    Returns
+    -------
+    mean, cov : np.ndarray
+        Mean ``(p d,)`` and covariance ``(p d, p d)`` of ``vec(beta)``; column
+        ``j`` of ``beta`` is ``mean[j p:(j + 1) p]``.
+    """
+    n, d = Y.shape
+    p = X.shape[1]
+    m = T.shape[0]
+    Im, Id = np.eye(m), np.eye(d)
+    a, A, P = np.zeros(m), np.zeros((m, p * d)), P1 * Im
+    prec, lin = np.zeros((p * d, p * d)), np.zeros(p * d)
+    for t in range(n):
+        Fi = _inv(Z @ P @ Z.T + Se)
+        v = Y[t] - Z @ a
+        V = np.kron(Id, X[t][None, :]) - Z @ A           # the design's innovations
+        K = P @ Z.T @ Fi
+        prec += V.T @ Fi @ V
+        lin += V.T @ Fi @ v
+        a, A = T @ (a + K @ v), T @ (A + K @ V)
+        ImKZ = Im - K @ Z
+        P = _sym(T @ _sym(ImKZ @ P @ ImKZ.T + K @ Se @ K.T) @ T.T + Q)
+    cov = _inv(prec + np.kron(_inv(Se), _inv(H)))
+    return cov @ lin, cov
+
+
+def _unvec(b: np.ndarray, d: int) -> np.ndarray:
+    """``(p, d)`` coefficient matrix from its column-stacked ``vec``."""
+    return b.reshape(d, -1).T
+
+
+def _draw_state_covariances(
+    alpha: np.ndarray, T: np.ndarray, dist: List[Tuple[slice, str]], keys: List[str],
+    sig: Dict[str, np.ndarray], s0_state: np.ndarray, nu0: float, rng: np.random.Generator,
+) -> None:
+    """``Sigma_r | alpha`` for every disturbance key, in place (conjugate Inverse-Wishart)."""
+    d = s0_state.shape[0]
+    deta = alpha[1:] - alpha[:-1] @ T.T
+    for key in keys:
+        acc = np.zeros((d, d))
+        for sl, kk in dist:
+            if kk == key:
+                acc += deta[:, sl].T @ deta[:, sl]
+        sig[key] = np.atleast_2d(invwishart.rvs(nu0 + deta.shape[0], _sym(s0_state + acc), random_state=rng))
 
 
 def run_gibbs(
@@ -241,72 +311,93 @@ def run_gibbs(
     burn: int,
     rng: np.random.Generator,
     X_pre: Optional[np.ndarray] = None,
+    g_scale: float = 1.0,
 ) -> Dict[str, Any]:
-    """Gibbs sampler for the pre-intervention MBSTS model.
+    """MCMC for the pre-intervention MBSTS model.
+
+    Without regressors this is the reference package's Gibbs sampler: the
+    state path given the covariances, then each covariance given the path.
+
+    With regressors the model is ``Y = Z alpha + X beta + eps`` and each sweep
+    draws, in order, ``Sigma_r | alpha``; the selection ``z`` and ``Sigma_eps``
+    given ``alpha`` with ``beta`` integrated out (the paper's and the package's
+    own steps); ``beta | z, Sigma`` with the states integrated out
+    (:func:`regression_posterior`); and ``alpha | beta`` by :func:`ffbs` on ``Y -
+    X beta``. Each variable left out of a step is drawn before any later step
+    conditions on it, so this is a partially collapsed Gibbs sampler for the
+    stated model. The paper's Algorithm 1 and ``CausalMBSTS`` draw the states
+    from ``Y`` alone, which is not the full conditional of this model: the
+    random-walk level then absorbs everything it can follow and the regression
+    is fit to what it leaves, so the controls' post-period movement never
+    reaches the counterfactual. Drawing the states given ``beta`` while ``beta``
+    is drawn given the states is not enough either: the two blocks can mimic
+    each other and that chain does not leave the absorbing mode.
+
+    The coefficient prior is ``beta ~ MN(0, g_scale (X'X)^-1, Sigma_eps)`` on the
+    selected rows; ``g_scale = 1`` is the reference package's.
 
     Returns a dict with the post-burn-in per-draw forecast inputs
     (``last_state``, ``Q``, ``Sigma_eps``, ``beta``), the posterior-mean
-    in-sample fit ``prefit_mean`` (``T0 x d``), and the inclusion frequencies.
+    in-sample fit ``prefit_mean`` (``T0 x d``, the regression included), and the
+    inclusion frequencies.
     """
     n, d = Y_pre.shape
     keys = list(dict.fromkeys(k for _, k in dist))
     sig = {k: s0_state.copy() for k in keys}
     Se = s0_obs.copy()
-    has_X = X_pre is not None
-    if has_X:
-        H = _inv(X_pre.T @ X_pre)                       # Zellner g-prior (c = 1)
-        P = X_pre.shape[1]
-        incl = np.zeros(P)
     draws: List[Tuple[np.ndarray, np.ndarray, np.ndarray, Optional[np.ndarray]]] = []
     prefit_sum = np.zeros((n, d))
     kept = 0
-    for it in range(niter):
-        Q = build_Q(M, dist, sig)
-        alpha = ffbs(Y_pre, T, Z, Q, Se, rng)
-        deta = alpha[1:] - alpha[:-1] @ T.T
-        ne = deta.shape[0]
-        for key in keys:
-            acc = np.zeros((d, d))
-            for sl, kk in dist:
-                if kk == key:
-                    acc += deta[:, sl].T @ deta[:, sl]
-            sig[key] = np.atleast_2d(invwishart.rvs(nu0 + ne, _sym(s0_state + acc), random_state=rng))
-        beta: Optional[np.ndarray] = None
-        if not has_X:
+    if X_pre is None:
+        for it in range(niter):
+            Q = build_Q(M, dist, sig)
+            alpha = ffbs(Y_pre, T, Z, Q, Se, rng)
+            _draw_state_covariances(alpha, T, dist, keys, sig, s0_state, nu0, rng)
             eps = Y_pre - alpha @ Z.T
             Se = np.atleast_2d(invwishart.rvs(nu0 + n, _sym(s0_obs + eps.T @ eps), random_state=rng))
-        else:
-            ystar = Y_pre - alpha @ Z.T
-            z = np.ones(P, dtype=int)
-            lpc = _lpy_X(ystar, X_pre[:, z == 1], H[np.ix_(z == 1, z == 1)], nu0, s0_obs)
-            for j in rng.permutation(P):
-                zp = z.copy()
-                zp[j] = 1 - zp[j]
-                lpp = _lpy_X(ystar, X_pre[:, zp == 1], H[np.ix_(zp == 1, zp == 1)], nu0, s0_obs)
-                re = (lpp - lpc) * ((-1.0) ** (zp[j] == 0))
-                z[j] = rng.binomial(1, 1.0 / (1.0 + np.exp(-re)))
-                if z[j] == zp[j]:
-                    lpc = lpp
-            beta = np.zeros((P, d))
-            if z.sum() == 0:
-                Se = np.atleast_2d(invwishart.rvs(nu0 + n, _sym(s0_obs + ystar.T @ ystar), random_state=rng))
-            else:
-                Xs = X_pre[:, z == 1]
-                W = _inv(Xs.T @ Xs + _inv(H[np.ix_(z == 1, z == 1)]))
-                Mm = W @ Xs.T @ ystar
-                Se = np.atleast_2d(invwishart.rvs(
-                    nu0 + n, _sym(s0_obs + ystar.T @ ystar - Mm.T @ _inv(W) @ Mm), random_state=rng))
-                beta[z == 1] = _matrixnormal(Mm, W, Se, rng)
             if it >= burn:
-                incl += z
+                draws.append((alpha[-1].copy(), build_Q(M, dist, sig), Se.copy(), None))
+                prefit_sum += alpha @ Z.T
+                kept += 1
+        return {"draws": draws, "prefit_mean": prefit_sum / max(kept, 1), "n_kept": kept}
+
+    H = g_scale * _inv(X_pre.T @ X_pre)                 # Zellner g-prior, c = g_scale
+    P = X_pre.shape[1]
+    incl = np.zeros(P)
+    alpha = ffbs(Y_pre, T, Z, build_Q(M, dist, sig), Se, rng)   # starting path, beta = 0
+    for it in range(niter):
+        _draw_state_covariances(alpha, T, dist, keys, sig, s0_state, nu0, rng)
+        Q = build_Q(M, dist, sig)
+        ystar = Y_pre - alpha @ Z.T
+        z = np.ones(P, dtype=int)
+        lpc = _lpy_X(ystar, X_pre[:, z == 1], H[np.ix_(z == 1, z == 1)], nu0, s0_obs)
+        for j in rng.permutation(P):
+            zp = z.copy()
+            zp[j] = 1 - zp[j]
+            lpp = _lpy_X(ystar, X_pre[:, zp == 1], H[np.ix_(zp == 1, zp == 1)], nu0, s0_obs)
+            re = (lpp - lpc) * ((-1.0) ** (zp[j] == 0))
+            z[j] = rng.binomial(1, 1.0 / (1.0 + np.exp(-re)))
+            if z[j] == zp[j]:
+                lpc = lpp
+        beta = np.zeros((P, d))
+        if z.sum() == 0:
+            Se = np.atleast_2d(invwishart.rvs(nu0 + n, _sym(s0_obs + ystar.T @ ystar), random_state=rng))
+        else:
+            Xs, Hs = X_pre[:, z == 1], H[np.ix_(z == 1, z == 1)]
+            W = _inv(Xs.T @ Xs + _inv(Hs))
+            Mm = W @ Xs.T @ ystar
+            Se = np.atleast_2d(invwishart.rvs(
+                nu0 + n, _sym(s0_obs + ystar.T @ ystar - Mm.T @ _inv(W) @ Mm), random_state=rng))
+            mean, cov = regression_posterior(Y_pre, Xs, T, Z, Q, Se, Hs)
+            beta[z == 1] = _unvec(_mvn(mean, cov, rng), d)
+        alpha = ffbs(Y_pre - X_pre @ beta, T, Z, Q, Se, rng)
         if it >= burn:
-            draws.append((alpha[-1].copy(), build_Q(M, dist, sig), Se.copy(), beta))
-            prefit_sum += alpha @ Z.T
+            incl += z
+            draws.append((alpha[-1].copy(), Q, Se.copy(), beta))
+            prefit_sum += alpha @ Z.T + X_pre @ beta
             kept += 1
-    out: Dict[str, Any] = {"draws": draws, "prefit_mean": prefit_sum / max(kept, 1), "n_kept": kept}
-    if has_X:
-        out["inclusion"] = incl / max(kept, 1)
-    return out
+    return {"draws": draws, "prefit_mean": prefit_sum / max(kept, 1), "n_kept": kept,
+            "inclusion": incl / max(kept, 1)}
 
 
 def causal_effect(

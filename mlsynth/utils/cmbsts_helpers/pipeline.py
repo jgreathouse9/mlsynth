@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -39,7 +39,9 @@ def run_cmbsts(config: Any) -> CMBSTSResults:
     Tm, Z, dist, M = build_ssm(d, list(config.components), config.seas_period, config.cycle_period)
 
     X_pre = X[:T0] if X is not None else None
-    fit = run_gibbs(Y[:T0], Tm, Z, dist, M, s0, s0, nu0, int(config.niter), burn, rng, X_pre=X_pre)
+    g_scale = float(config.g_prior_scale) if config.g_prior_scale is not None else 100.0 * T0
+    fit = run_gibbs(Y[:T0], Tm, Z, dist, M, s0, s0, nu0, int(config.niter), burn, rng,
+                    X_pre=X_pre, g_scale=g_scale)
     X_post = X[T0:] if X is not None else None
     eff = causal_effect(Y[T0:], fit, Tm, Z, rng, X_post=X_post,
                         excl_post=inputs.excl_post, ci_alpha=float(config.ci_alpha),
@@ -57,12 +59,16 @@ def run_cmbsts(config: Any) -> CMBSTSResults:
 
     reg_names = list(inputs.covariate_names) + [str(c) for c in inputs.control_names]
     inclusion: Optional[Dict[str, float]] = None
+    coefficients: Optional[Dict[str, List[float]]] = None
     if "inclusion" in fit and reg_names:
         inclusion = {n: float(p) for n, p in zip(reg_names, fit["inclusion"])}
+        beta_mean = np.mean([draw[3] for draw in fit["draws"]], axis=0)        # (P, d)
+        coefficients = {n: [float(b) for b in row] for n, row in zip(reg_names, beta_mean)}
     posterior = CMBSTSPosterior(
         inclusion_probs=inclusion, n_draws=int(fit["n_kept"]), niter=int(config.niter),
         burn=burn, components=list(config.components),
         seas_period=config.seas_period, cycle_period=config.cycle_period,
+        coefficients=coefficients,
     )
 
     # Standardized surface over the treated series (column 0).

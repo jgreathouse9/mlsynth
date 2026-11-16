@@ -119,6 +119,16 @@ class CMBSTSConfig(BaseEstimatorConfig):
     nu0: Optional[int] = Field(
         default=None, description="Inverse-Wishart degrees of freedom. None -> d + 2.",
     )
+    g_prior_scale: Optional[float] = Field(
+        default=None, gt=0.0,
+        description=(
+            "Scale c of the coefficient prior beta ~ MN(0, c (X'X)^-1, Sigma_eps). "
+            "None -> 100 * T0, the slab of bsts (prior information weight 0.01) behind "
+            "Brodersen et al. (2015). 1.0 is CausalMBSTS's prior, under which the "
+            "regression is a priori worth one observation-noise term and a single "
+            "control cannot carry a shock the level can follow. Needs a regression block."
+        ),
+    )
     excl_dates: Optional[str] = Field(
         default=None,
         description="Optional 0/1 column in ``df`` flagging post-period dates to drop from the effect summary.",
@@ -150,6 +160,11 @@ class CMBSTSConfig(BaseEstimatorConfig):
             raise MlsynthConfigError("CMBSTS: 'control_selection' must be 'explicit' or 'dtw'.")
         if self.control_selection == "dtw" and self.n_controls is None:
             raise MlsynthConfigError("CMBSTS: control_selection='dtw' requires 'n_controls'.")
+        if (self.g_prior_scale is not None and not self.control_units and not self.covariates
+                and self.control_selection != "dtw"):
+            raise MlsynthConfigError(
+                "CMBSTS: g_prior_scale scales the coefficient prior of the regression block; "
+                "supply control_units, covariates or control_selection='dtw'.")
         if self.group_units and self.control_units:
             overlap = set(map(str, self.group_units)) & set(map(str, self.control_units))
             if overlap:
