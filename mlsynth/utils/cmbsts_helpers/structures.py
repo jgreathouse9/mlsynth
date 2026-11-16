@@ -70,6 +70,10 @@ class CMBSTSPosterior:
     inclusion_probs : dict, optional
         ``regressor -> P(included | y)`` posterior inclusion frequencies, when
         a regression block is present.
+    coefficients : dict, optional
+        ``regressor -> [posterior mean coefficient per series]``, a draw that
+        excludes the regressor counting as zero, in the order of
+        ``inclusion_probs``. ``None`` without a regression block.
     n_draws : int
         Post-burn-in draws.
     niter, burn : int
@@ -87,6 +91,7 @@ class CMBSTSPosterior:
     components: List[str]
     seas_period: Optional[int]
     cycle_period: Optional[int]
+    coefficients: Optional[Dict[str, List[float]]] = None
 
 
 @dataclass(frozen=True)

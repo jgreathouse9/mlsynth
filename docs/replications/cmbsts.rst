@@ -10,20 +10,24 @@ CMBSTS — Multivariate Bayesian Structural Time Series (Menchetti & Bojinov 202
    Statistics 16(1): 414–435 [MenchettiBojinov2022]_.
 :Reference implementation: the authors' ``CausalMBSTS`` R package
    (Bojinov & Menchetti 2020).
-:Replication type: Cross-validation — the mlsynth port is checked cell-by-cell
-   against the R package.
+:Replication type: Cross-validation — checked cell-by-cell against the R package
+   without a regression block, and at the package's coefficient prior with one.
 :Status: Verified — the port reproduces ``CausalMBSTS`` within Monte-Carlo
-   error on the package's vignette and on the Florence supermarket study.
+   error on the package's vignette and on the Florence supermarket study. With a
+   regression block its sampler departs from the package's (`issue #1074
+   <https://github.com/jgreathouse9/mlsynth/issues/1074>`_; see "The regression
+   block" below).
 
 Validation strategy
 -------------------
 
-CMBSTS is a faithful NumPy/SciPy port of the ``CausalMBSTS`` R package: a
-multivariate structural state space (trend, optional seasonal and cycle, and a
-spike-and-slab regression), a Gibbs sampler with a Durbin–Koopman simulation
-smoother for the latent states, and a posterior-predictive counterfactual. The
-port is validated by running the genuine R package and comparing its output to
-mlsynth's on identical inputs.
+CMBSTS is a NumPy/SciPy port of the ``CausalMBSTS`` R package: a multivariate
+structural state space (trend, optional seasonal and cycle, and a spike-and-slab
+regression), an MCMC sampler that draws the latent states by forward filtering
+and backward sampling, and a posterior-predictive counterfactual. The port is
+validated by running the genuine R package and comparing its output to mlsynth's
+on identical inputs. With a regression block the sampler departs from the
+package's, for the reason in "The regression block" below.
 
 Seed-faithful agreement is not achievable: the R and Python samplers draw from
 independent random-number streams, so individual draws differ. The honest target
@@ -80,18 +84,69 @@ in ``basedata/cmbsts_supermarket/``, and
 `benchmarks/cases/cmbsts_supermarket.py <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/cmbsts_supermarket.py>`_
 reproduces this at the one-month horizon.
 
-Two things hold. The mlsynth store-brand effects cross-validate against the R
-``CausalMBSTS`` package on identical controls and prior — pair 4 ``48.9`` vs
-``47.4``, pair 7 ``80.0`` vs ``78.1``, pair 10 ``12.4`` vs ``12.3`` — within
-Monte-Carlo error. And the substantive Table 3 result reproduces: large positive
-store effects with no significant competitor effect. The controls here are
-screened by dynamic time warping (the package's method) through the optional
-``fastdtw`` package, not the authors' ``MarketMatching``, so the control
-set differs; the pair-10 effect is strictly significant in both implementations,
-while pairs 4 and 7 sit on the zero boundary where Monte-Carlo noise alone moves
-the lower credible bound across (the package and the port land on opposite sides).
-The published strict significance on all three pairs uses the ``MarketMatching``
-controls at ``niter = 2200``.
+Two things hold. At the package's coefficient prior (``g_prior_scale=1.0``) the
+mlsynth store-brand effects agree with the R ``CausalMBSTS`` package's on
+identical controls, despite the different sampler — pair 4 ``48.1`` vs ``47.4``,
+pair 7 ``85.9`` vs ``78.1``, pair 10 ``12.6`` vs ``12.3`` — within the
+benchmark's Monte-Carlo tolerances. And the substantive Table 3 result
+reproduces: large positive store effects with no significant competitor effect.
+The 95% credible intervals exclude zero on all three pairs, ``[2.1, 91.5]``,
+``[12.4, 161.8]`` and ``[2.5, 22.4]``, as in the published table (``[4.71,
+96.82]``, ``[0.15, 154.08]``, ``[1.35, 23.64]``). The controls here are screened by
+dynamic time warping (the package's method) through the optional ``fastdtw``
+package, not the authors' ``MarketMatching``, so the control set differs. At the
+default prior the store effects are ``58.3 [27.1, 90.7]``, ``92.1 [32.8, 151.2]``
+and ``13.3 [6.9, 19.7]`` with no competitor effect significant: the regression
+block now carries part of the counterfactual (the frozen prices, chiefly), and the
+finding holds.
+
+The regression block
+--------------------
+
+`Issue #1074 <https://github.com/jgreathouse9/mlsynth/issues/1074>`_ gave a panel
+with a known answer: six controls and the treated series share a base that doubles
+at the intervention, and nothing is treated. The true ATT is zero and the
+counterfactual should follow the controls to ``514.1``. The port as it stood
+returned an ATT of ``+256.8`` with a 90% interval of ``[+191.0, +317.2]`` and a
+counterfactual of ``257.5``, the last pre-period level carried forward; without any
+controls it returned ``+257.8``. The R package does the same: on the panel with a
+second jointly modelled series added (the package cannot run a single series, its
+``CausalMBSTS()`` and ``predict.mbsts`` both drop a one-column matrix to a
+vector), it gives ``+255.2`` against the port's ``+258.1``, and both put a
+coefficient of zero on every control.
+
+Three causes, and the controls reach the forecast only when all three are fixed.
+
+1. The paper's Algorithm 1, and the package, draw the states from
+   :math:`\Pr(\boldsymbol{\alpha} \mid \mathbf{Y}, \boldsymbol{\Sigma})`, not
+   given :math:`\boldsymbol{\beta}`. In the model the paper states the regression
+   enters the observation equation, so that is not the states' full conditional:
+   the random-walk level takes everything it can follow and the regression is fit
+   to the residual. Under this step the controls' coefficients are zero at every
+   prior scale tried, and with the paper's own ``H = X'X``.
+2. Drawing the states given :math:`\boldsymbol{\beta}` and :math:`\boldsymbol{\beta}`
+   given the states, in two blocks, does not leave that mode: with the same model
+   and prior the chain reaches a loading of ``0.09`` on the common base where the
+   posterior's is ``1.42`` (the data's is ``1.5``). CMBSTS draws
+   :math:`\boldsymbol{\beta}` with the states integrated out by a Kalman pass over
+   the outcome and the design together (de Jong 1991), then the states given
+   :math:`\boldsymbol{\beta}`, a partially collapsed Gibbs sampler.
+3. The package's coefficient prior, :math:`c\,(\mathbf{X}^\top\mathbf{X})^{-1}`
+   with :math:`c = 1`, makes the regression a priori worth one observation-noise
+   term. On the issue's six collinear controls the subset priors are diffuse
+   enough for the corrected sampler, but with a single control the posterior
+   itself keeps the level interpolating the series. The paper writes the prior as
+   :math:`\mathbf{H} = \mathbf{X}^\top\mathbf{X}`; taken literally that slab is
+   so diffuse that the spike-and-slab selection excludes every control (Bartlett's
+   paradox). The default is :math:`c = 100\,T_0`, the ``bsts`` slab behind
+   Brodersen et al. (2015).
+
+On the issue's panel CMBSTS now returns an ATT of ``+6.3`` with a 90% interval of
+``[-14.7, +29.2]``, a counterfactual of ``507.8`` and a pre-period fit of 1.8%; the
+``causalimpact`` Python package returns ``-1.7`` ``[-11.7, +8.3]`` on the same
+panel. ``mlsynth/tests/test_cmbsts_regression.py`` holds the panel, the oracle for
+the coefficient draw, and the property that a common shock carried by the
+controls is not an effect.
 
 A reference-implementation difference: ``CausalMBSTS`` adds a single
 observation-noise draw per posterior draw and recycles it across the forecast

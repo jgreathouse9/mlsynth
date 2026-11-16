@@ -21,17 +21,18 @@ not identical to the printed Table 3, but the substantive finding reproduces.
 What is checked:
 
 * Cross-validation -- the mlsynth store-brand temporal-average effect matches
-  the R ``CausalMBSTS`` package run on the same controls, prior, and horizon
-  (pinned reference numbers below), within Monte-Carlo error.
+  the R ``CausalMBSTS`` package run on the same controls, horizon and prior
+  (``g_prior_scale=1.0``, the package's coefficient prior; pinned reference
+  numbers below), within Monte-Carlo error. The samplers differ: the package
+  draws the states from the outcome alone, mlsynth given the coefficients (issue
+  #1074); on this application the store effects agree all the same.
 * Table 3 finding -- the store-brand effect is large and positive on pairs 4,
   7 and 10, strictly significant (95% credible interval excludes zero) on pair
-  10, and no competitor effect is significant. On pairs 4 and 7 the lower
-  credible bound sits on the zero boundary, where Monte-Carlo noise alone moves
-  it across (the R package and the port land on opposite sides: R gives pair-4
-  ``[-0.95, 95.83]`` and pair-7 ``[3.05, 157.81]``, the port the reverse), so
-  only their large positive point estimate is asserted. The published strict
-  significance on all three uses the authors' ``MarketMatching`` controls and
-  ``niter=2200``.
+  10, and no competitor effect is significant. Pairs 4 and 7 are strictly
+  significant here too (``[2.09, 91.47]`` and ``[12.40, 161.78]``), as in the
+  published table, but pair 4's lower bound is close enough to zero that only the
+  point estimates are asserted. The R package's sampler puts both lower bounds
+  on the zero boundary (pair-4 ``[-0.95, 95.83]``, pair-7 ``[3.05, 157.81]``).
 
 Data ship in ``basedata/cmbsts_supermarket/`` (the authors' AOAS Supplement B).
 
@@ -105,7 +106,7 @@ def _fit_pair(P, dv, dates, hstore, hcomp, spm, cp, hwines):
             "group_units": ["comp"], "control_units": names,
             "covariates": ["sat", "sun", "hol", "sprice", "cprice"],
             "components": ["trend", "seasonal"], "seas_period": 7, "excl_dates": "excl",
-            "horizon": hcount, "prior_scale": 1.0, "prior_rho": -0.8,
+            "horizon": hcount, "prior_scale": 1.0, "prior_rho": -0.8, "g_prior_scale": 1.0,
             "niter": 1000, "burn": 200, "seed": 1, "display_graphs": False,
         }).fit()
     return res.inference_detail
