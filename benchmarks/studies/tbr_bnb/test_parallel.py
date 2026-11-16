@@ -1,9 +1,10 @@
 """The treatment search over several processes (#965): certify_treatment(n_jobs=).
 
-The search runs in waves of n_jobs groups. A wave's groups are screened and given
-their ceilings from the incumbent as the wave starts, and their results are applied
-in queue order. So the certified design is the same at every n_jobs, ties included,
-and n_jobs = 1 is the sequential search itself."""
+The pass runs in waves of n_jobs groups and the certifications over a sliding window
+of n_jobs (test_window.py). A group is screened and given its ceiling from the
+incumbent as it is submitted, and results are applied in queue order. So at gap 0 the
+certified design is the same at every n_jobs, ties included, and n_jobs = 1 is the
+sequential search itself."""
 from itertools import combinations
 
 import numpy as np
@@ -55,11 +56,11 @@ def test_two_processes_reach_the_key_optimum(seed):
     assert out.certified and out.key == key and set(out.treatment) == set(T)
 
 
-# ---------------------------------------------------------------- the waves
+# ---------------------------------------------------------------- in parallel
 
 
 def test_every_ceiling_holds_against_the_final_incumbent():
-    """A survivor certified in a wave holds no design below its ceiling, and its
+    """A survivor certified in parallel holds no design below its ceiling, and its
     ceiling is at least the final incumbent's for it: the incumbent only improves."""
     M = geo_panel(5, p=6)
     out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=3, pass_restarts=0)
@@ -77,7 +78,7 @@ def test_every_group_is_screened_or_certified_in_parallel():
 
 
 def test_a_tie_in_a_wave_keeps_the_first_design(monkeypatch):
-    """A group in a wave whose optimum has exactly the incumbent's key does not
+    """A group certified in parallel whose optimum has exactly the incumbent's key does not
     replace it: ties go to the first design in queue order. Exact ties between
     groups need identical data, so one group's result is given the incumbent's key."""
     M = geo_panel(5, p=6)
@@ -157,7 +158,7 @@ def test_a_worker_failure_is_reported(monkeypatch):
 
 
 def test_a_group_left_open_in_a_wave_is_retried(monkeypatch, tmp_path):
-    """A survivor whose certificate does not close in its wave is certified again
+    """A survivor whose certificate does not close in the window is certified again
     against the final ceiling, as in the sequential search. The first survivor after
     a poor start is cut short once; a file marks it, since each worker is its own
     process."""

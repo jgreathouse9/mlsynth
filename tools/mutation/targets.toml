@@ -13128,8 +13128,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-survivors-read-the-bracket"
-  find = "        exacts = [(T, exact_yy(T, yy)) for _, yy, T in wave]\n"
-  replace = "        exacts = [(T, yy) for _, yy, T in wave]\n"
+  find = "        yy = exact_yy(T, yy)\n        c = ceiling(yy, *class_of())\n"
+  replace = "        c = ceiling(yy, *class_of())\n"
   models = "a survivor's ceiling built from the float bracket, not its exact y'y"
 
   [[target.mutant]]
@@ -13300,15 +13300,15 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "a-wave-takes-no-incumbent"
-  find = "            if res.passing and (out.key is None or res.key > out.key):\n                take(T, res, C)\n                out.replaced += 1\n    for T, yy, c_then in left_open:"
-  replace = "            if False:\n                take(T, res, C)\n                out.replaced += 1\n    for T, yy, c_then in left_open:"
-  models = "a wave's results recorded but never adopted, so a better design found by a survivor is not the one reported"
+  find = "        if res.passing and (out.key is None or res.key > out.key):\n            take(T, res, C)\n            out.replaced += 1\n\n    _window("
+  replace = "        if False:\n            take(T, res, C)\n            out.replaced += 1\n\n    _window("
+  models = "a certification's results recorded but never adopted, so a better design found by a survivor is not the one reported"
 
   [[target.mutant]]
   id = "a-wave-replaces-on-a-tie"
-  find = "            if res.passing and (out.key is None or res.key > out.key):\n                take(T, res, C)\n                out.replaced += 1\n    for T, yy, c_then in left_open:"
-  replace = "            if res.passing and (out.key is None or res.key >= out.key):\n                take(T, res, C)\n                out.replaced += 1\n    for T, yy, c_then in left_open:"
-  models = "an equal key from a later group in a wave replacing the incumbent, so a tie reports the later design and counts a replacement, not the first design in queue order"
+  find = "        if res.passing and (out.key is None or res.key > out.key):\n            take(T, res, C)\n            out.replaced += 1\n\n    _window("
+  replace = "        if res.passing and (out.key is None or res.key >= out.key):\n            take(T, res, C)\n            out.replaced += 1\n\n    _window("
+  models = "an equal key from a later group in the window replacing the incumbent, so a tie reports the later design and counts a replacement, not the first design in queue order"
 
   [[target.mutant]]
   id = "a-wave-is-not-screened"
@@ -13378,8 +13378,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "a-refused-group-reads-as-certified"
-  find = "            if not res.certified:\n                left_open.append((list(T), yy, c))\n"
-  replace = "            if False:\n                left_open.append((list(T), yy, c))\n"
+  find = "        if not res.certified:\n            left_open.append((list(T), yy, c))\n"
+  replace = "        if False:\n            left_open.append((list(T), yy, c))\n"
   models = "a survivor whose own certification was cut short counted as certified"
 
   [[target.mutant]]
@@ -13402,8 +13402,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "certifications-are-not-seeded"
-  find = "        done = _map(pool, _optimum_timed, [(M, T, n_test, restarts, c, seed) for T, _, c, seed, _ in jobs])\n"
-  replace = "        done = _map(pool, _optimum_timed, [(M, T, n_test, restarts, c, None) for T, _, c, seed, _ in jobs])\n"
+  find = "        return _optimum_timed, (M, T, n_test, restarts, c, seed), (yy, c, pass_key)\n"
+  replace = "        return _optimum_timed, (M, T, n_test, restarts, c, None), (yy, c, pass_key)\n"
   models = "each certification searching its group again, though the pass has already found its design"
 
   [[target.mutant]]
@@ -13438,8 +13438,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "survivors-carry-no-ceiling"
-  find = "        jobs = [(T, yy, ceiling(yy, *class_of()), *local.get(T, (None, None))) for T, yy in exacts]\n"
-  replace = "        jobs = [(T, yy, None, *local.get(T, (None, None))) for T, yy in exacts]\n"
+  find = "        c = ceiling(yy, *class_of())\n        seed, pass_key = local.get(T, (None, None))\n"
+  replace = "        c = None\n        seed, pass_key = local.get(T, (None, None))\n"
   models = "a survivor certified to its own optimum though its rounds can no longer compete, so a group whose designs keep failing the gates runs to the round limit"
 
   [[target.mutant]]
@@ -16606,3 +16606,51 @@ timeout = 600.0
   find = "        rcond = max(design.shape) * np.finfo(float).eps\n"
   replace = "        rcond = 1e-15\n"
   models = "the kernel's numerical-rank tolerance set at numpy.linalg.pinv's default, 1e-15 * s_1, under the rounding of a reconstructed design, for every caller that does not pass rcond: ClusterSC without a rank, SI and SNN"
+
+[[target]]
+name = "tbr-bnb-window"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_window.py benchmarks/studies/tbr_bnb/test_parallel.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "results-commit-as-they-finish"
+  find = "        while ahead and ahead[0][2].done():\n            row, ctx, fut = ahead.popleft()\n            commit(row, ctx, fut.result())\n"
+  replace = "        for entry in [e for e in ahead if e[2].done()]:\n            ahead.remove(entry)\n            commit(entry[0], entry[1], entry[2].result())\n"
+  models = "results applied in the order the workers finish, not in queue order, so a tie goes to whichever group finished first and the certified design depends on timing even at g = 0"
+
+  [[target.mutant]]
+  id = "the-window-waits-for-every-job"
+  find = "        running = wait(running, return_when=FIRST_COMPLETED).not_done\n"
+  replace = "        running = wait(running).not_done\n"
+  models = "the waves brought back: the next groups are submitted only once every running one has finished, so one slow group holds every worker"
+
+  [[target.mutant]]
+  id = "the-window-counts-results-waiting-to-commit"
+  find = "        while left and len(running) < n_jobs:\n"
+  replace = "        while left and len(ahead) < n_jobs:\n"
+  models = "the window bounded by results not yet committed, not by jobs running, so finished groups queued behind a slow one take its slots and the free workers wait for it"
+
+  [[target.mutant]]
+  id = "the-window-runs-one-too-many"
+  find = "        while left and len(running) < n_jobs:\n"
+  replace = "        while left and len(running) <= n_jobs:\n"
+  models = "n_jobs + 1 groups in flight, more processes' work than n_jobs asks for queued on the pool"
+
+  [[target.mutant]]
+  id = "the-window-skips-the-screen"
+  find = "            elif admit(row):\n"
+  replace = "            elif True:\n"
+  models = "every group certified whatever its floor, so a group the incumbent rules out is searched anyway and never counted as screened out"
+
+  [[target.mutant]]
+  id = "the-window-returns-with-jobs-in-flight"
+  find = "        if not running:                     # a row not committed above has a head still running\n            return\n"
+  replace = "        if not left:\n            return\n"
+  models = "the window returning once the queue is read, so the last groups submitted are never committed and a design among them is never reported"
+
+  [[target.mutant]]
+  id = "a-worker-error-in-the-window-is-dropped"
+  find = "            commit(row, ctx, fut.result())\n"
+  replace = "            if fut.exception() is None:\n                commit(row, ctx, fut.result())\n"
+  models = "a worker's error read as a group with nothing to commit, so a failed certification disappears from the survivors and the search reports itself certified"
