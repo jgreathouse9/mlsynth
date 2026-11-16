@@ -1191,6 +1191,15 @@ SCS's stopping test decides nothing that is proved. Each solve reports one of
 `infeasible`, and
 an SCS error is reported and the node solved by Clarabel.
 
+On the 100-geo search (`certify_treatment(geo_panel(0, n=90, p=100), 4, n_test=14,
+gap=1/100, n_jobs=4)`, one BLAS thread) the polish ended 12 of 66 workspace solves,
+in 18.7 s together. Without it, the 35 solves SCS certified took 104.9 s. The
+search took 316.9 s against 351.4 s without the polish, and the slowest group (4,
+27, 33, 58) took 202.0 s against 234.3 s. Most of what is left is triangle rounds
+that end `separate` (31 solves, 214.9 s), which the polish does not close: their
+rows do not hold the bound. At 80 geos the search took 129.5 s against 136.2 s,
+inside the panels' run-to-run spread. The certified designs are the same.
+
 A triangle round builds a workspace with the new rows and starts it from the last
 round's iterate, the new rows' multipliers at zero. Every size starts from a pool,
 the triangle rows active at the last root solved (a multiplier above 1e-7 of the

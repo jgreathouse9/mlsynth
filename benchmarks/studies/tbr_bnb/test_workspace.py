@@ -224,11 +224,14 @@ def test_the_bound_is_as_tight_as_clarabels(fixes):
     assert abs(float(b_ws) - float(b_cl)) <= 1e-4 * scale
 
 
-def test_a_binding_fixing_reaches_the_relaxation():
+def test_a_binding_fixing_reaches_the_relaxation(monkeypatch):
     """At y'y / 4 and size 3 the root is open and the node with the geo the root leans
     on most fixed out closes under Clarabel. The workspace must close it too, after
     solving the root: a fixing left out of the box rows' right-hand side solves the
-    root again, whose bound is above zero."""
+    root again, whose bound is above zero. The polish is off: it certifies on R's own
+    rows, fixings included, and closes this node from the root's multipliers, so with
+    it on a fixing SCS never saw goes unnoticed."""
+    monkeypatch.setattr(workspace, "POLISH", None)
     D, _ = _pinned()
     lam = slopefree.dyadic_below(D.yy / 4)
     A = objective(D.c, D.G, lam)
