@@ -95,7 +95,6 @@ from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from fractions import Fraction as Q
-from itertools import combinations
 from math import comb
 from typing import Callable, List, Optional, Sequence, Tuple, Union
 
@@ -490,6 +489,12 @@ def _map(pool, fn, argss):
     return list(pool.map(_star, [fn] * len(argss), argss))
 
 
+def _group(T) -> tuple:
+    """A group as the search keys it: a tuple of Python ints, from a tuple or from a row
+    of an int64 block."""
+    return tuple(int(v) for v in T)
+
+
 def _floor_row(M, lam, T):
     y = _split(M, T)[0]
     b = yy_bracket(y)
@@ -503,13 +508,14 @@ def _floor_chunk(M, lam, groups):
     on y'y from above being all the cap needs. With numba installed, fastfloor
     computes the chunk in one compiled loop, and a group it leaves (a nan floor) takes
     this path."""
-    if lam is None or not fastfloor.AVAILABLE or not groups:
-        return [_floor_row(M, lam, T) for T in groups]
+    if lam is None or not fastfloor.AVAILABLE or len(groups) == 0:
+        return [_floor_row(M, lam, _group(T)) for T in groups]
     Mc = np.ascontiguousarray(M, dtype=float)
     fl, lo, hi = fastfloor.floors(Mc, np.ascontiguousarray(Mc.T @ Mc), np.asarray(groups, dtype=np.int64),
                                   float(lam))
     out = []
     for f, a, b, T in zip(fl, lo, hi, groups):
+        T = _group(T)
         if math.isnan(f):
             out.append(_floor_row(M, lam, T))
         else:
@@ -548,7 +554,7 @@ def _floor_chunk_screened(M, lam, groups, cls):
     r_star, rss_star = cls
     if r_star is None:
         return _floor_chunk(M, lam, groups), 0
-    if lam is None or not fastfloor.AVAILABLE or not groups:
+    if lam is None or not fastfloor.AVAILABLE or len(groups) == 0:
         rows = _floor_chunk(M, lam, groups)
         keep = [r for r in rows
                 if not (isinstance(r[1], tuple) and compete_bracket(r[0], r[1][0], r[1][1], r_star, rss_star) is False)]
@@ -559,7 +565,7 @@ def _floor_chunk_screened(M, lam, groups, cls):
     drop = _screen_mask(fl, lo, hi, r_star, rss_star)
     out = []
     for i in np.flatnonzero(~drop):
-        f, T = fl[i], groups[i]
+        f, T = fl[i], _group(groups[i])
         if math.isnan(f):
             out.append(_floor_row(M, lam, T))
         else:
@@ -578,6 +584,59 @@ def _screened_floor_rows(M, groups, lam, pool, n_jobs, cls):
     size = -(-len(groups) // n)
     chunks = [groups[i:i + size] for i in range(0, len(groups), size)]
     parts = _map(pool, _floor_chunk_screened, [(M, lam, c, cls) for c in chunks])
+    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)
+
+
+#: Groups built and floored at a time in _floor_range_screened: 2^18 rows, 12.6 MB of
+#: int64 at six treated, and nothing of the range's Python rows but the kept ones.
+FLOOR_BLOCK = 1 << 18
+
+
+def _unrank(r: int, p: int, k: int) -> tuple:
+    """The k-subset of range(p) at rank r in lexicographic order (the r-th of
+    itertools.combinations(range(p), k)), in exact integers."""
+    if not 0 <= r < comb(p, k):
+        raise ValueError(f"rank {r} is outside the {comb(p, k)} subsets of {k} of {p}.")
+    T, x = [], 0
+    for i in range(k):
+        while True:
+            here = comb(p - x - 1, k - i - 1)    # the subsets with x at position i
+            if r < here:
+                break
+            r -= here
+            x += 1
+        T.append(x)
+        x += 1
+    return tuple(T)
+
+
+def _floor_range_screened(M, lam, p, k, lo, hi, cls, block=None):
+    """_floor_chunk_screened over the k-subsets of range(p) of rank lo to hi - 1, in
+    order: built ``block`` at a time from the first subset of each block
+    (fastfloor.combinations_from), so only a block and the kept rows are held."""
+    block = block or FLOOR_BLOCK
+    rows, dropped, r = [], 0, lo
+    while r < hi:
+        n = min(block, hi - r)
+        groups = fastfloor.combinations_from(np.array(_unrank(r, p, k), dtype=np.int64), n, p)
+        part, d = _floor_chunk_screened(M, lam, groups, cls)
+        rows += part
+        dropped += d
+        r += n
+    return rows, dropped
+
+
+def _streamed_floor_rows(M, p, k, lam, pool, n_jobs, cls):
+    """_screened_floor_rows over every k-subset of range(p), without the list: the
+    ranks in chunks over the pool, four per worker as there, each worker building its
+    own range. The rows, their order and the dropped count are the list's."""
+    total = comb(p, k)
+    if pool is None or total < 2:
+        return _floor_range_screened(M, lam, p, k, 0, total, cls)
+    n = min(total, 4 * n_jobs)
+    size = -(-total // n)
+    cuts = [(lo, min(lo + size, total)) for lo in range(0, total, size)]
+    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, cls) for lo, hi in cuts])
     return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)
 
 
@@ -756,7 +815,7 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
         return held[2]
 
     lam = gram_floor(M)                     # rows that cannot compete with the start's class are dropped where computed
-    rows, dropped = _screened_floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs, class_of())
+    rows, dropped = _streamed_floor_rows(M, p, k, lam, pool, n_jobs, class_of())
     out.screened_out += dropped
     rows.sort(key=_ratio)                  # the highest correlation bound first
     exact = {}

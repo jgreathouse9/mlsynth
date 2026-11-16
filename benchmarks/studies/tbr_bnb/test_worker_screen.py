@@ -97,8 +97,8 @@ def test_two_processes_screen_as_one_does():
 def test_the_search_with_the_worker_screen_is_the_search_without_it(monkeypatch, k, gap, n_jobs):
     M = geo_panel(5)
     with_screen = treatment.certify_treatment(M, k, n_test=N_TEST, restarts=5, pass_restarts=3, gap=gap, n_jobs=n_jobs)
-    monkeypatch.setattr(treatment, "_screened_floor_rows",
-                        lambda M, groups, lam, pool, n_jobs, cls: (treatment._floor_rows(M, groups, lam, pool, n_jobs), 0))
+    monkeypatch.setattr(treatment, "_streamed_floor_rows", lambda M, p, k, lam, pool, n_jobs, cls:
+                        (treatment._floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs), 0))
     without = treatment.certify_treatment(M, k, n_test=N_TEST, restarts=5, pass_restarts=3, gap=gap, n_jobs=n_jobs)
     for attr in ("treatment", "controls", "rss", "key", "passing", "certified", "screened_out", "searched", "replaced"):
         assert getattr(with_screen, attr) == getattr(without, attr), attr
@@ -111,14 +111,14 @@ def test_the_search_hands_the_floors_the_start_class(monkeypatch):
     rows: a search that passed no class would be the same search, only slower."""
     M = geo_panel(5)
     seen = []
-    real = treatment._screened_floor_rows
+    real = treatment._streamed_floor_rows
 
-    def spy(M, groups, lam, pool, n_jobs, cls):
-        rows, dropped = real(M, groups, lam, pool, n_jobs, cls)
+    def spy(M, p, k, lam, pool, n_jobs, cls):
+        rows, dropped = real(M, p, k, lam, pool, n_jobs, cls)
         seen.append((cls, dropped))
         return rows, dropped
 
-    monkeypatch.setattr(treatment, "_screened_floor_rows", spy)
+    monkeypatch.setattr(treatment, "_streamed_floor_rows", spy)
     treatment.certify_treatment(M, 3, n_test=N_TEST, restarts=5, pass_restarts=3, gap=Q(0), n_jobs=1)
     assert len(seen) == 1
     (cls, dropped), = seen
