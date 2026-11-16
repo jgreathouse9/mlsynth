@@ -1168,7 +1168,7 @@ to 4.1 s), against about 0.02 s for Clarabel. So `SOLVER = "clarabel"`.
 ### The SCS workspace
 
 Through cvxpy, SCS factors its linear system again at every node and starts every
-node from zero. `workspace.py` calls SCS directly and changes three things:
+node from zero. `workspace.py` calls SCS directly and changes four things:
 
 1. One workspace for a size, its cuts and its triangle rows. A node's fixing
    `u_j = v` is two box rows, `u_j <= hi_j` and `-u_j <= -lo_j` with
@@ -1180,9 +1180,15 @@ node from zero. `workspace.py` calls SCS directly and changes three things:
 3. A certificate after every chunk of 200 iterations: the float screen, and when it
    passes, the exact certificate on the node's own rows. The first chunk that
    closes the node ends the solve.
+4. A polish after the first chunk. When that chunk does not close the node, the
+   first-order dual runs once from its multipliers (`POLISH`: 150 evaluations a
+   stage, three stages) and the exact certificate is computed at what it returns.
+   When it closes, the solve ends there; otherwise SCS goes on from its own
+   iterate, as if the polish had not run.
 
 SCS's stopping test decides nothing that is proved. Each solve reports one of
-`certified`, `converged`, `cap` (every stage spent its chunks) or `infeasible`, and
+`certified`, `polished`, `converged`, `cap` (every stage spent its chunks) or
+`infeasible`, and
 an SCS error is reported and the node solved by Clarabel.
 
 A triangle round builds a workspace with the new rows and starts it from the last

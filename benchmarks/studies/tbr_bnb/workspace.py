@@ -24,11 +24,17 @@ things change:
    the exact certificate (slopefree.bound) only between them; the first chunk the
    certificate closes ends the solve. SCS's stopping test decides nothing that is
    proved.
+4. A polish after the first chunk. When that chunk's certificate does not close,
+   the first-order dual (slopefree.dual_multipliers) runs once from its
+   multipliers, with ``POLISH``'s evaluations and stages, and the certificate is
+   computed at what it returns. When it closes, the solve ends there; otherwise
+   SCS goes on from its own iterate, as if the polish had not run.
 
 The certificate holds for any multipliers (slopefree's module docstring), so the
 bound is valid at every outcome; how tight it is depends on how far SCS got. Each
 solve ends in one of ``OUTCOMES`` (agents_solvers.md, rule 1): "certified" (a
-chunk's certificate is at most zero), "converged" (SCS's own test passed at the
+chunk's certificate is at most zero), "polished" (the certificate at the polish's
+multipliers is at most zero), "converged" (SCS's own test passed at the
 last stage, the certificate above zero), "cap" (every stage spent its chunks,
 rule 7), "infeasible" (SCS reports no point: the node holds no design) or
 "separate" (asked for by a triangle round that another round follows: after
@@ -65,7 +71,7 @@ from .progress import emit
 SQ2 = math.sqrt(2.0)
 
 #: The ends a workspace solve reports (module docstring).
-OUTCOMES = ("certified", "converged", "cap", "infeasible", "separate")
+OUTCOMES = ("certified", "polished", "converged", "cap", "infeasible", "separate")
 
 #: Each stage's SCS settings and its chunks. alpha is the relaxation parameter and
 #: scale the dual scale factor (SCS 3 settings). On the 100-geo group (4, 35, 58,
@@ -90,6 +96,17 @@ SEPARATE_AFTER = 5
 
 #: The violation above which a point's triangle ends a round early (SEPARATE_AFTER).
 SEPARATE_TOL = 1e-2
+
+#: The polish after a solve's first chunk (module docstring): the first-order dual's
+#: evaluations per stage and its stages, or None for no polish. SCS's first chunk is
+#: about ADMM's start, far from the relaxation's optimum, but its multipliers are a
+#: warm start the dual improves within a few evaluations. On the 100-geo group (4,
+#: 27, 33, 58) the 41 workspace solves of its hard root sizes, polished once from
+#: their first chunk's multipliers: all 6 that SCS certified (after 1 to 17 chunks)
+#: closed at the first chunk, at most 0.6 s each; of the 35 others, 12 ended there;
+#: a polish that failed cost about 1 s. Replayed over those sizes' solves the time
+#: went from 258.3 s to 134.1 s (#965).
+POLISH: Optional[Tuple[int, int]] = (150, 3)
 
 #: A triangle row stays in the pool when its multiplier is above this fraction of
 #: the largest triangle multiplier at the root that set the pool.
@@ -117,6 +134,17 @@ class Outcome:
     y_eq: Optional[np.ndarray]           # multipliers in the data's units on R's rows
     y_in: Optional[np.ndarray]
     Z: Optional[np.ndarray]              # the point, None when SCS reports none
+
+
+def _polish_setting(setting):
+    """POLISH, checked: None, or a tuple of two positive integers."""
+    if setting is None:
+        return None
+    if type(setting) is not tuple or len(setting) != 2 or \
+            any(type(v) is not int or v < 1 for v in setting):
+        raise MlsynthConfigError(f"POLISH is None or (evaluations per stage, stages), two positive "
+                                 f"integers, not {setting!r}.")
+    return setting
 
 
 class SizeWorkspace:
@@ -150,6 +178,7 @@ class SizeWorkspace:
         self.cone = dict(z=self.n_eq, l=self.n_in0 + 2 * p, s=[n])
         self.stages = STAGES                                  # read at build, so a test can shorten them
         self.chunk = CHUNK
+        self.polish = _polish_setting(POLISH)
         self._ws = [None] * len(self.stages)
         self.last = None                                      # (x, y, s) of the last node solved
 
@@ -217,6 +246,17 @@ class SizeWorkspace:
             Z[i, j] = Z[j, i] = x[k] if i == j else x[k] / SQ2
         return Z
 
+    def _polish(self, R, y_eq, y_in):
+        """The first-order dual from these multipliers: its multipliers and their
+        certificate when the certificate closes, else None."""
+        maxfun, stages = self.polish
+        w, _ = sf.dual_multipliers(self.A, R, self.m, self.c, warm=sf.Multipliers("full", y_eq, y_in),
+                                   maxfun=maxfun, stages=stages, budget=maxfun * stages)
+        if w is None:
+            return None
+        b = fbound.certificate(self.A, R, w.y_eq, w.y_in, self.m, self.af)
+        return (b, w.y_eq, w.y_in) if b is not None and b <= 0 else None
+
     def solve(self, R: "sf.Rows", early: bool = False) -> Outcome:
         """The node of R (this size, cuts and triangles, R's fixings, R's box rows).
         With ``early``, after SEPARATE_AFTER chunks a point that violates a triangle by
@@ -250,6 +290,10 @@ class SizeWorkspace:
                 b = fbound.certificate(self.A, R, y_eq, y_in, self.m, self.af)
                 if b is not None and b <= 0:
                     return Outcome("certified", status, iters, time.perf_counter() - t0, b, y_eq, y_in, Z)
+                if solved == 0 and self.polish is not None:            # rule 4: once, after the first chunk
+                    polished = self._polish(R, y_eq, y_in)
+                    if polished is not None:
+                        return Outcome("polished", status, iters, time.perf_counter() - t0, *polished, Z)
                 solved += 1
                 if early and not done and solved >= SEPARATE_AFTER and \
                         sf.separate_triangles(Z[0, 1:], Z[1:, 1:], k=1, tol=SEPARATE_TOL):

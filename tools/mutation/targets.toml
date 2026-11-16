@@ -17058,3 +17058,69 @@ timeout = 300.0
   find = "        if (self.g_prior_scale is not None and not self.control_units and not self.covariates"
   replace = "        if (False and self.g_prior_scale is not None and not self.control_units and not self.covariates"
   models = "a coefficient prior scale accepted on a model with no regression block, where it does nothing"
+
+[[target]]
+name = "tbr-bnb-workspace-polish"
+module-path = "benchmarks/studies/tbr_bnb/workspace.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_workspace_polish.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-polish-never-runs"
+  find = "                if solved == 0 and self.polish is not None:            # rule 4: once, after the first chunk\n"
+  replace = "                if solved < 0 and self.polish is not None:            # rule 4: once, after the first chunk\n"
+  models = "POLISH accepted, validated and documented while no solve ever runs it"
+
+  [[target.mutant]]
+  id = "the-polish-runs-after-every-chunk"
+  find = "                if solved == 0 and self.polish is not None:            # rule 4: once, after the first chunk\n"
+  replace = "                if solved >= 0 and self.polish is not None:            # rule 4: once, after the first chunk\n"
+  models = "a polish after every chunk of an open node, about a second each at 97 controls, on every chunk SCS runs"
+
+  [[target.mutant]]
+  id = "the-polish-ignores-its-off-switch"
+  find = "                if solved == 0 and self.polish is not None:            # rule 4: once, after the first chunk\n"
+  replace = "                if solved == 0:            # rule 4: once, after the first chunk\n"
+  models = "POLISH = None read as a setting, so turning the polish off breaks every solve"
+
+  [[target.mutant]]
+  id = "the-polish-starts-cold"
+  find = "        w, _ = sf.dual_multipliers(self.A, R, self.m, self.c, warm=sf.Multipliers(\"full\", y_eq, y_in),\n"
+  replace = "        w, _ = sf.dual_multipliers(self.A, R, self.m, self.c, warm=None,\n"
+  models = "the dual run from zero, the first chunk's multipliers it exists to improve thrown away"
+
+  [[target.mutant]]
+  id = "the-polish-runs-the-duals-default-stages"
+  find = "                                   maxfun=maxfun, stages=stages, budget=maxfun * stages)\n"
+  replace = "                                   maxfun=maxfun, budget=maxfun * stages)\n"
+  models = "POLISH's stages dropped for the dual's six"
+
+  [[target.mutant]]
+  id = "the-duals-float-test-is-trusted"
+  find = "        return (b, w.y_eq, w.y_in) if b is not None and b <= 0 else None\n"
+  replace = "        return (b, w.y_eq, w.y_in)\n"
+  models = "a node ended polished on the dual's float test alone, with a certificate above zero"
+
+  [[target.mutant]]
+  id = "a-polished-node-keeps-the-chunks-multipliers"
+  find = "                        return Outcome(\"polished\", status, iters, time.perf_counter() - t0, *polished, Z)\n"
+  replace = "                        return Outcome(\"polished\", status, iters, time.perf_counter() - t0, polished[0], y_eq, y_in, Z)\n"
+  models = "the polish's certificate reported beside the first chunk's multipliers, which it does not hold at"
+
+  [[target.mutant]]
+  id = "a-polished-node-reads-as-certified"
+  find = "                        return Outcome(\"polished\", status, iters, time.perf_counter() - t0, *polished, Z)\n"
+  replace = "                        return Outcome(\"certified\", status, iters, time.perf_counter() - t0, *polished, Z)\n"
+  models = "the polish's closes reported as SCS's, so a log cannot tell how many nodes the polish ended"
+
+  [[target.mutant]]
+  id = "the-polish-setting-is-unchecked"
+  find = "        self.polish = _polish_setting(POLISH)\n"
+  replace = "        self.polish = POLISH\n"
+  models = "a malformed POLISH taken as it is, failing inside the first open solve or running a polish of no evaluations"
+
+  [[target.mutant]]
+  id = "a-polish-of-no-evaluations-is-accepted"
+  find = "            any(type(v) is not int or v < 1 for v in setting):\n"
+  replace = "            any(type(v) is not int or v < 0 for v in setting):\n"
+  models = "POLISH = (0, 3) accepted: a polish that runs and can do nothing"

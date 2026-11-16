@@ -379,6 +379,7 @@ def test_certify_reads_the_default_solver(monkeypatch):
 
 
 def test_the_cap_is_an_outcome_and_reported(monkeypatch):
+    monkeypatch.setattr(workspace, "POLISH", None)             # the polish closes this node
     monkeypatch.setattr(workspace, "STAGES", ((dict(alpha=1.8), 1),))
     monkeypatch.setattr(workspace, "CHUNK", 2)
     D, lam = _pinned()
