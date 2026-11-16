@@ -107,6 +107,95 @@ and the first plausible story is the one that hides the rest.
    that states the old behaviour, or states a *reason* that turned out not to be
    the cause, is itself a fault. Fix those in the same change.
 
+## When the descent stalls: instruments for a hard ladder
+
+The steps above find most faults. Some faults hide below a link that keeps
+"passing", or behind a fix that moves the cost somewhere else. These instruments
+were what found the causes in the #965 RCA, where a hand-written interior-point
+solver was 4 to 50% slower than Clarabel on the B&B beds. They are listed in the
+order they were needed.
+
+1. **Decompose the reported number into factors, and decompose it again after
+   every fix.** Write the total as a product (or a sum) of measured factors:
+   there, bed time = solves x iterations per solve x time per iteration, plus the
+   time outside the solver. The product has to reproduce the measured ratio
+   exactly, or a factor is missing. Re-run the decomposition after each candidate
+   fix. A fix can shrink one factor and grow another: an exit rule that cut
+   iterations by 60% left the bed totals unchanged, because the shallower points
+   it returned added cut rounds outside the solver. Without the second
+   decomposition that fix would have been reported as a success.
+
+2. **Pin the measurement before trusting it.** Run each arm alone, with thread
+   counts set for every library in every arm, and record the conditions next to
+   the numbers. Re-measure the baseline under the same conditions. In #965 a
+   10-20x per-iteration gap was the BLAS thread pool of one arm competing with
+   other jobs on the machine; on a quiet machine it was 1.0x. A timing taken while
+   other work runs is a hypothesis, not a measurement.
+
+3. **Build a problem whose answer is known in advance, with the suspected
+   property as a dial.** Plant the solution (a known optimum, a known effect, a
+   known support), then add the property you suspect one knob at a time: there,
+   the number of directions that lack strict complementarity, then the number of
+   redundant active rows. Grow the toy until it reproduces the symptom. If a knob
+   does not reproduce it, that hypothesis is eliminated, and that elimination is a
+   finding. A `hypothesis` search over the toy's knobs finds cases the
+   hand-picked ones miss. In #965 it found a second, independent cause (the
+   starting point) on an instance with none of the suspected degeneracy.
+
+4. **Run the reference side by side, and narrow the comparison in stages.**
+   With a reference implementation available (another solver, the R package, the
+   paper's code), compare at increasing granularity until the first point of
+   disagreement is found.
+   - Same input, both implementations: are the outputs different at all, and in
+     which field?
+   - Crossover arms: give the downstream pipeline one implementation's output A
+     with the other's output B, both ways. The factor that moves with A is the one
+     carrying the defect. In #965 the extra cut rounds followed the primal point,
+     not the multipliers, which retired the multiplier branch in one run.
+   - State handoff: start your implementation from the reference's intermediate
+     state. If yours fails from the reference's good state, the defect is in your
+     step. If it recovers, the defect is in your path. In #965 ours stalled from
+     the reference's well-centred iterate on the first iteration, which ruled out
+     every history-dependent candidate at once.
+   - Per-block instrumentation at the failing step: log which component limits
+     the step, residual or update, and descend into that one. There, it was the
+     PSD dual step, at 4e-4 against 0.7 to 0.9 for every other block.
+
+5. **Read the reference's source, then test the port before believing it.** A
+   port is code you wrote, so it gets a test of its own invariant before it is
+   used to clear a link. In #965 two ports were wrong. A termination rule was
+   misread: the reference stops on a residual increase only below the full
+   tolerance, and the port stopped on any uptick. A starting point had a sign
+   error, caught only when its mutant survived and a test of its exact
+   least-squares residual was added.
+
+6. **Suspect the formula when the mathematics is right.** Two expressions equal
+   in exact arithmetic can differ by orders of magnitude in floating point. On a
+   degenerate or ill-conditioned instance, ask which side of an identity is well
+   determined, and compute from that side. In #965 the dual step summed large
+   terms that cancel on a degenerate face. Computing it from the primal step
+   through the scaling (how CVXOPT does it) moved the attainable gap from 1e-5 to
+   1e-9. Check what a stopping criterion is relative to: a backward error of 1e-16
+   relative to |H||x| can sit beside an absolute error of 1e-6.
+
+7. **Compare aggregates when trajectories are chaotic.** If a 1-ulp change
+   (summation order, a thread count) changes a case's iteration count by +/-50%,
+   single-case comparisons are noise. Decide on totals over many cases, and say so
+   in the write-up.
+
+8. **Ablate at the end.** With every fix in, remove each one in turn and
+   re-measure. A fix whose removal changes nothing is a guard, not a cause, and
+   the report should say which is which. In #965 the stall exit that first looked
+   like the fix turned out to be downstream of the depth defect: with the depth
+   fixed, removing it changed 375 iterations to 372.
+
+9. **Leave the reproduction where it survives.** Scratch directories and
+   containers are not durable. Put the exact configuration of every run that a
+   conclusion rests on (inputs, seeds, ceilings, solver settings, thread counts,
+   arms) in the write-up itself, so the run can be rebuilt from the issue alone.
+   In #965 a container restart lost every scratch file, and item 1 could be rerun
+   only because its configuration was in the issue comment.
+
 ## The rungs, and what each one asks
 
 | Rung | The why | The set to enumerate | Instrument |
@@ -141,3 +230,9 @@ candidate could not be tested, say so instead of dropping it from the list.
 - Descending past a link that was never actually cleared.
 - Clearing a link on a design where the check had no power to fail.
 - Declaring success on a green run with no mutant.
+- Declaring a fix from the factor it improved, without re-decomposing the total.
+- Timing an arm while other work runs on the machine, or with thread counts left
+  to each library's default.
+- Clearing a link with a port of the reference that has no test of its own.
+- Reporting a guard as a cause because it was the first change that helped.
+- Leaving the only copy of a reproduction in a scratch directory.
