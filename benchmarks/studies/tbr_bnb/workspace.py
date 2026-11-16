@@ -38,8 +38,12 @@ solved again by Clarabel.
 
 ``Workspaces`` holds one search's workspaces and its triangle pool: the triangle
 rows active at the last root solved (a multiplier above ``ACTIVE`` times the
-largest triangle multiplier). size_certificate starts every node's full relaxation
-from the pool, so a size begins with the rows the size before it needed. The pool
+largest triangle multiplier). size_certificate starts the full relaxation of every
+node below a root from the pool, so a node begins with the rows its size's root
+needed; a size's root starts from none. Carried from one size to the next the rows
+saved solves and cost more in every solve: on the 100-geo incumbent's group the nine
+root sizes that took 5 s or more certified in 285.2 s from no rows, 435.3 s from the
+pool and 660.5 s from the size before's whole final row set (#965). The pool
 belongs to one certify_slope_free call: carried across groups it reads triangles
 of another group's controls."""
 from __future__ import annotations

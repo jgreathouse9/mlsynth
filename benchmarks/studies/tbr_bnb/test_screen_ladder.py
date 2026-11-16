@@ -24,7 +24,8 @@ from . import slopefree
 from .brute import geo_panel, panel
 from .certificate import ExactData
 from .search import incumbent
-from .slopefree import (DUAL_BUDGET, SCREEN_LADDER_FROM, SCREEN_SCHEDULES, dyadic_below, group_certificate,
+from .slopefree import (DUAL_BUDGET, SCREEN_LADDER_FROM, SCREEN_SCHEDULES, SCREEN_SKIP_FIRST_FROM, dyadic_below,
+                        group_certificate,
                         screen_schedules)
 from .treatment import _split
 
@@ -132,10 +133,43 @@ def test_clarabel_decides_what_no_schedule_closes(monkeypatch, stalled):
     assert res.certified and res.tier == "full" and res.rung is None and len(calls) == len(SCREEN_SCHEDULES)
 
 
-@pytest.mark.parametrize("p, rungs", [(1, 1), (SCREEN_LADDER_FROM - 1, 1),
-                                      (SCREEN_LADDER_FROM, len(SCREEN_SCHEDULES)), (500, len(SCREEN_SCHEDULES))])
-def test_the_longer_schedules_run_from_the_ladder_size(p, rungs):
-    assert screen_schedules(p) == SCREEN_SCHEDULES[:rungs]
+@pytest.mark.parametrize("p, first, last", [(1, 0, 1), (SCREEN_LADDER_FROM - 1, 0, 1),
+                                             (SCREEN_LADDER_FROM, 0, None), (SCREEN_SKIP_FIRST_FROM - 1, 0, None),
+                                             (SCREEN_SKIP_FIRST_FROM, 1, None), (500, 1, None)])
+def test_the_longer_schedules_run_from_the_ladder_size(p, first, last):
+    assert screen_schedules(p) == SCREEN_SCHEDULES[first:last]
+
+
+def test_the_first_schedule_is_skipped_where_it_seldom_closes():
+    """On geo_panel(0, n=90, p) at four treated the first schedule closed 9 of 15
+    group screens at 56 controls, 1 of 34 at 66, 3 of 138 at 76 and 1 of 35 at 96;
+    without it the screens took 18% more evaluations at 56 and 20%, 21% and 10% less
+    time at 66, 76 and 96, every screen closing or staying open as before (#965)."""
+    assert SCREEN_LADDER_FROM < SCREEN_SKIP_FIRST_FROM <= 66
+    assert screen_schedules(66)[0] == SCREEN_SCHEDULES[1]
+    assert screen_schedules(56)[0] == SCREEN_SCHEDULES[0]
+
+
+@given(st.integers(1, 2000))
+def test_property_the_screen_runs_a_contiguous_part_of_the_ladder_ending_at_its_last(p):
+    got = screen_schedules(p)
+    n = len(SCREEN_SCHEDULES)
+    starts = [i for i in range(n) if SCREEN_SCHEDULES[i:i + len(got)] == got]
+    assert got and starts
+    assert (starts[0] + len(got) == n) == (p >= SCREEN_LADDER_FROM)
+    assert all(a[0] < b[0] for a, b in zip(got, got[1:]))
+
+
+def test_a_large_screen_starts_at_the_second_schedule(monkeypatch):
+    """The screen of a group with SCREEN_SKIP_FIRST_FROM controls or more calls the
+    first-order dual first at the second schedule's evaluations."""
+    seen, real = [], slopefree.dual_multipliers
+    monkeypatch.setattr(slopefree, "dual_multipliers",
+                        lambda *a, **k: seen.append(k["maxfun"]) or real(*a, **k))
+    y, X = panel(3, p=SCREEN_SKIP_FIRST_FROM + 1)
+    D = ExactData(y, X)
+    group_certificate(D.c, D.G, dyadic_below(D.yy / 2), final_solve=False)
+    assert seen and seen[0] == SCREEN_SCHEDULES[1][0]
 
 
 def test_the_screen_picks_its_schedules_by_the_number_of_controls(monkeypatch):
