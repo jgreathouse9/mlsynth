@@ -1168,7 +1168,7 @@ to 4.1 s), against about 0.02 s for Clarabel. So `SOLVER = "clarabel"`.
 ### The SCS workspace
 
 Through cvxpy, SCS factors its linear system again at every node and starts every
-node from zero. `workspace.py` calls SCS directly and changes three things:
+node from zero. `workspace.py` calls SCS directly and changes four things:
 
 1. One workspace for a size, its cuts and its triangle rows. A node's fixing
    `u_j = v` is two box rows, `u_j <= hi_j` and `-u_j <= -lo_j` with
@@ -1180,10 +1180,25 @@ node from zero. `workspace.py` calls SCS directly and changes three things:
 3. A certificate after every chunk of 200 iterations: the float screen, and when it
    passes, the exact certificate on the node's own rows. The first chunk that
    closes the node ends the solve.
+4. A polish after the first chunk. When that chunk does not close the node, the
+   first-order dual runs once from its multipliers (`POLISH`: 150 evaluations a
+   stage, three stages) and the exact certificate is computed at what it returns.
+   When it closes, the solve ends there; otherwise SCS goes on from its own
+   iterate, as if the polish had not run.
 
 SCS's stopping test decides nothing that is proved. Each solve reports one of
-`certified`, `converged`, `cap` (every stage spent its chunks) or `infeasible`, and
+`certified`, `polished`, `converged`, `cap` (every stage spent its chunks) or
+`infeasible`, and
 an SCS error is reported and the node solved by Clarabel.
+
+On the 100-geo search (`certify_treatment(geo_panel(0, n=90, p=100), 4, n_test=14,
+gap=1/100, n_jobs=4)`, one BLAS thread) the polish ended 12 of 66 workspace solves,
+in 18.7 s together. Without it, the 35 solves SCS certified took 104.9 s. The
+search took 316.9 s against 351.4 s without the polish, and the slowest group (4,
+27, 33, 58) took 202.0 s against 234.3 s. Most of what is left is triangle rounds
+that end `separate` (31 solves, 214.9 s), which the polish does not close: their
+rows do not hold the bound. At 80 geos the search took 129.5 s against 136.2 s,
+inside the panels' run-to-run spread. The certified designs are the same.
 
 A triangle round builds a workspace with the new rows and starts it from the last
 round's iterate, the new rows' multipliers at zero. Every size starts from a pool,
