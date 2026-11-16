@@ -16655,6 +16655,7 @@ timeout = 600.0
   replace = "            if fut.exception() is None:\n                commit(row, ctx, fut.result())\n"
   models = "a worker's error read as a group with nothing to commit, so a failed certification disappears from the survivors and the search reports itself certified"
 
+[[target]]
 name = "tbr-bnb-stream-floors"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_stream_floors.py benchmarks/studies/tbr_bnb/test_worker_screen.py -q -p no:cacheprovider -x -W ignore"
