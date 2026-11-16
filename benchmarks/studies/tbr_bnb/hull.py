@@ -27,8 +27,9 @@ Au, T. C. (2018). A time-based regression matched markets approach for designing
 """
 import numpy as np
 
-from mlsynth.utils.solvers.active_set import solve_simplex_qp
 from mlsynth.utils.solvers.nnls import nnls
+
+from . import fastqp
 
 
 def rss_of(y, X, idx):
@@ -56,7 +57,8 @@ class ControlBound:
     """The capped hull: min ||y - X w||^2 over {0 <= w <= hi, A <= sum w <= B}.
 
     One call of the library's capped simplex QP,
-    mlsynth.utils.solvers.active_set.solve_simplex_qp(..., upper=...), an
+    mlsynth.utils.solvers.active_set.solve_simplex_qp(..., upper=...) (compiled by
+    fastqp.solve where numba is installed, the same weights to the bit), an
     active-set method with bounds on the variables (Nocedal and Wright 2006,
     Sect. 16.5). Derived here: a slack weight w0 with a zero column, capped at
     B - A, makes the band an equality, sum w + w0 = B, since then sum w lies in
@@ -101,7 +103,7 @@ class ControlBound:
         # which the certificate at the point (exact arithmetic) does not rely on.
         while upper.sum() < 1.0:
             upper[-1] = np.nextafter(upper[-1] + (1.0 - upper.sum()), np.inf)
-        v = solve_simplex_qp(self._Z, self.y, upper=upper, warm_start=self._warm)
+        v = fastqp.solve(self._Z, self.y, upper=upper, warm_start=self._warm)
         self._warm = v
         self.point = B * v[:self.p]
         r = self.y - self.X @ self.point
@@ -141,7 +143,7 @@ class Band:
 
     def _at(self, s):
         if s not in self._ends:
-            v = solve_simplex_qp(s * self.X, self.y, warm_start=self._warm)
+            v = fastqp.solve(s * self.X, self.y, warm_start=self._warm)
             self._warm = v
             w = s * v
             self._ends[s] = (float(np.sum((self.y - self.X @ w) ** 2)) * self.scale ** 2, w)
