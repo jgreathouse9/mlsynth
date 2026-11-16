@@ -287,7 +287,7 @@ def test_the_pool_holds_the_active_triangles_of_the_last_root():
     assert ws.pool == marker                                 # only a root sets the pool
 
 
-def test_size_certificate_starts_from_the_pool(monkeypatch):
+def _first_rows(monkeypatch, fixes):
     y, X = _bed()
     D = ExactData(y, X)
     ws = Workspaces()
@@ -295,9 +295,24 @@ def test_size_certificate_starts_from_the_pool(monkeypatch):
     seen = []
     real = Workspaces.solve
     monkeypatch.setattr(Workspaces, "solve", lambda self, c, G, lam, R, early=False: seen.append(R.triangles) or real(self, c, G, lam, R, early=early))
-    size_certificate(D.c, D.G, slopefree.dyadic_below(D.yy / 3), 5, solver="workspace", workspaces=ws,
+    size_certificate(D.c, D.G, slopefree.dyadic_below(D.yy / 3), 5, fixes=fixes, solver="workspace", workspaces=ws,
                      schedules=((1, 1, 1),))
-    assert seen and seen[0][:2] == ((0, (0, 1, 2)), (1, (3, 4, 5)))
+    assert seen
+    return seen[0]
+
+
+def test_a_node_starts_from_its_sizes_pool(monkeypatch):
+    """A node within a size (fixings) starts from the rows its size's root needed."""
+    assert _first_rows(monkeypatch, [(9, 0)])[:2] == ((0, (0, 1, 2)), (1, (3, 4, 5)))
+
+
+def test_a_size_root_starts_with_no_carried_rows(monkeypatch):
+    """A size's root starts from no triangle or pentagon rows, whatever the pool holds
+    from the size before it. On the 100-geo incumbent's group (4, 27, 33, 58) the nine
+    root sizes that took 5 s or more certified in 285.2 s from no rows, 435.3 s from
+    the pool the size before left and 660.5 s from that size's whole final row set
+    (#965): the rows carried saved solves and cost more in every solve."""
+    assert _first_rows(monkeypatch, []) == ()
 
 
 def test_one_search_keeps_one_set_of_workspaces(monkeypatch):

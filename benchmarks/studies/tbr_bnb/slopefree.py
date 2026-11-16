@@ -1079,8 +1079,9 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     face, Z = T W T' (face.py).
 
     With ``solver`` "workspace" the full relaxations are solved on ``workspaces``
-    (workspace.Workspaces; a new one when None), every one starting from its
-    triangle pool, with the box rows that carry the fixings; the first-order tier
+    (workspace.Workspaces; a new one when None), a node below a root starting from
+    the triangle pool its size's root left and a root from no triangle rows, with the
+    box rows that carry the fixings; the first-order tier
     takes size_schedules' first schedule and no triangle rounds. A certificate the
     solve already computed (Solve.bound) is not computed again.
 
@@ -1161,7 +1162,9 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
         if b is not None and b <= 0:
             return SizeResult(True, b, 0, 0, time.perf_counter() - t0, tier="shor",
                               multipliers=Multipliers("shor", sol.y_eq, sol.y_in))
-    tri: List = [] if ws is None else list(ws.pool)
+    # a node starts from the rows its size's root needed; a root starts from none: the rows
+    # one size carried to the next saved solves and cost more in every solve (#965)
+    tri: List = list(ws.pool) if ws is not None and fixes else []
     u = None
     for r in range(rounds + 1):
         R = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes, face=face, box=ws is not None)
@@ -1214,9 +1217,23 @@ SCREEN_SCHEDULES: Tuple[Tuple[int, int, int], ...] = ((150, 6, DUAL_BUDGET), (10
 SCREEN_LADDER_FROM = 48
 
 
+#: From this many candidate controls the group screen skips the ladder's first
+#: schedule. On geo_panel(0, n=90, p) at four treated it closed 9 of 15 group screens
+#: at 56 controls, 1 of 34 at 66, 3 of 138 at 76 and 1 of 35 at 96, and a schedule
+#: that does not close costs its whole budget; without it the screens took 18% more
+#: evaluations at 56 and 20%, 21% and 10% less time at 66, 76 and 96, every screen
+#: closing or staying open as before (#965). The size screens keep it: there it
+#: closes most (size_schedules).
+SCREEN_SKIP_FIRST_FROM = 66
+
+
 def screen_schedules(p: int) -> Tuple[Tuple[int, int, int], ...]:
-    """The schedules the group screen tries for ``p`` candidate controls."""
-    return SCREEN_SCHEDULES if p >= SCREEN_LADDER_FROM else SCREEN_SCHEDULES[:1]
+    """The schedules the group screen tries for ``p`` candidate controls: the first
+    below SCREEN_LADDER_FROM, the whole ladder from there, and the ladder less its
+    first schedule from SCREEN_SKIP_FIRST_FROM."""
+    if p < SCREEN_LADDER_FROM:
+        return SCREEN_SCHEDULES[:1]
+    return SCREEN_SCHEDULES[1:] if p >= SCREEN_SKIP_FIRST_FROM else SCREEN_SCHEDULES
 
 
 #: The group screen ends with the size-free relaxation solved by Clarabel only below

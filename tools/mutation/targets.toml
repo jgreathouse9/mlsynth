@@ -12510,13 +12510,13 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-ladder-runs-below-its-size"
-  find = "    return SCREEN_SCHEDULES if p >= SCREEN_LADDER_FROM else SCREEN_SCHEDULES[:1]\n"
-  replace = "    return SCREEN_SCHEDULES\n"
+  find = "    if p < SCREEN_LADDER_FROM:\n        return SCREEN_SCHEDULES[:1]\n"
+  replace = "    if False:\n        return SCREEN_SCHEDULES[:1]\n"
   models = "the long schedules run on small groups, where a schedule that does not close costs more than Clarabel's solve (GeoLift's 36 controls)"
 
   [[target.mutant]]
   id = "the-ladder-never-runs-by-size"
-  find = "    return SCREEN_SCHEDULES if p >= SCREEN_LADDER_FROM else SCREEN_SCHEDULES[:1]\n"
+  find = "    return SCREEN_SCHEDULES[1:] if p >= SCREEN_SKIP_FIRST_FROM else SCREEN_SCHEDULES\n"
   replace = "    return SCREEN_SCHEDULES[:1]\n"
   models = "the size rule never admitting the long schedules, so the ladder is defined and tested but the search never uses it"
 
@@ -14415,9 +14415,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-size-ignores-the-pool"
-  find = "    tri: List = [] if ws is None else list(ws.pool)\n"
+  find = "    tri: List = list(ws.pool) if ws is not None and fixes else []\n"
   replace = "    tri: List = []\n"
-  models = "every size's relaxation starts without the triangles the size before it needed"
+  models = "a node below a size's root starts without the triangles its root needed"
 
   [[target.mutant]]
   id = "the-box-rows-are-not-written"
@@ -16872,6 +16872,36 @@ timeout = 900.0
   find = "        neg = max(neg, (g[cap] - nu).max()) if cap.any() else neg\n"
   replace = "        neg = neg\n"
   models = "the KKT error blind to a capped weight whose gradient is above the multiplier, so the warning decision differs from the library's"
+
+[[target]]
+name = "tbr-bnb-screen-skip"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_workspace.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "large-screens-keep-the-first-schedule"
+  find = "    return SCREEN_SCHEDULES[1:] if p >= SCREEN_SKIP_FIRST_FROM else SCREEN_SCHEDULES\n"
+  replace = "    return SCREEN_SCHEDULES\n"
+  models = "the group screen at 66 controls and more starting at the 150-evaluation schedule, which closed 1 of 34, 3 of 138 and 1 of 35 screens at 66, 76 and 96 controls and costs its whole budget when it does not close"
+
+  [[target.mutant]]
+  id = "the-skip-starts-one-control-late"
+  find = "    return SCREEN_SCHEDULES[1:] if p >= SCREEN_SKIP_FIRST_FROM else SCREEN_SCHEDULES\n"
+  replace = "    return SCREEN_SCHEDULES[1:] if p > SCREEN_SKIP_FIRST_FROM else SCREEN_SCHEDULES\n"
+  models = "a group of exactly SCREEN_SKIP_FIRST_FROM controls screened from the first schedule"
+
+  [[target.mutant]]
+  id = "every-ladder-skips-the-first-schedule"
+  find = "    return SCREEN_SCHEDULES[1:] if p >= SCREEN_SKIP_FIRST_FROM else SCREEN_SCHEDULES\n"
+  replace = "    return SCREEN_SCHEDULES[1:]\n"
+  models = "the skip applied from SCREEN_LADDER_FROM, where at 56 controls the first schedule closed 9 of 15 screens and skipping it cost 18% more evaluations"
+
+  [[target.mutant]]
+  id = "a-root-starts-from-the-size-befores-rows"
+  find = "    tri: List = list(ws.pool) if ws is not None and fixes else []\n"
+  replace = "    tri: List = list(ws.pool) if ws is not None else []\n"
+  models = "a size's root starting from the rows the size before it left, which on the 100-geo incumbent's group took 435.3 s against 285.2 s from none"
 
 [[target]]
 name = "cmbsts-regression"
