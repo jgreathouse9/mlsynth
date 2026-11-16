@@ -13438,8 +13438,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "survivors-carry-no-ceiling"
-  find = "        jobs = [(T, yy, ceiling(yy, *class_of()), *local.get(T, (None, None))) for T, yy in exacts]\n"
-  replace = "        jobs = [(T, yy, None, *local.get(T, (None, None))) for T, yy in exacts]\n"
+  find = "        c = ceiling(yy, *class_of())\n        seed, pass_key = local.get(T, (None, None))\n"
+  replace = "        c = None\n        seed, pass_key = local.get(T, (None, None))\n"
   models = "a survivor certified to its own optimum though its rounds can no longer compete, so a group whose designs keep failing the gates runs to the round limit"
 
   [[target.mutant]]
