@@ -13198,8 +13198,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "a-kernel-nan-is-taken-as-a-floor"
-  find = "    for f, a, b, T in zip(fl, lo, hi, groups):\n        if math.isnan(f):\n            out.append(_floor_row(M, lam, T))\n"
-  replace = "    for f, a, b, T in zip(fl, lo, hi, groups):\n        if False:\n            out.append(_floor_row(M, lam, T))\n"
+  find = "        T = _group(T)\n        if math.isnan(f):\n            out.append(_floor_row(M, lam, T))\n"
+  replace = "        T = _group(T)\n        if False:\n            out.append(_floor_row(M, lam, T))\n"
   models = "a group the kernel left (a nan floor) kept as a row, not computed by rss_floor"
 
   [[target.mutant]]
@@ -13210,8 +13210,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "the-kernel-runs-without-a-gram-floor"
-  find = "    if lam is None or not fastfloor.AVAILABLE or not groups:\n        return [_floor_row(M, lam, T) for T in groups]\n"
-  replace = "    if not fastfloor.AVAILABLE or not groups:\n        return [_floor_row(M, lam, T) for T in groups]\n"
+  find = "    if lam is None or not fastfloor.AVAILABLE or len(groups) == 0:\n        return [_floor_row(M, lam, _group(T)) for T in groups]\n"
+  replace = "    if not fastfloor.AVAILABLE or len(groups) == 0:\n        return [_floor_row(M, lam, _group(T)) for T in groups]\n"
   models = "the kernel called on a panel with no Gram floor, where every floor is 0"
 
   [[target.mutant]]
@@ -13384,8 +13384,8 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
 
   [[target.mutant]]
   id = "the-start-group-is-left-out-of-the-queue"
-  find = "    rows, dropped = _screened_floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs, class_of())\n"
-  replace = "    rows, dropped = _screened_floor_rows(M, [T for T in combinations(range(p), k) if list(T) != T0], lam, pool, n_jobs, class_of())\n"
+  find = "    rows, dropped = _streamed_floor_rows(M, p, k, lam, pool, n_jobs, class_of())\n"
+  replace = "    rows, dropped = _streamed_floor_rows(M, p, k, lam, pool, n_jobs, class_of())\n    rows = [r for r in rows if list(r[2]) != T0]\n"
   models = "the start group adopted as the incumbent and never certified, so a better design in it is never found and the count of screened and certified groups is one short"
 
   [[target.mutant]]
@@ -14841,14 +14841,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-floors-get-no-class"
-  find = "    rows, dropped = _screened_floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs, class_of())\n"
-  replace = "    rows, dropped = _screened_floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs, (None, None))\n"
+  find = "    rows, dropped = _streamed_floor_rows(M, p, k, lam, pool, n_jobs, class_of())\n"
+  replace = "    rows, dropped = _streamed_floor_rows(M, p, k, lam, pool, n_jobs, (None, None))\n"
   models = "the floors computed without the start's class: the same search, every row shipped back to the parent and screened there one at a time"
 
   [[target.mutant]]
   id = "one-chunks-drops-counted"
-  find = "    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
-  replace = "    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
+  find = "    parts = _map(pool, _floor_chunk_screened, [(M, lam, c, cls) for c in chunks])\n    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
+  replace = "    parts = _map(pool, _floor_chunk_screened, [(M, lam, c, cls) for c in chunks])\n    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
   models = "a parallel run counting the rows dropped in its first chunk only"
 
   [[target.mutant]]
@@ -14865,8 +14865,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-screened-kernel-runs-without-a-gram-floor"
-  find = "    if lam is None or not fastfloor.AVAILABLE or not groups:\n        rows = _floor_chunk(M, lam, groups)\n"
-  replace = "    if not fastfloor.AVAILABLE or not groups:\n        rows = _floor_chunk(M, lam, groups)\n"
+  find = "    if lam is None or not fastfloor.AVAILABLE or len(groups) == 0:\n        rows = _floor_chunk(M, lam, groups)\n"
+  replace = "    if not fastfloor.AVAILABLE or len(groups) == 0:\n        rows = _floor_chunk(M, lam, groups)\n"
   models = "the screened floors calling the kernel on a panel with no Gram floor, where every floor is 0"
 
 [[target]]
@@ -16654,3 +16654,69 @@ timeout = 600.0
   find = "            commit(row, ctx, fut.result())\n"
   replace = "            if fut.exception() is None:\n                commit(row, ctx, fut.result())\n"
   models = "a worker's error read as a group with nothing to commit, so a failed certification disappears from the survivors and the search reports itself certified"
+
+[[target]]
+name = "tbr-bnb-stream-floors"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_stream_floors.py benchmarks/studies/tbr_bnb/test_worker_screen.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "unrank-counts-the-boundary-subset"
+  find = "            if r < here:\n"
+  replace = "            if r <= here:\n"
+  models = "the rank's subset read one position late at each boundary, so a worker's range starts at the wrong group and the ranges overlap or leave a gap"
+
+  [[target.mutant]]
+  id = "the-last-block-runs-past-the-range"
+  find = "        n = min(block, hi - r)\n"
+  replace = "        n = block\n"
+  models = "a range's last block filled to the block size from the groups of the next range, so the groups at each cut are floored twice and appear twice in the queue"
+
+  [[target.mutant]]
+  id = "the-first-chunk-is-skipped"
+  find = "    cuts = [(lo, min(lo + size, total)) for lo in range(0, total, size)]\n"
+  replace = "    cuts = [(lo, min(lo + size, total)) for lo in range(size, total, size)]\n"
+  models = "the ranks of the first chunk never handed to a worker, so the lexicographically first groups are never floored or searched"
+
+  [[target.mutant]]
+  id = "only-the-last-blocks-drops-are-counted"
+  find = "        dropped += d\n"
+  replace = "        dropped = d\n"
+  models = "the screened count of a range kept from its last block only, so the certificate reports fewer groups screened out than were and the count no longer covers every group"
+
+  [[target.mutant]]
+  id = "the-range-is-built-at-once"
+  find = "    block = block or FLOOR_BLOCK\n"
+  replace = "    block = max(hi - lo, 1)\n"
+  models = "the whole range built as one block, the memory the stream exists to avoid: every group of a worker's range held at once"
+
+  [[target.mutant]]
+  id = "a-kept-group-is-an-array-row"
+  find = "        f, T = fl[i], _group(groups[i])\n"
+  replace = "        f, T = fl[i], groups[i]\n"
+  models = "a kept row's group left as a numpy row, which is not hashable, so the queue's dictionaries and the comparisons with the start group break on it"
+
+  [[target.mutant]]
+  id = "one-ranges-drops-counted"
+  find = "    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, cls) for lo, hi in cuts])\n    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
+  replace = "    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, cls) for lo, hi in cuts])\n    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
+  models = "the screened count of the first worker's range taken for every range's, so over a pool the certificate counts too few groups screened out"
+
+[[target]]
+name = "tbr-bnb-stream-blocks"
+module-path = "benchmarks/studies/tbr_bnb/fastfloor.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_stream_floors.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-tail-is-not-reset"
+  find = "            c[j] = c[j - 1] + 1\n"
+  replace = "            c[j] = c[j]\n"
+  models = "the positions after the one that rose left where they were, so the block skips and repeats subsets instead of following itertools.combinations"
+
+  [[target.mutant]]
+  id = "the-last-subset-is-not-recognized"
+  find = "        while i >= 0 and c[i] == p - k + i:      # the rightmost position that can still rise\n"
+  replace = "        while i >= 0 and c[i] == p - k + i - 1:      # the rightmost position that can still rise\n"
+  models = "the largest value at each position taken one too small, so the block stops early at what it reads as the last subset and the groups after it are never floored"

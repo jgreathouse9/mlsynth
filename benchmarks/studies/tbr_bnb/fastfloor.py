@@ -397,6 +397,31 @@ def _controls(p, T):
 
 
 @njit(cache=_CACHE)
+def combinations_from(first, count, p):
+    """The ``count`` k-subsets of range(p) from ``first`` on in lexicographic order, the
+    order of itertools.combinations, as the rows of an int64 array; fewer rows when the
+    last subset, (p - k, ..., p - 1), comes first. Each worker builds its range of the
+    treatment groups this way, a block at a time, so the groups are never all held."""
+    k = first.shape[0]
+    out = np.empty((count, k), np.int64)
+    c = first.copy()
+    n = 0
+    while n < count:
+        for j in range(k):
+            out[n, j] = c[j]
+        n += 1
+        i = k - 1
+        while i >= 0 and c[i] == p - k + i:      # the rightmost position that can still rise
+            i -= 1
+        if i < 0:
+            break
+        c[i] += 1
+        for j in range(i + 1, k):
+            c[j] = c[j - 1] + 1
+    return out[:n]
+
+
+@njit(cache=_CACHE)
 def floors(M, Gf, groups, lamf):
     """(floor, lo, hi) for each row of ``groups``: the box bound (not yet clipped at
     zero) and the bracket on y'y, nan where the group is left to rss_floor. M is the
