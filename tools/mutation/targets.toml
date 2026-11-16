@@ -14756,6 +14756,12 @@ test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_early_triangles
 timeout = 600.0
 
   [[target.mutant]]
+  id = "the-rounds-stop-after-five-chunks"
+  find = "SEPARATE_AFTER = 10\n"
+  replace = "SEPARATE_AFTER = 5\n"
+  models = "the round length measured before the first-chunk polish, 7% slower on the 100-geo search since"
+
+  [[target.mutant]]
   id = "the-early-end-ignores-the-request"
   find = "                if early and not done and solved >= SEPARATE_AFTER and \\\n"
   replace = "                if not done and solved >= SEPARATE_AFTER and \\\n"
