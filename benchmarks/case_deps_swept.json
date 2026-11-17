@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-16T18:02:22Z",
+ "generated": "2026-11-17T18:00:34Z",
  "cases": 218,
  "files": [
   "basedata/Data.csv",
@@ -1780,6 +1780,8 @@
   "benchmarks/studies/tbr_bnb/dual.py",
   "benchmarks/studies/tbr_bnb/face.py",
   "benchmarks/studies/tbr_bnb/fastfloor.py",
+  "benchmarks/studies/tbr_bnb/fastpent.py",
+  "benchmarks/studies/tbr_bnb/fastprice.py",
   "benchmarks/studies/tbr_bnb/fastqp.py",
   "benchmarks/studies/tbr_bnb/fbound.py",
   "benchmarks/studies/tbr_bnb/gated.py",
@@ -1864,6 +1866,8 @@
   "benchmarks/studies/tbr_bnb/test_face.py",
   "benchmarks/studies/tbr_bnb/test_fast_rows.py",
   "benchmarks/studies/tbr_bnb/test_fastfloor.py",
+  "benchmarks/studies/tbr_bnb/test_fastpent.py",
+  "benchmarks/studies/tbr_bnb/test_fastprice.py",
   "benchmarks/studies/tbr_bnb/test_fastqp.py",
   "benchmarks/studies/tbr_bnb/test_fbound.py",
   "benchmarks/studies/tbr_bnb/test_float_cert.py",
@@ -1903,6 +1907,7 @@
   "benchmarks/studies/tbr_bnb/test_window.py",
   "benchmarks/studies/tbr_bnb/test_worker_screen.py",
   "benchmarks/studies/tbr_bnb/test_workspace.py",
+  "benchmarks/studies/tbr_bnb/test_workspace_polish.py",
   "benchmarks/studies/tbr_bnb/treatment.py",
   "benchmarks/studies/tbr_bnb/workspace.py",
   "benchmarks/studies/tbr_factor/__init__.py",
