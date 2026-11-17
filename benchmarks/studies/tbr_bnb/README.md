@@ -511,6 +511,29 @@ exact arithmetic. The relaxation's own tests bound every node, since on their
 small panels pricing closes every size at its root; `test_pricing.py` checks the
 priced path against enumeration and that both paths certify the same design.
 
+The bound pass is compiled when numba is installed (`fastprice.bound_pass`, released
+from the interpreter lock; `PRICE_KERNEL` switches it). It walks the designs in place in
+lexicographic order and computes each bound with `_upper_batch`'s formulas and error
+terms, which bound recursive summation in any order, so every design whose exact ratio
+exceeds the incumbent's is kept; at dyadic data the two passes keep the same designs at
+the same bounds (`test_fastprice.py`). In Python the pass built the designs with
+itertools in chunks and gathered a k x k block of G per design, about a microsecond a
+design, and sizes on threads waited for each other's pricing. On a quiet machine, one
+BLAS thread, `n_jobs=4`, `certify_treatment(M, 4, n_test=14, gap=1/100)` with the kernel
+off and on, two pairs in opposite orders, each run certifying the same design:
+
+| case | off | on |
+| --- | --- | --- |
+| hotel panel, 27-geo subset | 953.5 s, 1033.2 s | 567.9 s, 602.4 s |
+| `geo_panel(0)`, 80 geos | 160.5 s, 167.0 s | 158.5 s, 160.2 s |
+| `geo_panel(0)`, 100 geos | 303.5 s, 293.7 s | 297.3 s, 301.7 s |
+| the five beds | 191.9 s, 178.8 s | 185.9 s, 178.5 s |
+
+The hotel subset (from the public `gsumetricspolicy` repository) bounds about 740
+million designs in a search, and pricing was its largest single cost; the synthetic
+panels and the beds price few designs, and there the kernel changes nothing. The first
+beds run includes about 17 s of first loads in its first bed.
+
 ## The cascade
 
 At four geos on GeoLift the queue certifies 33 groups, and a stage profile of
@@ -2575,6 +2598,7 @@ fixing is certified to the solver's value.
 - `treatment.py`: the search over treatment groups, `certify_treatment()`.
 - `guided.py`: the floor-guided search without certificates, `guided_treatment()`, and its bound.
 - `fastfloor.py`: the floors of a chunk of groups in one compiled loop, with numba installed.
+- `fastprice.py`: pricing's bound pass in one compiled loop, with numba installed.
 - `brute.py`: enumeration, the truth the tests check against, the simulated AR(1) panels, and
   `treatment_optimum`, every treatment and control group of a small panel scored by the library's key.
 - `run.py`: `python -m benchmarks.studies.tbr_bnb.run certify` and `... lifts`.

@@ -99,7 +99,7 @@ from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 from mlsynth.utils.marex_helpers.certify import Dyadic
 
 from . import face as _face
-from . import fastpent, fbound
+from . import fastpent, fastprice, fbound
 from .certificate import ExactData, _dot_err, round_down
 from .progress import clarabel_log, emit, reporting
 
@@ -1400,6 +1400,15 @@ class SlopeFreeCertificate:
 BOUND_SECONDS = 1.5
 PRICE_SECONDS = 2e-6
 PRICE_LIMIT = int(BOUND_SECONDS / PRICE_SECONDS)
+
+#: Whether price_subtree runs its bound pass compiled (fastprice.bound_pass) when numba
+#: is installed, read at the call. The compiled pass keeps every design the Python pass
+#: keeps whose exact ratio exceeds the incumbent's, and at dyadic data the same designs
+#: at the same bounds (fastprice's module docstring); it releases the interpreter lock.
+#: On a quiet machine, one BLAS thread, n_jobs=4, two pairs in opposite orders, each run
+#: certifying the same design: the 27-geo hotel subset 953.5 s, 1033.2 s off against
+#: 567.9 s, 602.4 s on; geo_panel(0) at 80 and 100 geos and the five beds within noise.
+PRICE_KERNEL = True
 #: Designs per batch, so that the gathered s-by-s blocks stay a few million doubles.
 _CELLS = 2_000_000
 
@@ -1470,20 +1479,25 @@ def price_subtree(c, G, out, m, fixes, inc, excluded):
     fixed = _fixed(c, G, cf, ins, F)
     cfF, GfF = cf[F], Gf[np.ix_(F, F)]
     lam_lo = round_down(inc["lam"])
-    per = max(1, _CELLS // max(1, k * k))
-    gen = itertools.combinations(range(len(F)), k)
     cands = []
     out.priced_nodes += 1
     t0, priced0, exact0 = time.perf_counter(), out.priced, out.exact
-    while True:
-        chunk = list(itertools.islice(gen, per))
-        if not chunk:
-            break
-        combos = np.array(chunk, dtype=np.int64)
-        out.priced += len(chunk)
-        ub = _upper_batch(fixed, cfF, GfF, combos)
-        for i in np.nonzero(ub > lam_lo)[0]:
-            cands.append((float(ub[i]), chunk[i]))
+    if PRICE_KERNEL and fastprice.AVAILABLE:
+        C, ubs, total = fastprice.bound_pass(fixed, cfF, GfF, k, float(lam_lo))
+        out.priced += int(total)
+        cands = [(float(u), tuple(int(x) for x in row)) for row, u in zip(C, ubs)]
+    else:
+        per = max(1, _CELLS // max(1, k * k))
+        gen = itertools.combinations(range(len(F)), k)
+        while True:
+            chunk = list(itertools.islice(gen, per))
+            if not chunk:
+                break
+            combos = np.array(chunk, dtype=np.int64)
+            out.priced += len(chunk)
+            ub = _upper_batch(fixed, cfF, GfF, combos)
+            for i in np.nonzero(ub > lam_lo)[0]:
+                cands.append((float(ub[i]), chunk[i]))
     cands.sort(key=lambda t: -t[0])
     for ub, combo in cands:
         if Q(ub) <= inc["lam"]:                # every later bound is at most this one
