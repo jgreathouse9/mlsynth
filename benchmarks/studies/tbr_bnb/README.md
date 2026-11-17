@@ -2264,6 +2264,23 @@ certified the same treatment group with the same key:
 On the 80-geo panel the second slowest group took 76.9 s against 57.5 s, and the run
 5 s less. The measurements are in `results/pentagons.log`.
 
+The local search is compiled when numba is installed (`fastpent.search`, released from
+the interpreter lock; `PENTAGON_KERNEL` switches it). Each start's steps are the Python
+search's: the same values in another order of addition, so at a point with dyadic
+entries the two report the same rows (`test_fastpent.py`). In Python a call took about a
+second at any panel size, nearly all of it the interpreter, and sizes on threads waited
+for each other's separations. The triangle separation reads its index triples from a
+cache per size (`_triples`). On a quiet machine, one BLAS thread, `n_jobs=4`, the search
+with the kernel off and on, each certifying the same designs:
+
+| case | off | on |
+| --- | --- | --- |
+| the five beds | 203.8 s | 178.2 s |
+| `geo_panel(0)`, 80 geos | 162.8 s, 150.0 s | 154.7 s, 149.9 s |
+| `geo_panel(0)`, 100 geos | 323.4 s, 331.9 s | 277.1 s, 278.4 s |
+
+The 80-geo runs are pairs in opposite orders, as are the 100-geo runs.
+
 ### Stopping a size's rounds when the bound stalls, measured and not built
 
 A size's relaxation runs up to `rounds` (6) rounds of cuts before it branches. A rule

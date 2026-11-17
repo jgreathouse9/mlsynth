@@ -591,7 +591,9 @@ PENTAGON_RESTARTS = 3000
 #: Whether separate_pentagons runs its local search compiled (fastpent.search) when
 #: numba is installed, read at the call. The compiled search takes the Python search's
 #: steps (fastpent's module docstring) and releases the interpreter lock, so sizes on
-#: threads separate at once.
+#: threads separate at once. On a quiet machine the 100-geo search took 277.1 s and
+#: 278.4 s with it against 323.4 s and 331.9 s without, the beds 178.2 s against
+#: 203.8 s, the same designs (README, Pentagonal cuts).
 PENTAGON_KERNEL = True
 
 
