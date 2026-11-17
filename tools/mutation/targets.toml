@@ -17224,7 +17224,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "the-triangle-index-is-writable"
   find = "    t.setflags(write=False)\n"
-  replace = ""
+  replace = "    pass\n"
   models = "the cached triangle index is writable, so a caller that changes it changes every later separation at that size"
 
   [[target.mutant]]
