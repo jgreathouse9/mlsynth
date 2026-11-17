@@ -15275,9 +15275,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "pentagon-tied-rows-in-start-order"
-  find = "    rank = np.lexsort(tuple(keys[:, c] for c in range(9, -1, -1)) + (-viol,))[:k]"
-  replace = "    rank = np.argsort(-viol, kind=\"stable\")[:k]"
-  models = "rows with equal violations come in the order of their keys' first appearance, not by key, so which rows k keeps depends on the starts' order"
+  find = "    keys, viol = keys[last], viol[last]\n    rank = np.lexsort(tuple(keys[:, c] for c in range(9, -1, -1)) + (-viol,))[:k]"
+  replace = "    last = np.sort(last)\n    keys, viol = keys[last], viol[last]\n    rank = np.argsort(-viol, kind=\"stable\")[:k]"
+  models = "rows with equal violations come in the order of the starts that found them, not by key, so which rows k keeps depends on the starts' order (a stable sort on violation alone after np.unique is not this defect: np.unique returns the keys sorted, which is why the first form of this mutant survived as an equivalent)"
 
   [[target.mutant]]
   id = "pentagons-never-separated"
