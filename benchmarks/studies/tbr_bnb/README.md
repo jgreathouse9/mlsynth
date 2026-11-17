@@ -1400,7 +1400,7 @@ The full tier solves a size's relaxation on the SCS workspace, separates the mos
 violated triangle inequalities at its point and solves again, up to `rounds` times.
 On the 100-geo groups most rounds ran SCS to its cap, although the point had shown,
 chunks earlier, the triangles the next round would add. So a round that another
-round follows ends after `SEPARATE_AFTER` (5) chunks, counted over its stages, when
+round follows ends after `SEPARATE_AFTER` (10) chunks, counted over its stages, when
 its point violates a triangle by more than `SEPARATE_TOL` (1e-2): the outcome is
 `"separate"`, and the next round adds the triangles and starts warm. The last round
 runs to its end. The certificate is computed at every chunk and decides first, so a
@@ -1417,6 +1417,17 @@ The two thresholds came from a sweep on the two 100-geo groups (spike runs on ma
 | 10, 1e-3 | 135.5 s | 148.2 s |
 | 5, 1e-3 | 145.3 s (47 nodes) | 136.6 s |
 | 5, 1e-2 | 108.2 s, 13,000 | 137.2 s, 6,000 |
+
+That sweep chose 5 chunks. The first-chunk polish (`POLISH`) changed the balance: it
+ends many solves after one chunk, and the rounds that end early are most of what is
+left. On the whole 100-geo search (`certify_treatment(geo_panel(0, n=90, p=100), 4,
+n_test=14, gap=1/100, n_jobs=4)`, one BLAS thread) 10 chunks took 281.5 s and 268.3 s
+against 302.8 s and 291.8 s at 5, in two pairs run in opposite orders. 27 rounds
+ended early against 31, the rounds cost about the same in all, and the design and the
+163 nodes were the same. The slowest group (4, 27, 33, 58) took 170.3 s and 163.2 s
+against 193.3 s and 183.6 s. So `SEPARATE_AFTER` is 10. A second polish before a
+round ends early was slower (317.3 s): it closed one round of 31. The 80-geo search
+has no round that ends early.
 
 Built, against its base, both at once:
 

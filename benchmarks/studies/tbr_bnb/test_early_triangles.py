@@ -253,9 +253,20 @@ def test_separate_after_beyond_the_chunks_never_separates(monkeypatch):
 
 
 def test_the_defaults_are_the_measured_ones():
-    """K = 5 chunks and a violation above 1e-2: on the two 100-geo groups 176.6 s to
-    108.2 s and 167.7 s to 137.2 s, with the same designs (README)."""
-    assert workspace.SEPARATE_AFTER == 5 and workspace.SEPARATE_TOL == 1e-2
+    """K = 10 chunks and a violation above 1e-2. Under the first-chunk polish, the
+    100-geo search took 281.5 s and 268.3 s at 10 chunks against 302.8 s and 291.8 s
+    at 5, in two pairs run in opposite orders, with 27 rounds ending early against 31
+    and the same design and nodes (README)."""
+    assert workspace.SEPARATE_AFTER == 10 and workspace.SEPARATE_TOL == 1e-2
+
+
+def test_a_round_at_the_defaults_ends_after_ten_chunks(monkeypatch):
+    _slow(monkeypatch, stages=((dict(alpha=1.8), 20),))
+    monkeypatch.setattr(slopefree, "separate_triangles", lambda *a, **k: VIOLATED)
+    chunks = _count_chunks(monkeypatch)
+    D, lam, R, m = _open()
+    assert Workspaces().solve(D.c, D.G, lam, R, early=True).status == "separate"
+    assert len(chunks) == 10
 
 
 # ---------------------------------------------------------------- failure

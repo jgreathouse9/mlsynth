@@ -91,8 +91,11 @@ EPS = 1e-7
 #: the same triangles chunks earlier. On the 100-geo group (4, 35, 58, 60) the search
 #: took 176.6 s and 42,600 SCS iterations at the default, 108.2 s and 13,000 at 5 and
 #: 1e-2; on (4, 27, 33, 58) at a 1% gap 167.7 s and 137.2 s; the same designs
-#: (results/early_triangles.log). 10 and 1e-2, 5 and 1e-3, 10 and 1e-3 were slower.
-SEPARATE_AFTER = 5
+#: (results/early_triangles.log). 10 and 1e-2, 5 and 1e-3, 10 and 1e-3 were slower
+#: then. Under the first-chunk polish (POLISH) the 100-geo search took 281.5 s and
+#: 268.3 s at 10 against 302.8 s and 291.8 s at 5, in two pairs run in opposite
+#: orders, with 27 rounds ending early against 31 and the same design (README).
+SEPARATE_AFTER = 10
 
 #: The violation above which a point's triangle ends a round early (SEPARATE_AFTER).
 SEPARATE_TOL = 1e-2
