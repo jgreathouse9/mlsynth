@@ -81,6 +81,7 @@ Sherali, H. D. and Adams, W. P. (1990). A hierarchy of relaxations between the
 """
 from __future__ import annotations
 
+import functools
 import itertools
 from collections import deque
 import math
@@ -98,7 +99,7 @@ from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 from mlsynth.utils.marex_helpers.certify import Dyadic
 
 from . import face as _face
-from . import fbound
+from . import fastpent, fbound
 from .certificate import ExactData, _dot_err, round_down
 from .progress import clarabel_log, emit, reporting
 
@@ -587,6 +588,14 @@ PENTAGONS_FROM = 1
 #: took 0.7 s on average, 7.6 s over the 11 rounds of the group above.
 PENTAGON_RESTARTS = 3000
 
+#: Whether separate_pentagons runs its local search compiled (fastpent.search) when
+#: numba is installed, read at the call. The compiled search takes the Python search's
+#: steps (fastpent's module docstring) and releases the interpreter lock, so sizes on
+#: threads separate at once. On a quiet machine the 100-geo search took 277.1 s and
+#: 278.4 s with it against 323.4 s and 331.9 s without, the beds 178.2 s against
+#: 203.8 s, the same designs (README, Pentagonal cuts).
+PENTAGON_KERNEL = True
+
 
 def pentagon_row(S, b) -> Tuple[Dict[Tuple[int, int], int], int]:
     """The pentagonal row of the indices S of Z (0 the constant, j + 1 the geo j) and
@@ -665,39 +674,80 @@ def separate_pentagons(u, U, k=400, restarts=None, tol=1e-6, seed=0):
         raise MlsynthConfigError(f"restarts is the local search's starts, an int at least 1, not {restarts!r}.")
     if type(seed) is not int or seed < 0:
         raise MlsynthConfigError(f"seed seeds the local search's generator, an int at least 0, not {seed!r}.")
-    u = np.asarray(u, float); U = np.asarray(U, float)
-    n = u.size + 1
+    n = np.asarray(u).size + 1
     if n < 5:
         return []
+    Y, d = _sign_matrix(u, U)
+    S0, B0 = _pentagon_starts(n, restarts, seed)
+    run = fastpent.search if (PENTAGON_KERNEL and fastpent.AVAILABLE) else _pentagon_search
+    S, B, val = run(Y, d, S0, B0)
+    found: Dict[tuple, float] = {}
+    for i in range(len(val)):
+        if (1 - val[i]) / 2 > tol:
+            key = sorted(zip((int(v) for v in S[i]), (int(s_) for s_ in B[i])))
+            if key[0][1] < 0:
+                key = [(v, -s_) for v, s_ in key]
+            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = float((1 - val[i]) / 2)
+    best = sorted(found.items(), key=lambda kv: (-kv[1], kv[0]))[:k]
+    return [(viol, PENTAGON, key) for key, viol in best]
+
+
+def _sign_matrix(u, U):
+    """Y = T Z T' for Z = [[1, u'], [u, U]], the point in signs (separate_pentagons), and
+    its diagonal."""
+    u = np.asarray(u, float); U = np.asarray(U, float)
+    n = u.size + 1
     Z = np.empty((n, n)); Z[0, 0] = 1.0; Z[0, 1:] = Z[1:, 0] = u; Z[1:, 1:] = U
     T = np.zeros((n, n)); T[0, 0] = 1.0; T[1:, 0] = -1.0; T[1:, 1:] = 2.0 * np.eye(n - 1)
     Y = T @ Z @ T.T
-    d = np.diag(Y)
+    return Y, np.diag(Y).copy()
+
+
+def _pentagon_starts(n, restarts, seed):
+    """The local search's starts: for each, five indices of n without replacement and
+    then five signs, drawn in that order from one generator seeded by ``seed``."""
     rng = np.random.default_rng(seed)
-    found: Dict[tuple, float] = {}
-    for _ in range(restarts):
-        S = list(rng.choice(n, 5, replace=False)); b = [int(v) for v in rng.choice([-1, 1], 5)]
-        val = float(np.array(b) @ Y[np.ix_(S, S)] @ np.array(b))
-        improved = True
-        while improved:
-            improved = False
+    S0 = np.empty((restarts, 5), dtype=np.int64); B0 = np.empty((restarts, 5), dtype=np.int64)
+    for i in range(restarts):
+        S0[i] = rng.choice(n, 5, replace=False)
+        B0[i] = [int(v) for v in rng.choice([-1, 1], 5)]
+    return S0, B0
+
+
+def _pentagon_search(Y, d, S0, B0):
+    """The local search from every start, in Python (fastpent.search is it compiled):
+    replace one member at a time by the index and sign that lower b'Y_SS b most,
+    positions 0 to 4 in order, the first index on ties, a move only when it lowers the
+    value by more than 1e-12, until a pass moves nothing. Returns the five-sets, the
+    signs and the values they end at; the starts are not changed."""
+    S = np.array(S0, dtype=np.int64); B = np.array(B0, dtype=np.int64); val = np.empty(len(S))
+    for i in range(len(S)):
+        Si, bi = list(S[i]), [int(v) for v in B[i]]
+        vi = float(np.array(bi) @ Y[np.ix_(Si, Si)] @ np.array(bi))
+        moved = True
+        while moved:
+            moved = False
             for t in range(5):
                 rest = [q for q in range(5) if q != t]
-                Sr = [S[q] for q in rest]; br = np.array([b[q] for q in rest])
+                Sr = [Si[q] for q in rest]; br = np.array([bi[q] for q in rest])
                 base = float(br @ Y[np.ix_(Sr, Sr)] @ br)
                 lin = Y[:, Sr] @ br                   # index v with sign sigma adds d_v + 2 sigma lin_v
                 cand = base + d - 2 * np.abs(lin)     # at its best sign, sigma = -sign(lin_v)
                 cand[Sr] = np.inf
                 v = int(np.argmin(cand))
-                if cand[v] < val - 1e-12:
-                    S[t] = v; b[t] = -1 if lin[v] > 0 else 1; val = float(cand[v]); improved = True
-        if (1 - val) / 2 > tol:
-            key = sorted(zip((int(v) for v in S), b))
-            if key[0][1] < 0:
-                key = [(v, -s_) for v, s_ in key]
-            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = (1 - val) / 2
-    best = sorted(found.items(), key=lambda kv: (-kv[1], kv[0]))[:k]
-    return [(viol, PENTAGON, key) for key, viol in best]
+                if cand[v] < vi - 1e-12:
+                    Si[t] = v; bi[t] = -1 if lin[v] > 0 else 1; vi = float(cand[v]); moved = True
+        S[i], B[i], val[i] = Si, bi, vi
+    return S, B, val
+
+
+@functools.lru_cache(maxsize=None)
+def _triples(p):
+    """The index triples i < j < k of p controls, in combinations' order, built once a
+    size and read-only (separate_triangles builds its rows from it every round)."""
+    t = np.array(list(itertools.combinations(range(p), 3)), dtype=np.int64).reshape(-1, 3)
+    t.setflags(write=False)
+    return t
 
 
 def separate_triangles(u, U, k=400, tol=1e-6):
@@ -707,8 +757,7 @@ def separate_triangles(u, U, k=400, tol=1e-6):
     u = np.asarray(u, float); U = np.asarray(U, float); p = u.size
     if p < 3:
         return []
-    t = np.array(list(itertools.combinations(range(p), 3)))
-    a, b, d = t.T
+    a, b, d = _triples(p).T
     out = []
     for i, j, kk in ((a, b, d), (b, a, d), (d, a, b)):
         v = U[i, j] + U[i, kk] - U[j, kk] - u[i]

@@ -15174,7 +15174,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-pentagons"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_pentagons.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_pentagons.py benchmarks/studies/tbr_bnb/test_fastpent.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -15221,8 +15221,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "pentagon-violation-not-halved"
-  find = "            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = (1 - val) / 2"
-  replace = "            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = 1 - val"
+  find = "            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = float((1 - val[i]) / 2)"
+  replace = "            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = float(1 - val[i])"
   models = "the separation reports 1 - b'Yb as the violation, twice the row's excess, so rows are ranked and cut on a wrong number"
 
   [[target.mutant]]
@@ -15233,8 +15233,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "pentagon-best-sign-reversed"
-  find = "                    S[t] = v; b[t] = -1 if lin[v] > 0 else 1; val = float(cand[v]); improved = True"
-  replace = "                    S[t] = v; b[t] = 1 if lin[v] > 0 else -1; val = float(cand[v]); improved = True"
+  find = "                    Si[t] = v; bi[t] = -1 if lin[v] > 0 else 1; vi = float(cand[v]); moved = True"
+  replace = "                    Si[t] = v; bi[t] = 1 if lin[v] > 0 else -1; vi = float(cand[v]); moved = True"
   models = "the local search records the worse sign for the index it moves in, so the row it reports is not the one whose value it tracked"
 
   [[target.mutant]]
@@ -17130,3 +17130,105 @@ timeout = 900.0
   find = "            any(type(v) is not int or v < 1 for v in setting):\n"
   replace = "            any(type(v) is not int or v < 0 for v in setting):\n"
   models = "POLISH = (0, 3) accepted: a polish that runs and can do nothing"
+
+[[target]]
+name = "tbr-bnb-fastpent"
+module-path = "benchmarks/studies/tbr_bnb/fastpent.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastpent.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-last-member-is-never-replaced"
+  find = "            for t in range(5):\n                base = 0.0\n"
+  replace = "            for t in range(4):\n                base = 0.0\n"
+  models = "the compiled search never moves a start's fifth member, so it stops short of the Python search's local minimum and reports other rows"
+
+  [[target.mutant]]
+  id = "the-new-member-takes-the-worse-sign"
+  find = "                    B[i, t] = -1 if lin[best] > 0 else 1\n"
+  replace = "                    B[i, t] = 1 if lin[best] > 0 else -1\n"
+  models = "the replacing member gets the sign that raises b'Yb, so the value the search carries is not the row it holds"
+
+  [[target.mutant]]
+  id = "ties-go-to-the-last-index"
+  find = "                    if cand[v] < cand[best]:\n"
+  replace = "                    if cand[v] <= cand[best]:\n"
+  models = "the compiled search breaks ties to the last index where the Python search takes the first, so the two report different rows at the same point"
+
+  [[target.mutant]]
+  id = "a-member-can-be-chosen-twice"
+  find = "                        cand[S[i, a]] = np.inf\n"
+  replace = "                        cand[S[i, a]] = cand[S[i, a]]\n"
+  models = "the kept members are not excluded, so a five-set can repeat an index and the row is not a pentagonal row"
+
+  [[target.mutant]]
+  id = "the-search-stops-on-small-gains"
+  find = "                if cand[best] < vi - 1e-12:\n"
+  replace = "                if cand[best] < vi - 1e-3:\n"
+  models = "a move needs a gain of 1e-3, so starts stop before a local minimum of the shared rule and miss violated rows"
+
+  [[target.mutant]]
+  id = "the-start-value-is-reported"
+  find = "        val[i] = vi\n"
+  replace = "        val[i] = v0\n"
+  models = "each start reports its starting value, not the value it ends at, so violations are read off the wrong five-set"
+
+  [[target.mutant]]
+  id = "the-kernel-holds-the-interpreter-lock"
+  find = "@njit(nogil=True, cache=_CACHE)\n"
+  replace = "@njit(cache=_CACHE)\n"
+  models = "the kernel compiled without nogil, so sizes on threads wait on each other's separations as they did in Python"
+
+  [[target.mutant]]
+  id = "a-repeated-index-start-is-searched"
+  find = " or any(len(set(r)) < 5 for r in S0.tolist())):\n"
+  replace = "):\n"
+  models = "a start with a repeated index accepted, searched from a five-set that is not one"
+
+  [[target.mutant]]
+  id = "a-zero-sign-start-is-searched"
+  find = "    if len(B0) and not np.all(np.abs(B0) == 1):\n"
+  replace = "    if False:\n"
+  models = "a start with a zero sign accepted, so its rows are not sign rows"
+
+[[target]]
+name = "tbr-bnb-pentagon-dispatch"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastpent.py benchmarks/studies/tbr_bnb/test_pentagons.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-kernel-is-never-run"
+  find = "    run = fastpent.search if (PENTAGON_KERNEL and fastpent.AVAILABLE) else _pentagon_search\n"
+  replace = "    run = _pentagon_search\n"
+  models = "PENTAGON_KERNEL accepted and ignored: the separation stays in Python with numba installed"
+
+  [[target.mutant]]
+  id = "the-kernel-is-run-without-numba"
+  find = "    run = fastpent.search if (PENTAGON_KERNEL and fastpent.AVAILABLE) else _pentagon_search\n"
+  replace = "    run = fastpent.search\n"
+  models = "the kernel is called with the switch off or numba missing, where it is the uncompiled stub"
+
+  [[target.mutant]]
+  id = "the-starts-come-from-another-seed"
+  find = "    rng = np.random.default_rng(seed)\n    S0 = np.empty((restarts, 5), dtype=np.int64)"
+  replace = "    rng = np.random.default_rng(seed + 1)\n    S0 = np.empty((restarts, 5), dtype=np.int64)"
+  models = "the starts are drawn from a generator other than seed's, so a caller's seed does not decide the rows"
+
+  [[target.mutant]]
+  id = "the-python-search-ties-to-the-last-index"
+  find = "                v = int(np.argmin(cand))\n                if cand[v] < vi - 1e-12:\n                    Si[t] = v"
+  replace = "                v = int(len(cand) - 1 - np.argmin(cand[::-1]))\n                if cand[v] < vi - 1e-12:\n                    Si[t] = v"
+  models = "the Python search breaks ties to the last index, so it and the kernel report different rows at the same point"
+
+  [[target.mutant]]
+  id = "the-triangle-index-is-writable"
+  find = "    t.setflags(write=False)\n"
+  replace = "    pass\n"
+  models = "the cached triangle index is writable, so a caller that changes it changes every later separation at that size"
+
+  [[target.mutant]]
+  id = "the-triangle-index-is-rebuilt"
+  find = "@functools.lru_cache(maxsize=None)\ndef _triples(p):"
+  replace = "def _triples(p):"
+  models = "the triangle index is built again on every call, the cost the cache removes"
