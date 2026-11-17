@@ -17232,3 +17232,81 @@ timeout = 900.0
   find = "@functools.lru_cache(maxsize=None)\ndef _triples(p):"
   replace = "def _triples(p):"
   models = "the triangle index is built again on every call, the cost the cache removes"
+
+[[target]]
+name = "tbr-bnb-fastprice"
+module-path = "benchmarks/studies/tbr_bnb/fastprice.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastprice.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-rounding-terms-are-dropped"
+  find = "        e_s = 2.0 * (gs * sa + ks * ETA); e_d = 2.0 * (gd * da + kd * ETA)\n"
+  replace = "        e_s = 0.0; e_d = 0.0\n"
+  models = "the bound is the float ratio, not an upper bound on the exact one, so a design whose exact ratio beats the incumbent can be discarded"
+
+  [[target.mutant]]
+  id = "the-inflation-is-dropped"
+  find = "                ub = (abs(s) + e_s) ** 2 / (d - e_d) * (1.0 + 1e-6)\n"
+  replace = "                ub = (abs(s) + e_s) ** 2 / (d - e_d)\n"
+  models = "the bound loses the 1e-6 that covers its own three roundings, so it is no longer _upper_batch's and can fall below the exact ratio"
+
+  [[target.mutant]]
+  id = "a-design-at-the-floor-is-kept"
+  find = "            if ub > floor:\n"
+  replace = "            if ub >= floor:\n"
+  models = "a design whose bound equals the incumbent's ratio is kept, where the Python pass discards it"
+
+  [[target.mutant]]
+  id = "the-enumeration-stops-short"
+  find = "        while a >= 0 and idx[a] == nF - k + a:\n"
+  replace = "        while a >= 0 and idx[a] == nF - k + a - 1:\n"
+  models = "the walk advances a position before it reaches its last index, so designs are skipped and never priced"
+
+  [[target.mutant]]
+  id = "a-sum-at-the-rounding-margin-is-taken-as-negative"
+  find = "        if s + e_s > 0:\n"
+  replace = "        if s > 0:\n"
+  models = "a design whose c'u is zero or within its rounding of zero is dropped as having no positive slope, where _upper_batch keeps it"
+
+  [[target.mutant]]
+  id = "the-grown-output-loses-its-rows"
+  find = "                    nc = np.empty((cap, k), np.int64); nc[:n] = out_c[:n]; out_c = nc\n"
+  replace = "                    nc = np.zeros((cap, k), np.int64); out_c = nc\n"
+  models = "growing the output past 1024 designs drops the rows already kept, so the first 1024 designs read as the first combination"
+
+  [[target.mutant]]
+  id = "the-kernel-holds-the-interpreter-lock"
+  find = "@njit(nogil=True, cache=_CACHE)\n"
+  replace = "@njit(cache=_CACHE)\n"
+  models = "the pass compiled without nogil, so sizes on threads wait on each other's pricing as they did in Python"
+
+  [[target.mutant]]
+  id = "a-k-past-the-free-geos-is-priced"
+  find = "    if type(k) not in (int, np.int64) or not 0 <= k <= nF:\n"
+  replace = "    if type(k) not in (int, np.int64) or not 0 <= k:\n"
+  models = "designs of more geos than are free are asked for and the walk reads past the free block"
+
+[[target]]
+name = "tbr-bnb-price-dispatch"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastprice.py benchmarks/studies/tbr_bnb/test_pricing.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-pricing-kernel-is-never-run"
+  find = "    if PRICE_KERNEL and fastprice.AVAILABLE:\n"
+  replace = "    if False:\n"
+  models = "PRICE_KERNEL accepted and ignored: pricing stays in Python with numba installed"
+
+  [[target.mutant]]
+  id = "the-pricing-kernel-is-run-without-numba"
+  find = "    if PRICE_KERNEL and fastprice.AVAILABLE:\n"
+  replace = "    if True:\n"
+  models = "the kernel is called with the switch off or numba missing, where it is the uncompiled stub"
+
+  [[target.mutant]]
+  id = "the-kernel-designs-are-not-counted"
+  find = "        out.priced += int(total)\n"
+  replace = "        out.priced += 0\n"
+  models = "the designs the kernel prices are not counted, so the search reports pricing that did not happen as not happening"
