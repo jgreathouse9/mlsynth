@@ -590,8 +590,10 @@ PENTAGON_RESTARTS = 3000
 
 #: Whether separate_pentagons runs its local search compiled (fastpent.search) when
 #: numba is installed, read at the call. The compiled search takes the Python search's
-#: steps (fastpent's module docstring) and releases the interpreter lock, so sizes on
-#: threads separate at once. On a quiet machine the 100-geo search took 277.1 s and
+#: steps (fastpent's module docstring) and releases the interpreter lock. Sizes on threads
+#: separate at once only since the starts are built once (_pentagon_starts) and the rows
+#: collected in arrays (_violated_rows): before, the rest of the call held the lock, and four
+#: threads took 13.7x to 14.8x one thread's time (test_pentagon_threads.py). On a quiet machine the 100-geo search took 277.1 s and
 #: 278.4 s with it against 323.4 s and 331.9 s without, the beds 178.2 s against
 #: 203.8 s, the same designs (README, Pentagonal cuts).
 PENTAGON_KERNEL = True
@@ -681,15 +683,33 @@ def separate_pentagons(u, U, k=400, restarts=None, tol=1e-6, seed=0):
     S0, B0 = _pentagon_starts(n, restarts, seed)
     run = fastpent.search if (PENTAGON_KERNEL and fastpent.AVAILABLE) else _pentagon_search
     S, B, val = run(Y, d, S0, B0)
-    found: Dict[tuple, float] = {}
-    for i in range(len(val)):
-        if (1 - val[i]) / 2 > tol:
-            key = sorted(zip((int(v) for v in S[i]), (int(s_) for s_ in B[i])))
-            if key[0][1] < 0:
-                key = [(v, -s_) for v, s_ in key]
-            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = float((1 - val[i]) / 2)
-    best = sorted(found.items(), key=lambda kv: (-kv[1], kv[0]))[:k]
-    return [(viol, PENTAGON, key) for key, viol in best]
+    return _violated_rows(S, B, val, k, tol)
+
+
+def _violated_rows(S, B, val, k, tol):
+    """The rows the search's ends violate by more than ``tol``, at most ``k``, as
+    separate_pentagons returns them. A row is keyed by its five-set in increasing order with
+    its signs normalised to b_0 = 1; a key reached from several starts keeps the last one's
+    violation; the rows come by violation, then key.
+
+    In arrays: a loop in Python over every start holds the interpreter lock, 12 to 15 ms a
+    call at a point violating many rows, so sizes on threads collected their rows one at a
+    time (test_pentagon_threads.py)."""
+    viol = (1 - val) / 2
+    hit = np.flatnonzero(viol > tol)
+    if hit.size == 0:
+        return []
+    order = np.argsort(S[hit], axis=1)                  # the five indices are distinct: no ties
+    keys = np.concatenate([np.take_along_axis(S[hit], order, axis=1),
+                           np.take_along_axis(B[hit], order, axis=1)], axis=1)
+    keys[:, 5:] *= np.where(keys[:, 5:6] < 0, -1, 1)
+    viol = viol[hit]
+    _, first = np.unique(keys[::-1], axis=0, return_index=True)   # the last start of each key
+    last = len(keys) - 1 - first
+    keys, viol = keys[last], viol[last]
+    rank = np.lexsort(tuple(keys[:, c] for c in range(9, -1, -1)) + (-viol,))[:k]
+    return [(v, PENTAGON, (tuple(row[:5]), tuple(row[5:])))
+            for v, row in zip(viol[rank].tolist(), keys[rank].tolist())]
 
 
 def _sign_matrix(u, U):
@@ -703,14 +723,22 @@ def _sign_matrix(u, U):
     return Y, np.diag(Y).copy()
 
 
+@functools.lru_cache(maxsize=None)
 def _pentagon_starts(n, restarts, seed):
     """The local search's starts: for each, five indices of n without replacement and
-    then five signs, drawn in that order from one generator seeded by ``seed``."""
+    then five signs, drawn in that order from one generator seeded by ``seed``.
+
+    Built once per (n, restarts, seed), the only things they depend on, and returned
+    read-only, since every later call shares them. Each draw releases and retakes the
+    interpreter lock, about 6000 handoffs for 3000 starts, so rebuilt on every call they
+    took 46 to 52 ms of a 71 to 77 ms separation and, with four sizes on threads, 18.8x to
+    21.2x one thread's time (test_pentagon_threads.py)."""
     rng = np.random.default_rng(seed)
     S0 = np.empty((restarts, 5), dtype=np.int64); B0 = np.empty((restarts, 5), dtype=np.int64)
     for i in range(restarts):
         S0[i] = rng.choice(n, 5, replace=False)
         B0[i] = [int(v) for v in rng.choice([-1, 1], 5)]
+    S0.setflags(write=False); B0.setflags(write=False)
     return S0, B0
 
 
