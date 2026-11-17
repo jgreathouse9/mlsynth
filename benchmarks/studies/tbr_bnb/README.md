@@ -2315,6 +2315,11 @@ built once and kept read-only (`_pentagon_starts`), and the rows are collected i
 (`_violated_rows`). The rows are the same: `test_pentagon_threads.py` checks them against
 the per-start loop at random points, seeds, `k` and tolerances. A call takes 11 to 13 ms,
 and four threads 1.9x to 2.1x one thread's time.
+On the Mediterranean markets of the hotel price panel (27 markets, 4 treated, `n_jobs=4`,
+one BLAS thread, runs alternated before, after, after, before) the certified search took
+653.1 s and 597.6 s before and 518.4 s and 504.1 s after, certifying the same design; its
+pentagonal separations took 273.0 s and 283.9 s of worker time before, 27.9 s and 26.9 s
+after.
 
 ### Stopping a size's rounds when the bound stalls, measured and not built
 
