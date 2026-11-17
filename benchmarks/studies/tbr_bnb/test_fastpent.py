@@ -80,7 +80,9 @@ def test_smoke_the_compiled_search_reports_the_python_searchs_rows(monkeypatch):
 
 @needs_numba
 def test_the_compiled_search_stops_every_start_at_a_local_minimum():
-    u, U = _dyadic_point(1, 11)
+    """On a grid of 1/128 a step can gain as little as 1/128^2, so a search that stops on
+    small gains stops short here."""
+    u, U = _dyadic_point(1, 11, den=128)
     Y, d = _sign_matrix(u, U)
     S0, B0 = _pentagon_starts(Y.shape[0], 60, 0)
     S, B, val = fastpent.search(Y, d, S0, B0)
@@ -92,8 +94,9 @@ def test_the_compiled_search_stops_every_start_at_a_local_minimum():
 
 
 @needs_numba
-def test_the_compiled_and_python_searches_take_the_same_steps():
-    u, U = _dyadic_point(2, 13)
+@pytest.mark.parametrize("den", [16, 128])
+def test_the_compiled_and_python_searches_take_the_same_steps(den):
+    u, U = _dyadic_point(2, 13, den)
     Y, d = _sign_matrix(u, U)
     S0, B0 = _pentagon_starts(Y.shape[0], 80, 4)
     a = fastpent.search(Y, d, S0, B0)
@@ -260,7 +263,7 @@ def test_the_kernel_refuses_a_sign_matrix_that_is_not_square():
 
 @needs_numba
 @SETTINGS
-@given(st.integers(0, 10_000), st.integers(4, 14), st.sampled_from([2, 4, 16]), st.integers(1, 40), st.integers(1, 30))
+@given(st.integers(0, 10_000), st.integers(4, 14), st.sampled_from([2, 4, 16, 128]), st.integers(1, 40), st.integers(1, 30))
 def test_property_at_dyadic_points_the_kernel_reports_the_python_searchs_rows(seed, p, den, restarts, k):
     u, U = _dyadic_point(seed, p, den)
     fast = separate_pentagons(u, U, k=k, restarts=restarts, seed=seed % 7)
