@@ -15174,7 +15174,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-pentagons"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_pentagons.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_pentagons.py benchmarks/studies/tbr_bnb/test_fastpent.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -15221,8 +15221,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "pentagon-violation-not-halved"
-  find = "            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = (1 - val) / 2"
-  replace = "            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = 1 - val"
+  find = "            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = float((1 - val[i]) / 2)"
+  replace = "            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = float(1 - val[i])"
   models = "the separation reports 1 - b'Yb as the violation, twice the row's excess, so rows are ranked and cut on a wrong number"
 
   [[target.mutant]]
@@ -15233,8 +15233,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "pentagon-best-sign-reversed"
-  find = "                    S[t] = v; b[t] = -1 if lin[v] > 0 else 1; val = float(cand[v]); improved = True"
-  replace = "                    S[t] = v; b[t] = 1 if lin[v] > 0 else -1; val = float(cand[v]); improved = True"
+  find = "                    Si[t] = v; bi[t] = -1 if lin[v] > 0 else 1; vi = float(cand[v]); moved = True"
+  replace = "                    Si[t] = v; bi[t] = 1 if lin[v] > 0 else -1; vi = float(cand[v]); moved = True"
   models = "the local search records the worse sign for the index it moves in, so the row it reports is not the one whose value it tracked"
 
   [[target.mutant]]
