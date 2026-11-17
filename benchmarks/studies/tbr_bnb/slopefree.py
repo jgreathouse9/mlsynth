@@ -1405,6 +1405,9 @@ PRICE_LIMIT = int(BOUND_SECONDS / PRICE_SECONDS)
 #: is installed, read at the call. The compiled pass keeps every design the Python pass
 #: keeps whose exact ratio exceeds the incumbent's, and at dyadic data the same designs
 #: at the same bounds (fastprice's module docstring); it releases the interpreter lock.
+#: On a quiet machine, one BLAS thread, n_jobs=4, two pairs in opposite orders, each run
+#: certifying the same design: the 27-geo hotel subset 953.5 s, 1033.2 s off against
+#: 567.9 s, 602.4 s on; geo_panel(0) at 80 and 100 geos and the five beds within noise.
 PRICE_KERNEL = True
 #: Designs per batch, so that the gathered s-by-s blocks stay a few million doubles.
 _CELLS = 2_000_000
