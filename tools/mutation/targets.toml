@@ -15174,7 +15174,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-pentagons"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_pentagons.py benchmarks/studies/tbr_bnb/test_fastpent.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_pentagon_threads.py benchmarks/studies/tbr_bnb/test_pentagons.py benchmarks/studies/tbr_bnb/test_fastpent.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -15221,14 +15221,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "pentagon-violation-not-halved"
-  find = "            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = float((1 - val[i]) / 2)"
-  replace = "            found[(tuple(v for v, _ in key), tuple(s_ for _, s_ in key))] = float(1 - val[i])"
+  find = "    return [(v, PENTAGON, (tuple(row[:5]), tuple(row[5:])))"
+  replace = "    return [(2 * v, PENTAGON, (tuple(row[:5]), tuple(row[5:])))"
   models = "the separation reports 1 - b'Yb as the violation, twice the row's excess, so rows are ranked and cut on a wrong number"
 
   [[target.mutant]]
   id = "pentagon-signs-not-normalised"
-  find = "            if key[0][1] < 0:"
-  replace = "            if False:"
+  find = "    keys[:, 5:] *= np.where(keys[:, 5:6] < 0, -1, 1)\n"
+  replace = "    keys = keys\n"
   models = "a row and its negated signs are kept as two rows, the same row twice in a round"
 
   [[target.mutant]]
@@ -15239,9 +15239,45 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "pentagon-separation-keeps-every-row"
-  find = "    best = sorted(found.items(), key=lambda kv: (-kv[1], kv[0]))[:k]"
-  replace = "    best = sorted(found.items(), key=lambda kv: (-kv[1], kv[0]))"
+  find = "    rank = np.lexsort(tuple(keys[:, c] for c in range(9, -1, -1)) + (-viol,))[:k]"
+  replace = "    rank = np.lexsort(tuple(keys[:, c] for c in range(9, -1, -1)) + (-viol,))"
   models = "the separation ignores k and a round can add thousands of pentagonal rows"
+
+  [[target.mutant]]
+  id = "pentagon-starts-rebuilt-every-call"
+  find = "@functools.lru_cache(maxsize=None)\ndef _pentagon_starts(n, restarts, seed):"
+  replace = "def _pentagon_starts(n, restarts, seed):"
+  models = "the starts are drawn again on every separation, about 6000 interpreter-lock handoffs a call, so four sizes on threads took 13.7x to 14.8x one thread's time (RCA, test_pentagon_threads.py)"
+
+  [[target.mutant]]
+  id = "pentagon-starts-left-writable"
+  find = "    S0.setflags(write=False); B0.setflags(write=False)\n"
+  replace = "    pass\n"
+  models = "the cached starts every call shares can be written, so one caller's change moves every later separation's rows"
+
+  [[target.mutant]]
+  id = "pentagon-row-indices-not-sorted"
+  find = "    order = np.argsort(S[hit], axis=1)                  # the five indices are distinct: no ties\n"
+  replace = "    order = np.tile(np.arange(5), (hit.size, 1))\n"
+  models = "a row is keyed by its five-set in the order the search left it, so one row reached from two starts is two keys and its indices are unsorted"
+
+  [[target.mutant]]
+  id = "pentagon-rows-not-deduplicated"
+  find = "    _, first = np.unique(keys[::-1], axis=0, return_index=True)   # the last start of each key\n    last = len(keys) - 1 - first\n"
+  replace = "    last = np.arange(len(keys))\n"
+  models = "a row reached from several starts is reported once per start, the same row many times in a round"
+
+  [[target.mutant]]
+  id = "pentagon-row-keeps-the-first-starts-violation"
+  find = "    _, first = np.unique(keys[::-1], axis=0, return_index=True)   # the last start of each key\n    last = len(keys) - 1 - first\n"
+  replace = "    _, last = np.unique(keys, axis=0, return_index=True)\n"
+  models = "a row reached from several starts keeps the first start's violation, not the last's as the per-start loop did"
+
+  [[target.mutant]]
+  id = "pentagon-tied-rows-in-start-order"
+  find = "    keys, viol = keys[last], viol[last]\n    rank = np.lexsort(tuple(keys[:, c] for c in range(9, -1, -1)) + (-viol,))[:k]"
+  replace = "    last = np.sort(last)\n    keys, viol = keys[last], viol[last]\n    rank = np.argsort(-viol, kind=\"stable\")[:k]"
+  models = "rows with equal violations come in the order of the starts that found them, not by key, so which rows k keeps depends on the starts' order (a stable sort on violation alone after np.unique is not this defect: np.unique returns the keys sorted, which is why the first form of this mutant survived as an equivalent)"
 
   [[target.mutant]]
   id = "pentagons-never-separated"

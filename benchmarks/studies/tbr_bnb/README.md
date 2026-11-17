@@ -2304,6 +2304,23 @@ with the kernel off and on, each certifying the same designs:
 
 The 80-geo runs are pairs in opposite orders, as are the 100-geo runs.
 
+With the kernel on, the rest of the call still held the interpreter lock. Its 3000 starts
+were drawn again on every call, one start at a time from a numpy generator, and each draw
+releases and retakes the lock, about 6000 handoffs a call: 46 to 52 ms of a 71 to 77 ms
+call at 24 indices. With four threads separating at once the calls took 13.7x to 14.8x one
+thread's time, 3.4x to 3.7x what running them one after another costs, at every switch
+interval tried. The rows were then collected by a Python loop over every start, 12 to 15 ms
+at a point violating many rows. The starts depend only on (n, restarts, seed), so they are
+built once and kept read-only (`_pentagon_starts`), and the rows are collected in arrays
+(`_violated_rows`). The rows are the same: `test_pentagon_threads.py` checks them against
+the per-start loop at random points, seeds, `k` and tolerances. A call takes 11 to 13 ms,
+and four threads 1.9x to 2.1x one thread's time.
+On the Mediterranean markets of the hotel price panel (27 markets, 4 treated, `n_jobs=4`,
+one BLAS thread, runs alternated before, after, after, before) the certified search took
+653.1 s and 597.6 s before and 518.4 s and 504.1 s after, certifying the same design; its
+pentagonal separations took 273.0 s and 283.9 s of worker time before, 27.9 s and 26.9 s
+after.
+
 ### Stopping a size's rounds when the bound stalls, measured and not built
 
 A size's relaxation runs up to `rounds` (6) rounds of cuts before it branches. A rule
