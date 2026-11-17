@@ -106,6 +106,22 @@ def test_the_compiled_and_python_searches_take_the_same_steps(den):
 
 
 @needs_numba
+def test_a_move_that_gains_little_is_taken():
+    """Y = I with Y_05 = Y_50 = eps / 2: from the start (0, 1, 2, 3, 4), all signs +,
+    replacing member 1 by index 5 at sign -1 lowers b'Y_SS b from 5 to 5 - eps, and no
+    other move from the start does. eps = 2^-12 is dyadic, so the values are exact, and
+    small, so a search that needs a larger gain to move stays at 5."""
+    eps = 2.0 ** -12
+    Y = np.eye(6); Y[0, 5] = Y[5, 0] = eps / 2
+    d = np.diag(Y).copy()
+    S0 = np.array([[0, 1, 2, 3, 4]], dtype=np.int64); B0 = np.ones((1, 5), dtype=np.int64)
+    S, B, val = fastpent.search(Y, d, S0, B0)
+    assert 5 in S[0] and val[0] <= 5 - eps
+    for x, y in zip((S, B, val), _pentagon_search(Y, d, S0, B0)):
+        assert np.array_equal(x, y)
+
+
+@needs_numba
 def test_the_search_leaves_its_starts_untouched():
     u, U = _dyadic_point(3, 9)
     Y, d = _sign_matrix(u, U)
