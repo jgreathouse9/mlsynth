@@ -27,6 +27,22 @@ relaxation of the one after it:
           the pairwise disjunction of Han, Gomez and Atamturk (2023), eq. (5),
           valid here because the slope is shared (derived here).
 
+A piece's value is a lower bound by weak duality (#1087), not the solver's primal
+value. Any multipliers (lambda >= 0 on the inequality rows, mu free on the
+equalities, a point of the second-order cone on each cone row) give a Lagrangian
+L <= objective on the feasible set. L is affine in (Z, u), with matrix S in Z, so
+its minimum over the superset {Z PSD, trace(Z) <= T} x [0, 1]^p is
+const + T min(0, lambda_min(S)) + sum_j min(0, a_j). Multipliers off their cones
+are clipped or projected first, so the bound holds whatever the solver returned.
+The full lift's feasible set lies on the face Zv = 0, v = (-m, 1, ..., 1, 0, ..., 0),
+which has no strictly feasible point; there Clarabel stops "optimal_inaccurate"
+with a primal value up to 3.75e-4 above the true minimum (#1087), and the
+multipliers still give a bound within 1.5e-4 of it. The perspective rows are
+written as cones ||(2 w_j, u_j - W_jj)|| <= u_j + W_jj, the same set as
+w_j^2 <= u_j W_jj with u_j, W_jj >= 0, so that their multipliers are the cone's
+own: the tangent of w_j^2 / u_j at u_j = 0 is undefined, and through it the bound
+lost up to 2.4x on accurate solves.
+
 Shor, N. Z. (1987). Quadratic optimization problems. Soviet J. Comput. Systems
     Sci. 25, 1-11.
 Sherali, H. D. and Adams, W. P. (1999). A Reformulation-Linearization Technique
@@ -42,6 +58,7 @@ Han, S., Gomez, A. and Atamturk, A. (2023). 2x2-convexifications for convex
 """
 import numpy as np
 import cvxpy as cp
+from cvxpy.constraints import PSD, SOC, Equality, Inequality
 
 
 class Lift:
@@ -53,6 +70,11 @@ class Lift:
         self.lo, self.hi = cp.Parameter(nonneg=True), cp.Parameter(nonneg=True)
         self.m = cp.Parameter(nonneg=True)
         lo, hi, m = self.lo, self.hi, self.m
+        self.level, self.status, self.value, self._u = level, None, None, None
+        # the diagonal rows trace_bound reads: (w - lo u)(hi u - w) >= 0 and u (hi u - w) >= 0
+        self._p = p
+        self._capped = bool({("a", "c"), ("c", "a")} - set(skip))
+        self._wcap = bool({("u", "c"), ("c", "u")} - set(skip))
         if level == "full":
             Z = cp.Variable((2 * p + 1, 2 * p + 1), symmetric=True)
             x = Z[1:, 0]; u, w = x[:p], x[p:]
@@ -111,25 +133,105 @@ class Lift:
             if level in ("persp", "rlt"):
                 u = cp.Variable(p)
                 cons += [u >= 0, u <= 1, cp.sum(u) == m, w >= lo * u, w <= hi * u]
-                cons += [cp.quad_over_lin(w[j], u[j]) <= W[j, j] for j in range(p)]
+                dW = cp.diag(W)
+                cons.append(cp.SOC(u + dW, cp.vstack([2 * w, u - dW])))   # w_j^2 <= u_j W_jj
+                self._u = u
             if level == "rlt":
                 wc = cp.reshape(w, (p, 1), order="F"); row = np.ones((1, p))
                 Wi = wc @ row
                 cons += [W <= hi * Wi.T, W <= hi * Wi, W >= hi * (Wi + Wi.T) - hi * hi]
             obj = yy - 2 * c @ w + cp.trace(G @ W)
+        self._Z = Z
         self.prob = cp.Problem(cp.Minimize(obj), cons)
 
     def piece(self, b_lo, b_hi, m, big=1e6, tol=None):
-        """The lift's minimum over slopes in [b_lo, b_hi] and size m, in the units of
-        y. ``tol`` sets Clarabel's three stopping tolerances (absolute and relative
-        gap, feasibility); None keeps Clarabel's own."""
+        """A lower bound on the lift's minimum over slopes in [b_lo, b_hi] and size m,
+        in the units of y: ``bound()`` from the solve's multipliers. The solve's
+        status and primal value are kept on ``status`` and ``value``. ``tol`` sets
+        Clarabel's three stopping tolerances (absolute and relative gap,
+        feasibility); None keeps Clarabel's own."""
         self.lo.value, self.hi.value, self.m.value = b_lo, min(b_hi, big), m
         kw = {} if tol is None else dict(tol_gap_abs=tol, tol_gap_rel=tol, tol_feas=tol)
         try:
             self.prob.solve(solver=cp.CLARABEL, max_threads=1, **kw)   # fork-safe (slopefree.solve)
         except cp.error.SolverError:  # pragma: no cover - Clarabel raises only on a numerical
             self.prob.solve(solver=cp.SCS, eps=1e-8, max_iters=20000)  # breakdown, never on the study's panels
-        if self.prob.status not in ("optimal", "optimal_inaccurate"):
+        self.status = self.prob.status
+        if self.status not in ("optimal", "optimal_inaccurate"):
+            self.value = None
             return np.inf
-        return float(self.prob.value) * self.scale ** 2
+        self.value = float(self.prob.value) * self.scale ** 2
+        return self.bound()
+
+    def trace_bound(self):
+        """T with trace(Z) <= T on the feasible set at the current parameters.
+        Below the full lift, 1 + m hi^2 from diag W <= hi w and sum w <= m hi.
+        The full lift has trace U = sum u = m, and the diagonal of
+        (w - lo u)(hi u - w) >= 0 gives W_jj <= (hi + lo) w_j - lo hi u_j, so
+        trace W <= (hi + lo) sum w - lo hi m. The diagonal of u (hi u - w) >= 0
+        gives sum w <= hi m, and trace W <= m hi^2; without it, w_j^2 <= W_jj
+        (Z PSD) caps w_j at hi + lo, and sum w <= p (hi + lo). Without the first
+        diagonal nothing caps W, and T is infinite."""
+        m, lo, hi = float(self.m.value), float(self.lo.value), float(self.hi.value)
+        if self.level != "full":
+            return 1 + m * hi * hi
+        if not self._capped:
+            return np.inf
+        sw = hi * m if self._wcap else self._p * (hi + lo)
+        return 1 + m + (hi + lo) * sw - lo * hi * m
+
+    def bound(self, duals=None):
+        """The weak-duality lower bound from ``duals`` (one per constraint, in the
+        problem's order; the last solve's by default), in the units of y. -inf when
+        a multiplier is missing."""
+        cons = self.prob.constraints
+        duals = [c.dual_value for c in cons] if duals is None else list(duals)
+        if len(duals) != len(cons):
+            raise ValueError(f"one multiplier per constraint: {len(duals)} for {len(cons)}")
+        terms = [self.prob.objective.args[0]]
+        for c, d in zip(cons, duals):
+            if isinstance(c, PSD):
+                continue                        # the PSD cone is the minimization's own set
+            if d is None:
+                return -np.inf
+            if isinstance(c, Inequality):       # expr <= 0, lambda >= 0
+                terms.append(cp.sum(cp.multiply(np.maximum(np.asarray(d, float), 0.0), c.expr)))
+            elif isinstance(c, Equality):
+                terms.append(cp.sum(cp.multiply(np.asarray(d, float), c.expr)))
+            elif isinstance(c, SOC):            # (t, x) in the cone: subtract <(dt, dx), (t, x)> >= 0
+                t, x = c.args
+                dt, dx = _soc_project(np.atleast_1d(np.asarray(d[0], float)),
+                                      np.asarray(d[1], float).reshape(-1, t.size, order="F"))
+                terms.append(-cp.sum(cp.multiply(dt, t)) - cp.sum(cp.multiply(dx.reshape(x.shape, order="F"), x)))
+            else:  # pragma: no cover - the lift builds only these four kinds
+                raise TypeError(f"no Lagrangian term for {type(c).__name__}")
+        lag = cp.sum(cp.hstack([cp.reshape(t, (1,), order="F") for t in terms]))
+        keep = {v: v.value for v in self.prob.variables()}
+        for v in keep:
+            v.value = np.zeros(v.shape)
+        const, grad = float(lag.value), lag.grad
+        for v, val in keep.items():
+            v.value = val
+        n = self._Z.shape[0]
+        S = np.asarray(grad[self._Z].todense()).reshape(n, n, order="F")
+        lam = float(np.linalg.eigvalsh((S + S.T) / 2)[0])
+        out = const + (lam * self.trace_bound() if lam < 0 else 0.0)
+        if self._u is not None:                  # u in [0, 1]^p
+            out += float(np.minimum(np.asarray(grad[self._u].todense()).ravel(), 0.0).sum())
+        return out * self.scale ** 2
+
+
+def _soc_project(t, x):
+    """Each column (t_k, x_k) projected onto the cone {|x| <= t}."""
+    t, x = t.copy(), x.copy()
+    nx = np.linalg.norm(x, axis=0)
+    for k in range(len(t)):
+        if nx[k] <= t[k]:
+            continue
+        if nx[k] <= -t[k]:
+            t[k], x[:, k] = 0.0, 0.0
+            continue
+        a = (t[k] + nx[k]) / 2
+        t[k], x[:, k] = a, x[:, k] * (a / nx[k])
+    return t, x
 
