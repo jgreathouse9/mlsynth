@@ -322,6 +322,7 @@ def test_rounds_stop_at_the_limit(monkeypatch):
     y, X = panel(0, p=5)
     _, c, G = _exact(y, X)
     monkeypatch.setattr(sf, "bound", lambda *a, **k: Q(1))
+    monkeypatch.setattr(sf, "HOPELESS_RATIO", None)       # a bound held at 1 is what the rule ends early
     calls = iter(range(100))
     monkeypatch.setattr(sf, "separate_triangles", lambda u, U, k=400: [(0.1, 0, (0, 1, next(calls) % 3 + 2))])
     res = sf.size_certificate(c, G, Q(1, 2), 2, rounds=2)

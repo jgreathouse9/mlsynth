@@ -190,7 +190,11 @@ def test_fewer_than_five_indices_have_no_pentagon(p):
 @pytest.fixture
 def stubs(monkeypatch):
     """Separations that always find one new row, so every round of an open size runs:
-    a fresh triangle and a fresh pentagon each call (every one valid at every design)."""
+    a fresh triangle and a fresh pentagon each call (every one valid at every design).
+    The size's bound barely moves between rounds, which is what HOPELESS_RATIO ends early, so
+    the rule is off here: these checks are of the rounds, not of when they stop
+    (test_hopeless.py)."""
+    monkeypatch.setattr(slopefree, "HOPELESS_RATIO", None)
     calls = {"pentagons": 0}
     tri = iter(itertools.combinations(range(8), 3))
     five = iter(itertools.combinations(range(9), 5))
