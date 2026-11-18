@@ -17412,3 +17412,75 @@ timeout = 900.0
   find = "        out.priced += int(total)\n"
   replace = "        out.priced += 0\n"
   models = "the designs the kernel prices are not counted, so the search reports pricing that did not happen as not happening"
+
+[[target]]
+name = "tbr-bnb-lift-bound"
+module-path = "benchmarks/studies/tbr_bnb/lifts.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_lifts.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-primal-value-is-returned"
+  find = "        return self.bound()\n"
+  replace = "        return self.value\n"
+  models = "#1087 itself: the piece reports the solver's primal value, 3.75e-4 above the optimum on an inaccurate solve"
+
+  [[target.mutant]]
+  id = "inequality-multipliers-not-clipped"
+  find = "cp.multiply(np.maximum(np.asarray(d, float), 0.0), c.expr)"
+  replace = "cp.multiply(np.asarray(d, float), c.expr)"
+  models = "a negative multiplier on a <= row is used as returned, and the Lagrangian rises above the objective on the feasible set"
+
+  [[target.mutant]]
+  id = "the-psd-term-is-dropped"
+  find = "        out = const + (lam * self.trace_bound() if lam < 0 else 0.0)\n"
+  replace = "        out = const\n"
+  models = "the minimum over Z PSD is taken as zero when the Lagrangian's matrix has a negative eigenvalue"
+
+  [[target.mutant]]
+  id = "the-cone-multipliers-not-projected"
+  find = "        if nx[k] <= t[k]:\n            continue\n"
+  replace = "        if True:\n            continue\n"
+  models = "a cone multiplier outside the second-order cone is used as returned, so <d, (t, x)> can be negative on the feasible set"
+
+  [[target.mutant]]
+  id = "the-indicator-coefficients-are-ignored"
+  find = "            out += float(np.minimum(np.asarray(grad[self._u].todense()).ravel(), 0.0).sum())\n"
+  replace = "            out += 0.0\n"
+  models = "the Lagrangian's terms in u are dropped from the minimum over the box [0, 1]^p"
+
+  [[target.mutant]]
+  id = "the-full-trace-omits-the-u-block"
+  find = "        return 1 + m + (hi + lo) * sw - lo * hi * m\n"
+  replace = "        return 1 + (hi + lo) * sw - lo * hi * m\n"
+  models = "T leaves out trace U = m, too small for every real design of the full lift"
+
+  [[target.mutant]]
+  id = "the-shor-trace-is-too-small"
+  find = "            return 1 + m * hi * hi\n"
+  replace = "            return 1 + m * hi\n"
+  models = "T below the full lift caps trace W at m hi instead of m hi^2"
+
+  [[target.mutant]]
+  id = "the-trace-is-capped-without-its-rows"
+  find = "        self._capped = bool({(\"a\", \"c\"), (\"c\", \"a\")} - set(skip))\n"
+  replace = "        self._capped = True\n"
+  models = "T is taken as finite when the rows that cap diag W are skipped"
+
+  [[target.mutant]]
+  id = "a-missing-multiplier-is-skipped"
+  find = "            if d is None:\n                return None\n"
+  replace = "            if d is None:\n                continue\n"
+  models = "a row with no multiplier is left out of the Lagrangian and the bound is reported as if complete"
+
+  [[target.mutant]]
+  id = "the-status-is-not-recorded"
+  find = "        self.status = self.prob.status\n"
+  replace = "        self.status = \"optimal\"\n"
+  models = "an inaccurate solve is recorded as optimal"
+
+  [[target.mutant]]
+  id = "the-perspective-rows-as-quad-over-lin"
+  find = "                cons.append(cp.SOC(u + dW, cp.vstack([2 * w, u - dW])))   # w_j^2 <= u_j W_jj\n"
+  replace = "                cons += [cp.quad_over_lin(w[j], u[j]) <= W[j, j] for j in range(p)]\n"
+  models = "the perspective rows written as quad_over_lin, whose multipliers the affine Lagrangian cannot carry"
