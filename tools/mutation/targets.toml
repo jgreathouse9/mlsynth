@@ -15328,6 +15328,72 @@ timeout = 900.0
   models = "the search validates its switch and drops it, so every size takes the module's default"
 
 [[target]]
+name = "tbr-bnb-hopeless"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_hopeless.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "hopeless-rule-never-fires"
+  find = "    hopeless = _hopeless_settings() if ws is None else None\n"
+  replace = "    hopeless = None\n"
+  models = "the rule is configured, documented and reported but never ends a round, so a hopeless size runs every round (500.7 s of the hotel_med search's 555 s)"
+
+  [[target.mutant]]
+  id = "hopeless-judges-the-workspace-path"
+  find = "    hopeless = _hopeless_settings() if ws is None else None\n"
+  replace = "    hopeless = _hopeless_settings()\n"
+  models = "the SCS workspace's inexact, non-monotone round bounds are judged, which on the beer panel would stop 23 sizes that later close"
+
+  [[target.mutant]]
+  id = "hopeless-reference-is-every-round"
+  find = "        if r == 0:\n            b0 = b\n"
+  replace = "        if True:\n            b0 = b\n"
+  models = "the reference bound is the round being judged, not round 0, so the ratio is 1 and the rule never fires"
+
+  [[target.mutant]]
+  id = "hopeless-starts-a-round-late"
+  find = "        if (hopeless is not None and hopeless[1] <= r < rounds and b is not None and b0 is not None and b0 > 0"
+  replace = "        if (hopeless is not None and hopeless[1] < r < rounds and b is not None and b0 is not None and b0 > 0"
+  models = "the first round judged is HOPELESS_FROM + 1, so every hopeless size runs a round more than the setting says"
+
+  [[target.mutant]]
+  id = "hopeless-judges-the-last-round"
+  find = "        if (hopeless is not None and hopeless[1] <= r < rounds and b is not None and b0 is not None and b0 > 0"
+  replace = "        if (hopeless is not None and hopeless[1] <= r <= rounds and b is not None and b0 is not None and b0 > 0"
+  models = "the last round, which ends the size open anyway, is reported as hopeless, so the tier counts misattribute it"
+
+  [[target.mutant]]
+  id = "hopeless-comparison-flipped"
+  find = "                and b > Q(hopeless[0]) * b0):"
+  replace = "                and b < Q(hopeless[0]) * b0):"
+  models = "the rule stops the sizes whose bound is falling fast, the ones that close, and keeps the hopeless ones"
+
+  [[target.mutant]]
+  id = "hopeless-ratio-not-checked"
+  find = "    if type(ratio) not in (int, float) or not 0 < ratio <= 1:"
+  replace = "    if False:"
+  models = "a ratio above 1, of zero, a string or a NaN is accepted, so the rule silently never fires or fires on every round"
+
+  [[target.mutant]]
+  id = "hopeless-start-not-checked"
+  find = "    if type(start) is not int or start < 1:"
+  replace = "    if False:"
+  models = "HOPELESS_FROM 0 is accepted, judging round 0 against itself, or a non-integer start is compared as a number"
+
+  [[target.mutant]]
+  id = "hopeless-reported-as-full"
+  find = "            return SizeResult(False, b, r, len(tri), time.perf_counter() - t0, u, tier=\"hopeless\")"
+  replace = "            return SizeResult(False, b, r, len(tri), time.perf_counter() - t0, u)"
+  models = "a size the rule ended is reported as having run its rounds, so the search's tier counts hide the rule"
+
+  [[target.mutant]]
+  id = "hopeless-stop-not-reported"
+  find = "            emit(\"hopeless\", m=m, round=r, ratio=float(b / b0), seconds=time.perf_counter() - t0)\n"
+  replace = "            pass\n"
+  models = "the stop happens without its event, so a log cannot show which sizes the rule ended or at what ratio"
+
+[[target]]
 name = "tbr-design-rules"
 module-path = "mlsynth/utils/tbr_helpers/design/rules.py"
 test-command = "python -m pytest mlsynth/tests/test_tbr_design_rules.py mlsynth/tests/test_tbr_design_constraints.py -q -p no:cacheprovider -x"

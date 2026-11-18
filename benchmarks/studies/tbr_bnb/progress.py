@@ -62,6 +62,7 @@ KINDS: Dict[str, Tuple[int, Tuple[str, ...]]] = {
     "schedule": (3, ("m", "rung", "maxfun", "closed", "seconds")),
     "triangles": (3, ("m", "round", "triangles", "closed", "seconds")),
     "pentagons": (3, ("m", "round", "pentagons", "seconds")),
+    "hopeless": (3, ("m", "round", "ratio", "seconds")),
     "solve": (3, ("relaxation", "solver", "rows_eq", "rows_in", "status", "seconds")),
     "price": (3, ("m", "depth", "designs", "exact", "seconds")),
 }

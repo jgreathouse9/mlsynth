@@ -3,9 +3,12 @@
 On the hotel_med certified search 237 of the 300 size_certificate calls that reached
 the relaxation rounds ended open and branched anyway, and they took 500.7 s of the 555 s
 those rounds cost; 108 ran all seven rounds. Every call that closed had fallen to at most
-0.458 of its round-0 bound by round 1, while the open calls' median was 0.55. So after
+0.458 of its round-0 bound by round 1, while the open calls' median was 0.55; on the alcohol
+panel's search (1,047 calls) closing calls never rose above 0.051. So after
 round HOPELESS_FROM a round whose bound is still above HOPELESS_RATIO times round 0's
-ends the size open (tier "hopeless") and the node branches on that round's point.
+ends the size open (tier "hopeless") and the node branches on that round's point. The rule
+judges the exact relaxation's rounds only: the SCS workspace's rounds end early with inexact,
+non-monotone bounds (test_the_workspace_path_is_not_judged).
 
 Branching is sound whatever the point, so the rule can never certify anything wrongly;
 what it can do is give up on a node that would have closed, which costs nodes, never
@@ -44,8 +47,7 @@ def _open_size():
 def scripted(monkeypatch):
     """solve() returns the next scripted bound each round (a point, zero multipliers), and
     every separation finds one new triangle, so only the bounds decide when rounds end."""
-    state = {"bounds": iter(()), "solves": 0}
-    tri = iter(itertools.combinations(range(8), 3))
+    state = {"bounds": iter(()), "solves": 0, "tri": iter(())}
 
     def solve(c, G, lam, R, solver=None):
         state["solves"] += 1
@@ -56,10 +58,14 @@ def scripted(monkeypatch):
                                bound=None if b is None else Q(b))
 
     monkeypatch.setattr(slopefree, "solve", solve)
-    monkeypatch.setattr(slopefree, "separate_triangles", lambda u, U, k=400, tol=1e-6: [(0.1, 1, next(tri))])
+    monkeypatch.setattr(slopefree, "separate_triangles", lambda u, U, k=400, tol=1e-6: [(0.1, 1, next(state["tri"]))])
+    # a round whose solve carries no bound falls back to the certificate; None there is a round
+    # with no bound at all, which is what a scripted None stands for
+    monkeypatch.setattr(slopefree.fbound, "certificate", lambda *a, **k: None)
 
     def run(bounds, rounds=6, **k):
         state["bounds"] = iter(bounds); state["solves"] = 0
+        state["tri"] = iter(itertools.combinations(range(8), 3))   # fresh rows each run: hypothesis reuses the fixture
         c, G, lam, m = _open_size()
         res = size_certificate(c, G, lam, m, schedules=(), rounds=rounds, solver="clarabel", pentagons=False, **k)
         return res, state["solves"]
@@ -117,6 +123,29 @@ def test_no_round_zero_bound_turns_the_rule_off_for_the_size(scripted, monkeypat
     monkeypatch.setattr(slopefree, "HOPELESS_RATIO", 0.6); monkeypatch.setattr(slopefree, "HOPELESS_FROM", 1)
     res, solves = scripted([None, 9, 9, 9], rounds=3)
     assert res.tier == "full" and solves == 4
+
+
+def test_the_workspace_path_is_not_judged(monkeypatch):
+    """SCS workspace rounds end early (SEPARATE_AFTER chunks) with inexact bounds, which are not
+    monotone across rounds: on the beer panel's search closing calls rose to 6.1 times their
+    round-0 bound before closing, and a ratio of 0.6 would have stopped 23 of them. The rule
+    judges only the exact relaxation's rounds."""
+    from . import workspace
+    monkeypatch.setattr(slopefree, "HOPELESS_RATIO", 0.6); monkeypatch.setattr(slopefree, "HOPELESS_FROM", 1)
+    bounds = iter([10, 9, 8, 7, -1]); solves = []
+    tri = iter(itertools.combinations(range(8), 3))
+
+    def ws_solve(self, c, G, lam, R, early=False):
+        solves.append(1)
+        n = R.n; Z = np.eye(n) * 0.5; Z[0, 0] = 1.0
+        return slopefree.Solve(0.0, 1.0, np.zeros(R.n_eq), np.zeros(R.n_in), Z, "separate", solver="workspace",
+                               bound=Q(next(bounds)))
+
+    monkeypatch.setattr(workspace.Workspaces, "solve", ws_solve)
+    monkeypatch.setattr(slopefree, "separate_triangles", lambda u, U, k=400, tol=1e-6: [(0.1, 1, next(tri))])
+    c, G, lam, m = _open_size()
+    res = size_certificate(c, G, lam, m, schedules=(), rounds=6, solver="workspace", pentagons=False)
+    assert res.certified and res.rounds == 4 and len(solves) == 5
 
 
 def test_the_settings_are_read_at_the_call(scripted, monkeypatch):
