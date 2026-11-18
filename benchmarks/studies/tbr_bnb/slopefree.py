@@ -588,6 +588,34 @@ PENTAGONS_FROM = 1
 #: took 0.7 s on average, 7.6 s over the 11 rounds of the group above.
 PENTAGON_RESTARTS = 3000
 
+#: A size's relaxation rounds end open (tier "hopeless") once a round from HOPELESS_FROM on
+#: leaves the certificate above HOPELESS_RATIO times round 0's, and the node branches on that
+#: round's point; None turns the rule off. Read at the call. On the hotel_med certified search
+#: 237 of the 300 calls that reached the rounds ended open anyway and took 500.7 s of the
+#: 555 s the rounds cost, while every call that closed had fallen to at most 0.458 of its
+#: round-0 bound by round 1; on the alcohol panel's search (1,047 calls) closing calls never
+#: rose above 0.051, and 0.6 stopped 352 of the 519 open calls, saving 2,135 s of their
+#: 4,341 s, with no closing call stopped (test_hopeless.py). Only the exact relaxation's rounds
+#: are judged: the SCS workspace's end early with inexact, non-monotone bounds (on the beer
+#: panel closing calls rose to 6.1 times round 0's before closing).
+HOPELESS_RATIO: Optional[float] = 0.6
+
+#: The first round the rule above judges (round 0 is its reference).
+HOPELESS_FROM = 1
+
+
+def _hopeless_settings() -> Optional[Tuple[float, int]]:
+    """(HOPELESS_RATIO, HOPELESS_FROM) checked, or None when the rule is off."""
+    ratio, start = HOPELESS_RATIO, HOPELESS_FROM
+    if ratio is None:
+        return None
+    if type(ratio) not in (int, float) or not 0 < ratio <= 1:
+        raise MlsynthConfigError(f"HOPELESS_RATIO is None or a number in (0, 1], not {ratio!r}.")
+    if type(start) is not int or start < 1:
+        raise MlsynthConfigError(f"HOPELESS_FROM is a round, an int at least 1, not {start!r}.")
+    return float(ratio), start
+
+
 #: Whether separate_pentagons runs its local search compiled (fastpent.search) when
 #: numba is installed, read at the call. The compiled search takes the Python search's
 #: steps (fastpent's module docstring) and releases the interpreter lock. Sizes on threads
@@ -813,6 +841,7 @@ class SizeResult:
     seconds: float
     u: Optional[np.ndarray] = None       # the relaxation's last u, for branching
     tier: str = "full"                   # the cascade's tier that decided: reuse, dual, triangles, shor or full
+    #                                      (hopeless: rounds ended open, the bound too far from zero)
     #                                      (first-order: open after the first-order tiers, no relaxation solved)
     multipliers: Optional[Multipliers] = None   # those of the certificate that closed it
 
@@ -1244,6 +1273,8 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
     # one size carried to the next saved solves and cost more in every solve (#965)
     tri: List = list(ws.pool) if ws is not None and fixes else []
     u = None
+    hopeless = _hopeless_settings() if ws is None else None
+    b0 = None
     for r in range(rounds + 1):
         R = Rows(c, m, cuts=cuts, triangles=tri, fixes=fixes, face=face, box=ws is not None)
         try:
@@ -1255,6 +1286,12 @@ def size_certificate(c, G, lam, m, cuts=(), fixes=(), rounds=6, per_round=400,
         if b is not None and b <= 0:
             w = Multipliers("full", sol.y_eq, sol.y_in) if not tri else None
             return SizeResult(True, b, r, len(tri), time.perf_counter() - t0, u, multipliers=w)
+        if r == 0:
+            b0 = b
+        if (hopeless is not None and hopeless[1] <= r < rounds and b is not None and b0 is not None and b0 > 0
+                and b > Q(hopeless[0]) * b0):
+            emit("hopeless", m=m, round=r, ratio=float(b / b0), seconds=time.perf_counter() - t0)
+            return SizeResult(False, b, r, len(tri), time.perf_counter() - t0, u, tier="hopeless")
         new = [] if sol.Z is None else separate_triangles(sol.Z[0, 1:], sol.Z[1:, 1:], k=per_round)
         new = [(kind, idx) for _, kind, idx in new if (kind, idx) not in set(tri)]
         if pentagons and sol.Z is not None and PENTAGONS_FROM <= r < rounds:
