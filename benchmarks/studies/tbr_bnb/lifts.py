@@ -180,10 +180,11 @@ class Lift:
         sw = hi * m if self._wcap else self._p * (hi + lo)
         return 1 + m + (hi + lo) * sw - lo * hi * m
 
-    def bound(self, duals=None):
-        """The weak-duality lower bound from ``duals`` (one per constraint, in the
-        problem's order; the last solve's by default), in the units of y. -inf when
-        a multiplier is missing."""
+    def lagrangian(self, duals=None):
+        """The Lagrangian of ``duals`` (one per constraint, in the problem's order; the
+        last solve's by default) as an affine expression in (Z, u), in the scaled
+        units the problem is built in; None when a multiplier is missing. It is at
+        most the objective on the feasible set."""
         cons = self.prob.constraints
         duals = [c.dual_value for c in cons] if duals is None else list(duals)
         if len(duals) != len(cons):
@@ -193,7 +194,7 @@ class Lift:
             if isinstance(c, PSD):
                 continue                        # the PSD cone is the minimization's own set
             if d is None:
-                return -np.inf
+                return None
             if isinstance(c, Inequality):       # expr <= 0, lambda >= 0
                 terms.append(cp.sum(cp.multiply(np.maximum(np.asarray(d, float), 0.0), c.expr)))
             elif isinstance(c, Equality):
@@ -205,7 +206,15 @@ class Lift:
                 terms.append(-cp.sum(cp.multiply(dt, t)) - cp.sum(cp.multiply(dx.reshape(x.shape, order="F"), x)))
             else:  # pragma: no cover - the lift builds only these four kinds
                 raise TypeError(f"no Lagrangian term for {type(c).__name__}")
-        lag = cp.sum(cp.hstack([cp.reshape(t, (1,), order="F") for t in terms]))
+        return cp.sum(cp.hstack([cp.reshape(t, (1,), order="F") for t in terms]))
+
+    def bound(self, duals=None):
+        """The weak-duality lower bound from ``duals`` (as for ``lagrangian``): the
+        Lagrangian's minimum over {Z PSD, trace Z <= T} x [0, 1]^p, in the units of
+        y. -inf when a multiplier is missing."""
+        lag = self.lagrangian(duals)
+        if lag is None:
+            return -np.inf
         keep = {v: v.value for v in self.prob.variables()}
         for v in keep:
             v.value = np.zeros(v.shape)

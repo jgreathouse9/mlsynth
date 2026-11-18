@@ -17403,7 +17403,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-missing-multiplier-is-skipped"
-  find = "            if d is None:\n                return -np.inf\n"
+  find = "            if d is None:\n                return None\n"
   replace = "            if d is None:\n                continue\n"
   models = "a row with no multiplier is left out of the Lagrangian and the bound is reported as if complete"
 
