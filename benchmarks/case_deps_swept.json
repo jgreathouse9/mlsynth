@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-17T18:00:34Z",
+ "generated": "2026-11-18T17:09:02Z",
  "cases": 218,
  "files": [
   "basedata/Data.csv",
@@ -1890,6 +1890,7 @@
   "benchmarks/studies/tbr_bnb/test_parallel.py",
   "benchmarks/studies/tbr_bnb/test_parallel_sizes.py",
   "benchmarks/studies/tbr_bnb/test_parallel_start.py",
+  "benchmarks/studies/tbr_bnb/test_pentagon_threads.py",
   "benchmarks/studies/tbr_bnb/test_pentagons.py",
   "benchmarks/studies/tbr_bnb/test_pricing.py",
   "benchmarks/studies/tbr_bnb/test_progress.py",
