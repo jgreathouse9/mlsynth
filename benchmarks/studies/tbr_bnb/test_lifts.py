@@ -54,15 +54,17 @@ def test_every_level_is_a_relaxation(seed, lo, width, m, name):
 
 
 def test_the_solve_is_recorded_beside_the_bound():
-    """#1087's case: the solve stops inaccurate above the optimum; the piece reports
-    the bound, and keeps the status and the primal value for the caller to read."""
+    """#1087's case: the piece reports the bound, and keeps the status and the primal
+    value for the caller to read. How far the primal value lands from the optimum
+    moves with the last bits (3.75e-4 above on one machine, 6.5e-5 on CI's Python
+    3.10), so only the bound is held to the optimum."""
     y, X = panel(2117, p=5)
     L = Lift(y, X, "full")
     v = L.piece(0.9375, 0.9375 * 1.25, 3)
     opt = piece_optimum(y, X, 0.9375, 0.9375 * 1.25, 3)
-    assert L.status == L.prob.status == "optimal_inaccurate"
+    assert L.status == L.prob.status
+    assert L.status in ("optimal", "optimal_inaccurate")
     assert L.value == pytest.approx(float(L.prob.value) * L.scale ** 2, rel=1e-12)
-    assert L.value > opt * (1 + 2e-4)          # the primal value is not a bound here
     assert v == L.bound() <= opt
     assert v > opt * (1 - 1e-3)                # and the bound is still close
 
@@ -275,7 +277,9 @@ def test_an_infeasible_piece_contributes_nothing():
     """lo > hi admits no slope: the hull and the lift both report +inf."""
     y, X = panel(1, p=4)
     assert ControlBound(y, X).piece(2.0, 1.0, 4) == np.inf
-    assert Lift(y, X, "shor").piece(2.0, 1.0, 4) == np.inf
+    L = Lift(y, X, "shor")
+    assert L.piece(2.0, 1.0, 4) == np.inf
+    assert L.status == "infeasible" and L.value is None
 
 
 def test_the_rss_of_an_empty_aggregate_is_the_total_sum_of_squares():
