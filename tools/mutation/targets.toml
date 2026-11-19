@@ -12171,7 +12171,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_node_reuse.py benchmarks/studies/tbr_bnb/test_node_rounding.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py benchmarks/studies/tbr_bnb/test_dual_memory.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_node_reuse.py benchmarks/studies/tbr_bnb/test_node_rounding.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py benchmarks/studies/tbr_bnb/test_dual_memory.py benchmarks/studies/tbr_bnb/test_clarabel_settings.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -12630,14 +12630,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "clarabel-starts-its-own-threads"
-  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())   # a thread pool"
-  replace = "        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log())   # a thread pool"
+  find = "        else:\n            prob.solve(solver=\"CLARABEL\", verbose=clarabel_log(), **CLARABEL_SETTINGS)\n"
+  replace = "        else:\n            prob.solve(solver=\"CLARABEL\", verbose=clarabel_log(), **{**CLARABEL_SETTINGS, \"max_threads\": 0})\n"
   models = "Clarabel left to its automatic threading, whose native thread pool a forked worker inherits without its threads, so certify_treatment(n_jobs > 1) hangs at its first Clarabel solve in a worker"
 
   [[target.mutant]]
   id = "the-face-solve-starts-its-own-threads"
-  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())   # one thread, as in solve()"
-  replace = "        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log())   # one thread, as in solve()"
+  find = "    try:\n        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log(), **CLARABEL_SETTINGS)\n"
+  replace = "    try:\n        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log(), **{**CLARABEL_SETTINGS, \"max_threads\": 0})\n"
   models = "the face solve left to Clarabel's automatic threading, so a forked worker hangs at its first solve on a face"
 
   [[target.mutant]]
@@ -12900,15 +12900,33 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "clarabel-never-logs"
-  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())   # a thread pool"
-  replace = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=False)   # a thread pool"
+  find = "        else:\n            prob.solve(solver=\"CLARABEL\", verbose=clarabel_log(), **CLARABEL_SETTINGS)\n"
+  replace = "        else:\n            prob.solve(solver=\"CLARABEL\", verbose=False, **CLARABEL_SETTINGS)\n"
   models = "verbose 4 accepted and Clarabel's iteration log never shown"
 
   [[target.mutant]]
   id = "the-face-solve-never-logs"
-  find = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=clarabel_log())   # one thread, as in solve()"
-  replace = "        prob.solve(solver=\"CLARABEL\", max_threads=1, verbose=False)   # one thread, as in solve()"
+  find = "    try:\n        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log(), **CLARABEL_SETTINGS)\n"
+  replace = "    try:\n        prob.solve(solver=\"CLARABEL\", verbose=False, **CLARABEL_SETTINGS)\n"
   models = "verbose 4 accepted and Clarabel's iteration log never shown for a solve on the face"
+
+  [[target.mutant]]
+  id = "the-refinement-is-left-on"
+  find = "CLARABEL_SETTINGS = {\"max_threads\": 1, \"iterative_refinement_enable\": False}\n"
+  replace = "CLARABEL_SETTINGS = {\"max_threads\": 1, \"iterative_refinement_enable\": True}\n"
+  models = "Clarabel's iterative refinement left on, each iteration's KKT system solved again for accuracy the certificate does not read"
+
+  [[target.mutant]]
+  id = "the-full-space-solve-refines"
+  find = "        else:\n            prob.solve(solver=\"CLARABEL\", verbose=clarabel_log(), **CLARABEL_SETTINGS)\n"
+  replace = "        else:\n            prob.solve(solver=\"CLARABEL\", verbose=clarabel_log(), **{**CLARABEL_SETTINGS, \"iterative_refinement_enable\": True})\n"
+  models = "the full-space Clarabel solve given refinement back, paying its second KKT solve each iteration"
+
+  [[target.mutant]]
+  id = "the-face-solve-refines"
+  find = "    try:\n        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log(), **CLARABEL_SETTINGS)\n"
+  replace = "    try:\n        prob.solve(solver=\"CLARABEL\", verbose=clarabel_log(), **{**CLARABEL_SETTINGS, \"iterative_refinement_enable\": True})\n"
+  models = "the face solve, the default path's, given refinement back"
 
   [[target.mutant]]
   id = "a-rounded-incumbent-is-not-reported"
