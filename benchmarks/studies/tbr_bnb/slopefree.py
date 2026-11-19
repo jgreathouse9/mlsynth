@@ -979,7 +979,7 @@ SCS_EPS = 1e-6
 #: not solved again against its residual. The certificate is built from the
 #: multipliers and is a bound at any multipliers (fbound.certificate; rule 26 of
 #: agents/agents_solvers.md), so the refinement's accuracy is accuracy the bound
-#: does not read. The refinement solve was 37% of a solve's time on the captured
+#: does not read. The refinement solve was 38% of a solve's time on the captured
 #: 27-geo nodes, with the same iteration counts (README, "Clarabel without
 #: iterative refinement").
 CLARABEL_SETTINGS = {"max_threads": 1, "iterative_refinement_enable": False}
