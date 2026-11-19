@@ -19,11 +19,11 @@ from hypothesis import strategies as st
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.tbr_helpers.design.rules import CONTROL, TREATMENT, UNASSIGNED, DesignRules
 
-from . import slopefree as sf
+from mlsynth.utils.tbr_helpers.design.exact import slopefree as sf
 from .brute import panel, positive_optimum, raw_panel
-from .search import incumbent
+from mlsynth.utils.tbr_helpers.design.exact.search import incumbent
 from .test_rules import ALL, K, N_TEST, _agrees, _free, _panel, _run, rules_optimum
-from .treatment import _checked_roles
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _checked_roles
 
 SETTINGS = settings(max_examples=15, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

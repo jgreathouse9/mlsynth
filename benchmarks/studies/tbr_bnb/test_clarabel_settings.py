@@ -15,9 +15,9 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from . import slopefree as sf
+from mlsynth.utils.tbr_helpers.design.exact import slopefree as sf
 from .brute import geo_panel, panel, positive_optimum
-from .certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
 
 SETTINGS = settings(max_examples=15, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

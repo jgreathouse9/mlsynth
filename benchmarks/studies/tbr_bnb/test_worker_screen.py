@@ -20,9 +20,9 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthDataError
 
-from . import fastfloor, treatment
+from mlsynth.utils.tbr_helpers.design.exact import fastfloor, treatment
 from .brute import geo_panel, raw_panel
-from .treatment import _drop_side, gram_floor
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _drop_side, gram_floor
 
 SETTINGS = settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 N_TEST = 8

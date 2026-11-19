@@ -11,9 +11,9 @@ from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from .brute import panel, piece_optimum
-from .certificate import ExactData, hull_bound
-from .hull import Band, ControlBound
-from .search import hull_survivors, incumbent, pieces_to
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData, hull_bound
+from mlsynth.utils.tbr_helpers.design.exact.hull import Band, ControlBound
+from mlsynth.utils.tbr_helpers.design.exact.search import hull_survivors, incumbent, pieces_to
 
 SETTINGS = settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

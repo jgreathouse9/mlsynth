@@ -52,10 +52,9 @@ except ImportError:  # pragma: no cover - the suite runs with numba installed
 
 #: Compiled code is cached on disk only under this module name. numba keys its cache
 #: files on the source file but records the module's name in them, so a cache written
-#: when the module was imported as ``studies.tbr_bnb.fastfloor`` (the suite's import
-#: name) fails to load where it is ``benchmarks.studies.tbr_bnb.fastfloor``, with an
-#: import error from inside numba. Under any other name the kernel compiles in memory.
-CANONICAL_NAME = "benchmarks.studies.tbr_bnb.fastfloor"
+#: under one import name fails to load under another, with an import error from inside
+#: numba. Under any other name the kernel compiles in memory.
+CANONICAL_NAME = "mlsynth.utils.tbr_helpers.design.exact.fastfloor"
 _CACHE = __name__ == CANONICAL_NAME
 
 #: numpy sums fewer than this many columns left to right.

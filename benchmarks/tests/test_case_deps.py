@@ -1178,6 +1178,7 @@ def test_the_inventory_leaves_out_a_studys_tests_and_keeps_its_code():
     """A sweep records what a case could have claimed; a study's tests are not
     that, its modules are."""
     inventory = set(case_deps.reachable_inventory())
-    assert "benchmarks/studies/tbr_bnb/treatment.py" in inventory
+    assert "benchmarks/studies/tbr_bnb/beds.py" in inventory
+    assert "mlsynth/utils/tbr_helpers/design/exact/treatment.py" in inventory
     assert "benchmarks/studies/tbr_bnb/test_treatment.py" not in inventory
     assert not [p for p in inventory if case_deps.never_reachable(p)]

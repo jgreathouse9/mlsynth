@@ -22,8 +22,8 @@ from mlsynth.utils.tbr_helpers.design.objective import MIN_HOLDOUT_PRETEST
 from mlsynth.utils.tbr_helpers.design.objective import aa_test_ok
 
 from .brute import raw_panel, relative_optimum
-from .gates import gates_of
-from .treatment import BLANK_TESTS, _checked_blank, certify_treatment
+from mlsynth.utils.tbr_helpers.design.exact.gates import gates_of
+from mlsynth.utils.tbr_helpers.design.exact.treatment import BLANK_TESTS, _checked_blank, certify_treatment
 
 N_TEST = 4
 SETTINGS = settings(max_examples=10, deadline=None, suppress_health_check=[HealthCheck.too_slow])

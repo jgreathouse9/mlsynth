@@ -13,7 +13,8 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import beds, slopefree
+from mlsynth.utils.tbr_helpers.design.exact import slopefree
+from . import beds
 from .beds import BEDS, ENUMERATION_LIMIT, BedRun, compare, counting, every_node_bounded, run_bed, run_group
 from .brute import positive_optimum
 
@@ -74,7 +75,7 @@ def test_counting_counts_each_level_and_restores_the_solver(monkeypatch):
 def test_counting_counts_the_workspaces_full_solves(monkeypatch):
     """Under the workspace a size's full relaxations go through Workspaces.solve, not
     slopefree.solve: a bed run would report none."""
-    from .workspace import Workspaces
+    from mlsynth.utils.tbr_helpers.design.exact.workspace import Workspaces
     real = Workspaces.solve
     with counting() as n:
         y, X = BEDS["s15_k3"].panel(0)

@@ -19,7 +19,8 @@ from hypothesis import strategies as st
 
 from mlsynth.utils.solvers import active_set
 
-from . import beds, fastqp, hull
+from mlsynth.utils.tbr_helpers.design.exact import fastqp, hull
+from . import beds
 from .brute import geo_panel
 
 SETTINGS = settings(max_examples=120, deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -376,3 +377,27 @@ def test_malformed_data_raises_as_the_library_does(B, A):
     with pytest.raises(ValueError) as got:
         fastqp.solve(B, A)
     assert str(got.value) == str(want.value)
+
+
+def test_importing_the_kernel_links_nothing_and_the_first_solve_links_dgelsy():
+    """Registering dgelsy with LLVM is process-wide state, so the module does it on its
+    first compiled solve, not at import: in a fresh process the symbol is absent after
+    the import, present after one solve, and that solve's weights are the library's."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    code = (
+        "import numpy as np, llvmlite.binding as llvm\n"
+        "from mlsynth.utils.solvers import active_set\n"
+        "from mlsynth.utils.tbr_helpers.design.exact import fastqp\n"
+        "name = 'mlsynth_tbr_fastqp_dgelsy'\n"
+        "assert not llvm.address_of_symbol(name), 'linked at import'\n"
+        "r = np.random.default_rng(3); B = r.standard_normal((20, 6)); A = r.standard_normal(20)\n"
+        "w = fastqp.solve(B, A, upper=0.5)\n"
+        "assert llvm.address_of_symbol(name), 'not linked by the solve'\n"
+        "assert w.tobytes() == active_set.solve_simplex_qp(B, A, upper=0.5).tobytes()\n"
+    )
+    root = Path(__file__).resolve().parents[3]
+    r = subprocess.run([sys.executable, "-c", code], cwd=root, capture_output=True, text=True, timeout=900)
+    assert r.returncode == 0, r.stderr[-3000:]

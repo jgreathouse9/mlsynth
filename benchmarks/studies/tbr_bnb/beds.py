@@ -29,9 +29,9 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import slopefree
+from mlsynth.utils.tbr_helpers.design.exact import slopefree
 from .brute import geo_panel, positive_optimum
-from .treatment import _split
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
 
 #: Groups with at most this many candidate controls are checked against enumeration
 #: (2^17 - 1 designs, about a second a group).
@@ -104,7 +104,7 @@ def counting():
     """Count the relaxations solved, by level, restoring the solvers on exit: through
     slopefree.solve, and on the SCS workspace through Workspaces.solve (a workspace
     solve that fails and goes to Clarabel counts twice, once a solver)."""
-    from .workspace import Workspaces
+    from mlsynth.utils.tbr_helpers.design.exact.workspace import Workspaces
 
     n = {"full": 0, "shor": 0}
     real, real_ws = slopefree.solve, Workspaces.solve

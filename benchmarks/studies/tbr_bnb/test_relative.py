@@ -19,10 +19,9 @@ from hypothesis import strategies as st
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.tbr_helpers.design.objective import score_split
 
-from . import fastfloor, treatment
+from mlsynth.utils.tbr_helpers.design.exact import fastfloor, treatment
 from .brute import mirror_panel, raw_panel, relative_optimum
-from .treatment import (beats, certify_treatment, geo_sums, group_level, relative_bar,
-                        relative_ceiling, rss_floor)
+from mlsynth.utils.tbr_helpers.design.exact.treatment import beats, certify_treatment, geo_sums, group_level, relative_bar, relative_ceiling, rss_floor
 
 N_TEST = 6
 REL = 1e-9
@@ -106,7 +105,7 @@ def test_the_rss_and_level_are_the_designs():
 def test_the_gates_are_reported_and_do_not_rank():
     """The four gates are read at the certified design and reported; the design is
     the key's optimum whether it passes them or not."""
-    from .gates import gates_of
+    from mlsynth.utils.tbr_helpers.design.exact.gates import gates_of
 
     hit = 0
     for seed in range(6):

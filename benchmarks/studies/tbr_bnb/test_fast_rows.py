@@ -17,8 +17,8 @@ from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from .brute import panel
-from .certificate import ExactData
-from .slopefree import Rows
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import Rows
 
 SETTINGS = settings(max_examples=80, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

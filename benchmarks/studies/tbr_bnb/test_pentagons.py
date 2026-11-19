@@ -21,11 +21,10 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import progress, slopefree
+from mlsynth.utils.tbr_helpers.design.exact import progress, slopefree
 from .brute import panel, positive_optimum
-from .certificate import ExactData
-from .slopefree import (PENTAGON, Rows, _ratio, certify_slope_free, pentagon_row, separate_pentagons,
-                        size_certificate)
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import PENTAGON, Rows, _ratio, certify_slope_free, pentagon_row, separate_pentagons, size_certificate
 
 SETTINGS = settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

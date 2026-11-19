@@ -18,13 +18,13 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import fbound, slopefree, workspace
+from mlsynth.utils.tbr_helpers.design.exact import fbound, slopefree, workspace
 from .brute import panel
-from .certificate import ExactData
-from .progress import reporting
-from .slopefree import Rows, bound, objective
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.progress import reporting
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import Rows, bound, objective
 from .test_workspace import _best
-from .workspace import SizeWorkspace, Workspaces
+from mlsynth.utils.tbr_helpers.design.exact.workspace import SizeWorkspace, Workspaces
 
 SETTINGS = settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

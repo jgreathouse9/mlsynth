@@ -20,11 +20,11 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthDataError
 
-from . import deadline
-from . import slopefree as sf
-from . import treatment
+from mlsynth.utils.tbr_helpers.design.exact import deadline
+from mlsynth.utils.tbr_helpers.design.exact import slopefree as sf
+from mlsynth.utils.tbr_helpers.design.exact import treatment
 from .brute import panel, raw_panel, relative_optimum
-from .treatment import TIME_LIMIT, _GroupOutcome, certify_treatment, proven_gap
+from mlsynth.utils.tbr_helpers.design.exact.treatment import TIME_LIMIT, _GroupOutcome, certify_treatment, proven_gap
 
 N_TEST = 4
 SETTINGS = settings(max_examples=15, deadline=None, suppress_health_check=[HealthCheck.too_slow])

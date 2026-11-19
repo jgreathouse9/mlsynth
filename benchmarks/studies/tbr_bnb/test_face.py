@@ -21,12 +21,12 @@ from hypothesis import strategies as st
 from mlsynth.exceptions import MlsynthConfigError
 from mlsynth.utils.marex_helpers.certify import Dyadic
 
-from . import face as fc
-from . import fbound, slopefree
+from mlsynth.utils.tbr_helpers.design.exact import face as fc
+from mlsynth.utils.tbr_helpers.design.exact import fbound, slopefree
 from .brute import geo_panel, panel, positive_optimum
-from .certificate import ExactData
-from .slopefree import Rows, bound, certify_slope_free, objective, solve
-from .treatment import _split
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import Rows, bound, certify_slope_free, objective, solve
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
 
 SETTINGS = settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -497,7 +497,7 @@ def test_a_failed_face_solve_is_reported_and_raised(monkeypatch):
     """Clarabel's failure on the face is a solve event with status error, and the
     error reaches the caller (size_certificate decides what an open size means)."""
     import cvxpy as cp
-    from .progress import reporting
+    from mlsynth.utils.tbr_helpers.design.exact.progress import reporting
 
     def fail(self, *a, **k):
         raise cp.error.SolverError("injected")

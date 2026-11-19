@@ -11376,7 +11376,7 @@ timeout = 900.0
 # search and lifts of benchmarks/studies/tbr_bnb.
 [[target]]
 name = "tbr-bnb-certificate"
-module-path = "benchmarks/studies/tbr_bnb/certificate.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/certificate.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_certificate.py benchmarks/studies/tbr_bnb/test_start_last.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1500.0
 
@@ -11484,7 +11484,7 @@ timeout = 1500.0
 
 [[target]]
 name = "tbr-bnb-oracle"
-module-path = "benchmarks/studies/tbr_bnb/oracle.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/oracle.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_oracle.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1500.0
 
@@ -11508,7 +11508,7 @@ timeout = 1500.0
 
 [[target]]
 name = "tbr-bnb-dual"
-module-path = "benchmarks/studies/tbr_bnb/dual.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/dual.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_dual.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1500.0
 
@@ -11532,7 +11532,7 @@ timeout = 1500.0
 
 [[target]]
 name = "tbr-bnb-search"
-module-path = "benchmarks/studies/tbr_bnb/search.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/search.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py benchmarks/studies/tbr_bnb/test_gram_descent.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1500.0
 
@@ -11612,7 +11612,7 @@ timeout = 1500.0
 
 [[target]]
 name = "tbr-bnb-lifts"
-module-path = "benchmarks/studies/tbr_bnb/lifts.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/lifts.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_lifts.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1500.0
 
@@ -11626,7 +11626,7 @@ timeout = 1500.0
 # without the per-geo cap, its certificate, and the prune it makes.
 [[target]]
 name = "tbr-bnb-band"
-module-path = "benchmarks/studies/tbr_bnb/hull.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/hull.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_band.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -11644,7 +11644,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-band-search"
-module-path = "benchmarks/studies/tbr_bnb/search.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/search.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_band.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -11658,7 +11658,7 @@ timeout = 900.0
 # adopted from the nodes' primal points, and a no-good cut per known design.
 [[target]]
 name = "tbr-bnb-incumbent"
-module-path = "benchmarks/studies/tbr_bnb/search.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/search.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
@@ -11676,7 +11676,7 @@ timeout = 1200.0
 
 [[target]]
 name = "tbr-bnb-incumbent-hull"
-module-path = "benchmarks/studies/tbr_bnb/hull.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/hull.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
@@ -11688,7 +11688,7 @@ timeout = 1200.0
 
 [[target]]
 name = "tbr-bnb-incumbent-certificate"
-module-path = "benchmarks/studies/tbr_bnb/certificate.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/certificate.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_search.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
@@ -11700,7 +11700,7 @@ timeout = 1200.0
 
 [[target]]
 name = "tbr-bnb-incumbent-oracle"
-module-path = "benchmarks/studies/tbr_bnb/oracle.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/oracle.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_oracle.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
@@ -11748,7 +11748,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-capped"
-module-path = "benchmarks/studies/tbr_bnb/hull.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/hull.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_capped.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -11796,7 +11796,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-float-cert"
-module-path = "benchmarks/studies/tbr_bnb/certificate.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/certificate.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_float_cert.py benchmarks/studies/tbr_bnb/test_lean_floor.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -11952,7 +11952,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-joint-float"
-module-path = "benchmarks/studies/tbr_bnb/certificate.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/certificate.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_joint_float.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -12062,7 +12062,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-joint-float-oracle"
-module-path = "benchmarks/studies/tbr_bnb/oracle.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/oracle.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_joint_float.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -12098,7 +12098,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-joint-float-search"
-module-path = "benchmarks/studies/tbr_bnb/search.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/search.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_joint_float.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -12110,7 +12110,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-settings-dual"
-module-path = "benchmarks/studies/tbr_bnb/dual.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/dual.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_settings.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -12134,7 +12134,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-settings-lifts"
-module-path = "benchmarks/studies/tbr_bnb/lifts.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/lifts.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_settings.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -12152,7 +12152,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-settings-search"
-module-path = "benchmarks/studies/tbr_bnb/search.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/search.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_settings.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -12170,7 +12170,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-slope-free"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_node_reuse.py benchmarks/studies/tbr_bnb/test_node_rounding.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py benchmarks/studies/tbr_bnb/test_dual_memory.py benchmarks/studies/tbr_bnb/test_clarabel_settings.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -12972,7 +12972,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-treatment"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py benchmarks/studies/tbr_bnb/test_lean_floor.py benchmarks/studies/tbr_bnb/test_fastfloor.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
@@ -13194,7 +13194,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-fastfloor"
-module-path = "benchmarks/studies/tbr_bnb/fastfloor.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/fastfloor.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastfloor.py benchmarks/studies/tbr_bnb/test_lean_nnls.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
@@ -13440,7 +13440,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-progress"
-module-path = "benchmarks/studies/tbr_bnb/progress.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/progress.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_progress.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -13560,7 +13560,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-face"
-module-path = "benchmarks/studies/tbr_bnb/face.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/face.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_face.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -13644,7 +13644,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-slope-free-face"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_face.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -13721,7 +13721,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-slope-free-scs"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_scs.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -13829,7 +13829,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-shor-tier"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_shor_tier.py benchmarks/studies/tbr_bnb/test_cascade.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -13871,7 +13871,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-incumbent-cuts"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_incumbent_cuts.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -13895,7 +13895,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-gap"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_gap.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -13943,7 +13943,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-workspace"
-module-path = "benchmarks/studies/tbr_bnb/workspace.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/workspace.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_workspace.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -14033,7 +14033,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-workspace-plumbing"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_workspace.py benchmarks/studies/tbr_bnb/test_scs.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -14099,7 +14099,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-screen-solve"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_group_screen.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -14147,7 +14147,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-fast-rows"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fast_rows.py -q -p no:cacheprovider -x -W ignore"
 timeout = 300.0
 
@@ -14201,7 +14201,7 @@ timeout = 300.0
 
 [[target]]
 name = "tbr-bnb-fbound"
-module-path = "benchmarks/studies/tbr_bnb/fbound.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/fbound.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fbound.py benchmarks/studies/tbr_bnb/test_face.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -14381,7 +14381,7 @@ timeout = 120.0
 
 [[target]]
 name = "tbr-bnb-early-triangles"
-module-path = "benchmarks/studies/tbr_bnb/workspace.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/workspace.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_early_triangles.py -q -x -p no:cacheprovider"
 timeout = 600.0
 
@@ -14441,7 +14441,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-early-rounds"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_early_triangles.py -q -x -p no:cacheprovider"
 timeout = 600.0
 
@@ -14459,7 +14459,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-worker-screen"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_worker_screen.py benchmarks/studies/tbr_bnb/test_float_screen.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -14513,7 +14513,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-lean-nnls"
-module-path = "benchmarks/studies/tbr_bnb/fastfloor.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/fastfloor.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_lean_nnls.py benchmarks/studies/tbr_bnb/test_fastfloor.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -14611,7 +14611,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-nan-panel"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_nan_panel.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -14647,7 +14647,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-parallel-start"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_parallel_start.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -14701,7 +14701,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-deep-descent"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_deep_descent.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -14797,7 +14797,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-pentagons"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_pentagon_threads.py benchmarks/studies/tbr_bnb/test_pentagons.py benchmarks/studies/tbr_bnb/test_fastpent.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -14953,7 +14953,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-hopeless"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_hopeless.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -16341,7 +16341,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-window"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_window.py benchmarks/studies/tbr_bnb/test_parallel.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -16389,7 +16389,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-stream-floors"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_stream_floors.py benchmarks/studies/tbr_bnb/test_worker_screen.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -16437,7 +16437,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-stream-blocks"
-module-path = "benchmarks/studies/tbr_bnb/fastfloor.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/fastfloor.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_stream_floors.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -16455,7 +16455,7 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-lbfgsb"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_lbfgsb.py benchmarks/studies/tbr_bnb/test_dual_memory.py benchmarks/studies/tbr_bnb/test_dual_reuse.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
@@ -16521,9 +16521,21 @@ timeout = 600.0
 
 [[target]]
 name = "tbr-bnb-fastqp"
-module-path = "benchmarks/studies/tbr_bnb/fastqp.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/fastqp.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastqp.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
+
+  [[target.mutant]]
+  id = "dgelsy-is-linked-at-import"
+  find = "_linked = []\n"
+  replace = "_linked = []\n_llvm.add_symbol(_DGELSY, get_cython_function_address(\"scipy.linalg.cython_lapack\", \"dgelsy\")) if AVAILABLE else None\n"
+  models = "the LLVM symbol registered when the module is imported, process-wide state changed by an import, which the benchmark selector's importer rule assumes a library module never does"
+
+  [[target.mutant]]
+  id = "the-solve-does-not-link-dgelsy"
+  find = "    _link()\n    w, pivots, converged, kkt, status = _core("
+  replace = "    w, pivots, converged, kkt, status = _core("
+  models = "the compiled solve run before dgelsy is registered, so in a fresh process the kernel cannot resolve the symbol it calls"
 
   [[target.mutant]]
   id = "short-sums-run-left-to-right"
@@ -16607,7 +16619,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-screen-skip"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_workspace.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -16637,7 +16649,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-parallel-sizes"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_parallel_sizes.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -16685,7 +16697,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-lender"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_parallel_sizes.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -16793,7 +16805,7 @@ timeout = 300.0
 
 [[target]]
 name = "tbr-bnb-workspace-polish"
-module-path = "benchmarks/studies/tbr_bnb/workspace.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/workspace.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_workspace_polish.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -16859,7 +16871,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-fastpent"
-module-path = "benchmarks/studies/tbr_bnb/fastpent.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/fastpent.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastpent.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -16919,7 +16931,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-pentagon-dispatch"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastpent.py benchmarks/studies/tbr_bnb/test_pentagons.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -16961,7 +16973,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-fastprice"
-module-path = "benchmarks/studies/tbr_bnb/fastprice.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/fastprice.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastprice.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -17015,7 +17027,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-price-dispatch"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_fastprice.py benchmarks/studies/tbr_bnb/test_pricing.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -17039,7 +17051,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-lift-bound"
-module-path = "benchmarks/studies/tbr_bnb/lifts.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/lifts.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_lifts.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -17111,7 +17123,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-relative"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_relative.py benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_gap.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -17237,7 +17249,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-relative-floors"
-module-path = "benchmarks/studies/tbr_bnb/fastfloor.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/fastfloor.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_relative.py benchmarks/studies/tbr_bnb/test_worker_screen.py benchmarks/studies/tbr_bnb/test_fastfloor.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -17255,7 +17267,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-blank-periods"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_blank_periods.py benchmarks/studies/tbr_bnb/test_relative.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -17387,7 +17399,7 @@ timeout = 300.0
 
 [[target]]
 name = "tbr-bnb-time-limit"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_time_limit.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -17537,7 +17549,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-time-limit-branch"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_time_limit.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -17561,7 +17573,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-rules"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_rules.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -17658,7 +17670,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-control-rules-descent"
-module-path = "benchmarks/studies/tbr_bnb/search.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/search.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_control_rules.py benchmarks/studies/tbr_bnb/test_rules.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -17706,7 +17718,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-control-rules-certificate"
-module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/slopefree.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_control_rules.py benchmarks/studies/tbr_bnb/test_rules.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
@@ -17754,7 +17766,7 @@ timeout = 900.0
 
 [[target]]
 name = "tbr-bnb-control-rules-groups"
-module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_control_rules.py benchmarks/studies/tbr_bnb/test_rules.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 

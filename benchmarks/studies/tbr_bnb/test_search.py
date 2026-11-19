@@ -8,8 +8,8 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from .brute import panel, positive_optimum
-from .certificate import ExactData
-from .search import Certificate, Incumbent, SearchStats, certify, incumbent, pieces_to, run_node, stalled
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.search import Certificate, Incumbent, SearchStats, certify, incumbent, pieces_to, run_node, stalled
 
 
 @pytest.mark.parametrize("seed", [0, 1, 2])
@@ -93,7 +93,7 @@ def test_an_unreachable_node_branches_down_to_the_depth_limit(monkeypatch):
     its leaves are recorded open at the limit, each child warm-started. Adoption
     is switched off, since a rounded design would otherwise replace the
     unreachable incumbent and let the children prune."""
-    from .lifts import Lift
+    from mlsynth.utils.tbr_helpers.design.exact.lifts import Lift
     monkeypatch.setattr(Incumbent, "offer", lambda self, *a, **k: None)
     y, X = panel(9, p=4)
     stats = SearchStats()
@@ -107,8 +107,8 @@ def test_an_unreachable_node_branches_down_to_the_depth_limit(monkeypatch):
 def test_a_failed_certificate_retries_then_branches(monkeypatch):
     """The double bound clears the target but the certificate does not: the node
     retries with more headroom, then branches instead of pruning."""
-    from . import search
-    from .lifts import Lift
+    from mlsynth.utils.tbr_helpers.design.exact import search
+    from mlsynth.utils.tbr_helpers.design.exact.lifts import Lift
     y, X = panel(10, p=4)
     _, C = incumbent(y, X, restarts=5)
     x = X[:, sorted(C)].sum(1); b = float((y @ x) / (x @ x))
@@ -122,7 +122,7 @@ def test_a_failed_certificate_retries_then_branches(monkeypatch):
 
 
 # ---------------------------------------------------------------- the incumbent (#965, step 7)
-from .hull import positive_rss  # noqa: E402
+from mlsynth.utils.tbr_helpers.design.exact.hull import positive_rss
 
 
 @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -159,7 +159,7 @@ def test_a_poor_starting_incumbent_is_improved_by_the_search(seed):
 def _worst_positive(y, X):
     """The positive-slope control group with the largest RSS, a deliberately poor start."""
     from itertools import combinations
-    from .hull import positive_rss
+    from mlsynth.utils.tbr_helpers.design.exact.hull import positive_rss
     worst, arg = -1.0, None
     for r in range(1, X.shape[1] + 1):
         for C in combinations(range(X.shape[1]), r):
@@ -174,7 +174,7 @@ def test_the_search_replaces_a_poor_incumbent_and_certifies_the_optimum(seed, mo
     """Started from the worst positive-slope design, the search rounds its nodes'
     primal points to designs, adopts better ones with cuts of their own, and ends
     at the enumerated optimum, certified."""
-    from . import search
+    from mlsynth.utils.tbr_helpers.design.exact import search
     y, X = panel(seed, p=5)
     monkeypatch.setattr(search, "incumbent", lambda y, X, **k: _worst_positive(y, X))
     out = certify(y, X, ratio=2.0, restarts=1)

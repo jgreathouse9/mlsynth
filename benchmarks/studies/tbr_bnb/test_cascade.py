@@ -13,11 +13,10 @@ import pytest
 from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
-from . import fbound, slopefree as sf
+from mlsynth.utils.tbr_helpers.design.exact import fbound, slopefree as sf
 from .brute import panel, positive_optimum
-from .certificate import ExactData
-from .slopefree import (Multipliers, Rows, bound, certify_slope_free, design_value, dyadic_below,
-                        objective, size_certificate)
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import Multipliers, Rows, bound, certify_slope_free, design_value, dyadic_below, objective, size_certificate
 
 SETTINGS = settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

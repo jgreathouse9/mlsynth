@@ -7,9 +7,9 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from .brute import panel
-from .certificate import joint_bound
-from .lifts import Lift
-from .oracle import Oracle
+from mlsynth.utils.tbr_helpers.design.exact.certificate import joint_bound
+from mlsynth.utils.tbr_helpers.design.exact.lifts import Lift
+from mlsynth.utils.tbr_helpers.design.exact.oracle import Oracle
 
 SETTINGS = settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

@@ -16,11 +16,10 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
 
-from . import slopefree
+from mlsynth.utils.tbr_helpers.design.exact import slopefree
 from .brute import panel, positive_optimum
-from .certificate import ExactData
-from .slopefree import (SCREEN_SOLVE_BELOW, Rows, certify_slope_free, dyadic_below, group_bound,
-                        group_certificate, objective, screen_solves)
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import SCREEN_SOLVE_BELOW, Rows, certify_slope_free, dyadic_below, group_bound, group_certificate, objective, screen_solves
 
 SETTINGS = settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -220,7 +219,7 @@ def test_property_the_screen_changes_no_verdict(seed, f):
 
 
 def test_the_treatment_search_certifies_the_same_design_with_the_screen(monkeypatch):
-    from . import treatment
+    from mlsynth.utils.tbr_helpers.design.exact import treatment
     from .brute import raw_panel
 
     M = raw_panel(5, p=6)

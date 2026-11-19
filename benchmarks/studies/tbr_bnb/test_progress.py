@@ -15,11 +15,11 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import progress, slopefree
+from mlsynth.utils.tbr_helpers.design.exact import progress, slopefree
 from .brute import geo_panel, panel, raw_panel
-from .progress import KINDS, Event, emit, read_log, reporting, tagged
-from .slopefree import certify_slope_free
-from .treatment import certify_treatment
+from mlsynth.utils.tbr_helpers.design.exact.progress import KINDS, Event, emit, read_log, reporting, tagged
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import certify_slope_free
+from mlsynth.utils.tbr_helpers.design.exact.treatment import certify_treatment
 
 SETTINGS = settings(max_examples=15, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 N_TEST = 8
@@ -45,7 +45,7 @@ def _answer(out):
 def _branching():
     """The first group of the s15_k3 bed (seed 1, treated 1, 11, 14): 12 candidate
     controls, 16 nodes with every node bounded, three Clarabel solves."""
-    from .treatment import _split
+    from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
     return _split(geo_panel(1, n=20, p=15), (1, 11, 14))[:2]
 
 
@@ -141,7 +141,7 @@ def test_one_price_event_per_priced_subtree(monkeypatch):
 def test_each_new_incumbent_is_reported_with_its_source():
     """On the first group of the s15_k3 bed (seed 1, treated 1, 11, 14) rounding finds
     two incumbents; the last incumbent reported is the result's design."""
-    from .treatment import _split
+    from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
     y, X, _ = _split(geo_panel(1, n=20, p=15), (1, 11, 14))
     seen, kw = _collect(1)
     out = certify_slope_free(y, X, restarts=5, **kw)
@@ -335,7 +335,7 @@ def test_workers_print_to_the_same_stderr(capfd):
 
 
 def test_a_failed_solve_is_reported_and_raised(monkeypatch):
-    from .certificate import ExactData
+    from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
     y, X = _branching()
     D = ExactData(y, X)
 
@@ -351,7 +351,7 @@ def test_a_failed_solve_is_reported_and_raised(monkeypatch):
 
 
 def test_the_first_order_triangle_rounds_are_reported():
-    from .certificate import ExactData
+    from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
     y, X = _branching()
     D = ExactData(y, X)
     seen = []
@@ -364,7 +364,7 @@ def test_the_first_order_triangle_rounds_are_reported():
 
 
 def test_an_incumbent_found_by_pricing_is_reported():
-    from .certificate import ExactData
+    from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
     y, X = _branching()
     D = ExactData(y, X)
     out = slopefree.SlopeFreeCertificate(incumbent=slopefree.Q(0), controls=[], ratio=slopefree.Q(0),
@@ -379,7 +379,7 @@ def test_an_incumbent_found_by_pricing_is_reported():
 
 
 def test_an_incumbent_at_a_leaf_is_reported():
-    from .certificate import ExactData
+    from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
     y, X = _branching()
     D = ExactData(y, X)
     out = slopefree.SlopeFreeCertificate(incumbent=slopefree.Q(0), controls=[], ratio=slopefree.Q(0),
@@ -449,7 +449,7 @@ def test_without_settings_nothing_is_reported(capsys):
 
 def test_a_held_ceiling_reports_the_screen_and_no_size():
     from fractions import Fraction as Q
-    from .certificate import ExactData
+    from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
     y, X = panel(3, p=8)
     D = ExactData(y, X)
     seen, kw = _collect(1)

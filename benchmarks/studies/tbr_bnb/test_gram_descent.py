@@ -16,9 +16,9 @@ from hypothesis import strategies as st
 from mlsynth.exceptions import MlsynthDataError
 
 from .brute import geo_panel, panel
-from .hull import positive_rss
-from .search import incumbent
-from .treatment import _split
+from mlsynth.utils.tbr_helpers.design.exact.hull import positive_rss
+from mlsynth.utils.tbr_helpers.design.exact.search import incumbent
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
 
 SETTINGS = settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

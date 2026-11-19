@@ -13,10 +13,10 @@ from itertools import combinations
 
 import numpy as np
 
-from .hull import rss_of
-from .lifts import Lift
+from mlsynth.utils.tbr_helpers.design.exact.hull import rss_of
+from mlsynth.utils.tbr_helpers.design.exact.lifts import Lift
 from .panel import GROUPS, group
-from .search import certify
+from mlsynth.utils.tbr_helpers.design.exact.search import certify
 
 TEN_GEO_SEED = 7
 TEN_GEO_GROUPS = (("phoenix",), ("baltimore", "columbus"), ("baltimore", "minneapolis", "phoenix"),

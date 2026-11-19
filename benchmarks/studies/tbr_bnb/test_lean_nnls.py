@@ -17,9 +17,9 @@ import pytest
 from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
-from . import fastfloor
+from mlsynth.utils.tbr_helpers.design.exact import fastfloor
 from .brute import geo_panel
-from .treatment import gram_floor, rss_floor
+from mlsynth.utils.tbr_helpers.design.exact.treatment import gram_floor, rss_floor
 
 needs_numba = pytest.mark.skipif(not fastfloor.AVAILABLE, reason="numba is not installed")
 SETTINGS = settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])

@@ -14,8 +14,8 @@ import scipy.optimize
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from . import slopefree as sf
-from .slopefree import Rows, dyadic_below, objective
+from mlsynth.utils.tbr_helpers.design.exact import slopefree as sf
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import Rows, dyadic_below, objective
 from .test_cascade import _at_optimum
 
 SETTINGS = settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])

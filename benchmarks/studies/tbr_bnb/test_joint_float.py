@@ -14,12 +14,11 @@ from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from .brute import panel
-from . import certificate
-from .certificate import (U, _coef_error, cholesky_residual, joint_assembly, joint_bound, joint_bound_float,
-                          joint_clears, joint_terms, joint_trace, lambda_min_lower_float, qarr)
-from .dual import smoothed_lbfgs
-from .oracle import Oracle
-from .search import unpack
+from mlsynth.utils.tbr_helpers.design.exact import certificate
+from mlsynth.utils.tbr_helpers.design.exact.certificate import U, _coef_error, cholesky_residual, joint_assembly, joint_bound, joint_bound_float, joint_clears, joint_terms, joint_trace, lambda_min_lower_float, qarr
+from mlsynth.utils.tbr_helpers.design.exact.dual import smoothed_lbfgs
+from mlsynth.utils.tbr_helpers.design.exact.oracle import Oracle
+from mlsynth.utils.tbr_helpers.design.exact.search import unpack
 
 SETTINGS = settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 UNIT = SimpleNamespace(scale=1.0)
@@ -359,7 +358,7 @@ def test_certify_prunes_on_the_float_certificate(seed):
     """On the small panels every joint-lift prune is decided in doubles, and the
     search still reaches the enumerated optimum."""
     from .brute import positive_optimum
-    from .search import certify
+    from mlsynth.utils.tbr_helpers.design.exact.search import certify
     y, X = panel(seed)
     out = certify(y, X, restarts=10)
     best, _ = positive_optimum(y, X)

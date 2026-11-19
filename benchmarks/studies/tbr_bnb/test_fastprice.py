@@ -22,10 +22,10 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import fastprice, slopefree
+from mlsynth.utils.tbr_helpers.design.exact import fastprice, slopefree
 from .brute import panel
-from .certificate import ExactData
-from .slopefree import _floats, _fixed, _ratio, _upper_batch
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import _floats, _fixed, _ratio, _upper_batch
 from .test_pricing import _best, _run
 
 needs_numba = pytest.mark.skipif(not fastprice.AVAILABLE, reason="numba is not installed")

@@ -16,9 +16,9 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from . import treatment
+from mlsynth.utils.tbr_helpers.design.exact import treatment
 from .brute import raw_panel
-from .treatment import certify_treatment
+from mlsynth.utils.tbr_helpers.design.exact.treatment import certify_treatment
 
 N_TEST = 8
 SETTINGS = settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])

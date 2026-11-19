@@ -19,14 +19,14 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import slopefree, workspace
+from mlsynth.utils.tbr_helpers.design.exact import slopefree, workspace
 from .brute import geo_panel, panel
-from .certificate import ExactData
-from .progress import reporting
-from .slopefree import Rows, Solve, bound, certify_slope_free, dyadic_below, objective, size_certificate
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.progress import reporting
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import Rows, Solve, bound, certify_slope_free, dyadic_below, objective, size_certificate
 from .test_workspace import _best
-from .treatment import _split
-from .workspace import Workspaces
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
+from mlsynth.utils.tbr_helpers.design.exact.workspace import Workspaces
 
 SETTINGS = settings(max_examples=15, deadline=None,
                     suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture])

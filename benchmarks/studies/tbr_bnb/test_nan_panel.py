@@ -15,7 +15,7 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthDataError
 
-from . import treatment
+from mlsynth.utils.tbr_helpers.design.exact import treatment
 from .brute import geo_panel, raw_panel
 
 SETTINGS = settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])

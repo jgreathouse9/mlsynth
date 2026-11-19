@@ -21,10 +21,10 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthDataError
 
-from . import treatment
+from mlsynth.utils.tbr_helpers.design.exact import treatment
 from .brute import geo_panel, mirror_panel, raw_panel, relative_optimum
-from .certificate import ExactData, qarr
-from .treatment import _split, certify_treatment
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData, qarr
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split, certify_treatment
 
 N_TEST = 8
 SETTINGS = settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])

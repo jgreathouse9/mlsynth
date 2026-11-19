@@ -1878,10 +1878,11 @@ Gram). The floors of real panels never reached it, since their c is the Gram's o
 B'y, but a floor that can hang the search is a defect whatever its inputs.
 
 numba keys its disk cache on the source file and records the module's name in it.
-The suite imports the module as `studies.tbr_bnb.fastfloor` and a script as
-`benchmarks.studies.tbr_bnb.fastfloor`, and a cache written under the first failed
-to load under the second. The kernel is cached only under the second name and
-compiles in memory under any other (3.3 s, once a process).
+While the kernel lived in this directory the suite imported it as
+`studies.tbr_bnb.fastfloor` and a script as `benchmarks.studies.tbr_bnb.fastfloor`,
+and a cache written under the first failed to load under the second. The kernel is
+cached only under one canonical name and compiles in memory under any other (3.3 s,
+once a process); in the library that name is the only one it is imported under.
 
 On the 91,390 four-geo GeoLift groups the floors take 2.0 s against 14.2 s, 22 us a
 group against 156 us. End to end (`results/fast_floor.log`, two alternating runs
@@ -2616,8 +2617,8 @@ returns the whole run as one pandas DataFrame. Forked workers report through the
 same settings, and every group's events carry the group as the tag `treatment`.
 
 ```python
-from benchmarks.studies.tbr_bnb.progress import read_log
-from benchmarks.studies.tbr_bnb.treatment import certify_treatment
+from mlsynth.utils.tbr_helpers.design.exact.progress import read_log
+from mlsynth.utils.tbr_helpers.design.exact.treatment import certify_treatment
 
 out = certify_treatment(M, 4, n_test=14, n_jobs=4, verbose=1, log="run_log")
 df = read_log("run_log")
@@ -2747,6 +2748,13 @@ fixing is certified to the solver's value.
 13. Shared helpers and `agents/agents_combinatorial.md`.
 
 ## Files
+
+The search's modules live in the library, `mlsynth/utils/tbr_helpers/design/exact/`:
+`hull.py`, `lifts.py`, `certificate.py`, `oracle.py`, `dual.py`, `search.py`,
+`face.py`, `slopefree.py`, `fbound.py`, `workspace.py`, `gates.py`, `treatment.py`,
+`deadline.py`, `progress.py` and the four kernels `fastfloor.py`, `fastqp.py`,
+`fastpent.py` and `fastprice.py`. This directory holds the rest: the tests, the
+beds, the scripts and the measurements.
 
 - `panel.py`: the scoring window and the four groups.
 - `hull.py`, `lifts.py`: the capped hull as one capped simplex QP, the band without the per-geo cap, and the lift levels.

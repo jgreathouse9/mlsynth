@@ -18,11 +18,10 @@ from hypothesis import strategies as st
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.tbr_helpers.design.objective import score_split
 
-from . import slopefree, treatment
+from mlsynth.utils.tbr_helpers.design.exact import slopefree, treatment
 from .brute import geo_panel, mirror_panel, raw_panel, relative_optimum, wide_panel
-from .certificate import ExactData
-from .treatment import (_split, certify_treatment, design_moments, geo_sums, gram_floor, group_level,
-                        relative_bar, relative_ceiling, rss_floor, square_sum)
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split, certify_treatment, design_moments, geo_sums, gram_floor, group_level, relative_bar, relative_ceiling, rss_floor, square_sum
 
 SETTINGS = settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 N_TEST = 8
@@ -274,7 +273,7 @@ def test_design_moments_of_a_non_finite_column_raise(bad):
 def test_the_pass_scores_its_designs_without_the_exact_gram(monkeypatch):
     """The pass needs one design's c'u, u'Gu and y'y per sign, not the group's whole
     exact Gram, which took 0.17 s of its 0.5 s a group on GeoLift."""
-    from . import certificate
+    from mlsynth.utils.tbr_helpers.design.exact import certificate
 
     M = raw_panel(2, p=6)
     T = (0, 1)

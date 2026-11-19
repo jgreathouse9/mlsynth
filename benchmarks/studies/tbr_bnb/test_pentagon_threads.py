@@ -33,8 +33,8 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from . import fastpent, slopefree
-from .slopefree import PENTAGON, _pentagon_search, _pentagon_starts, _sign_matrix, separate_pentagons
+from mlsynth.utils.tbr_helpers.design.exact import fastpent, slopefree
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import PENTAGON, _pentagon_search, _pentagon_starts, _sign_matrix, separate_pentagons
 
 SETTINGS = settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

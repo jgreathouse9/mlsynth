@@ -16,9 +16,8 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from .brute import panel, positive_optimum
-from .certificate import ExactData
-from .slopefree import (SlopeFreeCertificate, _branch, _ratio, certify_slope_free, price_subtree,
-                        ratio_upper)
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import SlopeFreeCertificate, _branch, _ratio, certify_slope_free, price_subtree, ratio_upper
 
 SETTINGS = settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -142,7 +141,7 @@ def test_the_ratio_bound_has_no_positive_slope_where_the_sum_is_negative():
 
 @pytest.mark.parametrize("seed", range(4))
 def test_price_or_bound_gives_the_same_certified_answer(monkeypatch, seed):
-    from . import slopefree
+    from mlsynth.utils.tbr_helpers.design.exact import slopefree
 
     y, X = panel(seed, p=6)
     best, C = positive_optimum(y, X)
@@ -157,7 +156,7 @@ def test_price_or_bound_gives_the_same_certified_answer(monkeypatch, seed):
 
 
 def test_a_subtree_above_the_limit_is_bounded(monkeypatch):
-    from . import slopefree
+    from mlsynth.utils.tbr_helpers.design.exact import slopefree
 
     monkeypatch.setattr(slopefree, "PRICE_LIMIT", 5)
     y, X = panel(0, p=6)
@@ -169,7 +168,7 @@ def test_a_subtree_above_the_limit_is_bounded(monkeypatch):
 def test_the_limit_is_where_pricing_costs_one_bound():
     from mlsynth.utils.search_skeleton import cheaper_to_price
 
-    from . import slopefree
+    from mlsynth.utils.tbr_helpers.design.exact import slopefree
 
     L = slopefree.PRICE_LIMIT
     assert cheaper_to_price(L, slopefree.PRICE_SECONDS, slopefree.BOUND_SECONDS)

@@ -20,14 +20,12 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import slopefree
+from mlsynth.utils.tbr_helpers.design.exact import slopefree
 from .brute import geo_panel, panel
-from .certificate import ExactData
-from .search import incumbent
-from .slopefree import (DUAL_BUDGET, SCREEN_LADDER_FROM, SCREEN_SCHEDULES, SCREEN_SKIP_FIRST_FROM, dyadic_below,
-                        group_certificate,
-                        screen_schedules)
-from .treatment import _split
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.search import incumbent
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import DUAL_BUDGET, SCREEN_LADDER_FROM, SCREEN_SCHEDULES, SCREEN_SKIP_FIRST_FROM, dyadic_below, group_certificate, screen_schedules
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
 
 SETTINGS = settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

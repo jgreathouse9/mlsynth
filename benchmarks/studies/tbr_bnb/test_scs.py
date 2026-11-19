@@ -21,12 +21,12 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import slopefree
+from mlsynth.utils.tbr_helpers.design.exact import slopefree
 from .brute import geo_panel, panel, positive_optimum
-from .certificate import ExactData
-from .progress import reporting
-from .slopefree import Rows, bound, certify_slope_free, objective, solve
-from .treatment import _split
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.progress import reporting
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import Rows, bound, certify_slope_free, objective, solve
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
 
 SETTINGS = settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -260,7 +260,7 @@ def test_an_infeasible_node_is_reported_by_scs():
 def test_a_forked_worker_solves_with_scs_after_the_parent_has():
     from concurrent.futures import TimeoutError as Timeout
     import os
-    from . import treatment
+    from mlsynth.utils.tbr_helpers.design.exact import treatment
 
     D, lam = _pinned()
     args = (D.c, D.G, lam, Rows(D.c, 3, level="full"))
@@ -335,7 +335,7 @@ def test_when_both_solvers_fail_the_error_is_raised_and_both_are_reported(monkey
 @pytest.mark.parametrize("bad", ["SCS", "gurobi", "", 1, True])
 def test_a_malformed_solver_is_refused(monkeypatch, bad):
     """Before the search starts: the descent is never run on a bad flag."""
-    from . import search
+    from mlsynth.utils.tbr_helpers.design.exact import search
 
     def no_descent(*a, **k):
         raise AssertionError("the search started before the solver was checked")

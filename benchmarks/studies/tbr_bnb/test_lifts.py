@@ -13,8 +13,8 @@ from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from .brute import panel, piece_optimum
-from .hull import ControlBound, rss_of
-from .lifts import Lift
+from mlsynth.utils.tbr_helpers.design.exact.hull import ControlBound, rss_of
+from mlsynth.utils.tbr_helpers.design.exact.lifts import Lift
 
 SETTINGS = settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 F = ["u", "1-u", "a", "c"]
@@ -177,7 +177,7 @@ def test_a_negative_multiplier_counts_as_zero(name):
 def test_the_cone_projection(cols, seed):
     """Each column lands in {|x| <= t}, a column already there is unchanged, and the
     result is no farther from the input than any other point of the cone."""
-    from .lifts import _soc_project
+    from mlsynth.utils.tbr_helpers.design.exact.lifts import _soc_project
     t = np.array([c[0] for c in cols]); x = np.array([c[1:] for c in cols]).T
     pt, px = _soc_project(t, x)
     assert np.all(np.linalg.norm(px, axis=0) <= pt + 1e-9)
