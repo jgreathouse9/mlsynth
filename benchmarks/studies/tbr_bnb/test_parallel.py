@@ -5,9 +5,11 @@ of n_jobs (test_window.py). A group is screened and given its ceiling from the
 incumbent as it is submitted, and results are applied in queue order. So at gap 0 the
 certified design is the same at every n_jobs, ties included, and n_jobs = 1 is the
 sequential search itself."""
+import sys
 from itertools import combinations
 
 import numpy as np
+
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -68,9 +70,9 @@ def test_every_ceiling_holds_against_the_final_incumbent():
     sums = treatment.geo_sums(M)
     assert len(out.survivors) >= 2
     for s in out.survivors:
-        if s.get("ceiling") is not None:
-            L = treatment.group_level(sums, s["treatment"], M.shape[0])
-            assert s["ceiling"] >= treatment.relative_ceiling(L, bar)
+        assert s["ceiling"] is not None                    # the start design is the incumbent before any turn
+        L = treatment.group_level(sums, s["treatment"], M.shape[0])
+        assert s["ceiling"] >= treatment.relative_ceiling(L, bar)
 
 
 def test_every_group_is_screened_or_certified_in_parallel():
@@ -162,6 +164,34 @@ def test_a_worker_failure_is_reported(monkeypatch):
     monkeypatch.setattr(treatment, "_optimum", broken)     # read inside the forked worker
     with pytest.raises(ValueError, match="in a worker"):
         certify_treatment(raw_panel(5, p=6), 2, n_test=N_TEST, restarts=5, n_jobs=2)
+
+
+_PARENT = None
+
+
+def _local_failing_in_workers(*a, **k):
+    """treatment._local in this process; an error in any other. Module level, so the
+    pool can pickle it by name."""
+    import os
+
+    if os.getpid() == _PARENT:
+        return _REAL_LOCAL(*a, **k)
+    raise ValueError("a descent failed in a worker")
+
+
+_REAL_LOCAL = treatment._local
+
+
+def test_a_worker_error_in_the_pass_is_reported(monkeypatch):
+    """An error in a worker's pass (the RSS descents, run through _map) reaches the caller;
+    it is not caught and the work redone in this process."""
+    import os
+
+    monkeypatch.setattr(sys.modules[__name__], "_PARENT", os.getpid())
+    monkeypatch.setattr(treatment, "_local", _local_failing_in_workers)
+    with pytest.raises(ValueError, match="in a worker"):
+        certify_treatment(raw_panel(5, p=6), 2, n_test=N_TEST, restarts=3, pass_restarts=2, n_jobs=2,
+                          start=[0, 5])          # a poor start, so the pass searches other groups
 
 
 def test_a_group_left_open_in_a_wave_is_retried(monkeypatch, tmp_path):

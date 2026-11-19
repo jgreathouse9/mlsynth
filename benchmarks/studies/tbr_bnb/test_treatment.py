@@ -211,6 +211,18 @@ def test_the_floor_reads_a_given_yy():
         assert rss_floor(M, T, lam, yy=square_sum(y), sign=sign) == rss_floor(M, T, lam, sign=sign)
 
 
+def test_a_given_yy_is_not_recomputed(monkeypatch):
+    """The floor's cap reads the y'y it is given (the bracket's top, from the screen), so the
+    exact sum of squares is never formed for it."""
+    M = geo_panel(5, p=6); lam = gram_floor(M); T = (1, 4)
+    want = rss_floor(M, T, lam, sign=-1)
+    top = treatment.yy_bracket(_split(M, T)[0])[1]
+    monkeypatch.setattr(treatment, "square_sum", lambda v: pytest.fail("y'y recomputed"))
+    for sign in (1, -1):
+        assert rss_floor(M, T, lam, yy=top, sign=sign) >= 0
+    assert float(rss_floor(M, T, lam, yy=top, sign=-1)) == pytest.approx(float(want), rel=1e-9)
+
+
 # ---------------------------------------------------------------- one design's moments in integers
 
 

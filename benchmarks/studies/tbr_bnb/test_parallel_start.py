@@ -127,6 +127,27 @@ def test_a_tie_keeps_the_earlier_descent(monkeypatch):
     assert T == [0, 50, 51]                      # the first restart keeps the tie
 
 
+def test_the_pool_descends_local_searchs_draws(monkeypatch):
+    """The restarts sent to the pool are local_search's draws, in its order, from one
+    generator seeded 0: the designs it would descend from, not merely designs that end at
+    the same optimum (under the relative key the descents on these panels converge, so the
+    final design alone cannot tell the draws apart)."""
+    from mlsynth.utils.tbr_helpers.design import local as lib_local
+    from mlsynth.utils.tbr_helpers.design.search import greedy_search
+
+    M = raw_panel(5)
+    seen = []
+    monkeypatch.setattr(treatment, "_map", lambda p, fn, argss: seen.extend(argss) or [])
+    treatment._start(M, 3, N_TEST, 6, object())
+    roles = _roles(M.shape[1])
+    k = greedy_search(M, roles, max_treatment_size=3, n_test=N_TEST, objective="relative")[-1].k
+    rng = np.random.default_rng(0)
+    want = [d for d in (lib_local._random_design(rng, roles, k) for _ in range(6)) if d is not None]
+    got = [(sorted(a[2]), sorted(a[3])) for a in seen]
+    assert got == [(sorted(T), sorted(C)) for T, C in want]
+    assert len({tuple(T) for T, _ in got}) > 1          # the draws differ: the check has power
+
+
 # ---------------------------------------------------------------- edge
 
 

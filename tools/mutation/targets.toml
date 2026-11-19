@@ -14442,7 +14442,7 @@ timeout = 600.0
 [[target]]
 name = "tbr-bnb-worker-screen"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_worker_screen.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_worker_screen.py benchmarks/studies/tbr_bnb/test_float_screen.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -17094,7 +17094,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-relative"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_relative.py benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_progress.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_relative.py benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_gap.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
