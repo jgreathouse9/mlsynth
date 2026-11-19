@@ -240,6 +240,9 @@ INELIGIBLE = {
         "non-negativity appended under an if, so it holds on one branch only",
     ("spcd_helpers/weights_exact.py", "w"):
         "two sum-to-one constraints, on disjoint treated and control subsets",
+    ("tbr_helpers/design/exact/lifts.py", "w"):
+        "a column of the semidefinite relaxation's moment matrix: the shared "
+        "slope times the control indicators, held in a band, not weights",
 }
 
 # ``dsc_helpers/weights.py`` is in both ELIGIBLE and INELIGIBLE, as
