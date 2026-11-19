@@ -13128,7 +13128,7 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-wave-is-not-screened"
-  find = "        if competes(row):\n            return True\n        out.screened_out += 1\n        return False\n"
+  find = "        if competes(row):\n            if deadline.passed(until):      # out of time: bounded by its floors\n                late.append(row)\n                return False\n            return True\n        out.screened_out += 1\n        return False\n"
   replace = "        return True\n"
   models = "every group certified whatever its floor, the cost the screen removes, and the screened-out count left at zero"
 
@@ -13140,8 +13140,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "one-job-starts-a-pool"
-  find = "    if n_jobs == 1:\n        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0)\n"
-  replace = "    if False:\n        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0)\n"
+  find = "    if n_jobs == 1:\n        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0, until=until)\n"
+  replace = "    if False:\n        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0, until=until)\n"
   models = "the sequential search sent through a pool of one worker, paying its start and the pickling for nothing"
 
   [[target.mutant]]
@@ -13158,20 +13158,20 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "every-group-is-ruled-out"
-  find = "        if competes(row):\n            return True\n"
-  replace = "        if False:\n            return True\n"
+  find = "        if competes(row):\n            if deadline.passed(until):"
+  replace = "        if False:\n            if deadline.passed(until):"
   models = "the screen ruling out every group, so the incumbent is never challenged"
 
   [[target.mutant]]
   id = "open-groups-are-not-retried"
-  find = "        if c is not None and (c_then is None or c < c_then):\n"
+  find = "        if c is not None and (c_then is None or c < c_then) and not deadline.passed(until):\n"
   replace = "        if False:\n"
   models = "a group left open on its turn never certified again, though the final incumbent's lower ceiling asks a weaker claim of it"
 
   [[target.mutant]]
   id = "a-group-still-open-reads-as-certified"
-  find = "                continue\n        out.certified = False\n"
-  replace = "                continue\n        pass\n"
+  find = "        late.append((fl[0], fl[1], T))\n"
+  replace = "        pass\n"
   models = "a group open after its retry, or never retried, counted as certified"
 
   [[target.mutant]]
@@ -14477,8 +14477,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-floors-get-no-class"
-  find = "    rows, dropped = _streamed_floor_rows(Mc, p, k, lam, pool, n_jobs, _screen_terms(bar(), ell, k))\n"
-  replace = "    rows, dropped = _streamed_floor_rows(Mc, p, k, lam, pool, n_jobs, None)\n"
+  find = "    rows, dropped = _streamed_floor_rows(Mc, p, k, lam, pool, n_jobs, _screen_terms(bar(), ell, k), until=until)\n"
+  replace = "    rows, dropped = _streamed_floor_rows(Mc, p, k, lam, pool, n_jobs, None, until=until)\n"
   models = "the floors computed without the start's screen: the same search, every row shipped back to the parent and screened there one at a time"
 
   [[target.mutant]]
@@ -14947,8 +14947,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "pentagons-switch-not-stored"
-  find = "           \"pentagons\": pentagons}"
-  replace = "           }"
+  find = "           \"pentagons\": pentagons, \"deadline\": deadline}"
+  replace = "           \"deadline\": deadline}"
   models = "the search validates its switch and drops it, so every size takes the module's default"
 
 [[target]]
@@ -16431,8 +16431,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "one-ranges-drops-counted"
-  find = "    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, scr) for lo, hi in cuts])\n    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
-  replace = "    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, scr) for lo, hi in cuts])\n    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
+  find = "    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, scr, None, until) for lo, hi in cuts])\n    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
+  replace = "    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, scr, None, until) for lo, hi in cuts])\n    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
   models = "the screened count of the first worker's range taken for every range's, so over a pool the certificate counts too few groups screened out"
 
 [[target]]
@@ -17195,14 +17195,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "certifications-are-not-seeded"
-  find = "        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), local.get(T, {})), (c, (fp, fm))\n"
-  replace = "        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), {}), (c, (fp, fm))\n"
+  find = "        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), local.get(T, {}), until), (c, (fp, fm))\n"
+  replace = "        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), {}, until), (c, (fp, fm))\n"
   models = "each sign's certificate started without its pass design, a descent run twice"
 
   [[target.mutant]]
   id = "the-retry-asks-the-old-question"
-  find = "        c = relative_ceiling(level(T), bar())\n        if c is not None and (c_then is None or c < c_then):\n"
-  replace = "        c = c_then\n        if c is not None and (c_then is None or c < c_then):\n"
+  find = "        c = relative_ceiling(level(T), bar())\n        if c is not None and (c_then is None or c < c_then) and not deadline.passed(until):\n"
+  replace = "        c = c_then\n        if c is not None and (c_then is None or c < c_then) and not deadline.passed(until):\n"
   models = "an open group retried against the ceiling it failed at, so it is never retried and the search stays uncertified"
 
   [[target.mutant]]
@@ -17372,3 +17372,177 @@ timeout = 300.0
   find = "                   and not case_deps.never_reachable(p) and not p.startswith(case_deps.UNTRACKED)"
   replace = "                   and not p.startswith(case_deps.NEVER_REACHABLE + case_deps.UNTRACKED)"
   models = "a measurement recording a study's test module in a case's entry"
+
+[[target]]
+name = "tbr-bnb-time-limit"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_time_limit.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-limit-is-never-set"
+  find = "    until = deadline.at(limit)\n"
+  replace = "    until = None\n"
+  models = "the time limit validated and recorded, and never turned into a deadline, so the search runs to the end"
+
+  [[target.mutant]]
+  id = "the-default-is-no-limit"
+  find = "TIME_LIMIT = 120.0\n"
+  replace = "TIME_LIMIT = None\n"
+  models = "the two-minute default dropped, so a search with no time_limit runs without one"
+
+  [[target.mutant]]
+  id = "the-floors-ignore-the-deadline"
+  find = "        if deadline.passed(until):\n            break\n"
+  replace = "        if False:\n            break\n"
+  models = "every block of floors read past the deadline, so a large panel overruns its limit before the search starts"
+
+  [[target.mutant]]
+  id = "the-pool-floors-get-no-deadline"
+  find = "[(M, lam, p, k, lo, hi, scr, None, until) for lo, hi in cuts]"
+  replace = "[(M, lam, p, k, lo, hi, scr, None, None) for lo, hi in cuts]"
+  models = "the workers' floor ranges not given the deadline, so the pool reads every block whatever the time"
+
+  [[target.mutant]]
+  id = "the-unread-are-not-counted"
+  find = "    unread = comb(p, k) - len(rows) - dropped   # floors never computed: out of time (deadline.py)\n"
+  replace = "    unread = 0\n"
+  models = "groups whose floors were never computed counted as resolved, so the gap ignores them"
+
+  [[target.mutant]]
+  id = "the-pass-ignores-the-deadline"
+  find = "            if deadline.passed(until):\n                break\n            got ="
+  replace = "            if False:\n                break\n            got ="
+  models = "the pass run to the end past the deadline"
+
+  [[target.mutant]]
+  id = "the-window-ignores-the-deadline"
+  find = "            if deadline.passed(until):      # out of time: bounded by its floors\n"
+  replace = "            if False:\n"
+  models = "every competing group certified past the deadline, so the window overruns its limit"
+
+  [[target.mutant]]
+  id = "late-rows-are-not-counted"
+  find = "                late.append(row)\n"
+  replace = "                pass\n"
+  models = "a group refused for lack of time left out of the unresolved groups and the gap"
+
+  [[target.mutant]]
+  id = "the-retries-ignore-the-deadline"
+  find = "        if c is not None and (c_then is None or c < c_then) and not deadline.passed(until):\n"
+  replace = "        if c is not None and (c_then is None or c < c_then):\n"
+  models = "the retries run past the deadline"
+
+  [[target.mutant]]
+  id = "the-group-gets-no-deadline"
+  find = "                                           deadline=until, **kw)\n"
+  replace = "                                           deadline=None, **kw)\n"
+  models = "a group's certification not given the deadline, so its branch and bound runs to the end"
+
+  [[target.mutant]]
+  id = "the-job-gets-no-deadline"
+  find = "local.get(T, {}), until), (c, (fp, fm))"
+  replace = "local.get(T, {}), None), (c, (fp, fm))"
+  models = "the window's certifications not given the deadline"
+
+  [[target.mutant]]
+  id = "the-retry-gets-no-deadline"
+  find = "            res = _optimum(Mc, M, T, n_test, restarts, c, fl, local.get(T, {}), until=until)\n"
+  replace = "            res = _optimum(Mc, M, T, n_test, restarts, c, fl, local.get(T, {}))\n"
+  models = "a retry not given the deadline"
+
+  [[target.mutant]]
+  id = "a-ruled-out-open-group-is-unresolved"
+  find = "        elif not competes((fl[0], fl[1], T)):"
+  replace = "        elif False:"
+  models = "an open group the final incumbent rules out counted as unresolved when its retry is skipped"
+
+  [[target.mutant]]
+  id = "the-gap-uses-the-larger-floor"
+  find = "        f = min(Q(fp), Q(fm))\n"
+  replace = "        f = max(Q(fp), Q(fm))\n"
+  models = "a group bounded by the larger of its two floors, which bounds only one slope sign"
+
+  [[target.mutant]]
+  id = "the-gap-forgets-the-square-root"
+  find = "            worst = root_above(q) - 1\n"
+  replace = "            worst = q - 1\n"
+  models = "the gap read in level^2 / RSS, the square of the key's ratio"
+
+  [[target.mutant]]
+  id = "the-requested-gap-is-dropped"
+  find = "    worst = Q(g)\n"
+  replace = "    worst = Q(0)\n"
+  models = "the gap the certified groups were proved at forgotten, so the reported gap can be below it"
+
+  [[target.mutant]]
+  id = "a-zero-floor-bounds-something"
+  find = "        if not f > 0:\n            return None\n"
+  replace = "        if False:\n            return None\n"
+  models = "a floor of zero read as a bound"
+
+  [[target.mutant]]
+  id = "a-search-out-of-time-is-certified"
+  find = "    out.certified = out.unresolved == 0\n"
+  replace = "    out.certified = True\n"
+  models = "a search with unresolved groups reported certified"
+
+  [[target.mutant]]
+  id = "the-time-out-is-not-reported"
+  find = "    out.timed_out = not out.certified and deadline.passed(until)\n"
+  replace = "    out.timed_out = False\n"
+  models = "a search stopped by its limit not reported as timed out"
+
+  [[target.mutant]]
+  id = "the-time-out-ignores-the-clock"
+  find = "    out.timed_out = not out.certified and deadline.passed(until)\n"
+  replace = "    out.timed_out = not out.certified\n"
+  models = "an open group with time left reported as a time-out"
+
+  [[target.mutant]]
+  id = "the-gap-ignores-the-unread"
+  find = "        out.proven_gap = None if unread else proven_gap("
+  replace = "        out.proven_gap = proven_gap("
+  models = "a gap reported when some groups have no floor, which bounds nothing"
+
+  [[target.mutant]]
+  id = "a-bool-limit-passes"
+  find = "    if isinstance(limit, bool) or not isinstance(limit, (int, float))"
+  replace = "    if not isinstance(limit, (int, float))"
+  models = "True accepted as a one-second limit"
+
+  [[target.mutant]]
+  id = "a-non-finite-limit-passes"
+  find = " or not math.isfinite(limit) or limit <= 0:\n"
+  replace = " or limit <= 0:\n"
+  models = "an infinite or NaN limit accepted"
+
+  [[target.mutant]]
+  id = "a-zero-limit-passes"
+  find = " or not math.isfinite(limit) or limit <= 0:\n"
+  replace = " or not math.isfinite(limit) or limit < 0:\n"
+  models = "a limit of zero seconds accepted"
+
+[[target]]
+name = "tbr-bnb-time-limit-branch"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_time_limit.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-branch-ignores-the-deadline"
+  find = "    if past_deadline(inc.get(\"deadline\")):        # out of time: the node stays open (deadline.py)\n"
+  replace = "    if False:\n"
+  models = "every node searched past the deadline"
+
+  [[target.mutant]]
+  id = "the-deadline-is-not-stored"
+  find = "           \"pentagons\": pentagons, \"deadline\": deadline}"
+  replace = "           \"pentagons\": pentagons}"
+  models = "the deadline accepted and never handed to the branch and bound"
+
+  [[target.mutant]]
+  id = "an-out-of-time-node-is-pruned"
+  find = "        out.open.append((m, tuple(fixes)))\n        node(\"open\")\n"
+  replace = "        node(\"open\")\n"
+  models = "a node skipped for lack of time counted as pruned, so the certificate closes unproved"

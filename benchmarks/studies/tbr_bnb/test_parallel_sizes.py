@@ -309,9 +309,9 @@ def test_the_treatment_search_lends_its_workers_and_takes_them_back(monkeypatch,
     from . import treatment
     real = treatment._optimum
 
-    def spy(Mc, M, T, *a):
+    def spy(Mc, M, T, *a, **k):
         (tmp_path / f"{'-'.join(map(str, T))}").write_text(str(slopefree.SPARE[0] is not slopefree._lend_none))
-        return real(Mc, M, T, *a)
+        return real(Mc, M, T, *a, **k)
 
     monkeypatch.setattr(treatment, "_optimum", spy)
     M = raw_panel(5, p=6)

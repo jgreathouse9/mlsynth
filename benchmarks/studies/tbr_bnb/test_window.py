@@ -123,11 +123,11 @@ def test_a_slow_group_does_not_hold_the_search(monkeypatch, tmp_path):
     assert len(plain.survivors) >= 3
     slow, real = plain.survivors[0]["treatment"], treatment._optimum
 
-    def timed(Mc, M_, T, *a):
+    def timed(Mc, M_, T, *a, **k):
         t0 = time.time()
         if sorted(T) == slow:
             time.sleep(1.0)
-        res = real(Mc, M_, T, *a)
+        res = real(Mc, M_, T, *a, **k)
         (tmp_path / "-".join(map(str, sorted(T)))).write_text(f"{t0} {time.time()}")
         return res
 

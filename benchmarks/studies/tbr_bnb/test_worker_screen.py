@@ -104,7 +104,7 @@ def test_two_processes_screen_as_one_does():
 def test_the_search_with_the_worker_screen_is_the_search_without_it(monkeypatch, k, gap, n_jobs):
     M = raw_panel(5, p=7)
     with_screen = treatment.certify_treatment(M, k, n_test=N_TEST, restarts=5, pass_restarts=3, gap=gap, n_jobs=n_jobs, blank_periods=0)
-    monkeypatch.setattr(treatment, "_streamed_floor_rows", lambda M, p, k, lam, pool, n_jobs, scr:
+    monkeypatch.setattr(treatment, "_streamed_floor_rows", lambda M, p, k, lam, pool, n_jobs, scr, until=None:
                         (treatment._floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs), 0))
     without = treatment.certify_treatment(M, k, n_test=N_TEST, restarts=5, pass_restarts=3, gap=gap, n_jobs=n_jobs, blank_periods=0)
     for attr in ("treatment", "controls", "rss", "key", "slope", "certified", "searched", "replaced"):
@@ -120,8 +120,8 @@ def test_the_search_hands_the_floors_the_start_bar(monkeypatch):
     seen = []
     real = treatment._streamed_floor_rows
 
-    def spy(M, p, k, lam, pool, n_jobs, scr):
-        rows, dropped = real(M, p, k, lam, pool, n_jobs, scr)
+    def spy(M, p, k, lam, pool, n_jobs, scr, until=None):
+        rows, dropped = real(M, p, k, lam, pool, n_jobs, scr, until=until)
         seen.append((scr, dropped))
         return rows, dropped
 

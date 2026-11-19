@@ -101,6 +101,7 @@ from mlsynth.utils.marex_helpers.certify import Dyadic
 from . import face as _face
 from . import fastpent, fastprice, fbound
 from .certificate import ExactData, _dot_err, round_down
+from .deadline import passed as past_deadline
 from .progress import clarabel_log, emit, reporting
 
 
@@ -1669,6 +1670,10 @@ def _branch(c, G, out, m, cuts, fixes, rounds, per_round, depth, max_depth, inc,
             emit("incumbent", ratio=r, controls=sorted(C), source="leaf", m=m, depth=depth)
         node("leaf")
         return
+    if past_deadline(inc.get("deadline")):        # out of time: the node stays open (deadline.py)
+        out.open.append((m, tuple(fixes)))
+        node("open")
+        return
     if math.comb(p - len(fixes), m - ones) <= PRICE_LIMIT:   # cheaper_to_price at the cost model
         price_subtree(c, G, out, m, fixes, inc, excluded)
         node("priced")
@@ -1865,7 +1870,8 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
                         solver: Optional[str] = None,
                         shor: bool = SHOR_TIER,
                         deep_restarts: Optional[int] = None,
-                        pentagons: Optional[bool] = None) -> SlopeFreeCertificate:
+                        pentagons: Optional[bool] = None,
+                        deadline: Optional[float] = None) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -1911,6 +1917,9 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
 
     With ``pentagons`` every size's relaxation rounds add pentagonal rows
     (size_certificate); None takes PENTAGONS, read at the call.
+
+    Past ``deadline`` (deadline.py) every node the branch and bound enters is left
+    open, so the search ends uncertified.
     """
     from .search import hull_survivors, incumbent, pieces_to
 
@@ -1979,7 +1988,7 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
         t_h = time.perf_counter() - t0
         emit("hull", sizes=sizes, seconds=t_h)
     inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding, "face": face, "solver": solver, "shor": shor,
-           "pentagons": pentagons}
+           "pentagons": pentagons, "deadline": deadline}
     if solver == "workspace":
         from .workspace import Workspaces
         inc["workspaces"] = Workspaces()     # one search's workspaces and triangle pool
