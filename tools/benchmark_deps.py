@@ -170,7 +170,7 @@ def claimable(paths, name: str) -> list:
     own = f"benchmarks/cases/{name}.py"
     return sorted({p for p in paths
                    if p.startswith(case_deps.REACHABLE)
-                   and not p.startswith(case_deps.NEVER_REACHABLE + case_deps.UNTRACKED)
+                   and not case_deps.never_reachable(p) and not p.startswith(case_deps.UNTRACKED)
                    and "__pycache__" not in p
                    and not p.endswith((".pyc", ".pyo"))
                    and p != own})

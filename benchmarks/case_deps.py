@@ -39,7 +39,8 @@ refreshed, so treating them as holes widened every selection to the whole
 registry and the rule never narrowed anything.
 
 The registry loads only ``benchmarks.cases``, so no case's ``run()`` executes a
-test module -- :data:`NEVER_REACHABLE`. A file the diff creates did not exist
+test module -- :data:`NEVER_REACHABLE`, and a study's test modules beside its
+code (:func:`never_reachable`). A file the diff creates did not exist
 when any pre-existing case ran -- the ``added`` argument. ``__init__.py``
 executes at import, before measurement starts, which is the separation that
 stops a case from measuring all 834 library files -- :data:`RE_EXPORT_ONLY`,
@@ -99,6 +100,26 @@ REACHABLE = ("mlsynth/", "basedata/", "benchmarks/")
 #: registry loads only ``benchmarks.cases``, so no case's ``run()`` executes a
 #: test module; the references to test files in case docstrings are prose.
 NEVER_REACHABLE = ("mlsynth/tests/", "benchmarks/tests/")
+
+#: Where a study keeps its tests beside its code. A study is a package under
+#: ``benchmarks/studies/`` whose modules a case may import, so the prefix stays
+#: reachable; its test modules are pytest's (``test_*.py`` and ``conftest.py``),
+#: and no case imports one. Without this, a study test module added after the
+#: last sweep was a hole, and a pull request touching it ran the whole registry:
+#: #1091 changed ``tbr_bnb/test_relative.py``, added to main after the nightly
+#: sweep, and ran all 244 cases for a diff no case could reach.
+STUDIES = "benchmarks/studies/"
+
+
+def never_reachable(path: str) -> bool:
+    """Whether no case can execute ``path``: a module under a test tree
+    (:data:`NEVER_REACHABLE`), or a study's test module (:data:`STUDIES`)."""
+    if path.startswith(NEVER_REACHABLE):
+        return True
+    if not path.startswith(STUDIES):
+        return False
+    name = path.rsplit("/", 1)[-1]
+    return name == "conftest.py" or (name.startswith("test_") and name.endswith(".py"))
 
 #: Prefixes under :data:`REACHABLE` that git does not track. The reference
 #: cache holds what the references download: a case reads it and the
@@ -224,7 +245,7 @@ def reachable_inventory(root: Path | None = None) -> List[str]:
             rel = f.relative_to(base).as_posix()
             if "__pycache__" in rel:
                 continue
-            if rel.startswith(NEVER_REACHABLE + UNTRACKED) or rel in RE_EXPORT_ONLY:
+            if never_reachable(rel) or rel.startswith(UNTRACKED) or rel in RE_EXPORT_ONLY:
                 continue
             if rel.endswith(PROSE_SUFFIXES):
                 continue
@@ -363,7 +384,7 @@ def import_graph(root: Path | None = None) -> Dict[str, FrozenSet[str]] | None:
         for prefix in IMPORT_ROOTS
         for f in (base / prefix).rglob("*.py")
         if f.is_file() and "__pycache__" not in f.parts
-        and not f.relative_to(base).as_posix().startswith(NEVER_REACHABLE))
+        and not never_reachable(f.relative_to(base).as_posix()))
     by_name = {_module_name(f): f for f in files}
     trees = {}
     for rel in files:
@@ -432,7 +453,7 @@ def _is_hole(path: str, known: set, created: set,
     """
     if not path.startswith(REACHABLE):
         return False
-    if path.startswith(NEVER_REACHABLE) or path in RE_EXPORT_ONLY:
+    if never_reachable(path) or path in RE_EXPORT_ONLY:
         return False
     if path.endswith(PROSE_SUFFIXES):
         return False

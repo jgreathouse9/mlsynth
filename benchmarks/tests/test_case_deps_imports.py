@@ -54,7 +54,9 @@ class TestTheShippedTree:
         assert "mlsynth/utils/marex_helpers/structures.py" in graph
 
     def test_it_holds_no_test_module(self, graph):
-        assert not [f for f in graph if f.startswith(case_deps.NEVER_REACHABLE)]
+        assert not [f for f in graph if case_deps.never_reachable(f)]
+        assert "benchmarks/studies/tbr_bnb/treatment.py" in graph
+        assert "benchmarks/studies/tbr_bnb/test_treatment.py" not in graph
 
     def test_every_module_that_loads_cases_in_bulk_is_not_followed(self, graph):
         """A module with edges into more than one case module dispatches to
