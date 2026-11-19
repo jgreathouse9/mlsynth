@@ -98,7 +98,8 @@ import numpy as np
 from scipy.optimize import nnls
 
 from mlsynth.exceptions import MlsynthDataError
-from mlsynth.utils.tbr_helpers.design.objective import check_positive_levels, score_split
+from mlsynth.utils.tbr_helpers.calibration import design_end, resolve_blank_periods
+from mlsynth.utils.tbr_helpers.design.objective import aa_test_ok, check_positive_levels, score_split
 
 from . import fastfloor
 from .certificate import box_bound_float, gram_lower, qarr
@@ -482,6 +483,9 @@ class TreatmentCertificate:
     retried: int = 0                        # open groups certified again at the final ceiling
     gap: Q = Q(0)                           # the relative gap in the key the certificate holds at
     gates: Optional[Dict[str, bool]] = None  # the reference key's four gates at the design; they rank nothing
+    blank_periods: int = 0                  # the last periods held back from the search
+    design_periods: int = 0                 # the periods the search certified on, before them
+    blank_aa: List[bool] = field(default_factory=list)  # the library's A/A test at each blank origin
     survivors: List[dict] = field(default_factory=list)
     seconds: float = 0.0
 
@@ -831,8 +835,8 @@ def _checked_gap(gap) -> Q:
 
 def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] = None,
                       restarts: int = 50, pass_restarts: int = 10, gap=0,
-                      n_jobs: int = 1, verbose: int = 0, progress=None, log=None,
-                      log_level: int = 3) -> TreatmentCertificate:
+                      n_jobs: int = 1, blank_periods: Optional[int] = None, verbose: int = 0,
+                      progress=None, log=None, log_level: int = 3) -> TreatmentCertificate:
     """The relative key's best design with ``k`` treatment geos over the columns of
     the raw panel ``M`` (periods by geos, every geo eligible for every role, every
     geo's mean positive), certified (module docstring). ``start`` is a treatment group
@@ -841,20 +845,27 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
     is certified; 0 skips the pass. With ``gap`` g above zero the certificate holds
     within g: no design's key exceeds 1 + g times the reported design's. ``n_jobs``
     processes compute the floors, the pass and the certifications (module docstring);
-    1 runs them in this process. ``verbose``, ``progress`` and ``log`` report the
-    search's progress (progress.reporting), each group's events tagged with the group,
-    from the workers too."""
+    1 runs them in this process. The last ``blank_periods`` periods of ``M`` are held
+    back from the search, BLANK_TESTS test lengths when None and none when 0 (see
+    BLANK_TESTS); the result reports the A/A test at each of their origins in
+    ``blank_aa`` and the four gates on the whole panel. ``verbose``, ``progress`` and
+    ``log`` report the search's progress (progress.reporting), each group's events
+    tagged with the group, from the workers too."""
     with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):
         out = _certify_treatment_entry(M, k, n_test=n_test, start=start, restarts=restarts,
-                                       pass_restarts=pass_restarts, gap=gap, n_jobs=n_jobs)
+                                       pass_restarts=pass_restarts, gap=gap, n_jobs=n_jobs,
+                                       blank_periods=blank_periods)
         emit("treatment-done", certified=out.certified, treatment=out.treatment, key=out.key,
              survivors=len(out.survivors), seconds=out.seconds)
         return out
 
 
-def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, gap, n_jobs) -> TreatmentCertificate:
+def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, gap, n_jobs,
+                             blank_periods=None) -> TreatmentCertificate:
     t0 = time.perf_counter()
-    M = _checked_panel(M)
+    whole = _checked_panel(M)
+    B = _checked_blank(blank_periods, n_test, whole.shape[0])
+    M = whole[:whole.shape[0] - B]       # the design window: the search never reads a blank period
     _check_levels(M)
     p = M.shape[1]
     if not 1 <= k <= p - 1:
@@ -867,16 +878,54 @@ def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, ga
     g = _checked_gap(gap)
     emit("treatment", k=k, p=p, groups=comb(p, k), n_jobs=n_jobs)
     if n_jobs == 1:
-        return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0)
-    from . import slopefree
-    lender, before = _Lender(), slopefree.SPARE
-    slopefree.SPARE = (lender.take, lender.give)       # read in the workers, which fork with it
-    try:
-        with _pool(n_jobs) as pool:
-            return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0,
-                                      lender=lender)
-    finally:
-        slopefree.SPARE = before
+        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0)
+    else:
+        from . import slopefree
+        lender, before = _Lender(), slopefree.SPARE
+        slopefree.SPARE = (lender.take, lender.give)       # read in the workers, which fork with it
+        try:
+            with _pool(n_jobs) as pool:
+                out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0,
+                                         lender=lender)
+        finally:
+            slopefree.SPARE = before
+    out.blank_periods, out.design_periods = B, M.shape[0]
+    if out.treatment is not None:
+        y = whole[:, out.treatment].sum(axis=1)
+        out.gates = gates_of(y, whole, out.controls, n_test)
+        out.blank_aa = _blank_aa(y, whole[:, out.controls].sum(axis=1), M.shape[0], n_test)
+    out.seconds = time.perf_counter() - t0
+    return out
+
+
+#: Blank periods held back from the search by default, in test lengths: the library's
+#: calibrated inference holds back three (mlsynth.utils.tbr_helpers.calibration.
+#: resolve_blank_periods), and refuses fewer than two, so the A/A test has whole
+#: windows the design never saw. The certified search picks one design out of every
+#: treatment and control group on the window it reads, so an A/A test on that window
+#: scores a fit the search chose; on a blank window it scores one it could not have.
+BLANK_TESTS = 3
+
+
+def _checked_blank(blank_periods, n_test: int, n: int) -> int:
+    """B: BLANK_TESTS test lengths when None, none when 0, else at least two test
+    lengths, leaving the library's MIN_DESIGN_PERIODS to design on."""
+    if blank_periods == 0 and type(blank_periods) is int:
+        return 0
+    if blank_periods is not None and (type(blank_periods) is not int or blank_periods < 0):
+        raise MlsynthDataError(f"blank_periods is {blank_periods!r}; it has to be a count of periods, "
+                               f"0 for none or None for {BLANK_TESTS} test lengths.")
+    B = resolve_blank_periods(BLANK_TESTS * n_test if blank_periods is None else blank_periods, n_test)
+    design_end(n, B)                     # refuses too short a design window
+    return B
+
+
+def _blank_aa(y, x, design_periods: int, n_test: int) -> List[bool]:
+    """The library's A/A test at each blank origin o = D0, D0 + n_test, ...: fit on
+    the periods before o, the cumulative effect over [o, o + n_test) against zero.
+    Only whole windows are tested."""
+    return [aa_test_ok(y[:o + n_test], x[:o + n_test], n_test)
+            for o in range(design_periods, y.size - n_test + 1, n_test)]
 
 
 def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0, lender=None):
@@ -986,7 +1035,6 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
         out.treatment, out.controls = sorted(inc["T"]), sorted(inc["C"])
         out.rss, out.level, out.slope = inc["rss"], inc["level"], inc["slope"]
         out.key = _key(M, inc, n_test)
-        out.gates = gates_of(M[:, out.treatment].sum(axis=1), M, out.controls, n_test)
     out.seconds = time.perf_counter() - t0
     return out
 

@@ -348,7 +348,35 @@ both are inside 1%, so the gap's searches report the pass's design and certify i
 The gates are read at the certified design and rank nothing. On the 27-geo panel
 the design fails `bb_test` and `dw_test`; on the other two it passes all four.
 
-The panels are local inputs, and the runs are not part of the test suite.
+The panels are local inputs, and the runs are not part of the test suite. These runs
+read the whole panel; the search now holds back blank periods by default (next
+section).
+
+## Blank periods
+
+`certify_treatment` holds back the last `blank_periods` periods of the panel and
+certifies on the periods before them, the design window. The default is three test
+lengths (`BLANK_TESTS`), the library's own default for its calibrated inference
+(`calibration.resolve_blank_periods`), and the library's floor of two test lengths
+and three design periods (`design_end`) apply; `blank_periods=0` searches the whole
+panel, the search before this section.
+
+The certified search picks one design out of every treatment and control group by
+its fit on the periods it reads, so an A/A test on those periods scores a fit the
+search chose. A blank period is one no choice saw. At each blank origin, the first
+period of the window and every test length after it while a whole test window
+remains, the result reports the library's A/A test (`objective.aa_test_ok`: fit on
+every period before the test window, then test the cumulative effect over the next
+`n_test` periods against zero) in `blank_aa`. The relative key reads only the design
+window, so a geo needs a positive level there and nowhere else. The four gates are
+read on the whole panel, as the library reports a design.
+
+`test_blank_periods.py` checks that the design is the design window's enumerated
+optimum and the same as a search given only that window, that rewriting the blank
+periods changes nothing the search reports (also as a hypothesis property over
+panels, blank lengths and rewrites), that each blank A/A test is the library's,
+that the pool holds back the same periods, and that a count below two test lengths,
+one that is not a count, or one that leaves too short a design window raises.
 
 ## The treatment groups
 

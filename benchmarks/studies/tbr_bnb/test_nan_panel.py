@@ -24,7 +24,7 @@ N_TEST = 8
 
 def _certify(M, **kw):
     kw = {"n_test": N_TEST, "restarts": 3, "pass_restarts": 2, "gap": Q(0), "n_jobs": 1, **kw}
-    return treatment.certify_treatment(M, 2, **kw)
+    return treatment.certify_treatment(M, 2, **kw, blank_periods=0)
 
 
 def _bad(value, t=3, j=2):

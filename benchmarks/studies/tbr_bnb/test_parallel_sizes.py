@@ -315,8 +315,8 @@ def test_the_treatment_search_lends_its_workers_and_takes_them_back(monkeypatch,
 
     monkeypatch.setattr(treatment, "_optimum", spy)
     M = raw_panel(5, p=6)
-    one = treatment.certify_treatment(M, 2, n_test=8, restarts=5)
-    two = treatment.certify_treatment(M, 2, n_test=8, restarts=5, n_jobs=2)
+    one = treatment.certify_treatment(M, 2, n_test=8, restarts=5, blank_periods=0)
+    two = treatment.certify_treatment(M, 2, n_test=8, restarts=5, n_jobs=2, blank_periods=0)
     assert {f.read_text() for f in tmp_path.iterdir()} >= {"True"}
     assert slopefree.SPARE[0] is slopefree._lend_none
     assert (one.treatment, one.controls, one.key) == (two.treatment, two.controls, two.key)
@@ -328,6 +328,6 @@ def test_the_search_tells_the_lender_what_is_free(monkeypatch):
     from . import treatment
     seen, real = [], treatment._Lender.set_free
     monkeypatch.setattr(treatment._Lender, "set_free", lambda self, n: seen.append(n) or real(self, n))
-    treatment.certify_treatment(raw_panel(5, p=6), 2, n_test=8, restarts=5, n_jobs=3)
+    treatment.certify_treatment(raw_panel(5, p=6), 2, n_test=8, restarts=5, n_jobs=3, blank_periods=0)
     assert all(0 <= n <= 3 for n in seen)
     assert seen[-2:] == [3, 2]                       # every worker free at the window's end; two lent to the retries

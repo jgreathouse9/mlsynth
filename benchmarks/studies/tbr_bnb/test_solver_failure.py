@@ -137,7 +137,7 @@ def test_the_treatment_search_survives_a_failed_solve(monkeypatch):
     _no_cheap_tier(monkeypatch)
     calls = _fail_full(monkeypatch, which={1, 3, 5})
     M = raw_panel(5)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, blank_periods=0)
     best, T, C = relative_optimum(M, 2, N_TEST)
     assert len(calls) >= 5 and out.certified
     assert out.key == pytest.approx(best, rel=1e-9)

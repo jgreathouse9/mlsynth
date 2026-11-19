@@ -43,7 +43,7 @@ def slope_of(M, T, C):
 
 def test_smoke():
     M = raw_panel(0)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, blank_periods=0)
     assert out.certified
     assert len(out.treatment) == 2 and out.controls
     assert not set(out.treatment) & set(out.controls)
@@ -57,7 +57,7 @@ def test_smoke():
 @pytest.mark.parametrize("seed,k", [(0, 1), (1, 2), (2, 2), (3, 1), (4, 2), (5, 2)])
 def test_the_design_is_the_relative_optimum(seed, k):
     M = raw_panel(seed)
-    out = certify_treatment(M, k, n_test=N_TEST, restarts=3)
+    out = certify_treatment(M, k, n_test=N_TEST, restarts=3, blank_periods=0)
     best, T, C = relative_optimum(M, k, N_TEST)
     assert out.certified
     assert out.key == pytest.approx(best, rel=REL)
@@ -70,7 +70,7 @@ def test_a_negative_slope_optimum_is_found(seed):
     M = mirror_panel(seed, p=7)
     best, T, C = relative_optimum(M, 2, N_TEST)
     assert slope_of(M, T, C) < 0
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, blank_periods=0)
     assert out.key == pytest.approx(best, rel=REL)
     assert out.slope == -1
 
@@ -82,7 +82,7 @@ def test_a_poor_start_still_reaches_a_negative_slope_optimum(seed):
     reports a worse one."""
     M = mirror_panel(seed, p=7)
     best, _, _ = relative_optimum(M, 2, N_TEST)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=1, pass_restarts=0, start=[3, 4])
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=1, pass_restarts=0, start=[3, 4], blank_periods=0)
     assert out.certified
     assert out.key == pytest.approx(best, rel=REL)
 
@@ -90,13 +90,13 @@ def test_a_poor_start_still_reaches_a_negative_slope_optimum(seed):
 def test_the_slope_reported_is_the_designs():
     for seed in (0, 1, 103):
         M = raw_panel(seed) if seed < 100 else mirror_panel(seed, p=7)
-        out = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
+        out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, blank_periods=0)
         assert out.slope == (1 if slope_of(M, out.treatment, out.controls) > 0 else -1)
 
 
 def test_the_rss_and_level_are_the_designs():
     M = raw_panel(2)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, blank_periods=0)
     y = M[:, out.treatment].sum(axis=1); x = M[:, out.controls].sum(axis=1)
     b, a = np.polyfit(x, y, 1)
     assert float(out.rss) == pytest.approx(float(((y - a - b * x) ** 2).sum()), rel=1e-7)
@@ -111,7 +111,7 @@ def test_the_gates_are_reported_and_do_not_rank():
     hit = 0
     for seed in range(6):
         M = raw_panel(seed, n=30)
-        out = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
+        out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, blank_periods=0)
         y = M[:, out.treatment].sum(axis=1)
         assert out.gates == gates_of(y, M, out.controls, N_TEST)
         assert set(out.gates) == {"corr_test", "aa_test", "bb_test", "dw_test"}
@@ -126,7 +126,7 @@ def test_the_gap_holds():
         M = raw_panel(seed)
         best, _, _ = relative_optimum(M, 2, N_TEST)
         for g in (Q(1, 100), Q(1, 4)):
-            out = certify_treatment(M, 2, n_test=N_TEST, restarts=1, pass_restarts=0, start=[0, 1], gap=g)
+            out = certify_treatment(M, 2, n_test=N_TEST, restarts=1, pass_restarts=0, start=[0, 1], gap=g, blank_periods=0)
             assert out.certified
             assert best <= (1 + float(g)) * out.key * (1 + REL)
 
@@ -134,8 +134,8 @@ def test_the_gap_holds():
 def test_workers_give_the_sequential_design():
     for seed in (1, 4, 104):
         M = raw_panel(seed, p=7) if seed < 100 else mirror_panel(seed, p=7)
-        one = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
-        four = certify_treatment(M, 2, n_test=N_TEST, restarts=3, n_jobs=4)
+        one = certify_treatment(M, 2, n_test=N_TEST, restarts=3, blank_periods=0)
+        four = certify_treatment(M, 2, n_test=N_TEST, restarts=3, n_jobs=4, blank_periods=0)
         assert (one.treatment, one.controls, one.key) == (four.treatment, four.controls, four.key)
 
 
@@ -146,7 +146,7 @@ def test_an_exact_fit_is_never_reported():
     M = raw_panel(3, p=5)
     M[:, 1] = 2.0 * M[:, 0] + 4.0
     assert key_of(M, [1], [0]) == -np.inf
-    out = certify_treatment(M, 1, n_test=N_TEST, restarts=3)
+    out = certify_treatment(M, 1, n_test=N_TEST, restarts=3, blank_periods=0)
     best, _, _ = relative_optimum(M, 1, N_TEST)
     assert out.certified and np.isfinite(out.key)
     assert out.key == pytest.approx(best, rel=REL)
@@ -156,7 +156,7 @@ def test_an_exact_fit_is_never_reported():
 @given(seed=st.integers(0, 10_000), p=st.integers(4, 6), k=st.integers(1, 2), mirror=st.booleans())
 def test_the_certified_key_is_the_enumerated_optimum(seed, p, k, mirror):
     M = mirror_panel(seed, p=p) if mirror else raw_panel(seed, p=p)
-    out = certify_treatment(M, k, n_test=N_TEST, restarts=2)
+    out = certify_treatment(M, k, n_test=N_TEST, restarts=2, blank_periods=0)
     best, _, _ = relative_optimum(M, k, N_TEST)
     assert out.certified
     assert out.key == pytest.approx(best, rel=REL)
@@ -240,10 +240,10 @@ def test_a_geo_whose_level_is_not_positive_is_refused():
     M[:, 3] -= M[:, 3].mean()                          # mean zero
     M[:, 4] -= M[:, 4].mean() + 1.0                    # mean -1
     with pytest.raises(MlsynthDataError, match=r"3.*4|level"):
-        certify_treatment(M, 2, n_test=N_TEST)
+        certify_treatment(M, 2, n_test=N_TEST, blank_periods=0)
 
 
 def test_a_centred_panel_is_refused():
     M = raw_panel(0)
     with pytest.raises(MlsynthDataError):
-        certify_treatment(M - M.mean(axis=0), 2, n_test=N_TEST)
+        certify_treatment(M - M.mean(axis=0), 2, n_test=N_TEST, blank_periods=0)

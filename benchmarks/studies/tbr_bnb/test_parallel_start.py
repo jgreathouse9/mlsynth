@@ -80,8 +80,8 @@ def test_the_search_hands_the_start_its_pool(monkeypatch):
 
     monkeypatch.setattr(treatment, "_start", spy)
     M = raw_panel(5)
-    treatment.certify_treatment(M, 2, n_test=N_TEST, restarts=3, pass_restarts=2, gap=Q(0), n_jobs=2)
-    treatment.certify_treatment(M, 2, n_test=N_TEST, restarts=3, pass_restarts=2, gap=Q(0), n_jobs=1)
+    treatment.certify_treatment(M, 2, n_test=N_TEST, restarts=3, pass_restarts=2, gap=Q(0), n_jobs=2, blank_periods=0)
+    treatment.certify_treatment(M, 2, n_test=N_TEST, restarts=3, pass_restarts=2, gap=Q(0), n_jobs=1, blank_periods=0)
     assert seen[0] is not None and seen[1] is None
 
 

@@ -92,8 +92,8 @@ def test_smoke_the_window_commits_every_admitted_row_in_order():
 
 def test_smoke_two_processes_certify_the_sequential_design_over_the_window():
     M = raw_panel(5, p=6)
-    one = certify_treatment(M, 2, n_test=N_TEST, restarts=5)
-    two = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=2)
+    one = certify_treatment(M, 2, n_test=N_TEST, restarts=5, blank_periods=0)
+    two = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=2, blank_periods=0)
     assert two.certified and (two.treatment, two.controls, two.key) == (one.treatment, one.controls, one.key)
 
 
@@ -119,7 +119,7 @@ def test_a_slow_group_does_not_hold_the_search(monkeypatch, tmp_path):
     monkeypatch.setattr(treatment, "_bound_order", lambda r, ell: -order(r, ell))
     M = raw_panel(0, p=7)
     kw = dict(n_test=N_TEST, restarts=5, pass_restarts=0, start=[0, 1])
-    plain = certify_treatment(M, 2, **kw)
+    plain = certify_treatment(M, 2, **kw, blank_periods=0)
     assert len(plain.survivors) >= 3
     slow, real = plain.survivors[0]["treatment"], treatment._optimum
 
@@ -132,7 +132,7 @@ def test_a_slow_group_does_not_hold_the_search(monkeypatch, tmp_path):
         return res
 
     monkeypatch.setattr(treatment, "_optimum", timed)       # read inside the forked workers
-    out = certify_treatment(M, 2, n_jobs=2, **kw)
+    out = certify_treatment(M, 2, n_jobs=2, **kw, blank_periods=0)
     spans = {f.name: tuple(map(float, f.read_text().split())) for f in tmp_path.iterdir()}
     end = spans.pop("-".join(map(str, slow)))[1]
     assert sum(t0 < end for t0, _ in spans.values()) >= 2

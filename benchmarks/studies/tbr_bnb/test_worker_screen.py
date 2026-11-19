@@ -103,10 +103,10 @@ def test_two_processes_screen_as_one_does():
 @pytest.mark.parametrize("n_jobs", [1, 2])
 def test_the_search_with_the_worker_screen_is_the_search_without_it(monkeypatch, k, gap, n_jobs):
     M = raw_panel(5, p=7)
-    with_screen = treatment.certify_treatment(M, k, n_test=N_TEST, restarts=5, pass_restarts=3, gap=gap, n_jobs=n_jobs)
+    with_screen = treatment.certify_treatment(M, k, n_test=N_TEST, restarts=5, pass_restarts=3, gap=gap, n_jobs=n_jobs, blank_periods=0)
     monkeypatch.setattr(treatment, "_streamed_floor_rows", lambda M, p, k, lam, pool, n_jobs, scr:
                         (treatment._floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs), 0))
-    without = treatment.certify_treatment(M, k, n_test=N_TEST, restarts=5, pass_restarts=3, gap=gap, n_jobs=n_jobs)
+    without = treatment.certify_treatment(M, k, n_test=N_TEST, restarts=5, pass_restarts=3, gap=gap, n_jobs=n_jobs, blank_periods=0)
     for attr in ("treatment", "controls", "rss", "key", "slope", "certified", "searched", "replaced"):
         assert getattr(with_screen, attr) == getattr(without, attr), attr
     assert [s["treatment"] for s in with_screen.survivors] == [s["treatment"] for s in without.survivors]
@@ -126,7 +126,7 @@ def test_the_search_hands_the_floors_the_start_bar(monkeypatch):
         return rows, dropped
 
     monkeypatch.setattr(treatment, "_streamed_floor_rows", spy)
-    treatment.certify_treatment(M, 3, n_test=N_TEST, restarts=5, pass_restarts=3, gap=Q(0), n_jobs=1)
+    treatment.certify_treatment(M, 3, n_test=N_TEST, restarts=5, pass_restarts=3, gap=Q(0), n_jobs=1, blank_periods=0)
     (scr, dropped), = seen
     want = _scr(M, 3)
     assert scr[0] == want[0] and scr[2] == want[2] and np.array_equal(scr[1], want[1]) and dropped > 0

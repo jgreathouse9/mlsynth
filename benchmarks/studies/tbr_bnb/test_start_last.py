@@ -62,7 +62,7 @@ def _spy_ceilings(monkeypatch):
 def test_smoke_a_poor_start_still_certifies_the_optimum():
     M = raw_panel(5)
     best, T, _ = relative_optimum(M, 2, N_TEST)
-    out = certify_treatment(M, 2, n_test=N_TEST, start=_worst_group(M), restarts=5)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=_worst_group(M), restarts=5, blank_periods=0)
     assert out.certified and set(out.treatment) == T
     assert out.key == pytest.approx(best, rel=REL)
 
@@ -75,7 +75,7 @@ def test_every_certification_has_an_incumbent(monkeypatch):
     certified against a ceiling, the start group included."""
     M = raw_panel(5)
     seen = _spy_ceilings(monkeypatch)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, pass_restarts=0)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, pass_restarts=0, blank_periods=0)
     assert out.certified and seen and all(c is not None for c in seen)
 
 
@@ -86,7 +86,7 @@ def test_the_first_incumbent_is_the_library_design():
     T0, C = treatment._start(M, 2, N_TEST, 3)
     from mlsynth.utils.tbr_helpers.design.objective import score_split
     key0 = score_split(M[:, T0].sum(axis=1), M[:, C].sum(axis=1), objective="relative", n_test=N_TEST).key[0]
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, pass_restarts=0)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, pass_restarts=0, blank_periods=0)
     assert out.key >= key0 * (1 - REL)
 
 
@@ -95,7 +95,7 @@ def test_the_start_group_is_certified_against_a_better_incumbent():
     not screened out, is certified against that design's ceiling."""
     M = raw_panel(5)
     start = _worst_group(M)
-    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=10)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=10, blank_periods=0)
     mine = [s for s in out.survivors if s.get("start")]
     theirs = [s for s in out.survivors if s["treatment"] == sorted(start)]
     assert mine == theirs and len(mine) <= 1
@@ -109,7 +109,7 @@ def test_the_start_group_is_searched_once(monkeypatch):
     real, calls = treatment._local, []
     monkeypatch.setattr(treatment, "_local",
                         lambda Mc, M_, T, *a: calls.append(tuple(sorted(T))) or real(Mc, M_, T, *a))
-    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=10)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=10, blank_periods=0)
     assert calls.count(tuple(sorted(start))) == 1
     assert out.searched == len(calls) - 1                 # the start's search is not the pass's
 
@@ -120,7 +120,7 @@ def test_the_optimum_group_as_the_start_is_searched_once_and_marked(monkeypatch)
     real, calls = treatment._local, []
     monkeypatch.setattr(treatment, "_local",
                         lambda Mc, M_, T_, *a: calls.append(tuple(sorted(T_))) or real(Mc, M_, T_, *a))
-    out = certify_treatment(M, 2, n_test=N_TEST, start=sorted(T), restarts=3, pass_restarts=10)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=sorted(T), restarts=3, pass_restarts=10, blank_periods=0)
     assert calls.count(tuple(sorted(T))) == 1
     mine = [s for s in out.survivors if s.get("start")]
     assert len(mine) == 1 and set(mine[0]["treatment"]) == T
@@ -143,7 +143,7 @@ def test_the_start_groups_seeds_are_its_local_designs(monkeypatch):
     monkeypatch.setattr(treatment, "_optimum", spy)
     Mc = M - M.mean(axis=0)
     want = treatment._local(Mc, M, start, N_TEST, 3)[0]
-    out = certify_treatment(M, 2, n_test=N_TEST, start=list(start), restarts=3, pass_restarts=0)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=list(start), restarts=3, pass_restarts=0, blank_periods=0)
     assert out.certified and got in ([], [want])          # screened out, or seeded with both signs
     assert got or not any(s.get("start") for s in out.survivors)
 
@@ -155,7 +155,7 @@ def test_property_any_start_certifies_the_optimum(seed, pick, mirror):
     groups = list(combinations(range(6), 2))
     start = list(groups[pick % len(groups)])
     best, _, _ = relative_optimum(M, 2, N_TEST)
-    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=3)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=3, blank_periods=0)
     assert out.certified
     assert out.key == pytest.approx(best, rel=REL)
     assert out.screened_out + len(out.survivors) == out.groups
@@ -178,7 +178,7 @@ def test_a_start_whose_designs_all_fit_exactly_leaves_no_incumbent(monkeypatch):
     monkeypatch.setattr(treatment, "_local", none_for_start)
     seen = _spy_ceilings(monkeypatch)
     best, T, _ = relative_optimum(M, 2, N_TEST)
-    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0, blank_periods=0)
     assert seen[0] is None
     assert out.certified and set(out.treatment) == T
 

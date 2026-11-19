@@ -224,10 +224,10 @@ def test_the_treatment_search_certifies_the_same_design_with_the_screen(monkeypa
     from .brute import raw_panel
 
     M = raw_panel(5, p=6)
-    on = treatment.certify_treatment(M, 2, n_test=8, restarts=5)
+    on = treatment.certify_treatment(M, 2, n_test=8, restarts=5, blank_periods=0)
     real = slopefree.certify_slope_free
     monkeypatch.setattr(slopefree, "certify_slope_free", lambda *a, **k: real(*a, group_screen=False, **k))
-    plain = treatment.certify_treatment(M, 2, n_test=8, restarts=5)
+    plain = treatment.certify_treatment(M, 2, n_test=8, restarts=5, blank_periods=0)
     assert (on.treatment, on.controls, on.key, on.certified) == \
         (plain.treatment, plain.controls, plain.key, plain.certified)
 

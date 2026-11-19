@@ -303,7 +303,7 @@ def test_the_log_level_is_its_own():
 def test_the_treatment_search_reports_each_group_tagged():
     M = raw_panel(5, p=6)
     seen, kw = _collect(1)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, **kw)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, **kw, blank_periods=0)
     done = [e for e in seen if e.kind == "group-done"]
     assert len(done) == len(out.survivors) + out.retried
     assert all(tuple(e.tags["treatment"]) == tuple(e.fields["treatment"]) for e in done)
@@ -317,8 +317,8 @@ def test_workers_write_their_own_parts(tmp_path):
     writes its own part of the log, and the design is the one-process search's."""
     M = raw_panel(5, p=6)
     kw = dict(n_test=N_TEST, restarts=5, pass_restarts=0, start=[0, 5])
-    one = certify_treatment(M, 2, log=tmp_path / "one", log_level=1, **kw)
-    two = certify_treatment(M, 2, n_jobs=2, log=tmp_path / "two", log_level=1, **kw)
+    one = certify_treatment(M, 2, log=tmp_path / "one", log_level=1, **kw, blank_periods=0)
+    two = certify_treatment(M, 2, n_jobs=2, log=tmp_path / "two", log_level=1, **kw, blank_periods=0)
     a, b = read_log(tmp_path / "one"), read_log(tmp_path / "two")
     assert b["pid"].nunique() > 1
     assert (b["kind"] == "treatment").sum() == 1      # a worker does not write the parent's buffered rows
@@ -329,7 +329,7 @@ def test_workers_write_their_own_parts(tmp_path):
 
 def test_workers_print_to_the_same_stderr(capfd):
     M = raw_panel(5, p=6)
-    certify_treatment(M, 2, n_test=N_TEST, restarts=5, pass_restarts=0, start=[0, 5], n_jobs=2, verbose=1)
+    certify_treatment(M, 2, n_test=N_TEST, restarts=5, pass_restarts=0, start=[0, 5], n_jobs=2, verbose=1, blank_periods=0)
     err = capfd.readouterr().err
     assert err.count(" group-done ") >= 2 and " treatment-done " in err
 
