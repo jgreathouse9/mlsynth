@@ -17166,7 +17166,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "the-queue-is-not-ordered"
   find = "    rows.sort(key=lambda r: _bound_order(r, ell))      # the best key bound first\n"
-  replace = ""
+  replace = "    pass\n"
   models = "the groups read in rank order, not best bound first, so the best design is found late and more groups are certified"
 
   [[target.mutant]]
@@ -17226,7 +17226,7 @@ timeout = 900.0
   [[target.mutant]]
   id = "the-kernel-series-ignores-its-sign"
   find = "        v = sign * v\n"
-  replace = ""
+  replace = "        pass\n"
   models = "the kernel's -y floor computed on y, so a group whose negative-slope designs compete can be ruled out"
 
   [[target.mutant]]
