@@ -570,11 +570,6 @@ def _design(Mc, M, T, C, n_test) -> Optional[_Design]:
     return _Design(sorted(C), yy - cu * cu / uGu, 1 if cu >= 0 else -1)
 
 
-def _yy(M, T):
-    y, _, _ = _split(M, T)
-    return square_sum(y)
-
-
 def _local(Mc, M, T, n_test, restarts):
     """The study's RSS descent in group T on y and on -y from ``restarts`` random
     starts: the design each sign's descent ends at (control indices of the group, by
