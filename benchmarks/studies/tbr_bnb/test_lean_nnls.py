@@ -276,7 +276,7 @@ _REFUSED = """
 import sys
 import numpy as np
 sys.path.insert(0, {root!r})
-from benchmarks.studies.tbr_bnb import fastfloor as ff
+from mlsynth.utils.tbr_helpers.design.exact import fastfloor as ff
 G = np.array([[1.0, 0.0, 1.0], [0.0, 1.0, -1.0], [1.0, -1.0, 2.0]])   # column 3 is 1 - 2
 c = np.array([1.0, 0.5, 0.75])
 w = np.zeros(3); passive = np.zeros(3, np.bool_); idx = np.zeros(3, np.int64)
