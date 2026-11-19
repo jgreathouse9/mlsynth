@@ -128,11 +128,25 @@ def gram_floor(M) -> Optional[Q]:
 
 def _split(M, T, cols=None):
     """The treated aggregate of group T, its candidate control columns and their geo
-    indices: ``cols`` when the rules restrict them (_Admissible.controls), else every
-    other geo."""
+    indices: ``cols.geos`` when the rules restrict them (_Admissible.columns), else
+    every other geo."""
     T = sorted(T)
-    rest = [j for j in range(M.shape[1]) if j not in T] if cols is None else list(cols)
+    rest = [j for j in range(M.shape[1]) if j not in T] if cols is None else list(cols.geos)
     return M[:, T].sum(axis=1), M[:, rest], rest
+
+
+@dataclass(frozen=True)
+class _Columns:
+    """A group's candidate controls under the rules: their geo indices, the positions
+    among them every design holds (the geos that have to be controls), and the band
+    on the control group's size."""
+    geos: Tuple[int, ...]
+    fixed: FrozenSet[int]
+    band: Tuple[int, int]
+
+    def search(self) -> Dict:
+        """The keywords that keep the descent and the certificate to the rules."""
+        return {"fixed": self.fixed, "band": self.band}
 
 
 _ROLES = frozenset({"treatment", "control", "unassigned"})
@@ -147,16 +161,31 @@ class _Admissible:
     quotas, budget, population tolerance), and it leaves a control. Its controls are the
     geos that may be controls, outside it and not banned by it (exclude_bordering_donors).
     A smaller set of control columns is the same search on a smaller instance, so every
-    certificate below holds as before."""
+    certificate below holds as before. A geo that may be a control but not held out
+    (``must``) is a control whenever it is not treated, a fixing in the group's
+    certificate, and the control group's size keeps to ``band``; a group whose
+    required controls are banned, or whose candidates cannot fill the band, is no
+    design."""
     roles: Tuple[FrozenSet[str], ...]
     rules: Optional[object]
     treatable: FrozenSet[int]
     controllable: FrozenSet[int]
     forced: FrozenSet[int]
+    must: FrozenSet[int] = frozenset()
+    band: Tuple[int, int] = (1, 10 ** 9)
+
+    def _banned(self, T) -> FrozenSet[int]:
+        return self.rules.banned_controls(T) if self.rules is not None else frozenset()
 
     def controls(self, T) -> List[int]:
-        banned = self.rules.banned_controls(T) if self.rules is not None else frozenset()
-        return sorted(self.controllable - frozenset(T) - banned)
+        return sorted(self.controllable - frozenset(T) - self._banned(T))
+
+    def columns(self, T) -> _Columns:
+        geos = self.controls(T)
+        need = self.must - frozenset(T)
+        lo, hi = self.band
+        return _Columns(tuple(geos), frozenset(i for i, j in enumerate(geos) if j in need),
+                        (lo, min(hi, len(geos))))
 
     def admits(self, T) -> bool:
         T = frozenset(T)
@@ -164,7 +193,10 @@ class _Admissible:
             return False
         if self.rules is not None and not self.rules.admits(T):
             return False
-        return bool(self.controls(T))
+        if (self.must - T) & self._banned(T):
+            return False                    # a geo that has to be a control is kept out of it
+        geos, lo, hi = self.controls(T), self.band[0], self.band[1]
+        return len(geos) >= max(lo, 1) and len(self.must - T) <= hi
 
 
 def _checked_roles(eligibility, rules, p: int) -> Optional[_Admissible]:
@@ -190,14 +222,10 @@ def _checked_roles(eligibility, rules, p: int) -> Optional[_Admissible]:
         if rules.treatable != treatable or rules.controllable != controllable:
             raise MlsynthDataError("the rules were built from other role sets than eligibility; build them "
                                    "with DesignRules.build(eligibility, ...).")
-    must = sorted(j for j in controllable if "unassigned" not in roles[j])
-    if must:
-        raise MlsynthDataError(f"the geo at column {must[0]} has to be a control when it is not treated; the "
-                               f"certified search does not take geos that have to be controls yet.")
-    if rules is not None and (rules.min_controls is not None or rules.max_controls is not None):
-        raise MlsynthDataError("the certified search does not take min_controls or max_controls yet.")
+    must = frozenset(j for j in controllable if "unassigned" not in roles[j])
     forced = frozenset(j for j, r in enumerate(roles) if r == frozenset({"treatment"}))
-    return _Admissible(roles, rules, treatable, controllable, forced)
+    band = rules.control_band if rules is not None else (1, p)
+    return _Admissible(roles, rules, treatable, controllable, forced, must, band)
 
 
 def _checked_panel(M) -> np.ndarray:
@@ -673,7 +701,7 @@ def _local(Mc, M, T, n_test, restarts, cols=None):
     y, X, rest = _split(Mc, T, cols)
     starts, best = {}, None
     for s in SIGNS:
-        _, C = incumbent(s * y, X, restarts=restarts)
+        _, C = incumbent(s * y, X, restarts=restarts, **({} if cols is None else cols.search()))
         starts[s] = sorted(C)
         d = _design(Mc, M, T, [rest[j] for j in C], n_test, cols)
         if d is not None and (best is None or d.rss < best.rss):
@@ -897,7 +925,7 @@ def _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=None, co
                 kw = {} if starts.get(s) is None else {"start": set(starts[s])}
                 try:
                     r = certify_slope_free(s * y, X, restarts=restarts, exclude=excluded, ceiling=ceiling,
-                                           deadline=until, **kw)
+                                           deadline=until, **kw, **({} if cols is None else cols.search()))
                 except NoDesignLeft:             # no design of this sign is left
                     break
                 if not r.certified:
@@ -1099,7 +1127,7 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
                                f"rules.")
 
     def cols(T):                            # the control columns group T may draw from
-        return None if adm is None else adm.controls(T)
+        return None if adm is None else adm.columns(T)
 
     n = M.shape[0]
     Mc = M - M.mean(axis=0)

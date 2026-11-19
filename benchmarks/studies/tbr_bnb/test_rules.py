@@ -35,9 +35,13 @@ def _panel(seed=5, p=7):
 
 
 def rules_optimum(M, k, n_test, roles, rules):
-    """The best design under the roles and rules, by enumeration: (key, T, C)."""
+    """The best design under the roles and rules, by enumeration: (key, T, C). A geo
+    that may be a control but not held out is a control whenever it is not treated,
+    and the control group's size keeps to the rules' band."""
     p = M.shape[1]
     forced = {j for j in range(p) if roles[j] == frozenset({TREATMENT})}
+    must = {j for j in range(p) if CONTROL in roles[j] and UNASSIGNED not in roles[j]}
+    lo, hi = rules.control_band if rules is not None else (1, p)
     treatable = [j for j in range(p) if TREATMENT in roles[j]]
     best = (-np.inf, None, None)
     for T in combinations(treatable, k):
@@ -45,9 +49,12 @@ def rules_optimum(M, k, n_test, roles, rules):
             continue
         banned = rules.banned_controls(T) if rules is not None else frozenset()
         allowed = [j for j in range(p) if CONTROL in roles[j] and j not in T and j not in banned]
+        need = must - set(T)
         y = M[:, list(T)].sum(axis=1)
-        for r in range(1, len(allowed) + 1):
+        for r in range(max(lo, 1), min(hi, len(allowed)) + 1):
             for C in combinations(allowed, r):
+                if not need <= set(C):
+                    continue
                 v = score_split(y, M[:, list(C)].sum(axis=1), objective="relative", n_test=n_test).key[0]
                 if v > best[0]:
                     best = (v, set(T), set(C))
@@ -309,18 +316,6 @@ def test_rules_built_from_other_roles_raise():
         _run(_panel(), roles, DesignRules.build(other))
 
 
-@pytest.mark.parametrize("make", [
-    lambda: ([frozenset({CONTROL})] + [ALL] * 6, None),
-    lambda: ([ALL] * 7, DesignRules.build([ALL] * 7, min_controls=2)),
-    lambda: ([ALL] * 7, DesignRules.build([ALL] * 7, max_controls=3)),
-])
-def test_rules_that_reach_inside_the_certificate_are_refused(make):
-    """A geo that has to be a control, and the control-size band, need the
-    certificate's own fixings and size limits; until they have them the search
-    refuses them, naming the rule."""
-    roles, rules = make()
-    with pytest.raises(MlsynthDataError, match="has to be a control|min_controls|max_controls"):
-        _run(_panel(), roles, rules)
 
 
 def test_a_start_that_breaks_the_rules_raises():

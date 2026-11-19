@@ -159,7 +159,7 @@ def _poor_start(monkeypatch, y, X):
     ratios = [(slopefree._ratio(D.c, D.G, {j})[1], j) for j in range(X.shape[1])
               if slopefree._ratio(D.c, D.G, {j})[0] > 0]
     poor = min(ratios)[1]
-    monkeypatch.setattr(search, "incumbent", lambda y_, X_, restarts=0, seed=0: (None, [poor]))
+    monkeypatch.setattr(search, "incumbent", lambda y_, X_, restarts=0, seed=0, **kw: (None, [poor]))
     return poor
 
 

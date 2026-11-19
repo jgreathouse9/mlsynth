@@ -2538,15 +2538,26 @@ group of the size can meet (the library's `DesignRules.audit`, or more geos that
 have to be treated than the group holds) is refused before the floors, naming the
 rule.
 
-Two rules reach inside the certificate and come separately: a geo that has to be
-a control (a role set with `"control"` and without `"unassigned"`), which needs a
-fixing at every size's root, and `min_controls` / `max_controls`, which limit the
-sizes searched. Until then they are refused, naming the rule.
+Two rules reach inside the certificate. A geo whose role set holds `"control"` but
+not `"unassigned"` has to be a control whenever it is not treated, and
+`min_controls` / `max_controls` bound the control group's size. For each group the
+first become fixings and the second a band (`_Columns`): the RSS descent that sets
+the pass's design and every incumbent keeps to both (a fixed control is never
+dropped or swapped out, nothing is added at the band's top or dropped at its
+bottom, and every random start holds the fixed controls at a size in the band), a
+start or a fallback neighbour that breaks them is not taken, only the band's sizes
+are branched on, and each size's root fixes the required controls in. The group
+screen and the hull stage bound every design of every size, a superset of the
+allowed ones, so a group or a size they rule out holds no allowed design either. A
+group whose required controls it bans, whose candidates cannot fill the band, or
+that leaves more required controls than the band holds is no design.
 
-`test_rules.py` builds each rule to bind against the unconstrained optimum and
-checks the certified design against enumeration of exactly the designs the rules
-allow, scored by the library's relative key, and the same as a hypothesis property
-over random role sets, conflict graphs, stratum maximums and border exclusions.
+`test_rules.py` and `test_control_rules.py` build each rule to bind against the
+unconstrained optimum and check the certified design against enumeration of exactly
+the designs the rules allow, scored by the library's relative key, and the same as
+hypothesis properties over random role sets, conflict graphs, stratum maximums,
+border exclusions, required controls and bands. The constrained descent and the
+constrained slope-free certificate are checked the same way on their own.
 
 ## The test beds
 

@@ -397,7 +397,7 @@ def test_a_ceiling_held_from_a_poor_incumbent_still_adopts_a_design_below_it(mon
     best, C = positive_optimum(y, X)
     worst = max((set(t) for r in range(1, 7) for t in combinations(range(6), r)),
                 key=lambda S: -_ratio_of(y, X, S))
-    monkeypatch.setattr(search, "incumbent", lambda y, X, restarts, seed: (None, worst))
+    monkeypatch.setattr(search, "incumbent", lambda y, X, restarts, seed, **kw: (None, worst))
     out = certify_slope_free(y, X, restarts=1, hull=False, ceiling=Q(best) * Q(101, 100))
     assert out.certified and not out.ceiling_held and set(out.controls) == C
 
