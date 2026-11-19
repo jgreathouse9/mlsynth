@@ -95,8 +95,8 @@ def test_a_tie_in_a_wave_keeps_the_first_design(monkeypatch):
     L = treatment.group_level(sums, target, M.shape[0])
     tie = plain.rss * (L / plain.level) ** 2
 
-    def tied(Mc, M_, T, *a):
-        res = real(Mc, M_, T, *a)
+    def tied(Mc, M_, T, *a, **k):
+        res = real(Mc, M_, T, *a, **k)
         if sorted(T) == target:
             rest = [j for j in range(M_.shape[1]) if j not in T]
             res = treatment._GroupOutcome(treatment._Design(rest[:1], tie, 1), True, res.signs)
@@ -205,8 +205,8 @@ def test_a_group_left_open_in_a_wave_is_retried(monkeypatch, tmp_path):
     target = plain.survivors[1]["treatment"]
     real, mark = treatment._optimum, tmp_path / "cut"
 
-    def flaky(Mc, M_, T, *a):
-        res = real(Mc, M_, T, *a)
+    def flaky(Mc, M_, T, *a, **k):
+        res = real(Mc, M_, T, *a, **k)
         if sorted(T) == target and not mark.exists():
             mark.write_text("cut")
             res = treatment._GroupOutcome(None, False, res.signs)
