@@ -12171,7 +12171,7 @@ timeout = 900.0
 [[target]]
 name = "tbr-bnb-slope-free"
 module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_gated.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_node_reuse.py benchmarks/studies/tbr_bnb/test_node_rounding.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py benchmarks/studies/tbr_bnb/test_dual_memory.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_slopefree.py benchmarks/studies/tbr_bnb/test_cascade.py benchmarks/studies/tbr_bnb/test_pricing.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_group_screen.py benchmarks/studies/tbr_bnb/test_screen_ladder.py benchmarks/studies/tbr_bnb/test_size_ladder.py benchmarks/studies/tbr_bnb/test_node_reuse.py benchmarks/studies/tbr_bnb/test_node_rounding.py benchmarks/studies/tbr_bnb/test_dual_reuse.py benchmarks/studies/tbr_bnb/test_solver_failure.py benchmarks/studies/tbr_bnb/test_dual_memory.py -q -p no:cacheprovider -x -W ignore"
 timeout = 900.0
 
   [[target.mutant]]
@@ -12953,66 +12953,6 @@ timeout = 900.0
   models = "the memory documented and pinned while L-BFGS-B runs at its old twenty pairs"
 
 [[target]]
-name = "tbr-bnb-gated"
-module-path = "benchmarks/studies/tbr_bnb/gated.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_gated.py -q -p no:cacheprovider -x -W ignore"
-timeout = 900.0
-
-  [[target.mutant]]
-  id = "an-open-slope-free-certificate-is-read-as-closed"
-  find = "        if not res.certified:                  # nodes left open (GeoLift at five geos from a poor start)\n            break\n"
-  replace = "        if False:\n            break\n"
-  models = "a slope-free certificate with nodes left open taken as a certificate, the group reported certified"
-
-  [[target.mutant]]
-  id = "a-failing-design-is-accepted"
-  find = "        if all(gates):\n"
-  replace = "        if gates[0]:\n"
-  models = "a design that passes the correlation floor but fails another gate taken as the passing optimum"
-
-  [[target.mutant]]
-  id = "the-correlation-floor-does-not-stop"
-  find = "        if not gates[0]:\n"
-  replace = "        if False:\n"
-  models = "the search continued past a design below the correlation floor, though every remaining design correlates less"
-
-  [[target.mutant]]
-  id = "a-failing-design-is-not-excluded"
-  find = "        excluded.append(set(res.controls))\n"
-  replace = "        pass\n"
-  models = "a design that fails a gate certified again, so the search never reaches the next one"
-
-  [[target.mutant]]
-  id = "every-error-reads-as-no-design"
-  find = "        except NoDesignLeft:\n"
-  replace = "        except ValueError:\n"
-  models = "any error, a refused certificate among them, read as no design being left"
-
-  [[target.mutant]]
-  id = "the-ceiling-does-not-end-the-search"
-  find = "        if res.ceiling_held or (ceiling is not None and res.incumbent >= ceiling):\n"
-  replace = "        if False:\n"
-  models = "a round whose RSS-best design is not below the caller's ceiling scored and excluded, so a group that cannot compete runs on through its failing designs"
-
-  [[target.mutant]]
-  id = "the-ceiling-is-not-passed-on"
-  find = "exclude=excluded, ceiling=ceiling, **kw)"
-  replace = "exclude=excluded, **kw)"
-  models = "each round certified to the group's own optimum, the harder claim that left a GeoLift group open at the depth limit"
-
-  [[target.mutant]]
-  id = "a-gated-round-is-not-reported"
-  find = "        emit(\"gated-round\", round=len(out.rounds) - 1, controls=res.controls, rss=res.incumbent,\n             passing=all(gates), seconds=res.seconds)\n"
-  replace = "        pass\n"
-  models = "a gated round missing from the progress"
-
-  [[target.mutant]]
-  id = "the-gated-search-ignores-its-reporting"
-  find = "    with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):\n        return _certify_gated("
-  replace = "    with reporting():\n        return _certify_gated("
-  models = "verbose, progress and log accepted by certify_gated and never used"
-
-[[target]]
 name = "tbr-bnb-treatment"
 module-path = "benchmarks/studies/tbr_bnb/treatment.py"
 test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py benchmarks/studies/tbr_bnb/test_lean_floor.py benchmarks/studies/tbr_bnb/test_fastfloor.py -q -p no:cacheprovider -x -W ignore"
@@ -13031,28 +12971,10 @@ timeout = 1200.0
   models = "the floor read from M M', the periods' Gram, whose diagonal is not among any group's x_j'x_j"
 
   [[target.mutant]]
-  id = "the-start-design-is-not-adopted"
-  find = "    if key0 is not None:\n        out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0\n"
-  replace = "    if False:\n        out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0\n"
-  models = "the start's passing design not taken as the first incumbent, so the first groups are certified without a ceiling"
-
-  [[target.mutant]]
-  id = "a-failing-start-design-is-adopted"
-  find = "    return Cg, (key if cu > 0 and all(gates) else None), yy - ratio, rest\n"
-  replace = "    return Cg, key, yy - ratio, rest\n"
-  models = "the library's design taken as the incumbent whatever its gates, so a design that fails one can be reported"
-
-  [[target.mutant]]
   id = "the-start-group-is-searched-in-the-pass"
   find = "lambda r: r[2] not in local and competes(r)"
   replace = "lambda r: competes(r)"
   models = "the start group searched again by the pass, a second local search of a group whose design is already known"
-
-  [[target.mutant]]
-  id = "the-library-design-is-dropped"
-  find = "        C0, key0, rss0, rest0 = _design(M, T0, Cs, n_test)\n"
-  replace = "        C0, key0, rss0, rest0 = _local(M, T0, n_test, restarts)\n"
-  models = "the library's own design replaced by the group's RSS-best design, which can fail the gates and leave no incumbent"
 
   [[target.mutant]]
   id = "the-bracket-has-no-margin"
@@ -13077,88 +12999,6 @@ timeout = 1200.0
   find = "    if (a.size > _MAX_PERIODS or not np.isfinite(a).all()"
   replace = "    if (not np.isfinite(a).all()"
   models = "a series long enough for its sum of squares to overflow bracketed"
-
-  [[target.mutant]]
-  id = "the-competing-side-reads-the-top"
-  find = "    f = float(floor)\n    c_lo, c_hi = ceil(lo), ceil(hi)\n"
-  replace = "    f = float(floor)\n    c_lo, c_hi = ceil(hi), ceil(hi)\n"
-  models = "a group taken as competing against the ceiling at the bracket's top, which a y'y at its bottom may not reach"
-
-  [[target.mutant]]
-  id = "the-screened-side-reads-the-bottom"
-  find = "    f = float(floor)\n    c_lo, c_hi = ceil(lo), ceil(hi)\n"
-  replace = "    f = float(floor)\n    c_lo, c_hi = ceil(lo), ceil(lo)\n"
-  models = "a group screened out against the ceiling at the bracket's bottom, which a y'y at its top may exceed"
-
-  [[target.mutant]]
-  id = "the-competing-side-has-no-margin"
-  find = "    if c_lo >= _NORMAL and f < c_lo * (1 - _MARGIN):\n"
-  replace = "    if c_lo >= _NORMAL and f < c_lo:\n"
-  models = "a floor at the exact ceiling taken as competing where the ceiling in doubles rounds up past it"
-
-  [[target.mutant]]
-  id = "the-screened-side-has-no-margin"
-  find = "    if c_hi >= _NORMAL and f * (1 - _MARGIN) >= c_hi:\n"
-  replace = "    if c_hi >= _NORMAL and f >= c_hi:\n"
-  models = "a floor just below the exact ceiling screened out where the ceiling in doubles rounds down below it"
-
-  [[target.mutant]]
-  id = "a-subnormal-ceiling-is-decided"
-  find = "    if c_lo >= _NORMAL and f < c_lo * (1 - _MARGIN):\n"
-  replace = "    if f < c_lo * (1 - _MARGIN):\n"
-  models = "a ceiling below the normal range decided in doubles, where its rounding is absolute"
-
-  [[target.mutant]]
-  id = "an-undecided-group-is-taken-as-decided"
-  find = "        if got is not None:\n            return got\n        yy = exact()\n"
-  replace = "        return bool(got)\n"
-  models = "a group the doubles cannot decide screened out without its exact y'y"
-
-  [[target.mutant]]
-  id = "an-exact-row-is-read-as-a-bracket"
-  find = "    if isinstance(yy, tuple):\n        got = compete_bracket("
-  replace = "    if True:\n        got = compete_bracket("
-  models = "a row whose series left no bracket read as one"
-
-  [[target.mutant]]
-  id = "the-exact-yy-is-not-kept"
-  find = "        if T not in exact:\n            exact[T] = _yy(M, T)\n        return exact[T]\n"
-  replace = "        return _yy(M, T)\n"
-  models = "a group's exact y'y computed again at each screen and certification"
-
-  [[target.mutant]]
-  id = "the-survivors-read-the-bracket"
-  find = "        yy = exact_yy(T, yy)\n        c = ceiling(yy, *class_of())\n"
-  replace = "        c = ceiling(yy, *class_of())\n"
-  models = "a survivor's ceiling built from the float bracket, not its exact y'y"
-
-  [[target.mutant]]
-  id = "the-cap-reads-the-bottom"
-  find = "yy=b[1] if b is not None else yy)"
-  replace = "yy=b[0] if b is not None else yy)"
-  models = "the slope cap built from the bracket's bottom, below y'y by up to 2^-47 relative"
-expected = "survived"
-accepted-because = "EQUIVALENT in validity, derived here. The cap is sqrt(yy / lam) times (1 + 1e-9), and the bracket's bottom lo is below y'y by at most a factor (1 - 2^-48) / (1 + 2^-48), about 1 - 2^-47. The factor (1 + 1e-9)^2, about 1 + 2e-9, exceeds that gap by five orders of magnitude, and the square root's rounding is one part in 2^52, so a cap built from lo still satisfies cap^2 lam >= y'y: every design stays inside the box and the floor stays a lower bound. The two caps differ by under 2^-46 relative, which moves a floor by rounding only, and no test can tell a valid floor from a valid floor. The top is read because it is the side the bound needs, not the side a test detects."
-
-  [[target.mutant]]
-  id = "the-class-is-held-past-a-new-rss"
-  find = "        if held[0] is not out.key or held[1] is not out.rss:\n"
-  replace = "        if held[0] is not out.key:\n"
-  models = "the incumbent's class read from an earlier RSS when the RSS changes with the key held"
-expected = "survived"
-accepted-because = "EQUIVALENT under the current code, read from every assignment. The incumbent's key and RSS are written together at all three sites (the start, take, and the pass), and each write pairs a key with the RSS it was scored with, so the RSS never changes while the key's identity is held and the RSS test adds nothing the key test does not. It stays as the guard for a later change that rescores the incumbent in place: the class reads out.rss, and a cache keyed on the key alone would then hand back the old RSS."
-
-  [[target.mutant]]
-  id = "an-exact-row-is-read-again"
-  find = "        if not isinstance(yy, tuple):\n            return yy\n"
-  replace = "        if False:\n            return yy\n"
-  models = "a row whose floors carried the exact y'y computes it a second time"
-
-  [[target.mutant]]
-  id = "the-upper-edge-follows-the-lower"
-  find = "    return (float(a) if a > 0 else None), float(b), float(rss_star)\n"
-  replace = "    return (float(a) if a > 0 and b > 0 else None), float(b), float(rss_star)\n"
-  models = "a class near -1 losing its yy (1 - up^2) term, so its ceiling in doubles is negative"
 
   [[target.mutant]]
   id = "the-float-cap-takes-any-quotient"
@@ -13197,28 +13037,10 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
   models = "a box bound below zero, or -inf, returned as the floor in place of 0"
 
   [[target.mutant]]
-  id = "a-kernel-nan-is-taken-as-a-floor"
-  find = "        T = _group(T)\n        if math.isnan(f):\n            out.append(_floor_row(M, lam, T))\n"
-  replace = "        T = _group(T)\n        if False:\n            out.append(_floor_row(M, lam, T))\n"
-  models = "a group the kernel left (a nan floor) kept as a row, not computed by rss_floor"
-
-  [[target.mutant]]
-  id = "a-kernel-floor-is-not-clamped"
-  find = "out.append((f if f > 0 else Q(0), (float(a), float(b)), T))"
-  replace = "out.append((f, (float(a), float(b)), T))"
-  models = "a raw bound below zero, or -inf, kept as the floor in place of 0"
-
-  [[target.mutant]]
   id = "the-kernel-runs-without-a-gram-floor"
   find = "    if lam is None or not fastfloor.AVAILABLE or len(groups) == 0:\n        return [_floor_row(M, lam, _group(T)) for T in groups]\n"
   replace = "    if not fastfloor.AVAILABLE or len(groups) == 0:\n        return [_floor_row(M, lam, _group(T)) for T in groups]\n"
   models = "the kernel called on a panel with no Gram floor, where every floor is 0"
-
-  [[target.mutant]]
-  id = "the-start-is-not-marked"
-  find = "pass_key=pass_key, ceiling=c, seconds=secs, start=list(T) == T0))"
-  replace = "pass_key=pass_key, ceiling=c, seconds=secs, start=False))"
-  models = "the start group's certification not marked as the start's"
 
   [[target.mutant]]
   id = "the-cap-is-too-small"
@@ -13249,12 +13071,6 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
   find = "    except (OverflowError, ValueError) as exc:\n"
   replace = "    except ZeroDivisionError as exc:\n"
   models = "an infinite or missing entry of the treatment series escaping as Python's OverflowError or ValueError, not the study's data error"
-
-  [[target.mutant]]
-  id = "the-screen-computes-yy-twice"
-  find = "    return rss_floor(M, T, lam, yy=b[1] if b is not None else yy), yy, T\n"
-  replace = "    return rss_floor(M, T, lam), yy, T\n"
-  models = "the floor recomputing the y'y the screen already holds, the cost the change removed (70% of the floor stage on GeoLift at k = 4)"
 
   [[target.mutant]]
   id = "the-floor-ignores-a-given-yy"
@@ -13293,24 +13109,6 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
   models = "an empty control group read as a design, failing later as a bare ValueError, not the study's data error"
 
   [[target.mutant]]
-  id = "a-negative-slope-is-fitted"
-  find = "    cu, uGu, yy = design_moments(y, X, C)\n    ratio = cu * cu / uGu if cu > 0 else Q(0)\n"
-  replace = "    cu, uGu, yy = design_moments(y, X, C)\n    ratio = cu * cu / uGu\n"
-  models = "a pass design with c'u <= 0 credited with the fit of a negative slope, though the shared slope must be positive, so its RSS reads below y'y"
-
-  [[target.mutant]]
-  id = "a-wave-takes-no-incumbent"
-  find = "        if res.passing and (out.key is None or res.key > out.key):\n            take(T, res, C)\n            out.replaced += 1\n\n    occupancy = None"
-  replace = "        if False:\n            take(T, res, C)\n            out.replaced += 1\n\n    occupancy = None"
-  models = "a certification's results recorded but never adopted, so a better design found by a survivor is not the one reported"
-
-  [[target.mutant]]
-  id = "a-wave-replaces-on-a-tie"
-  find = "        if res.passing and (out.key is None or res.key > out.key):\n            take(T, res, C)\n            out.replaced += 1\n\n    occupancy = None"
-  replace = "        if res.passing and (out.key is None or res.key >= out.key):\n            take(T, res, C)\n            out.replaced += 1\n\n    occupancy = None"
-  models = "an equal key from a later group in the window replacing the incumbent, so a tie reports the later design and counts a replacement, not the first design in queue order"
-
-  [[target.mutant]]
   id = "a-wave-is-not-screened"
   find = "        if competes(row):\n            return True\n        out.screened_out += 1\n        return False\n"
   replace = "        return True\n"
@@ -13341,76 +13139,10 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
   models = "a worker's error caught and the work redone in this process, so a failure in a worker is hidden from the caller"
 
   [[target.mutant]]
-  id = "a-group-above-the-class-is-ruled-out-on-rss"
-  find = "    return max(yy * (1 - up * up), min(rss_star, yy * (1 - low * low)))\n"
-  replace = "    return min(rss_star, yy * (1 - low * low))\n"
-  models = "a group whose correlation could round above the incumbent's class compared on RSS, though the key ranks the rounded correlation first"
-
-  [[target.mutant]]
-  id = "the-upper-edge-has-no-slack"
-  find = "    up = r_star + EDGE - SLACK            # below up, round(corr, 2) <= r_star\n"
-  replace = "    up = r_star + EDGE                    # below up, round(corr, 2) <= r_star\n"
-  models = "the upper class edge taken as exact, so a correlation within the double's error of rounding up is compared on RSS"
-
-  [[target.mutant]]
-  id = "the-lower-edge-has-no-slack"
-  find = "    low = r_star - EDGE - SLACK           # below low, round(corr, 2) < r_star\n"
-  replace = "    low = r_star - EDGE                   # below low, round(corr, 2) < r_star\n"
-  models = "the lower class edge taken as exact, so a correlation within the double's error of the class is ruled out"
-
-  [[target.mutant]]
-  id = "the-whole-class-is-ruled-out"
-  find = "    return max(yy * (1 - up * up), min(rss_star, yy * (1 - low * low)))\n"
-  replace = "    return yy * (1 - up * up)\n"
-  models = "every group that cannot round above the incumbent's class ruled out, including those that could beat its RSS within it"
-
-  [[target.mutant]]
-  id = "the-incumbent-is-never-replaced"
-  find = "        if res.passing and (out.key is None or res.key > out.key):\n"
-  replace = "        if res.passing and out.key is None:\n"
-  models = "a survivor whose optimum beats the incumbent's key left unused, so the start group is returned"
-
-  [[target.mutant]]
   id = "every-group-is-ruled-out"
   find = "        if competes(row):\n            return True\n"
   replace = "        if False:\n            return True\n"
   models = "the screen ruling out every group, so the incumbent is never challenged"
-
-  [[target.mutant]]
-  id = "a-refused-group-reads-as-certified"
-  find = "        if not res.certified:\n            left_open.append((list(T), yy, c))\n"
-  replace = "        if False:\n            left_open.append((list(T), yy, c))\n"
-  models = "a survivor whose own certification was cut short counted as certified"
-
-  [[target.mutant]]
-  id = "the-start-group-is-left-out-of-the-queue"
-  find = "    rows, dropped = _streamed_floor_rows(M, p, k, lam, pool, n_jobs, class_of())\n"
-  replace = "    rows, dropped = _streamed_floor_rows(M, p, k, lam, pool, n_jobs, class_of())\n    rows = [r for r in rows if list(r[2]) != T0]\n"
-  models = "the start group adopted as the incumbent and never certified, so a better design in it is never found and the count of screened and certified groups is one short"
-
-  [[target.mutant]]
-  id = "the-pass-does-not-adopt-its-best-design"
-  find = "                if key is not None and (out.key is None or key > out.key):\n                    out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key\n"
-  replace = "                if False:\n                    out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key\n"
-  models = "the pass's best local design left unused, so the groups are certified against the start's ceiling"
-
-  [[target.mutant]]
-  id = "the-queue-is-not-ordered"
-  find = "        rows.sort(key=lambda r: (local.get(r[2], (None, None))[1] is None,\n"
-  replace = "        sorted(rows, key=lambda r: (local.get(r[2], (None, None))[1] is None,\n"
-  models = "the groups certified in the floor's order, not best local design first"
-
-  [[target.mutant]]
-  id = "certifications-are-not-seeded"
-  find = "        return _optimum_timed, (M, T, n_test, restarts, c, seed), (yy, c, pass_key)\n"
-  replace = "        return _optimum_timed, (M, T, n_test, restarts, c, None), (yy, c, pass_key)\n"
-  models = "each certification searching its group again, though the pass has already found its design"
-
-  [[target.mutant]]
-  id = "a-gate-failing-local-design-is-taken"
-  find = "    return sorted(C), (key if cu > 0 and all(gates) else None), yy - ratio, rest\n"
-  replace = "    return sorted(C), (key if cu > 0 else None), yy - ratio, rest\n"
-  models = "a local design that fails a gate taken as the incumbent"
 
   [[target.mutant]]
   id = "open-groups-are-not-retried"
@@ -13419,40 +13151,10 @@ accepted-because = "EQUIVALENT under the current code, read from every assignmen
   models = "a group left open on its turn never certified again, though the final incumbent's lower ceiling asks a weaker claim of it"
 
   [[target.mutant]]
-  id = "the-retry-asks-the-old-question"
-  find = "            res, C = _optimum(M, T, n_test, restarts, ceiling=c)\n"
-  replace = "            res, C = _optimum(M, T, n_test, restarts, ceiling=c_then)\n"
-  models = "an open group retried against the ceiling it already failed, not the final incumbent's"
-
-  [[target.mutant]]
-  id = "a-retried-optimum-is-not-taken"
-  find = "            if res.passing and res.key > out.key:\n                take(T, res, C)\n"
-  replace = "            if False:\n                take(T, res, C)\n"
-  models = "a group whose optimum is found only on its retry left out of the incumbent, so the search reports a worse design as certified"
-
-  [[target.mutant]]
   id = "a-group-still-open-reads-as-certified"
   find = "                continue\n        out.certified = False\n"
   replace = "                continue\n        pass\n"
   models = "a group open after its retry, or never retried, counted as certified"
-
-  [[target.mutant]]
-  id = "survivors-carry-no-ceiling"
-  find = "        c = ceiling(yy, *class_of())\n        seed, pass_key = local.get(T, (None, None))\n"
-  replace = "        c = None\n        seed, pass_key = local.get(T, (None, None))\n"
-  models = "a survivor certified to its own optimum though its rounds can no longer compete, so a group whose designs keep failing the gates runs to the round limit"
-
-  [[target.mutant]]
-  id = "a-group-is-not-tagged"
-  find = "    with tagged(treatment=tuple(T)):\n        emit(\"group\", treatment=tuple(T), ceiling=ceiling)\n"
-  replace = "    with tagged():\n        emit(\"group\", treatment=tuple(T), ceiling=ceiling)\n"
-  models = "a group's events, from a worker or not, carry no group, so interleaved worker output cannot be told apart"
-
-  [[target.mutant]]
-  id = "a-group-is-not-reported-done"
-  find = "        emit(\"group-done\", treatment=tuple(T), certified=res.certified, passing=res.passing,\n             rounds=len(res.rounds), seconds=res.seconds)\n"
-  replace = "        pass\n"
-  models = "a group's result missing from the progress"
 
   [[target.mutant]]
   id = "the-treatment-search-ignores-its-reporting"
@@ -13498,8 +13200,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-series-is-summed-right-to-left"
-  find = "        for q in range(kk):\n            v += M[t, T[q]]\n        y[t] = v\n"
-  replace = "        for q in range(kk - 1, -1, -1):\n            v += M[t, T[q]]\n        y[t] = v\n"
+  find = "        for q in range(kk):\n            v += M[t, T[q]]\n        v = sign * v\n"
+  replace = "        for q in range(kk - 1, -1, -1):\n            v += M[t, T[q]]\n        v = sign * v\n"
   models = "the treated columns summed in another order than _split's, so the floor bounds another series"
 
   [[target.mutant]]
@@ -13627,96 +13329,6 @@ timeout = 300.0
   find = "Xpool = (Xs if with_treated else Xs[:, 1:]) if covariates else None"
   replace = "Xpool = Xs[:, 1:] if covariates else None"
   models = "with covariates and the treated unit in the pools, the predictor columns no longer line up with the outcome columns, so each placebo is matched on another unit's predictors"
-
-[[target]]
-name = "tbr-bnb-guided"
-module-path = "benchmarks/studies/tbr_bnb/guided.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_progress.py benchmarks/studies/tbr_bnb/test_guided.py -q -p no:cacheprovider -x -W ignore"
-timeout = 900.0
-
-  [[target.mutant]]
-  id = "the-start-group-is-not-searched"
-  find = "    search(T0, C0)\n"
-  replace = "    pass\n"
-  models = "the start group never given the group search, so its design stays the library's and its own optimum is missed (the RCA's first cause)"
-
-  [[target.mutant]]
-  id = "the-start-group-is-searched-twice"
-  find = "        if T == tuple(T0):\n            continue\n"
-  replace = "        pass\n"
-  models = "the start group searched again in floor order, counted twice and searched twice"
-
-  [[target.mutant]]
-  id = "a-failing-rss-design-ends-the-group-search"
-  find = "    froms = [] if key is not None else [Cg]\n"
-  replace = "    froms = []\n"
-  models = "the RSS descent's design failing a gate leaves the group with no passing design, the key's descent never run from it (the RCA's second cause)"
-
-  [[target.mutant]]
-  id = "the-start-design-is-not-descended"
-  find = "    if start:\n        froms.append(sorted(start))\n"
-  replace = "    if False:\n        froms.append(sorted(start))\n"
-  models = "the library's design dropped from the start group's search, which can then report a design worse than its start"
-
-  [[target.mutant]]
-  id = "the-start-floor-is-left-out-of-the-bound"
-  find = "out.open = [T for T in out.searched_groups if"
-  replace = "out.open = [T for T in out.searched_groups[1:] if"
-  models = "the start group's floor missing from the open groups and so from the bound (the hole the RCA found in the first bound)"
-
-  [[target.mutant]]
-  id = "the-open-groups-ignore-their-floors"
-  find = "    out.open = [T for T in out.searched_groups if can_compete(exact(T), floors[T], r, out.rss)]\n"
-  replace = "    out.open = list(out.searched_groups)\n"
-  models = "every searched group reported open, including those whose floor shows they cannot beat the design"
-
-  [[target.mutant]]
-  id = "the-bound-is-the-design-itself"
-  find = "    out.rss_bound = min([floors[T] for T in out.open] + ([out.rss] if out.rss is not None else []))\n"
-  replace = "    out.rss_bound = out.rss if out.rss is not None else min(floors[T] for T in out.open)\n"
-  models = "the open groups' floors dropped from the bound, which then claims the design is the optimum"
-
-  [[target.mutant]]
-  id = "no-group-rounds-above-the-class"
-  find = "        out.above_class = any("
-  replace = "        out.above_class = False and any("
-  models = "an open group that could round above the design's class ignored, so an impact bound is given where none holds"
-
-  [[target.mutant]]
-  id = "the-impact-bound-without-the-root"
-  find = "math.sqrt(float(out.rss_bound / out.rss))"
-  replace = "float(out.rss_bound / out.rss)"
-  models = "the impact bound taken linear in the RSS, where the required impact is linear in its square root"
-
-  [[target.mutant]]
-  id = "proven-whatever-is-open"
-  find = "        out.proven = not out.open\n"
-  replace = "        out.proven = True\n"
-  models = "the design reported as the optimum while groups that could beat it are open"
-
-  [[target.mutant]]
-  id = "the-screen-is-dropped"
-  find = "        if competes(floor, yy, T):\n"
-  replace = "        if True:\n"
-  models = "every group searched whatever its floor, the screen that makes the search scale gone"
-
-  [[target.mutant]]
-  id = "a-group-that-cannot-compete-is-searched-against-no-incumbent"
-  find = "        r = Q(out.key[4]) if out.key is not None else None\n        return _competes("
-  replace = "        r = None\n        return _competes("
-  models = "the screen read without the incumbent, so no group is ruled out"
-
-  [[target.mutant]]
-  id = "a-guided-group-is-not-reported-done"
-  find = "            emit(\"group-done\", treatment=tuple(T), certified=None, passing=g.key is not None, rounds=None,\n                 seconds=time.perf_counter() - t1)\n"
-  replace = "            pass\n"
-  models = "a searched group missing from the guided search's progress"
-
-  [[target.mutant]]
-  id = "the-guided-search-ignores-its-reporting"
-  find = "    with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):\n        out = _guided_treatment("
-  replace = "    with reporting():\n        out = _guided_treatment("
-  models = "verbose, progress and log accepted by guided_treatment and never used"
 
 [[target]]
 name = "tbr-bnb-beds"
@@ -14271,21 +13883,21 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-gap-is-ignored"
-  find = "(Q(out.key[4]), out.rss / shrink if g else out.rss)"
-  replace = "(Q(out.key[4]), out.rss)"
-  models = "the gap accepted and reported while every screen and ceiling reads the incumbent's own RSS, so the search is the exact one at the gap's name"
+  find = "        return None if not inc else relative_bar(inc[\"rss\"], inc[\"level\"], g)\n"
+  replace = "        return None if not inc else relative_bar(inc[\"rss\"], inc[\"level\"], 0)\n"
+  models = "the gap accepted and reported while every screen and ceiling reads the incumbent's own bar, so the search is the exact one at the gap's name"
 
   [[target.mutant]]
   id = "the-gap-scales-the-rss-not-its-square"
-  find = "    shrink = (1 + g) ** 2                   # the target RSS is the incumbent's over this\n"
-  replace = "    shrink = 1 + g                   # the target RSS is the incumbent's over this\n"
+  find = "    return Q(rss_star) / (Q(level_star) ** 2 * (1 + Q(g)) ** 2)\n"
+  replace = "    return Q(rss_star) / (Q(level_star) ** 2 * (1 + Q(g)))\n"
   models = "the gap read as a gap in RSS, so a design whose required impact is up to (1 + g) times the optimum's is certified at a gap of sqrt(1 + g) - 1"
 
   [[target.mutant]]
   id = "the-gap-raises-the-target"
-  find = "(Q(out.key[4]), out.rss / shrink if g else out.rss)"
-  replace = "(Q(out.key[4]), out.rss * shrink if g else out.rss)"
-  models = "the target RSS above the incumbent's, a weaker prune that claims nothing about the gap"
+  find = "    return Q(rss_star) / (Q(level_star) ** 2 * (1 + Q(g)) ** 2)\n"
+  replace = "    return Q(rss_star) * (1 + Q(g)) ** 2 / Q(level_star) ** 2\n"
+  models = "the ceiling raised by the gap, not lowered, a weaker prune that claims nothing about the gap"
 
   [[target.mutant]]
   id = "the-gap-is-not-reported"
@@ -14835,9 +14447,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-screen-drops-inside-the-margin"
-  find = "        refused = (c_hi >= _NORMAL) & (f * (1 - _MARGIN) >= c_hi)"
-  replace = "        refused = (c_hi >= _NORMAL) & (f >= c_hi)"
-  models = "the worker screen drops a row whose floor clears the ceiling by less than the float margin, where compete_bracket leaves it undecided, so a group that might compete is never searched"
+  find = "                & (fl >= c * (1 + margin)))"
+  replace = "                & (fl >= c))"
+  models = "the worker screen drops a sign whose floor is at the ceiling as the doubles compute it, inside the roundings of the level's sum, its square and the product, so a group that might compete is never searched"
 
   [[target.mutant]]
   id = "the-workers-drops-go-uncounted"
@@ -14847,33 +14459,39 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-floors-get-no-class"
-  find = "    rows, dropped = _streamed_floor_rows(M, p, k, lam, pool, n_jobs, class_of())\n"
-  replace = "    rows, dropped = _streamed_floor_rows(M, p, k, lam, pool, n_jobs, (None, None))\n"
-  models = "the floors computed without the start's class: the same search, every row shipped back to the parent and screened there one at a time"
+  find = "    rows, dropped = _streamed_floor_rows(Mc, p, k, lam, pool, n_jobs, _screen_terms(bar(), ell, k))\n"
+  replace = "    rows, dropped = _streamed_floor_rows(Mc, p, k, lam, pool, n_jobs, None)\n"
+  models = "the floors computed without the start's screen: the same search, every row shipped back to the parent and screened there one at a time"
 
   [[target.mutant]]
   id = "one-chunks-drops-counted"
-  find = "    parts = _map(pool, _floor_chunk_screened, [(M, lam, c, cls) for c in chunks])\n    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
-  replace = "    parts = _map(pool, _floor_chunk_screened, [(M, lam, c, cls) for c in chunks])\n    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
+  find = "    parts = _map(pool, _floor_chunk_screened, [(M, lam, c, scr) for c in chunks])\n    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
+  replace = "    parts = _map(pool, _floor_chunk_screened, [(M, lam, c, scr) for c in chunks])\n    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
   models = "a parallel run counting the rows dropped in its first chunk only"
 
   [[target.mutant]]
   id = "an-undecided-row-is-dropped-without-the-kernel"
-  find = "                if not (isinstance(r[1], tuple) and compete_bracket(r[0], r[1][0], r[1][1], r_star, rss_star) is False)]\n"
-  replace = "                if not (isinstance(r[1], tuple) and compete_bracket(r[0], r[1][0], r[1][1], r_star, rss_star) is not True)]\n"
-  models = "without the kernel, a row compete_bracket leaves undecided dropped as if refused"
+  find = "            if not (_drop_side([float(row[0])], L, b, margin)[0] and _drop_side([float(row[1])], L, b, margin)[0]):\n"
+  replace = "            if not (_drop_side([float(row[0])], L, b, margin)[0] or _drop_side([float(row[1])], L, b, margin)[0]):\n"
+  models = "without the kernel, a row dropped when one sign cannot compete, though the other sign's designs still can"
 
   [[target.mutant]]
   id = "a-nan-row-is-dropped"
-  find = "            out.append(_floor_row(M, lam, T))\n        else:\n            out.append((f if f > 0 else Q(0), (float(lo[i]), float(hi[i])), T))\n    return out, int(drop.sum())\n"
-  replace = "            continue\n        else:\n            out.append((f if f > 0 else Q(0), (float(lo[i]), float(hi[i])), T))\n    return out, int(drop.sum())\n"
-  models = "a group the kernel leaves (nan floor) dropped from the queue instead of taking rss_floor's exact path"
+  find = "    if math.isnan(f):\n        return rss_floor(M, T, lam, sign=sign)\n"
+  replace = "    if math.isnan(f):\n        return Q(0)\n"
+  models = "a sign the kernel leaves (nan floor) given a floor of zero instead of rss_floor's: never wrong, but the group is certified when its floor would have ruled it out"
 
   [[target.mutant]]
   id = "the-screened-kernel-runs-without-a-gram-floor"
   find = "    if lam is None or not fastfloor.AVAILABLE or len(groups) == 0:\n        rows = _floor_chunk(M, lam, groups)\n"
   replace = "    if not fastfloor.AVAILABLE or len(groups) == 0:\n        rows = _floor_chunk(M, lam, groups)\n"
   models = "the screened floors calling the kernel on a panel with no Gram floor, where every floor is 0"
+
+  [[target.mutant]]
+  id = "kernel-row-dropped-on-one-sign"
+  find = "    drop = _drop_side(fp, Lhat, b, margin) & _drop_side(fm, Lhat, b, margin)\n"
+  replace = "    drop = _drop_side(fp, Lhat, b, margin) | _drop_side(fm, Lhat, b, margin)\n"
+  models = "with the kernel, a row dropped when one sign cannot compete, though the other sign's designs still can"
 
 [[target]]
 name = "tbr-bnb-lean-nnls"
@@ -14981,8 +14599,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "certify-takes-the-panel-unchecked"
-  find = "    M = _checked_panel(M)\n    p = M.shape[1]\n    if not 1 <= k <= p - 1:"
-  replace = "    M = np.asarray(M, dtype=float)\n    p = M.shape[1]\n    if not 1 <= k <= p - 1:"
+  find = "    M = _checked_panel(M)\n    _check_levels(M)\n"
+  replace = "    M = np.asarray(M, dtype=float)\n    _check_levels(M)\n"
   models = "certify_treatment reads the panel without the check, so a nan or an inf reaches the library's least squares and comes back as numpy's LinAlgError"
 
   [[target.mutant]]
@@ -15008,18 +14626,6 @@ timeout = 600.0
   find = "    if M.ndim != 2:"
   replace = "    if M.ndim > 2:"
   models = "a one-dimensional panel passes the check and fails later on M.shape[1] with an IndexError"
-
-[[target]]
-name = "tbr-bnb-nan-panel-guided"
-module-path = "benchmarks/studies/tbr_bnb/guided.py"
-test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_nan_panel.py -q -p no:cacheprovider -x -W ignore"
-timeout = 600.0
-
-  [[target.mutant]]
-  id = "guided-takes-the-panel-unchecked"
-  find = "    M = treatment._checked_panel(M)"
-  replace = "    M = np.asarray(M, dtype=float)"
-  models = "guided_treatment reads the panel without the check, so a nan or an inf reaches the library's least squares and comes back as numpy's LinAlgError"
 
 [[target]]
 name = "tbr-bnb-parallel-start"
@@ -15071,8 +14677,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-search-gives-the-start-no-pool"
-  find = "        T0, Cs = _start(M, k, n_test, restarts, pool)"
-  replace = "        T0, Cs = _start(M, k, n_test, restarts)"
+  find = "        T0, C0 = _start(M, k, n_test, restarts, pool)"
+  replace = "        T0, C0 = _start(M, k, n_test, restarts)"
   models = "certify_treatment runs the start's restarts in one process though it has a pool: the same design, four times slower on four jobs"
 
 [[target]]
@@ -16801,14 +16407,14 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "a-kept-group-is-an-array-row"
-  find = "        f, T = fl[i], _group(groups[i])\n"
-  replace = "        f, T = fl[i], groups[i]\n"
+  find = "        T = _group(g[i])\n"
+  replace = "        T = g[i]\n"
   models = "a kept row's group left as a numpy row, which is not hashable, so the queue's dictionaries and the comparisons with the start group break on it"
 
   [[target.mutant]]
   id = "one-ranges-drops-counted"
-  find = "    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, cls) for lo, hi in cuts])\n    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
-  replace = "    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, cls) for lo, hi in cuts])\n    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
+  find = "    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, scr) for lo, hi in cuts])\n    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)\n"
+  replace = "    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, scr) for lo, hi in cuts])\n    return [r for rows, _ in parts for r in rows], parts[0][1]\n"
   models = "the screened count of the first worker's range taken for every range's, so over a pool the certificate counts too few groups screened out"
 
 [[target]]
@@ -17484,3 +17090,147 @@ timeout = 900.0
   find = "                cons.append(cp.SOC(u + dW, cp.vstack([2 * w, u - dW])))   # w_j^2 <= u_j W_jj\n"
   replace = "                cons += [cp.quad_over_lin(w[j], u[j]) <= W[j, j] for j in range(p)]\n"
   models = "the perspective rows written as quad_over_lin, whose multipliers the affine Lagrangian cannot carry"
+
+[[target]]
+name = "tbr-bnb-relative"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_relative.py benchmarks/studies/tbr_bnb/test_treatment.py benchmarks/studies/tbr_bnb/test_start_last.py benchmarks/studies/tbr_bnb/test_float_screen.py benchmarks/studies/tbr_bnb/test_parallel.py benchmarks/studies/tbr_bnb/test_progress.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "only-the-positive-sign-is-searched"
+  find = "SIGNS = (1, -1)\n"
+  replace = "SIGNS = (1,)\n"
+  models = "the -y certificates dropped, so a negative-slope design is never found and a worse positive-slope one is reported as certified (5 of 5 poor-start mirror panels in the prototype)"
+
+  [[target.mutant]]
+  id = "rss-floor-ignores-its-sign"
+  find = "    y, X, _ = _split(M, T)\n    y = sign * y\n"
+  replace = "    y, X, _ = _split(M, T)\n"
+  models = "the -y floor computed on y, a bound on the wrong designs, so a group whose negative-slope designs compete can be ruled out"
+
+  [[target.mutant]]
+  id = "a-tie-replaces-the-incumbent"
+  find = "    return Q(level) ** 2 * Q(rss_star) > Q(level_star) ** 2 * Q(rss)\n"
+  replace = "    return Q(level) ** 2 * Q(rss_star) >= Q(level_star) ** 2 * Q(rss)\n"
+  models = "a design with exactly the incumbent's key replaces it, so the certified design depends on the order the workers finish"
+
+  [[target.mutant]]
+  id = "the-level-is-not-squared-in-the-comparison"
+  find = "    return Q(level) ** 2 * Q(rss_star) > Q(level_star) ** 2 * Q(rss)\n"
+  replace = "    return Q(level) * Q(rss_star) > Q(level_star) * Q(rss)\n"
+  models = "designs compared on level / RSS, not level^2 / RSS, a key that is not the library's"
+
+  [[target.mutant]]
+  id = "the-ceiling-is-not-squared-in-the-level"
+  find = "    return bar * Q(level) ** 2\n"
+  replace = "    return bar * Q(level)\n"
+  models = "a group's ceiling linear in its level, so groups with a larger level are screened against too low a ceiling and can be ruled out wrongly"
+
+  [[target.mutant]]
+  id = "an-exact-fit-is-certified"
+  find = "                if not _fits(M, T, C, n_test):   # an exact fit: the library never ranks it\n"
+  replace = "                if False:   # an exact fit: the library never ranks it\n"
+  models = "a design whose regression fits exactly, which the library scores -inf, reported as the optimum"
+
+  [[target.mutant]]
+  id = "an-exact-fit-starts-the-search"
+  find = "    if not _fits(M, T, C, n_test):\n        return None\n"
+  replace = "    if False:\n        return None\n"
+  models = "an exact-fit design taken as the start or a pass design, an incumbent whose ceiling of zero rules out every group"
+
+  [[target.mutant]]
+  id = "the-worse-sign-is-kept"
+  find = "                if best is None or rss < best.rss:\n"
+  replace = "                if best is None or rss > best.rss:\n"
+  models = "of a group's two signs, the design with the larger RSS kept, so the group's optimum is missed when both signs have one"
+
+  [[target.mutant]]
+  id = "the-pass-keeps-the-worse-sign"
+  find = "        if d is not None and (best is None or d.rss < best.rss):\n"
+  replace = "        if d is not None and (best is None or d.rss > best.rss):\n"
+  models = "the pass reports the worse of its two signs' designs"
+
+  [[target.mutant]]
+  id = "the-gates-are-not-reported"
+  find = "        out.gates = gates_of(M[:, out.treatment].sum(axis=1), M, out.controls, n_test)\n"
+  replace = "        out.gates = None\n"
+  models = "the reference key's gates, documented as reported on the design, never read"
+
+  [[target.mutant]]
+  id = "the-start-design-is-not-adopted"
+  find = "    if d0 is not None:\n        take(T0, d0)\n"
+  replace = "    if False:\n        take(T0, d0)\n"
+  models = "the start design dropped, so the first groups are certified without a ceiling: the same answer, far more certificate work"
+
+  [[target.mutant]]
+  id = "the-queue-is-not-ordered"
+  find = "    rows.sort(key=lambda r: _bound_order(r, ell))      # the best key bound first\n"
+  replace = ""
+  models = "the groups read in rank order, not best bound first, so the best design is found late and more groups are certified"
+
+  [[target.mutant]]
+  id = "the-pass-does-not-adopt-its-best-design"
+  find = "                    if not inc or beats(level(T), d.rss, inc[\"level\"], inc[\"rss\"]):\n                        take(T, d)\n"
+  replace = "                    if False:\n                        take(T, d)\n"
+  models = "the pass's designs never become the incumbent, so certifications run against the start's weaker ceiling"
+
+  [[target.mutant]]
+  id = "certifications-are-not-seeded"
+  find = "        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), local.get(T, {})), (c, (fp, fm))\n"
+  replace = "        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), {}), (c, (fp, fm))\n"
+  models = "each sign's certificate started without its pass design, a descent run twice"
+
+  [[target.mutant]]
+  id = "the-retry-asks-the-old-question"
+  find = "        c = relative_ceiling(level(T), bar())\n        if c is not None and (c_then is None or c < c_then):\n"
+  replace = "        c = c_then\n        if c is not None and (c_then is None or c < c_then):\n"
+  models = "an open group retried against the ceiling it failed at, so it is never retried and the search stays uncertified"
+
+  [[target.mutant]]
+  id = "a-retried-optimum-is-not-taken"
+  find = "            if d is not None and beats(level(T), d.rss, inc[\"level\"], inc[\"rss\"]):\n                take(T, d)\n"
+  replace = "            if False:\n                take(T, d)\n"
+  models = "a design found on a retry that beats the incumbent dropped, so a worse design is reported as certified"
+
+  [[target.mutant]]
+  id = "a-refused-group-reads-as-certified"
+  find = "        if not res.certified:\n            left_open.append((T, c, fl))\n"
+  replace = "        if False:\n            left_open.append((T, c, fl))\n"
+  models = "a group whose certificate did not close counted as certified"
+
+  [[target.mutant]]
+  id = "survivors-carry-no-ceiling"
+  find = "signs=list(res.signs), ceiling=c, seconds=secs"
+  replace = "signs=list(res.signs), ceiling=None, seconds=secs"
+  models = "the survivors' ceilings, which the gap and parallel claims are checked against, not reported"
+
+  [[target.mutant]]
+  id = "the-screen-has-no-margin"
+  find = "    return b, ell, (8 * k + 16) * _U\n"
+  replace = "    return b, ell, 0.0\n"
+  models = "the float screen compares the floor with the ceiling as the doubles compute it, so a floor just below the true ceiling can be dropped"
+
+  [[target.mutant]]
+  id = "a-tiny-level-is-screened-in-doubles"
+  find = "    if not (b >= _NORMAL and math.isfinite(b)) or not bool(np.all(ell >= _NORMAL)):\n"
+  replace = "    if not (b >= _NORMAL and math.isfinite(b)):\n"
+  models = "a level below 2^-1000, whose rounding is absolute, screened in doubles under a relative margin"
+
+[[target]]
+name = "tbr-bnb-relative-floors"
+module-path = "benchmarks/studies/tbr_bnb/fastfloor.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_relative.py benchmarks/studies/tbr_bnb/test_worker_screen.py benchmarks/studies/tbr_bnb/test_fastfloor.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-kernel-series-ignores-its-sign"
+  find = "        v = sign * v\n"
+  replace = ""
+  models = "the kernel's -y floor computed on y, so a group whose negative-slope designs compete can be ruled out"
+
+  [[target.mutant]]
+  id = "the-kernel-cross-products-ignore-the-sign"
+  find = "        c[i] = sign * acc\n"
+  replace = "        c[i] = acc\n"
+  models = "the kernel's -y floor with the +y cross products, an NNLS on mismatched data whose bound is not -y's"

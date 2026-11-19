@@ -41,41 +41,6 @@ def positive_optimum(y, X):
     return best, arg
 
 
-def panel_ar(seed: int, n: int = 40, p: int = 6, rho: float = 0.6):
-    """A panel whose treatment aggregate carries AR(1) noise, so that the
-    Durbin-Watson and A/A gates fail for some designs and pass for others."""
-    rng = np.random.default_rng(seed)
-    f = rng.normal(size=n).cumsum()
-    X = f[:, None] * rng.uniform(0.5, 1.5, p) + rng.normal(size=(n, p)) * 3
-    e = np.zeros(n)
-    for t in range(1, n):
-        e[t] = rho * e[t - 1] + rng.normal()
-    k = int(rng.integers(1, p))
-    y = X[:, :k].sum(axis=1) * rng.uniform(0.3, 1.5) + e * 4
-    return y - y.mean(), X - X.mean(axis=0)
-
-
-def gated_optimum(y, X, n_test: int):
-    """The lowest-RSS positive-slope control group that passes the reference key's
-    four gates, by enumeration, and the gates of the RSS-best design; the group is
-    None when no design passes."""
-    from mlsynth.utils.tbr_helpers.design.objective import score_split
-
-    rows = []
-    for r in range(1, X.shape[1] + 1):
-        for C in combinations(range(X.shape[1]), r):
-            x = X[:, list(C)].sum(axis=1)
-            b = (y @ x) / (x @ x)
-            if b > 0:
-                rows.append((float(((y - b * x) ** 2).sum()), set(C)))
-    rows.sort(key=lambda t: t[0])
-    for rss, C in rows:
-        d = score_split(y, X[:, sorted(C)].sum(axis=1), objective="reference", n_test=n_test).detail
-        if d["corr_test"] and d["aa_test"] and d["bb_test"] and d["dw_test"]:
-            return rss, C
-    return None, None
-
-
 def geo_panel(seed: int, n: int = 40, p: int = 7, rho: float = 0.5):
     """Centred series of ``p`` geos (periods by geos) on one trend, with geo sizes
     that differ and AR(1) noise, so that treatment groups differ in fit and some
@@ -97,20 +62,41 @@ def wide_panel(seed: int, n: int = 10, p: int = 12):
     return M - M.min() + 1.0
 
 
-def treatment_optimum(M, k: int, n_test: int):
-    """The reference key's best design with ``k`` treatment geos, by enumeration of
-    every treatment group and control group, among designs that pass the four gates:
-    (key, treatment, controls), or (None, None, None) when no design passes."""
+def raw_panel(seed: int, n: int = 24, p: int = 6, level: float = 40.0):
+    """geo_panel's series on positive levels, uncentred: periods by geos, every
+    geo's mean ``level`` times a size in [1, 3], the panel the relative key reads."""
+    M = geo_panel(seed, n=n, p=p)
+    rng = np.random.default_rng(seed + 7919)
+    return M + level * rng.uniform(1.0, 3.0, p)
+
+
+def mirror_panel(seed: int, n: int = 24, p: int = 6):
+    """A raw panel in which geo 2 moves against geos 0 and 1, so the relative key's
+    best design has a negative slope (checked by the tests that use it)."""
+    rng = np.random.default_rng(seed)
+    s = np.sin(np.arange(n) / 2.0) * 10
+    M = 60 + rng.normal(size=(n, p)) * 4
+    M[:, 0] = 60 + s + 0.2 * rng.normal(size=n)
+    M[:, 1] = 60 + s + 0.2 * rng.normal(size=n)
+    M[:, 2] = 90 - s + 0.1 * rng.normal(size=n)
+    return M
+
+
+def relative_optimum(M, k: int, n_test: int):
+    """The relative key's best design with ``k`` treatment geos over the raw panel M,
+    by enumeration of every treatment group and control group, scored by the
+    library's score_split: (key, treatment, controls). Designs the library scores
+    -inf (an exact fit) never win."""
     from mlsynth.utils.tbr_helpers.design.objective import score_split
 
     p = M.shape[1]
-    best = (None, None, None)
+    best = (-np.inf, None, None)
     for T in combinations(range(p), k):
         y = M[:, list(T)].sum(axis=1)
         rest = [j for j in range(p) if j not in T]
         for r in range(1, len(rest) + 1):
             for C in combinations(rest, r):
-                s = score_split(y, M[:, list(C)].sum(axis=1), objective="reference", n_test=n_test)
-                if all(s.key[:4]) and (best[0] is None or s.key > best[0]):
-                    best = (s.key, set(T), set(C))
+                v = score_split(y, M[:, list(C)].sum(axis=1), objective="relative", n_test=n_test).key[0]
+                if v > best[0]:
+                    best = (v, set(T), set(C))
     return best

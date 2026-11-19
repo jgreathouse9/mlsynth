@@ -16,7 +16,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from . import slopefree
-from .brute import geo_panel, panel, positive_optimum, treatment_optimum
+from .brute import panel, positive_optimum, raw_panel, relative_optimum
 from .certificate import ExactData
 from .slopefree import certify_slope_free, size_certificate
 from .treatment import certify_treatment
@@ -133,14 +133,14 @@ def test_a_failure_at_the_depth_limit_is_reported_open(monkeypatch):
 
 def test_the_treatment_search_survives_a_failed_solve(monkeypatch):
     """The incident: one failed solve inside one group's certification no longer ends
-    the treatment search, and the design is the key's optimum."""
+    the treatment search, and the design is the relative key's optimum."""
     _no_cheap_tier(monkeypatch)
-    calls = _fail_full(monkeypatch, which={1, 3, 7})
-    M = geo_panel(5)
+    calls = _fail_full(monkeypatch, which={1, 3, 5})
+    M = raw_panel(5)
     out = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
-    key, T, C = treatment_optimum(M, 2, N_TEST)
-    assert len(calls) >= 7 and out.certified
-    assert tuple(out.key) == pytest.approx(tuple(key), rel=1e-12)
+    best, T, C = relative_optimum(M, 2, N_TEST)
+    assert len(calls) >= 5 and out.certified
+    assert out.key == pytest.approx(best, rel=1e-9)
     assert set(out.treatment) == T and set(out.controls) == C
 
 

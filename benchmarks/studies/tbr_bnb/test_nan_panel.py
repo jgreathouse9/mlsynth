@@ -1,10 +1,10 @@
 """A panel with a missing or infinite value is refused at the door.
 
-certify_treatment and guided_treatment both start from the library's greedy and
-local search, whose least squares raised numpy's LinAlgError ("SVD did not converge")
-on a panel with a nan or an inf, a solver's failure in place of the data error the
-library's contract promises. Both entries now check the panel first
-(treatment._checked_panel) and raise MlsynthDataError naming the geo and the period.
+certify_treatment starts from the library's greedy and local search, whose least
+squares raised numpy's LinAlgError ("SVD did not converge") on a panel with a nan or
+an inf, a solver's failure in place of the data error the library's contract
+promises. The entry checks the panel first (treatment._checked_panel) and raises
+MlsynthDataError naming the geo and the period.
 """
 from fractions import Fraction as Q
 
@@ -15,8 +15,8 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthDataError
 
-from . import guided, treatment
-from .brute import geo_panel
+from . import treatment
+from .brute import geo_panel, raw_panel
 
 SETTINGS = settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 N_TEST = 8
@@ -27,12 +27,8 @@ def _certify(M, **kw):
     return treatment.certify_treatment(M, 2, **kw)
 
 
-def _guided(M, **kw):
-    return guided.guided_treatment(M, 2, n_test=N_TEST, restarts=3, **kw)
-
-
 def _bad(value, t=3, j=2):
-    M = geo_panel(5).copy()
+    M = raw_panel(5, n=24).copy()
     M[t, j] = value
     return M
 
@@ -47,7 +43,7 @@ def test_smoke_a_finite_panel_passes_the_check_unchanged():
 
 
 def test_smoke_a_finite_panel_still_certifies():
-    assert _certify(geo_panel(5)).certified
+    assert _certify(raw_panel(5)).certified
 
 
 # ---------------------------------------------------------------- unit
@@ -62,7 +58,7 @@ def test_the_message_names_the_geo_and_the_period(value):
 
 
 def test_the_first_bad_entry_is_named_in_period_order():
-    M = geo_panel(5).copy()
+    M = raw_panel(5, n=24).copy()
     M[7, 1] = np.nan
     M[2, 4] = np.inf
     with pytest.raises(MlsynthDataError, match=r"geo 4 .*period 2"):
@@ -70,7 +66,7 @@ def test_the_first_bad_entry_is_named_in_period_order():
 
 
 def test_the_count_of_bad_entries_is_reported():
-    M = geo_panel(5).copy()
+    M = raw_panel(5, n=24).copy()
     M[:, 3] = np.nan
     with pytest.raises(MlsynthDataError, match=rf"{M.shape[0]} entries"):
         treatment._checked_panel(M)
@@ -92,21 +88,12 @@ def test_certify_treatment_refuses_it_with_a_given_start(value):
         _certify(_bad(value), start=[0, 1])
 
 
-@pytest.mark.parametrize("value", [np.nan, np.inf])
-@pytest.mark.parametrize("start", [None, [0, 1]])
-def test_guided_treatment_refuses_the_panel(value, start):
-    with pytest.raises(MlsynthDataError, match="finite"):
-        _guided(_bad(value), start=start)
-
-
 def test_the_check_comes_before_the_search(monkeypatch):
     """The refusal is the check's, not a later stage's: the start is never reached."""
     called = []
     monkeypatch.setattr(treatment, "_start", lambda *a, **k: called.append(1))
-    monkeypatch.setattr(guided, "_start", lambda *a, **k: called.append(1))
-    for run in (_certify, _guided):
-        with pytest.raises(MlsynthDataError, match="finite"):
-            run(_bad(np.nan))
+    with pytest.raises(MlsynthDataError, match="finite"):
+        _certify(_bad(np.nan))
     assert not called
 
 
