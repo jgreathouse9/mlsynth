@@ -48,9 +48,9 @@ def _spy_ceilings(monkeypatch):
     real = treatment._optimum
     seen = []
 
-    def spy(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=None):
+    def spy(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=None, cols=None):
         seen.append(ceiling)
-        return real(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=until)
+        return real(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=until, cols=cols)
 
     monkeypatch.setattr(treatment, "_optimum", spy)
     return seen
@@ -135,10 +135,10 @@ def test_the_start_groups_seeds_are_its_local_designs(monkeypatch):
     got = []
     real = treatment._optimum
 
-    def spy(Mc, M_, T, n_test, restarts, ceiling, floors, starts, until=None):
+    def spy(Mc, M_, T, n_test, restarts, ceiling, floors, starts, until=None, cols=None):
         if tuple(T) == start:
             got.append(starts)
-        return real(Mc, M_, T, n_test, restarts, ceiling, floors, starts, until=until)
+        return real(Mc, M_, T, n_test, restarts, ceiling, floors, starts, until=until, cols=cols)
 
     monkeypatch.setattr(treatment, "_optimum", spy)
     Mc = M - M.mean(axis=0)

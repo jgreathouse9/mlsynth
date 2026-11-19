@@ -351,8 +351,8 @@ def _flaky(monkeypatch, fail_calls):
     real = treatment._optimum
     seen = []
 
-    def wrapped(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=None):
-        res = real(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=until)
+    def wrapped(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=None, cols=None):
+        res = real(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=until, cols=cols)
         seen.append(ceiling)
         if len(seen) in fail_calls:
             res = treatment._GroupOutcome(res.design, False, res.signs)
@@ -483,9 +483,9 @@ def test_each_certification_starts_from_its_groups_pass_designs(monkeypatch):
     seen = []
     real = treatment._optimum
 
-    def spy(Mc, M_, T, n_test, restarts, ceiling, floors, starts, until=None):
+    def spy(Mc, M_, T, n_test, restarts, ceiling, floors, starts, until=None, cols=None):
         seen.append(starts)
-        return real(Mc, M_, T, n_test, restarts, ceiling, floors, starts, until=until)
+        return real(Mc, M_, T, n_test, restarts, ceiling, floors, starts, until=until, cols=cols)
 
     monkeypatch.setattr(treatment, "_optimum", spy)
     M = raw_panel(5, p=7)

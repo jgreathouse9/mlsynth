@@ -74,9 +74,9 @@ def test_the_search_hands_the_start_its_pool(monkeypatch):
     seen = []
     real = treatment._start
 
-    def spy(M, k, n_test, restarts, pool=None):
+    def spy(M, k, n_test, restarts, pool=None, adm=None):
         seen.append(pool)
-        return real(M, k, n_test, restarts, pool)
+        return real(M, k, n_test, restarts, pool, adm)
 
     monkeypatch.setattr(treatment, "_start", spy)
     M = raw_panel(5)
