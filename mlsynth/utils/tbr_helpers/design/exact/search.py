@@ -255,7 +255,11 @@ def incumbent(y: np.ndarray, X: np.ndarray, *, restarts: int = 200, seed: int = 
                 k = int(np.argmin(swapped))
                 if swapped.flat[k] < best:
                     best, move = float(swapped.flat[k]), (A[k // B.size], B[k % B.size])
-            if not best < cur * (1 - 1e-12):
+            # A move must lower the RSS by more than 1e-12 of y'y, the scale it is
+            # computed at. A test relative to cur assumed cur > 0: at an exact fit
+            # the RSS is rounding, can be negative, and cur * (1 - 1e-12) > cur let
+            # a move that changes nothing through, so the descent cycled forever.
+            if not best < cur - 1e-12 * yy:
                 return cur, set(np.flatnonzero(u).tolist())
             if len(move) == 1:
                 j = move[0]; sg = -1.0 if u[j] else 1.0

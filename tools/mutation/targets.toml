@@ -11606,8 +11606,8 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "the-descent-takes-a-worse-move"
-  find = "            if not best < cur * (1 - 1e-12):\n"
-  replace = "            if not best > cur * (1 - 1e-12):\n"
+  find = "            if not best < cur - 1e-12 * yy:\n"
+  replace = "            if not best > cur - 1e-12 * yy:\n"
   models = "the incumbent descent accepting a move only when it is worse"
 
 [[target]]
@@ -17817,3 +17817,15 @@ timeout = 900.0
   find = "                                           deadline=until, **kw, **({} if cols is None else cols.search()))\n"
   replace = "                                           deadline=until, **kw)\n"
   models = "the group's certificate without the fixings and the band"
+
+[[target]]
+name = "tbr-exact-descent"
+module-path = "mlsynth/utils/tbr_helpers/design/exact/search.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_exact_descent.py -q -p no:cacheprovider -x -W ignore"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-descent-takes-a-move-relative-to-the-rss"
+  find = "            if not best < cur - 1e-12 * yy:\n"
+  replace = "            if not best < cur * (1 - 1e-12):\n"
+  models = "the improvement test relative to the current RSS, which assumes it is positive: at an exact fit the RSS is rounding and can be negative, a move that changes nothing passes, and the descent cycles between two exact fits forever"
