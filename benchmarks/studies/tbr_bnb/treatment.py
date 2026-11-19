@@ -80,6 +80,13 @@ search. At g > 0 a higher ceiling can find a design within the gap that a lower 
 closes unseen, so the reported design can depend on n_jobs and on the order the
 workers finish; it is within the gap either way.
 
+The time limit. Past ``time_limit`` seconds (deadline.py) the floors stop between
+blocks, the pass between waves, the window admits no further group, a group's branch
+and bound leaves each node it enters open, and no group is retried. The groups left
+neither ruled out nor certified bound the reported design (proven_gap): a design of a
+group with level L and floor f has a key at most sqrt(L^2 RSS* / (level*^2 f)) times
+the incumbent's, so no design's key exceeds 1 + proven_gap times the reported one.
+
 Hogben, L., ed. (2007). Handbook of Linear Algebra. Chapman & Hall/CRC.
 """
 from __future__ import annotations
@@ -101,7 +108,7 @@ from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.tbr_helpers.calibration import design_end, resolve_blank_periods
 from mlsynth.utils.tbr_helpers.design.objective import aa_test_ok, check_positive_levels, score_split
 
-from . import fastfloor
+from . import deadline, fastfloor
 from .certificate import box_bound_float, gram_lower, qarr
 from .gates import gates_of
 from .progress import emit, reporting, tagged
@@ -486,6 +493,10 @@ class TreatmentCertificate:
     blank_periods: int = 0                  # the last periods held back from the search
     design_periods: int = 0                 # the periods the search certified on, before them
     blank_aa: List[bool] = field(default_factory=list)  # the library's A/A test at each blank origin
+    time_limit: Optional[float] = None      # the seconds the search was given, None for no limit
+    timed_out: bool = False                 # the limit passed before every group was resolved
+    unresolved: int = 0                     # groups neither ruled out nor certified
+    proven_gap: Optional[Q] = None          # no design's key exceeds 1 + this times the reported one's
     survivors: List[dict] = field(default_factory=list)
     seconds: float = 0.0
 
@@ -640,13 +651,17 @@ def _unrank(r: int, p: int, k: int) -> tuple:
 
 
 
-def _floor_range_screened(M, lam, p, k, lo, hi, scr, block=None):
+def _floor_range_screened(M, lam, p, k, lo, hi, scr, block=None, until=None):
     """_floor_chunk_screened over the k-subsets of range(p) of rank lo to hi - 1, in
     order: built ``block`` at a time from the first subset of each block
-    (fastfloor.combinations_from), so only a block and the kept rows are held."""
+    (fastfloor.combinations_from), so only a block and the kept rows are held. Past
+    the deadline ``until`` no further block is read, and the subsets from there on are
+    neither rows nor dropped."""
     block = block or FLOOR_BLOCK
     rows, dropped, r = [], 0, lo
     while r < hi:
+        if deadline.passed(until):
+            break
         n = min(block, hi - r)
         groups = fastfloor.combinations_from(np.array(_unrank(r, p, k), dtype=np.int64), n, p)
         part, d = _floor_chunk_screened(M, lam, groups, scr)
@@ -656,17 +671,19 @@ def _floor_range_screened(M, lam, p, k, lo, hi, scr, block=None):
     return rows, dropped
 
 
-def _streamed_floor_rows(M, p, k, lam, pool, n_jobs, scr):
+def _streamed_floor_rows(M, p, k, lam, pool, n_jobs, scr, until=None):
     """_screened_floor_rows over every k-subset of range(p), without the list: the
     ranks in chunks over the pool, four per worker as there, each worker building its
-    own range. The rows, their order and the dropped count are the list's."""
+    own range. The rows, their order and the dropped count are the list's. Past the
+    deadline ``until`` each range stops between blocks, and the subsets it did not
+    read are the comb(p, k) less the rows and the dropped."""
     total = comb(p, k)
     if pool is None or total < 2:
-        return _floor_range_screened(M, lam, p, k, 0, total, scr)
+        return _floor_range_screened(M, lam, p, k, 0, total, scr, until=until)
     n = min(total, 4 * n_jobs)
     size = -(-total // n)
     cuts = [(lo, min(lo + size, total)) for lo in range(0, total, size)]
-    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, scr) for lo, hi in cuts])
+    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, scr, None, until) for lo, hi in cuts])
     return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)
 
 
@@ -773,18 +790,19 @@ class _Lender:
             self.lent.value -= n
 
 
-def _optimum_timed(Mc, M, T, n_test, restarts, ceiling, floors, starts):
+def _optimum_timed(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=None):
     t0 = time.perf_counter()
-    res = _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts)
+    res = _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=until)
     return res, time.perf_counter() - t0
 
 
-def _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts) -> _GroupOutcome:
+def _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=None) -> _GroupOutcome:
     """Group T certified against ``ceiling`` (None: its own optimum): each sign whose
     floor is below the ceiling is a certify_slope_free on that sign's series, from its
     pass design in ``starts`` when there is one. A design the library scores -inf is
     excluded and the sign certified again. The group's design is the lower-RSS of the
-    signs' designs below the ceiling."""
+    signs' designs below the ceiling. Past the deadline ``until`` a sign's branch and
+    bound leaves its nodes open (slopefree._branch), and the group is not certified."""
     from .slopefree import NoDesignLeft, certify_slope_free
 
     with tagged(treatment=tuple(T)):
@@ -800,7 +818,8 @@ def _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts) -> _GroupOutco
             while True:
                 kw = {} if starts.get(s) is None else {"start": set(starts[s])}
                 try:
-                    r = certify_slope_free(s * y, X, restarts=restarts, exclude=excluded, ceiling=ceiling, **kw)
+                    r = certify_slope_free(s * y, X, restarts=restarts, exclude=excluded, ceiling=ceiling,
+                                           deadline=until, **kw)
                 except NoDesignLeft:             # no design of this sign is left
                     break
                 if not r.certified:
@@ -821,6 +840,11 @@ def _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts) -> _GroupOutco
         return _GroupOutcome(best, certified, tuple(run))
 
 
+#: The seconds the search is given by default: two minutes, the v1 default the author
+#: set (#965). Past them the search reports its best design with the proven gap.
+TIME_LIMIT = 120.0
+
+
 def _checked_gap(gap) -> Q:
     """``gap`` as an exact rational: a finite nonnegative int, Fraction or float (a
     float is read at its exact binary value), else MlsynthDataError."""
@@ -835,7 +859,8 @@ def _checked_gap(gap) -> Q:
 
 def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] = None,
                       restarts: int = 50, pass_restarts: int = 10, gap=0,
-                      n_jobs: int = 1, blank_periods: Optional[int] = None, verbose: int = 0,
+                      n_jobs: int = 1, blank_periods: Optional[int] = None,
+                      time_limit: Optional[float] = TIME_LIMIT, verbose: int = 0,
                       progress=None, log=None, log_level: int = 3) -> TreatmentCertificate:
     """The relative key's best design with ``k`` treatment geos over the columns of
     the raw panel ``M`` (periods by geos, every geo eligible for every role, every
@@ -848,20 +873,24 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
     1 runs them in this process. The last ``blank_periods`` periods of ``M`` are held
     back from the search, BLANK_TESTS test lengths when None and none when 0 (see
     BLANK_TESTS); the result reports the A/A test at each of their origins in
-    ``blank_aa`` and the four gates on the whole panel. ``verbose``, ``progress`` and
+    ``blank_aa`` and the four gates on the whole panel. The search stops at
+    ``time_limit`` seconds (TIME_LIMIT; None for no limit) and reports the best design
+    found, not certified, with ``proven_gap``: no design's key exceeds 1 + proven_gap
+    times the reported design's (proven_gap; None when the floors were not all
+    computed). ``verbose``, ``progress`` and
     ``log`` report the search's progress (progress.reporting), each group's events
     tagged with the group, from the workers too."""
     with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):
         out = _certify_treatment_entry(M, k, n_test=n_test, start=start, restarts=restarts,
                                        pass_restarts=pass_restarts, gap=gap, n_jobs=n_jobs,
-                                       blank_periods=blank_periods)
+                                       blank_periods=blank_periods, time_limit=time_limit)
         emit("treatment-done", certified=out.certified, treatment=out.treatment, key=out.key,
              survivors=len(out.survivors), seconds=out.seconds)
         return out
 
 
 def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, gap, n_jobs,
-                             blank_periods=None) -> TreatmentCertificate:
+                             blank_periods=None, time_limit=None) -> TreatmentCertificate:
     t0 = time.perf_counter()
     whole = _checked_panel(M)
     B = _checked_blank(blank_periods, n_test, whole.shape[0])
@@ -876,9 +905,11 @@ def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, ga
     if not isinstance(n_jobs, int) or n_jobs < 1:
         raise MlsynthDataError(f"n_jobs is {n_jobs!r}; it has to be a positive integer.")
     g = _checked_gap(gap)
+    limit = _checked_time_limit(time_limit)
+    until = deadline.at(limit)
     emit("treatment", k=k, p=p, groups=comb(p, k), n_jobs=n_jobs)
     if n_jobs == 1:
-        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0)
+        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0, until=until)
     else:
         from . import slopefree
         lender, before = _Lender(), slopefree.SPARE
@@ -886,16 +917,46 @@ def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, ga
         try:
             with _pool(n_jobs) as pool:
                 out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0,
-                                         lender=lender)
+                                         lender=lender, until=until)
         finally:
             slopefree.SPARE = before
-    out.blank_periods, out.design_periods = B, M.shape[0]
+    out.blank_periods, out.design_periods, out.time_limit = B, M.shape[0], limit
     if out.treatment is not None:
         y = whole[:, out.treatment].sum(axis=1)
         out.gates = gates_of(y, whole, out.controls, n_test)
         out.blank_aa = _blank_aa(y, whole[:, out.controls].sum(axis=1), M.shape[0], n_test)
     out.seconds = time.perf_counter() - t0
     return out
+
+
+def _checked_time_limit(limit) -> Optional[float]:
+    """``limit`` as seconds: None, or a positive finite int or float (not a bool),
+    else MlsynthDataError."""
+    if limit is None:
+        return None
+    if isinstance(limit, bool) or not isinstance(limit, (int, float)) or not math.isfinite(limit) or limit <= 0:
+        raise MlsynthDataError(f"time_limit is {limit!r}; it has to be a positive, finite number of seconds, "
+                               f"or None for no limit.")
+    return float(limit)
+
+
+def proven_gap(bounds, rss_star, level_star, g) -> Optional[Q]:
+    """The gap a search proves when the groups in ``bounds``, each (floor on y, floor
+    on -y, level), are not resolved and every other group is certified within g. A
+    design of a group with level L and floor f has RSS at least f, so its key is at
+    most sqrt(q) times the incumbent's, q = L^2 RSS* / (level*^2 f) (the key being
+    level over a constant times sqrt(RSS), module docstring). The gap is the largest
+    sqrt(q) - 1, rounded up to a rational (root_above), and g where that is smaller;
+    None when a floor is not above zero, which bounds nothing."""
+    worst = Q(g)
+    for fp, fm, L in bounds:
+        f = min(Q(fp), Q(fm))
+        if not f > 0:
+            return None
+        q = Q(L) ** 2 * Q(rss_star) / (Q(level_star) ** 2 * f)
+        if q > (1 + worst) ** 2:
+            worst = root_above(q) - 1
+    return worst
 
 
 #: Blank periods held back from the search by default, in test lengths: the library's
@@ -928,7 +989,8 @@ def _blank_aa(y, x, design_periods: int, n_test: int) -> List[bool]:
             for o in range(design_periods, y.size - n_test + 1, n_test)]
 
 
-def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0, lender=None):
+def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0, lender=None,
+                       until=None):
     if start is not None and len(set(start)) != k:
         raise MlsynthDataError(f"the start treatment group has {len(set(start))} geos, not {k}.")
     n = M.shape[0]
@@ -966,6 +1028,7 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
     local = {tuple(T0): starts0}
     found = {} if d0 is None else {tuple(T0): d0}
     left_open = []
+    late = []                               # (floor on y, floor on -y, T): neither ruled out nor certified
 
     def competes(row):
         fp, fm, T = row
@@ -973,12 +1036,15 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
         return c is None or Q(fp) < c or Q(fm) < c
 
     lam = gram_floor(Mc)                 # rows that cannot compete with the start are dropped where computed
-    rows, dropped = _streamed_floor_rows(Mc, p, k, lam, pool, n_jobs, _screen_terms(bar(), ell, k))
+    rows, dropped = _streamed_floor_rows(Mc, p, k, lam, pool, n_jobs, _screen_terms(bar(), ell, k), until=until)
     out.screened_out += dropped
+    unread = comb(p, k) - len(rows) - dropped   # floors never computed: out of time (deadline.py)
     rows.sort(key=lambda r: _bound_order(r, ell))      # the best key bound first
 
     if pass_restarts:                       # the pass: each group's RSS descent on both signs
         for wave in _waves(rows, n_jobs, lambda r: r[2] not in local and competes(r)):
+            if deadline.passed(until):
+                break
             got = _map(pool, _local, [(Mc, M, T, n_test, pass_restarts) for _, _, T in wave])
             for (_, _, T), (starts, d) in zip(wave, got):   # in queue order
                 local[T] = starts
@@ -995,6 +1061,9 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
 
     def admit(row):                         # screened against the incumbent as it stands
         if competes(row):
+            if deadline.passed(until):      # out of time: bounded by its floors
+                late.append(row)
+                return False
             return True
         out.screened_out += 1
         return False
@@ -1002,7 +1071,7 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
     def job(row):                           # given its ceiling as it is submitted
         fp, fm, T = row
         c = relative_ceiling(level(T), bar())
-        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), local.get(T, {})), (c, (fp, fm))
+        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), local.get(T, {}), until), (c, (fp, fm))
 
     def commit(row, ctx, result):           # in queue order
         T, (c, fl), (res, secs) = row[2], ctx, result
@@ -1021,20 +1090,27 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
         lender.set_free(n_jobs - 1)          # the retries run here, with the pool idle
     for T, c_then, fl in left_open:         # the incumbent only improves, so its ceiling only falls
         c = relative_ceiling(level(T), bar())
-        if c is not None and (c_then is None or c < c_then):
+        if c is not None and (c_then is None or c < c_then) and not deadline.passed(until):
             out.retried += 1
-            res = _optimum(Mc, M, T, n_test, restarts, c, fl, local.get(T, {}))
+            res = _optimum(Mc, M, T, n_test, restarts, c, fl, local.get(T, {}), until=until)
             d = res.design
             if d is not None and beats(level(T), d.rss, inc["level"], inc["rss"]):
                 take(T, d)
                 out.replaced += 1
             if res.certified:
                 continue
-        out.certified = False
+        elif not competes((fl[0], fl[1], T)):   # not retried, and the incumbent since rules it out
+            continue
+        late.append((fl[0], fl[1], T))
+    out.unresolved = len(late) + unread
+    out.certified = out.unresolved == 0
     if inc:
         out.treatment, out.controls = sorted(inc["T"]), sorted(inc["C"])
         out.rss, out.level, out.slope = inc["rss"], inc["level"], inc["slope"]
         out.key = _key(M, inc, n_test)
+        out.proven_gap = None if unread else proven_gap([(fp, fm, level(T)) for fp, fm, T in late],
+                                                        inc["rss"], inc["level"], g)
+    out.timed_out = not out.certified and deadline.passed(until)
     out.seconds = time.perf_counter() - t0
     return out
 

@@ -2401,6 +2401,34 @@ deeper cut removes few designs that the relaxation does not already rule out. Wi
 test passes and seven tests that pin the search's internal steps change. It is not worth
 its code.
 
+## A time limit
+
+`certify_treatment(..., time_limit=)` stops the search at `time_limit` seconds,
+two minutes by default (`TIME_LIMIT`), None for no limit. It turns the limit into a
+deadline on one clock (`deadline.py`, CLOCK_MONOTONIC, the same instant in every
+forked worker), and every stage that can stop early reads it: the floors between
+blocks of groups, the pass between waves, the window as it admits each group, a
+group's branch and bound as it enters each node (a node entered late is left open),
+and the retries. The start design and a group's screen run to their end.
+
+The search then reports its best design with `certified` False, `timed_out` True and
+`proven_gap`: no design's key exceeds 1 + `proven_gap` times the reported design's.
+The bound comes from the groups the search did not resolve, those it never reached
+and those whose certificate did not close. A design of a group with level L has an
+RSS at least the smaller of the group's two floors f, so its key is at most
+sqrt(L^2 RSS* / (level*^2 f)) times the incumbent's (`proven_gap`, the key being level
+over a constant times sqrt(RSS)); the gap is the largest such ratio less one, rounded
+up to a rational, and never below the gap g the certified groups were proved at.
+An open group the final incumbent rules out on both floors is resolved. A group
+whose floors were never computed bounds nothing, and the gap is None. A search that
+finishes reports `proven_gap` = g, and a search with a group left open for any
+other reason reports the same bound with `timed_out` False.
+
+`test_time_limit.py` stops the search at each stage by a clock it throws, and checks
+the gap against enumeration there and, on a clock that moves one second per read,
+as a hypothesis property over panels and limits: wherever the search stops, a
+finished search is the enumerated optimum and a stopped one holds its gap.
+
 ### Near-ties, not symmetry
 
 A certificate branches where designs other than the optimum come within the
