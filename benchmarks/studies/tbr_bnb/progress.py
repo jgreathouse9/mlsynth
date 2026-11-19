@@ -48,10 +48,9 @@ FLUSH_SECONDS = 60.0
 #: kind -> (level, declared fields)
 KINDS: Dict[str, Tuple[int, Tuple[str, ...]]] = {
     "treatment": (1, ("k", "p", "groups", "n_jobs")),
-    "treatment-done": (1, ("certified", "treatment", "rss", "passing", "survivors", "seconds")),
+    "treatment-done": (1, ("certified", "treatment", "key", "survivors", "seconds")),
     "group": (1, ("treatment", "ceiling")),
-    "group-done": (1, ("treatment", "certified", "passing", "rounds", "seconds")),
-    "gated-round": (1, ("round", "controls", "rss", "passing", "seconds")),
+    "group-done": (1, ("treatment", "certified", "found", "signs", "seconds")),
     "slope-free": (1, ("p", "ratio", "test_ratio", "excluded")),
     "screen": (1, ("certified", "tier", "rung", "seconds")),
     "hull": (1, ("sizes", "seconds")),
@@ -72,9 +71,9 @@ FIELD_TYPES = {
     "k": _INT, "p": _INT, "groups": _INT, "n_jobs": _INT, "m": _INT, "depth": _INT, "ones": _INT,
     "control": _INT, "rung": _INT, "maxfun": _INT, "round": _INT, "triangles": _INT, "rows_eq": _INT,
     "rows_in": _INT, "pentagons": _INT, "designs": _INT, "exact": _INT, "nodes": _INT, "open": _INT, "rounds": _INT,
-    "survivors": _INT, "excluded": _INT,
-    "ratio": _FLOAT, "test_ratio": _FLOAT, "rss": _FLOAT, "ceiling": _FLOAT, "seconds": _FLOAT,
-    "certified": _BOOL, "passing": _BOOL, "closed": _BOOL,
+    "survivors": _INT, "excluded": _INT, "signs": _INT,
+    "ratio": _FLOAT, "test_ratio": _FLOAT, "key": _FLOAT, "rss": _FLOAT, "ceiling": _FLOAT, "seconds": _FLOAT,
+    "certified": _BOOL, "found": _BOOL, "closed": _BOOL,
     "tier": _STR, "outcome": _STR, "source": _STR, "relaxation": _STR, "solver": _STR, "status": _STR, "treatment": _STR,
     "controls": _INTS, "sizes": _INTS,
 }

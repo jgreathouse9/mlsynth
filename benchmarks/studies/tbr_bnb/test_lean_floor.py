@@ -324,6 +324,7 @@ def test_the_floor_takes_a_bracket_top_as_yy():
 
 
 def test_the_floors_certify_the_same_design():
-    M = geo_panel(5)
+    from .brute import raw_panel
+    M = raw_panel(5)
     out = treatment.certify_treatment(M, 2, n_test=8, restarts=3)
     assert out.certified and out.treatment is not None

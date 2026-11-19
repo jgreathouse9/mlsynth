@@ -2,14 +2,13 @@
 
 Of the 1,581,580 four-geo groups of an 80-geo panel the floors leave a handful, yet
 every floor came back to the parent as a Python row, was sorted and was screened one
-at a time. The floors now take the incumbent's class as it stands when they are
-computed (the start's design), and a worker drops each row the float screen shows
-cannot compete, counting it as screened out. The incumbent only improves, so its
-ceiling only falls (ceiling's docstring): a row that cannot compete then cannot
-compete later, and the search is the search it was. The tests pin the vectorized
-screen to compete_bracket, the screened rows to the unscreened ones less the rows
-compete_bracket refuses, and the search with the worker screen to the search
-without it.
+at a time. The floors take the incumbent's bar as it stands when they are computed
+(the start's design), and a worker drops each row whose two floors, on y and on -y,
+the float screen shows are at or above the group's ceiling (treatment._drop_side),
+counting it as screened out. The incumbent only improves, so its bar only falls: a
+row that cannot compete then cannot compete later, and the search is the search it
+was. The tests pin the screened rows to the unscreened ones less the rows the screen
+drops, and the search with the worker screen to the search without it.
 """
 from fractions import Fraction as Q
 from itertools import combinations
@@ -22,49 +21,56 @@ from hypothesis import strategies as st
 from mlsynth.exceptions import MlsynthDataError
 
 from . import fastfloor, treatment
-from .brute import geo_panel
-from .treatment import compete_bracket, gram_floor
+from .brute import geo_panel, raw_panel
+from .treatment import _drop_side, gram_floor
 
 SETTINGS = settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 N_TEST = 8
 
 
-def _class(M, k):
-    """The class (r_star, rss_star) of the start's design on M, as the search builds it."""
-    T0, Cs = treatment._start(M, k, N_TEST, 5)
-    C0, key0, rss0, rest0 = treatment._design(M, T0, Cs, N_TEST)
-    assert key0 is not None
-    return Q(key0[4]), rss0
+def _centred(M):
+    return M - M.mean(axis=0)
 
 
-def _unscreened(M, k, cls):
+def _scr(M, k):
+    """The screen terms of the start's design on the raw panel M, as the search builds them."""
+    Mc = _centred(M)
+    T0, C0 = treatment._start(M, k, N_TEST, 5)
+    d = treatment._design(Mc, M, T0, C0, N_TEST)
+    assert d is not None
+    sums = treatment.geo_sums(M)
+    n = M.shape[0]
+    bar = treatment.relative_bar(d.rss, treatment.group_level(sums, T0, n), 0)
+    return treatment._screen_terms(bar, treatment.level_doubles(sums, n), k)
+
+
+def _dropped(row, scr):
+    b, ell, margin = scr
+    L = [float(ell[list(row[2])].sum())]
+    return bool(_drop_side([float(row[0])], L, b, margin)[0] and _drop_side([float(row[1])], L, b, margin)[0])
+
+
+def _unscreened(M, k, scr):
+    Mc = _centred(M)
     groups = list(combinations(range(M.shape[1]), k))
-    rows = treatment._floor_rows(M, groups, gram_floor(M), None, 1)
-    keep = [r for r in rows if not (isinstance(r[1], tuple) and compete_bracket(r[0], r[1][0], r[1][1], *cls) is False)]
-    return groups, rows, keep
-
-
-def _ceiling(yy, cls):
-    """The ceiling compete_bracket computes in doubles at y'y = yy."""
-    a, b, rss = treatment._class_doubles(*cls)
-    second = min(rss, yy * b)
-    return second if a is None else max(yy * a, second)
+    rows = treatment._floor_rows(Mc, groups, gram_floor(Mc), None, 1)
+    return groups, rows, [r for r in rows if not _dropped(r, scr)]
 
 
 def _same(a, b):
     assert len(a) == len(b)
-    for (fa, ya, Ta), (fb, yb, Tb) in zip(a, b):
-        assert Ta == Tb and fa == fb and ya == yb
+    for ra, rb in zip(a, b):
+        assert ra == rb
 
 
 # ---------------------------------------------------------------- smoke
 
 
 def test_smoke_the_screened_rows_and_the_count_cover_every_group():
-    M = geo_panel(5)
-    cls = _class(M, 3)
+    M = raw_panel(5, p=7)
+    scr = _scr(M, 3)
     groups = list(combinations(range(M.shape[1]), 3))
-    rows, dropped = treatment._screened_floor_rows(M, groups, gram_floor(M), None, 1, cls)
+    rows, dropped = treatment._screened_floor_rows(_centred(M), groups, gram_floor(_centred(M)), None, 1, scr)
     assert dropped > 0 and len(rows) + dropped == len(groups)
 
 
@@ -72,22 +78,23 @@ def test_smoke_the_screened_rows_and_the_count_cover_every_group():
 
 
 @pytest.mark.parametrize("k", [2, 3])
-def test_the_screened_rows_are_the_rows_compete_bracket_keeps(k):
-    M = geo_panel(5)
-    cls = _class(M, k)
-    groups, rows, keep = _unscreened(M, k, cls)
-    got, dropped = treatment._screened_floor_rows(M, groups, gram_floor(M), None, 1, cls)
+def test_the_screened_rows_are_the_rows_the_screen_keeps(k):
+    M = raw_panel(5, p=7)
+    scr = _scr(M, k)
+    groups, rows, keep = _unscreened(M, k, scr)
+    got, dropped = treatment._screened_floor_rows(_centred(M), groups, gram_floor(_centred(M)), None, 1, scr)
     _same(got, keep)
     assert dropped == len(rows) - len(keep)
 
 
 def test_two_processes_screen_as_one_does():
-    M = geo_panel(5)
-    cls = _class(M, 3)
+    M = raw_panel(5, p=7)
+    Mc = _centred(M)
+    scr = _scr(M, 3)
     groups = list(combinations(range(M.shape[1]), 3))
-    one = treatment._screened_floor_rows(M, groups, gram_floor(M), None, 1, cls)
+    one = treatment._screened_floor_rows(Mc, groups, gram_floor(Mc), None, 1, scr)
     with treatment._pool(2) as pool:
-        two = treatment._screened_floor_rows(M, groups, gram_floor(M), pool, 2, cls)
+        two = treatment._screened_floor_rows(Mc, groups, gram_floor(Mc), pool, 2, scr)
     _same(one[0], two[0])
     assert one[1] == two[1]
 
@@ -95,126 +102,105 @@ def test_two_processes_screen_as_one_does():
 @pytest.mark.parametrize("k,gap", [(2, Q(0)), (3, Q(0)), (3, Q(1, 100))])
 @pytest.mark.parametrize("n_jobs", [1, 2])
 def test_the_search_with_the_worker_screen_is_the_search_without_it(monkeypatch, k, gap, n_jobs):
-    M = geo_panel(5)
+    M = raw_panel(5, p=7)
     with_screen = treatment.certify_treatment(M, k, n_test=N_TEST, restarts=5, pass_restarts=3, gap=gap, n_jobs=n_jobs)
-    monkeypatch.setattr(treatment, "_streamed_floor_rows", lambda M, p, k, lam, pool, n_jobs, cls:
+    monkeypatch.setattr(treatment, "_streamed_floor_rows", lambda M, p, k, lam, pool, n_jobs, scr:
                         (treatment._floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs), 0))
     without = treatment.certify_treatment(M, k, n_test=N_TEST, restarts=5, pass_restarts=3, gap=gap, n_jobs=n_jobs)
-    for attr in ("treatment", "controls", "rss", "key", "passing", "certified", "screened_out", "searched", "replaced"):
+    for attr in ("treatment", "controls", "rss", "key", "slope", "certified", "searched", "replaced"):
         assert getattr(with_screen, attr) == getattr(without, attr), attr
     assert [s["treatment"] for s in with_screen.survivors] == [s["treatment"] for s in without.survivors]
-    assert with_screen.screened_out > 0
+    assert with_screen.screened_out == without.screened_out > 0
 
 
-def test_the_search_hands_the_floors_the_start_class(monkeypatch):
-    """The search passes the start design's class to the floors, so the workers drop
-    rows: a search that passed no class would be the same search, only slower."""
-    M = geo_panel(5)
+def test_the_search_hands_the_floors_the_start_bar(monkeypatch):
+    """The search passes the start design's screen to the floors, so the workers drop
+    rows: a search that passed none would be the same search, only slower."""
+    M = raw_panel(5, p=7)
     seen = []
     real = treatment._streamed_floor_rows
 
-    def spy(M, p, k, lam, pool, n_jobs, cls):
-        rows, dropped = real(M, p, k, lam, pool, n_jobs, cls)
-        seen.append((cls, dropped))
+    def spy(M, p, k, lam, pool, n_jobs, scr):
+        rows, dropped = real(M, p, k, lam, pool, n_jobs, scr)
+        seen.append((scr, dropped))
         return rows, dropped
 
     monkeypatch.setattr(treatment, "_streamed_floor_rows", spy)
     treatment.certify_treatment(M, 3, n_test=N_TEST, restarts=5, pass_restarts=3, gap=Q(0), n_jobs=1)
-    assert len(seen) == 1
-    (cls, dropped), = seen
-    assert cls == _class(M, 3) and dropped > 0
+    (scr, dropped), = seen
+    want = _scr(M, 3)
+    assert scr[0] == want[0] and scr[2] == want[2] and np.array_equal(scr[1], want[1]) and dropped > 0
 
 
 # ---------------------------------------------------------------- edge
 
 
 def test_no_incumbent_drops_nothing():
-    M = geo_panel(5)
+    M = raw_panel(5, p=7)
+    Mc = _centred(M)
     groups = list(combinations(range(M.shape[1]), 3))
-    rows, dropped = treatment._screened_floor_rows(M, groups, gram_floor(M), None, 1, (None, None))
+    rows, dropped = treatment._screened_floor_rows(Mc, groups, gram_floor(Mc), None, 1, None)
     assert dropped == 0
-    _same(rows, treatment._floor_rows(M, groups, gram_floor(M), None, 1))
+    _same(rows, treatment._floor_rows(Mc, groups, gram_floor(Mc), None, 1))
 
 
 def test_without_the_kernel_the_same_rows_are_dropped(monkeypatch):
-    M = geo_panel(5)
-    cls = _class(M, 3)
-    groups, rows, keep = _unscreened(M, 3, cls)
+    M = raw_panel(5, p=7)
+    scr = _scr(M, 3)
+    groups, rows, keep = _unscreened(M, 3, scr)
     monkeypatch.setattr(fastfloor, "AVAILABLE", False)
-    got, dropped = treatment._screened_floor_rows(M, groups, gram_floor(M), None, 1, cls)
+    got, dropped = treatment._screened_floor_rows(_centred(M), groups, gram_floor(_centred(M)), None, 1, scr)
     assert [r[2] for r in got] == [r[2] for r in keep] and dropped == len(rows) - len(keep)
 
 
-def test_a_group_the_kernel_leaves_is_kept_for_the_exact_path(monkeypatch):
-    """A nan floor (the kernel could not do the group) is never dropped by the mask:
-    the row takes rss_floor's path and the parent screens it."""
-    M = geo_panel(5)
-    cls = _class(M, 2)
+@pytest.mark.parametrize("which", [1, -1])
+def test_a_group_the_kernel_leaves_is_kept_for_the_exact_path(monkeypatch, which):
+    """A nan floor on either sign (the kernel could not do the group) is never
+    dropped: that sign takes rss_floor's path."""
+    M = raw_panel(5, p=7)
+    Mc = _centred(M)
+    scr = _scr(M, 2)
     groups = list(combinations(range(M.shape[1]), 2))
     real = fastfloor.floors
 
-    def some_nan(Mc, Gf, g, lamf):
-        fl, lo, hi = real(Mc, Gf, g, lamf)
-        fl = fl.copy(); fl[::3] = np.nan
+    def some_nan(Mc, Gf, g, lamf, sign=1.0):
+        fl, lo, hi = real(Mc, Gf, g, lamf, sign)
+        if sign == which:
+            fl = fl.copy(); fl[::3] = np.nan
         return fl, lo, hi
 
     monkeypatch.setattr(fastfloor, "floors", some_nan)
-    got, dropped = treatment._screened_floor_rows(M, groups, gram_floor(M), None, 1, cls)
-    kept = {r[2] for r in got}
-    assert all(groups[i] in kept for i in range(0, len(groups), 3))
+    got, dropped = treatment._screened_floor_rows(Mc, groups, gram_floor(Mc), None, 1, scr)
+    kept = {r[2]: r for r in got}
+    for i in range(0, len(groups), 3):
+        r = kept[groups[i]]
+        side = r[0] if which == 1 else r[1]
+        assert side == treatment.rss_floor(Mc, groups[i], gram_floor(Mc), sign=which)
     assert len(got) + dropped == len(groups)
 
 
-def test_a_panel_without_a_gram_floor_is_screened_on_the_exact_path():
-    """With no Gram floor (lam None) the rows are rss_floor's, screened one at a time,
-    whether or not the kernel is installed."""
-    M = geo_panel(5)
-    cls = _class(M, 2)
+def test_a_panel_without_a_gram_floor_keeps_every_row():
+    """With no Gram floor (lam None) every floor is 0, below every ceiling."""
+    M = raw_panel(5, p=7)
+    scr = _scr(M, 2)
     groups = list(combinations(range(M.shape[1]), 2))
-    rows = treatment._floor_chunk(M, None, groups)
-    keep = [r for r in rows if not (isinstance(r[1], tuple) and compete_bracket(r[0], r[1][0], r[1][1], *cls) is False)]
-    got, dropped = treatment._floor_chunk_screened(M, None, groups, cls)
-    assert [r[2] for r in got] == [r[2] for r in keep] and dropped == len(rows) - len(keep)
+    got, dropped = treatment._floor_chunk_screened(_centred(M), None, groups, scr)
+    assert dropped == 0 and [r[2] for r in got] == groups
 
 
-def test_a_floor_inside_the_margin_is_not_dropped():
-    """A floor above the ceiling by less than the float margin is undecided in
-    doubles: compete_bracket returns None and the mask keeps the row."""
-    cls = (Q(9, 10), Q(1))
-    yy = 10.0
-    c = _ceiling(yy, cls)
-    f = c * (1 + treatment._MARGIN / 4)
-    assert f > c and compete_bracket(f, yy, yy, *cls) is None
-    assert not treatment._screen_mask(np.array([f]), np.array([yy]), np.array([yy]), *cls).any()
-
-
-def test_an_undecided_row_is_kept_without_the_kernel(monkeypatch):
-    """Without the kernel a row compete_bracket leaves undecided (a floor at the
-    bracket top's ceiling) is kept for the parent's exact screen."""
-    M = geo_panel(5)
-    cls = _class(M, 2)
-    groups = list(combinations(range(M.shape[1]), 2))
-    monkeypatch.setattr(fastfloor, "AVAILABLE", False)
-    rows = treatment._floor_chunk(M, gram_floor(M), groups)
-    i = next(i for i, r in enumerate(rows) if isinstance(r[1], tuple))
-    _, (lo, hi), T = rows[i]
-    rows[i] = (_ceiling(hi, cls), (lo, hi), T)
-    assert compete_bracket(rows[i][0], lo, hi, *cls) is None
-    monkeypatch.setattr(treatment, "_floor_chunk", lambda M, lam, g: list(rows))
-    got, dropped = treatment._floor_chunk_screened(M, gram_floor(M), groups, cls)
-    assert T in {r[2] for r in got} and len(got) + dropped == len(groups)
+def test_a_row_is_dropped_only_when_both_signs_are():
+    """A row one of whose signs can compete is kept: the group still has designs of
+    that sign to certify."""
+    b, margin = 1.0, 2.0 ** -40
+    ell = np.array([1.0, 1.0])
+    assert not _dropped((100.0, 1.0, (0, 1)), (b, ell, margin))
+    assert not _dropped((1.0, 100.0, (0, 1)), (b, ell, margin))
+    assert _dropped((100.0, 100.0, (0, 1)), (b, ell, margin))
 
 
 def test_no_groups():
-    M = geo_panel(5)
-    assert treatment._screened_floor_rows(M, [], gram_floor(M), None, 1, _class(M, 2)) == ([], 0)
-
-
-def test_the_mask_keeps_a_floor_at_or_below_zero():
-    """A floor at or below zero is a floor of 0: below every positive ceiling."""
-    m = treatment._screen_mask(np.array([-5.0, 0.0]), np.array([10.0, 10.0]), np.array([10.0, 10.0]),
-                               Q(9, 10), Q(1))
-    assert not m.any()
+    M = raw_panel(5, p=7)
+    assert treatment._screened_floor_rows(_centred(M), [], gram_floor(_centred(M)), None, 1, _scr(M, 2)) == ([], 0)
 
 
 # ---------------------------------------------------------------- failure
@@ -224,33 +210,27 @@ def test_the_mask_keeps_a_floor_at_or_below_zero():
 def test_a_non_finite_series_is_refused_through_the_screened_floors(monkeypatch, bad):
     """With or without the kernel, a group whose series is not finite raises, it is not
     dropped as unable to compete: the screen reads only finite rows."""
-    cls = _class(geo_panel(5), 2)
+    scr = _scr(raw_panel(5, p=7), 2)
     for fast in (False, True) if fastfloor.AVAILABLE else (False,):
         monkeypatch.setattr(fastfloor, "AVAILABLE", fast)
         M = geo_panel(5).copy()
         M[3, 2] = bad
         with pytest.raises(MlsynthDataError, match="finite"):
-            treatment._floor_chunk_screened(M, gram_floor(geo_panel(5)), [(1, 2)], cls)
+            treatment._floor_chunk_screened(M, gram_floor(geo_panel(5)), [(1, 2)], scr)
 
 
 # ---------------------------------------------------------------- property
 
 
 @SETTINGS
-@given(fl=st.lists(st.floats(-1e6, 1e6, allow_nan=False), min_size=1, max_size=30),
-       lo_e=st.lists(st.floats(-3, 6, allow_nan=False), min_size=30, max_size=30),
-       widen=st.floats(0, 1e-6, allow_nan=False),
-       r=st.integers(-99, 99), rss_e=st.floats(-3, 6, allow_nan=False))
-def test_property_the_mask_is_compete_bracket_refusing(fl, lo_e, widen, r, rss_e):
-    """Row by row, the vectorized mask is True exactly where compete_bracket returns
-    False for the row as _floor_chunk builds it (floor 0 when the kernel's is not
-    positive)."""
-    n = len(fl)
-    f = np.array(fl)
-    lo = 10.0 ** np.array(lo_e[:n])
-    hi = lo * (1 + widen)
-    r_star, rss_star = Q(r, 100), Q(10.0 ** rss_e)
-    m = treatment._screen_mask(f, lo, hi, r_star, rss_star)
-    for i in range(n):
-        floor = f[i] if f[i] > 0 else Q(0)
-        assert bool(m[i]) == (compete_bracket(floor, float(lo[i]), float(hi[i]), r_star, rss_star) is False)
+@given(seed=st.integers(0, 500), k=st.integers(1, 3))
+def test_property_the_kernel_screen_is_the_python_screen(seed, k):
+    """Row for row, the compiled screen keeps what the Python screen keeps."""
+    M = raw_panel(seed, p=6)
+    Mc = _centred(M)
+    scr = _scr(M, k)
+    groups = list(combinations(range(M.shape[1]), k))
+    got, d = treatment._floor_chunk_screened(Mc, gram_floor(Mc), groups, scr)
+    rows = [treatment._floor_row(Mc, gram_floor(Mc), T) for T in groups]
+    keep = [r for r in rows if not _dropped(r, scr)]
+    assert [r[2] for r in got] == [r[2] for r in keep] and d == len(rows) - len(keep)

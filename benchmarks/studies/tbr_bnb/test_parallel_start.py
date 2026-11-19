@@ -21,7 +21,7 @@ from mlsynth.utils.tbr_helpers.design.local import local_search
 from mlsynth.utils.tbr_helpers.design.search import greedy_search
 
 from . import treatment
-from .brute import geo_panel
+from .brute import raw_panel
 
 SETTINGS = settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 N_TEST = 8
@@ -33,8 +33,9 @@ def _roles(p):
 
 def _library(M, k, restarts):
     """The library's start: greedy, then local_search with all its restarts, as one call."""
-    out = greedy_search(M, _roles(M.shape[1]), max_treatment_size=k, n_test=N_TEST, objective="reference")
-    best = local_search(M, _roles(M.shape[1]), out[-1], n_test=N_TEST, restarts=restarts, seed=0)
+    out = greedy_search(M, _roles(M.shape[1]), max_treatment_size=k, n_test=N_TEST, objective="relative")
+    best = local_search(M, _roles(M.shape[1]), out[-1], n_test=N_TEST, restarts=restarts, seed=0,
+                        objective="relative")
     return sorted(best.treatment), sorted(best.control)
 
 
@@ -48,7 +49,7 @@ def pool():
 
 
 def test_smoke_the_pooled_start_is_a_design_of_size_k(pool):
-    M = geo_panel(5)
+    M = raw_panel(5)
     T, C = treatment._start(M, 3, N_TEST, 6, pool)
     assert len(T) == 3 and T == sorted(T) and C == sorted(C) and C
     assert not set(T) & set(C) and set(T) | set(C) <= set(range(M.shape[1]))
@@ -59,12 +60,12 @@ def test_smoke_the_pooled_start_is_a_design_of_size_k(pool):
 
 @pytest.mark.parametrize("seed,k", [(5, 2), (5, 3), (7, 3), (3, 4)])
 def test_the_pooled_start_is_local_searchs(pool, seed, k):
-    M = geo_panel(seed)
+    M = raw_panel(seed)
     assert treatment._start(M, k, N_TEST, 8, pool) == _library(M, k, 8)
 
 
 def test_without_a_pool_the_start_is_local_searchs():
-    M = geo_panel(5)
+    M = raw_panel(5)
     assert treatment._start(M, 3, N_TEST, 8, None) == _library(M, 3, 8)
 
 
@@ -78,7 +79,7 @@ def test_the_search_hands_the_start_its_pool(monkeypatch):
         return real(M, k, n_test, restarts, pool)
 
     monkeypatch.setattr(treatment, "_start", spy)
-    M = geo_panel(5)
+    M = raw_panel(5)
     treatment.certify_treatment(M, 2, n_test=N_TEST, restarts=3, pass_restarts=2, gap=Q(0), n_jobs=2)
     treatment.certify_treatment(M, 2, n_test=N_TEST, restarts=3, pass_restarts=2, gap=Q(0), n_jobs=1)
     assert seen[0] is not None and seen[1] is None
@@ -95,7 +96,7 @@ def test_the_descents_run_on_the_pool(monkeypatch, pool):
         return real(p, fn, argss)
 
     monkeypatch.setattr(treatment, "_map", spy)
-    treatment._start(geo_panel(5), 3, N_TEST, 6, pool)
+    treatment._start(raw_panel(5), 3, N_TEST, 6, pool)
     assert calls == [(pool, treatment._descend, 6)]
 
 
@@ -103,7 +104,7 @@ def test_a_tie_keeps_the_earlier_descent(monkeypatch):
     """Descents that tie the best keep the first, as local_search's strict > does: the
     greedy's descent over every restart that only matches it, and the first restart
     over a later one with the same key."""
-    M = geo_panel(5)
+    M = raw_panel(5)
     real = treatment._descend
     base = real(M, _roles(M.shape[1]), *_library(M, 3, 0), N_TEST)
 
@@ -126,13 +127,34 @@ def test_a_tie_keeps_the_earlier_descent(monkeypatch):
     assert T == [0, 50, 51]                      # the first restart keeps the tie
 
 
+def test_the_pool_descends_local_searchs_draws(monkeypatch):
+    """The restarts sent to the pool are local_search's draws, in its order, from one
+    generator seeded 0: the designs it would descend from, not merely designs that end at
+    the same optimum (under the relative key the descents on these panels converge, so the
+    final design alone cannot tell the draws apart)."""
+    from mlsynth.utils.tbr_helpers.design import local as lib_local
+    from mlsynth.utils.tbr_helpers.design.search import greedy_search
+
+    M = raw_panel(5)
+    seen = []
+    monkeypatch.setattr(treatment, "_map", lambda p, fn, argss: seen.extend(argss) or [])
+    treatment._start(M, 3, N_TEST, 6, object())
+    roles = _roles(M.shape[1])
+    k = greedy_search(M, roles, max_treatment_size=3, n_test=N_TEST, objective="relative")[-1].k
+    rng = np.random.default_rng(0)
+    want = [d for d in (lib_local._random_design(rng, roles, k) for _ in range(6)) if d is not None]
+    got = [(sorted(a[2]), sorted(a[3])) for a in seen]
+    assert got == [(sorted(T), sorted(C)) for T, C in want]
+    assert len({tuple(T) for T, _ in got}) > 1          # the draws differ: the check has power
+
+
 # ---------------------------------------------------------------- edge
 
 
 def test_no_restarts_is_the_greedys_descent(monkeypatch, pool):
     calls = []
     monkeypatch.setattr(treatment, "_map", lambda p, fn, a: calls.append(1) or [])
-    M = geo_panel(5)
+    M = raw_panel(5)
     assert treatment._start(M, 3, N_TEST, 0, pool) == _library(M, 3, 0)
     assert not calls
 
@@ -145,7 +167,7 @@ def test_a_draw_that_is_no_design_is_skipped_as_local_search_skips_it(monkeypatc
         d = real(rng, roles, k, rules)
         return None if next(n) % 3 == 1 else d
 
-    M = geo_panel(5)
+    M = raw_panel(5)
     monkeypatch.setattr(lib_local, "_random_design", sometimes)
     pooled = treatment._start(M, 3, N_TEST, 9, pool)
     n = iter(range(1000))
@@ -153,7 +175,7 @@ def test_a_draw_that_is_no_design_is_skipped_as_local_search_skips_it(monkeypatc
 
 
 def test_a_single_control_panel(pool):
-    M = geo_panel(5)[:, :3]
+    M = raw_panel(5)[:, :3]
     assert treatment._start(M, 2, N_TEST, 4, pool) == _library(M, 2, 4)
 
 
@@ -163,12 +185,12 @@ def test_a_single_control_panel(pool):
 @pytest.mark.parametrize("use_pool", [False, True])
 def test_negative_restarts_are_refused(pool, use_pool):
     with pytest.raises(MlsynthDataError, match="restarts"):
-        treatment._start(geo_panel(5), 3, N_TEST, -1, pool if use_pool else None)
+        treatment._start(raw_panel(5), 3, N_TEST, -1, pool if use_pool else None)
 
 
 def test_a_worker_error_reaches_the_caller(pool):
     """A panel the descent cannot score raises from the pool, not a design."""
-    M = geo_panel(5).copy()
+    M = raw_panel(5).copy()
     with pytest.raises(IndexError):
         treatment._descend(M, _roles(M.shape[1]), [0, 1], [2, 3, 99], N_TEST)
     with pytest.raises(IndexError):
@@ -181,6 +203,6 @@ def test_a_worker_error_reaches_the_caller(pool):
 @SETTINGS
 @given(seed=st.integers(0, 40), p=st.integers(5, 9), k=st.integers(1, 3), restarts=st.integers(0, 7))
 def test_property_the_pooled_start_is_local_searchs(seed, p, k, restarts):
-    M = geo_panel(seed, n=24, p=p)
+    M = raw_panel(seed, n=24, p=p)
     with treatment._pool(2) as pool:
         assert treatment._start(M, k, N_TEST, restarts, pool) == _library(M, k, restarts)

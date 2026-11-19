@@ -17,7 +17,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from . import treatment
-from .brute import geo_panel
+from .brute import raw_panel
 from .treatment import certify_treatment
 
 N_TEST = 8
@@ -91,7 +91,7 @@ def test_smoke_the_window_commits_every_admitted_row_in_order():
 
 
 def test_smoke_two_processes_certify_the_sequential_design_over_the_window():
-    M = geo_panel(5, p=6)
+    M = raw_panel(5, p=6)
     one = certify_treatment(M, 2, n_test=N_TEST, restarts=5)
     two = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=2)
     assert two.certified and (two.treatment, two.controls, two.key) == (one.treatment, one.controls, one.key)
@@ -115,21 +115,24 @@ def test_a_slow_group_does_not_hold_the_search(monkeypatch, tmp_path):
     partner in the wave starts before it ends; over the window the second worker goes
     on to the groups after it. Each worker is its own process, so starts and ends are
     written to files."""
-    M = geo_panel(5, p=6)
-    plain = certify_treatment(M, 2, n_test=N_TEST, restarts=5, pass_restarts=0)
+    order = treatment._bound_order               # worst bound first: many groups survive, whatever the timing
+    monkeypatch.setattr(treatment, "_bound_order", lambda r, ell: -order(r, ell))
+    M = raw_panel(0, p=7)
+    kw = dict(n_test=N_TEST, restarts=5, pass_restarts=0, start=[0, 1])
+    plain = certify_treatment(M, 2, **kw)
     assert len(plain.survivors) >= 3
     slow, real = plain.survivors[0]["treatment"], treatment._optimum
 
-    def timed(M_, T, *a, **k):
+    def timed(Mc, M_, T, *a):
         t0 = time.time()
         if sorted(T) == slow:
             time.sleep(1.0)
-        res, C = real(M_, T, *a, **k)
+        res = real(Mc, M_, T, *a)
         (tmp_path / "-".join(map(str, sorted(T)))).write_text(f"{t0} {time.time()}")
-        return res, C
+        return res
 
     monkeypatch.setattr(treatment, "_optimum", timed)       # read inside the forked workers
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, pass_restarts=0, n_jobs=2)
+    out = certify_treatment(M, 2, n_jobs=2, **kw)
     spans = {f.name: tuple(map(float, f.read_text().split())) for f in tmp_path.iterdir()}
     end = spans.pop("-".join(map(str, slow)))[1]
     assert sum(t0 < end for t0, _ in spans.values()) >= 2

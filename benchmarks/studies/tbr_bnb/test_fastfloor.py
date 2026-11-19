@@ -220,15 +220,14 @@ def test_property_the_cap_covers_the_brackets_top(seed, e, lam_e):
 
 
 def test_a_kernel_floor_at_or_below_zero_is_a_floor_of_zero(monkeypatch):
-    """The kernel's raw bound below zero, or -inf, is 0 in the row."""
+    """The kernel's raw bound below zero, or -inf, is 0 in the row, on either sign."""
     M = geo_panel(5)
     groups = [(0, 1), (0, 2), (1, 2)]
     monkeypatch.setattr(fastfloor, "AVAILABLE", True)
     monkeypatch.setattr(fastfloor, "floors", lambda *a: (np.array([-1.0, -np.inf, 0.0]),
                                                           np.array([1.0, 1.0, 1.0]), np.array([2.0, 2.0, 2.0])))
     rows = treatment._floor_chunk(M, gram_floor(M), groups)
-    assert all(floor == 0 and isinstance(floor, Q) for floor, _, _ in rows)
-    assert all(yy == (1.0, 2.0) for _, yy, _ in rows)
+    assert all(f == 0 and isinstance(f, Q) for row in rows for f in row[:2])
 
 
 # ---------------------------------------------------------------- edges
@@ -304,17 +303,17 @@ def test_the_rows_with_the_kernel_are_the_rows_without_it(monkeypatch):
     groups = list(combinations(range(M.shape[1]), 2))
     fast = _rows(M, groups, monkeypatch, True)
     slow = _rows(M, groups, monkeypatch, False)
-    for (fa, ya, Ta), (fs, ys, Ts) in zip(fast, slow):
+    for (fa, ga, Ta), (fs, gs, Ts) in zip(fast, slow):
         assert Ta == Ts
         assert abs(float(fa) - float(fs)) <= 1e-9 * max(1.0, abs(float(fs)))
-        assert isinstance(ya, tuple) and isinstance(ys, tuple)
-        assert ya[0] <= float(square_sum(_split(M, Ta)[0])) <= ya[1]
+        assert abs(float(ga) - float(gs)) <= 1e-9 * max(1.0, abs(float(gs)))
 
 
 @needs_numba
 @pytest.mark.parametrize("k", [2, 3])
 def test_the_search_with_the_kernel_certifies_the_same_design(monkeypatch, k):
-    M = geo_panel(5)
+    from .brute import raw_panel
+    M = raw_panel(5, p=7)
     monkeypatch.setattr(fastfloor, "AVAILABLE", False)
     want = certify_treatment(M, k, n_test=N_TEST, restarts=3)
     monkeypatch.setattr(fastfloor, "AVAILABLE", True)
@@ -324,8 +323,8 @@ def test_the_search_with_the_kernel_certifies_the_same_design(monkeypatch, k):
 
 @needs_numba
 def test_a_group_the_kernel_cannot_do_takes_the_exact_path(monkeypatch):
-    """An entry off the bracket's range: that group's row is rss_floor's, with the
-    exact y'y, and the other groups keep the kernel's."""
+    """An entry off the bracket's range: that group's floors on both signs are
+    rss_floor's, and the other groups keep the kernel's."""
     M = geo_panel(5).copy()
     M[2, 0] = 2.0 ** -520
     calls = []
@@ -334,10 +333,8 @@ def test_a_group_the_kernel_cannot_do_takes_the_exact_path(monkeypatch):
     groups = [(j,) for j in range(M.shape[1])]
     rows = treatment._floor_chunk(M, gram_floor(M), groups)
     with_zero = [T for T in groups if 0 in T]
-    assert sorted(calls) == sorted(with_zero)
-    for floor, yy, T in rows:
-        if 0 in T:
-            assert isinstance(yy, Q) and yy == square_sum(_split(M, T)[0])
+    assert sorted(calls) == sorted(with_zero * 2)                   # once per sign
+    assert [r[2] for r in rows] == groups
 
 
 def test_without_numba_the_floors_are_rss_floors(monkeypatch):
@@ -346,8 +343,9 @@ def test_without_numba_the_floors_are_rss_floors(monkeypatch):
     M = geo_panel(5)
     lam = gram_floor(M)
     rows = treatment._floor_chunk(M, lam, [(0, 1), (2, 3)])
-    for floor, yy, T in rows:
-        assert floor == rss_floor(M, T, lam, yy=yy[1] if isinstance(yy, tuple) else yy)
+    for fp, fm, T in rows:
+        top = treatment.yy_bracket(_split(M, T)[0])[1]
+        assert (fp, fm) == (rss_floor(M, T, lam, yy=top, sign=1), rss_floor(M, T, lam, yy=top, sign=-1))
 
 
 @needs_numba
@@ -358,7 +356,7 @@ def test_no_gram_floor_takes_the_old_path():
     M[:, 1] = -M[:, 0]
     assert gram_floor(M) is None
     rows = treatment._floor_chunk(M, gram_floor(M), [(0, 2), (3, 4)])
-    assert all(floor == 0 for floor, _, _ in rows)
+    assert all(fp == 0 and fm == 0 for fp, fm, _ in rows)
 
 
 # ---------------------------------------------------------------- failure

@@ -220,13 +220,13 @@ def test_property_the_screen_changes_no_verdict(seed, f):
 
 
 def test_the_treatment_search_certifies_the_same_design_with_the_screen(monkeypatch):
-    from . import gated, treatment
-    from .brute import geo_panel
+    from . import treatment
+    from .brute import raw_panel
 
-    M = geo_panel(5, p=6)
+    M = raw_panel(5, p=6)
     on = treatment.certify_treatment(M, 2, n_test=8, restarts=5)
     real = slopefree.certify_slope_free
-    monkeypatch.setattr(gated, "certify_slope_free", lambda *a, **k: real(*a, group_screen=False, **k))
+    monkeypatch.setattr(slopefree, "certify_slope_free", lambda *a, **k: real(*a, group_screen=False, **k))
     plain = treatment.certify_treatment(M, 2, n_test=8, restarts=5)
     assert (on.treatment, on.controls, on.key, on.certified) == \
         (plain.treatment, plain.controls, plain.key, plain.certified)

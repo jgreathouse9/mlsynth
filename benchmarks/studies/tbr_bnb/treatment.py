@@ -1,92 +1,89 @@
-"""The search over treatment groups, certified (#965, step 9).
+"""The search over treatment groups, certified, under the relative key (#965).
 
-The reference key ranks a design by (corr_test, aa_test, bb_test, dw_test,
-round(corr, 2), 1 / required_impact) (mlsynth.utils.tbr_helpers.design.objective.
-score_split). Within one treatment group the least-RSS passing design has the key's
-greatest value (gated.py), so the best design of size k is the best of the groups'
-own optima, compared on the rounded correlation and then on RSS: the required
-impact is a constant times sqrt(RSS / (n - 2)) for every group, the window being
-the same. The search therefore needs, for each treatment group, either its own
-passing optimum (gated.certify_gated) or a proof that none of its designs can match
-the incumbent.
+The key. A design (T, C) is ranked by the library's relative key, level_T /
+required_impact (mlsynth.utils.tbr_helpers.design.objective.score_split,
+objective="relative"): level_T is the mean of the treated aggregate over the raw
+window and required_impact the smallest effect the experiment could detect. Power is
+the only criterion: no assumption gates and no correlation term. The four gates of
+the reference key are read at the certified design and reported (gates.py); they
+rank nothing. The required impact is a constant times sqrt(RSS / (n - 2)), the
+constant the same for every design since the window is (score_split's
+required_impact), so designs compare on level_T^2 / RSS: (T, C) beats (T*, C*)
+exactly when level_T^2 RSS* > level*^2 RSS (beats). A design the library scores -inf
+(its regression fits exactly, #1000) is never reported.
 
-The proof is a floor on the RSS of every positive-slope design of the group. With w
-= b u, every such design is a point of {0 <= w <= cap}, cap the slope cap, so the
-group's nonnegative least squares, min ||y - X w||^2 over w >= 0 and w <= cap, is at
-most its RSS. Its value is bounded below exactly at the NNLS point by the float hull
-certificate over that box (certificate.box_bound_float: the hull's with lo = 0 and the
-size at the number of controls, the size constraint slack and the knapsack at
-multiplier 0). The cap (slope_cap, in doubles where its rounding is relative) is that of
+The panel. certify_treatment takes the raw panel, periods by geos, every geo eligible
+for every role, and refuses a geo whose mean is not positive, the relative key
+needing a positive level. The RSS is the intercept regression's, computed on the
+panel centred in doubles; the levels are exact means of the raw doubles (geo_sums).
+
+Within a treatment group the best design is the least-RSS one, of either slope sign.
+A design with a negative slope for y is one with a positive slope for -y and the
+same RSS, so a group is certified as two searches of the slope-free certificate
+(slopefree.certify_slope_free), on y and on -y, each over its positive-slope designs.
+
+The proof that a group cannot compete is a floor on the RSS of its designs, one per
+sign. With w = b u, every positive-slope design of the series s y (s = +1 or -1) is
+a point of {0 <= w <= cap}, cap the slope cap, so the nonnegative least squares
+min ||s y - X w||^2 over w >= 0 and w <= cap is at most its RSS. Its value is bounded
+below exactly at the NNLS point by the float hull certificate over that box
+(certificate.box_bound_float: the hull's with lo = 0 and the size at the number of
+controls, the size constraint slack and the knapsack at multiplier 0). The cap
+(slope_cap, in doubles where its rounding is relative) is that of
 certificate.ExactData.slope_cap, ||y|| / sqrt(L), with one L for every group, the
 full Gram matrix M'M's (certificate.gram_lower): the controls' Gram matrix is a
 principal submatrix of M'M, so when no entry of M'M is negative none of its entries
 is and its smallest diagonal entry is at least M'M's, and otherwise its smallest
 eigenvalue is at least M'M's (the interlacing inequalities, Hogben 2007, Sect. 8.2,
 Fact 5, applied once per deleted row and column). With more geos than periods M'M
-is singular, and only the diagonal bound is above zero.
+is singular, and only the diagonal bound is above zero. The cap reads only y'y and L,
+so it is the same for both signs.
 
-Each design of the group has corr^2 = 1 - RSS / y'y, so the floor bounds its
-correlation too, and can_compete reads the rounding: a group whose correlation bound
-is below the incumbent's rounded class cannot match it, and one that cannot round
-above the class has to beat the incumbent's RSS to replace it. The class edges are
-half a rounding step either side, less a slack of 1e-9 for the key's correlation
-being a double; the slack is a tolerance, not derived.
+The ceiling. Against an incumbent with level* and RSS*, a design of group T beats it
+only when its RSS is below RSS* (level_T / level*)^2, the group's ceiling
+(relative_ceiling, from the bar RSS* / level*^2). A sign whose floor is at least the
+ceiling cannot compete, and a group neither of whose signs can is ruled out; each
+sign that can is certified against the ceiling (certify_slope_free's ``ceiling``),
+which ends at its least-RSS design below it or proves none is.
 
-Every group that the floor does not rule out is certified, with the incumbent
-replaced whenever a group's optimum has a larger key, and the floors are read again
-against the new incumbent before each certification. A group is certified against
-its ceiling, the RSS below which one of its designs could beat the incumbent: each
-size's relaxation is tested at y'y - ceiling instead of at the group's own
-optimum, a weaker claim that closes sooner, and the group's gated search ends,
-certified, at the first round whose RSS-best design is not below the ceiling.
-Certifying each group's own optimum instead leaves groups open on GeoLift: one at
-k = 2 branched to the depth limit at one size, and others ran to the round limit on
-designs that kept failing the gates, though none of them could reach the
-incumbent's class.
+The gap. With ``gap`` g above zero the bar is RSS* / (level*^2 (1 + g)^2): a group
+is admitted and certified against that lower ceiling, so a certified search proves
+that no design's key exceeds (1 + g) times the reported design's, the key being
+level / (constant sqrt(RSS)) (derived here). A group whose optimum is below the
+lower ceiling beats the incumbent and replaces it, and the bar falls with it; what
+was proved against a higher bar still holds. g = 0 is the exact search.
+
+The order. The groups are read best key bound first, level_T^2 over the smaller of
+their two floors. A start design (the library's greedy and local searches under the
+relative key, or the caller's treatment group) is the first incumbent, and a pass
+gives each group that can compete the study's RSS descent on both signs before any
+is certified, so the queue starts from the groups with the best designs found.
 
 A group whose certificate does not close against the ceiling of its turn is
 certified again once every group has been read, against the final incumbent's
 ceiling, which is lower whenever the incumbent improved after its turn: a weaker
-claim than the one that failed. The certificates of the groups that closed on
-their turn still hold, since they were proved against ceilings at least as
-high. On GeoLift at k = 4 one group of 93 is left open on its turn and closes on
-its retry.
-
-The gap. With ``gap`` g above zero every screen and every ceiling reads a target
-RSS, the incumbent's RSS over (1 + g)^2, in place of the incumbent's own: a group is
-admitted and certified against ceiling(y'y, r_star, target). The ceiling's first
-term does not read the RSS, so a design that could round above the incumbent's class
-is still excluded exactly. A certified search then proves that every design whose
-key is above the reported design's is in its class with an RSS at least the target,
-so with a required impact at least the reported design's over 1 + g, the required
-impact being a constant times sqrt(RSS / (n - 2)): the reported design needs at most
-1 + g times the optimum's required impact (derived here). A group whose optimum is
-below the target replaces the incumbent and the target falls with it; what was
-proved against a higher target still holds. g = 0 is the exact search.
+claim than the one that failed. The certificates of the groups that closed on their
+turn still hold, since they were proved against ceilings at least as high.
 
 With ``n_jobs`` above one the floors are computed in chunks over a pool of forked
 processes, the pass runs in waves of ``n_jobs`` groups, and the certifications run
 over a sliding window (_window, #1069): up to ``n_jobs`` groups at once, the next
 group submitted as soon as a worker is free. A group is screened and given its
-ceiling from the incumbent as it stands when the group is submitted (for the pass,
-when its wave is filled), and results are applied in queue order, a group replacing
-the incumbent only with a strictly larger key. A group's ceiling comes from a
-committed prefix of the queue, so it is at least the one the sequential search gives
-it; a group certified against it holds against the lower one too (no design below a
-ceiling means none below a lower one), and a group whose optimum beats the
-sequential incumbent at its place is found and compared with exactly that
-incumbent. At g = 0 the certified design is the one the sequential search finds,
-ties included: n_jobs = 1 is that search. At g > 0 a higher ceiling can find a
-design within the gap that a lower one closes unseen, so the reported design can
-depend on n_jobs and on the order the workers finish; it is within the gap either
-way. The pass stays in waves because its admissions decide which groups carry a
-local design, and so the certification queue's order.
+ceiling from the incumbent as it stands when the group is submitted, and results are
+applied in queue order, a group replacing the incumbent only with a strictly larger
+key. A group's ceiling comes from a committed prefix of the queue, so it is at least
+the one the sequential search gives it; a group certified against it holds against
+the lower one too, and a group whose optimum beats the sequential incumbent at its
+place is found and compared with exactly that incumbent. At g = 0 the certified
+design is the one the sequential search finds, ties included: n_jobs = 1 is that
+search. At g > 0 a higher ceiling can find a design within the gap that a lower one
+closes unseen, so the reported design can depend on n_jobs and on the order the
+workers finish; it is within the gap either way.
 
 Hogben, L., ed. (2007). Handbook of Linear Algebra. Chapman & Hall/CRC.
 """
 from __future__ import annotations
 
-import functools
 import math
 import multiprocessing
 import time
@@ -95,21 +92,21 @@ from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import dataclass, field
 from fractions import Fraction as Q
 from math import comb
-from typing import Callable, List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from scipy.optimize import nnls
 
 from mlsynth.exceptions import MlsynthDataError
+from mlsynth.utils.tbr_helpers.design.objective import check_positive_levels, score_split
 
 from . import fastfloor
 from .certificate import box_bound_float, gram_lower, qarr
-from .gated import certify_gated, gates_of
+from .gates import gates_of
 from .progress import emit, reporting, tagged
 
-#: Half a step of round(corr, 2), and the slack for the key's correlation being a double.
-EDGE = Q(5, 1000)
-SLACK = Q(1, 10 ** 9)
+#: The slope signs a group is certified on: +1 searches y, -1 searches -y.
+SIGNS = (1, -1)
 
 
 def gram_floor(M) -> Optional[Q]:
@@ -242,44 +239,70 @@ def slope_cap(yy: Union[float, Q], lam: Q) -> float:
     return _cap_exact(yy, lam)
 
 
-def rss_floor(M, T: Sequence[int], lam: Optional[Q], yy: Union[None, float, Q] = None) -> Union[float, Q]:
-    """A lower bound on the RSS of every positive-slope design whose treatment group
-    is T (module docstring), a double or 0; 0 when lam is None. ``yy`` is the
-    group's y'y or a double above it (all the cap needs), computed here when not
-    given. The bound is the hull's at the NNLS point over the box
-    {0 <= x <= cap}, box_bound_float."""
+def geo_sums(M) -> List[Q]:
+    """Each geo's sum over the window, exact: sum n_t / D over _integers, so a
+    group's level is a sum of these over n (group_level)."""
+    out = []
+    for j in range(np.asarray(M).shape[1]):
+        ints, D = _integers(np.asarray(M, dtype=float)[:, j], "a geo's series")
+        out.append(Q(sum(ints), D))
+    return out
+
+
+def group_level(sums: Sequence[Q], T: Sequence[int], n: int) -> Q:
+    """The treated aggregate's mean over the window, exact: the sum of its geos'
+    sums (geo_sums) over the n periods."""
+    return sum((sums[j] for j in T), Q(0)) / n
+
+
+def relative_bar(rss_star: Q, level_star: Q, g: Q) -> Q:
+    """RSS* / (level*^2 (1 + g)^2): the group ceiling's factor, so that a group with
+    level L has ceiling bar L^2 (relative_ceiling)."""
+    return Q(rss_star) / (Q(level_star) ** 2 * (1 + Q(g)) ** 2)
+
+
+def relative_ceiling(level: Q, bar: Optional[Q]) -> Optional[Q]:
+    """The RSS below which a design of a group with this level could have a key above
+    the incumbent's (at g = 0, exactly the designs that beat it): bar level^2; None
+    when there is no incumbent."""
+    if bar is None:
+        return None
+    return bar * Q(level) ** 2
+
+
+def beats(level: Q, rss: Q, level_star: Q, rss_star: Q) -> bool:
+    """Whether a design with this level and RSS has a strictly larger relative key
+    than the incumbent's: level^2 RSS* > level*^2 RSS, the key being level over a
+    constant times sqrt(RSS) (module docstring)."""
+    return Q(level) ** 2 * Q(rss_star) > Q(level_star) ** 2 * Q(rss)
+
+
+def _check_levels(M) -> None:
+    """Refuse a geo whose mean is not positive (MlsynthDataError, naming each),
+    every geo being eligible for the treatment group."""
+    check_positive_levels(M, range(M.shape[1]), list(range(M.shape[1])),
+                          need="the certified search ranks designs by relative MDE, a required impact "
+                               "as a share of the treated group's level, which needs a positive level",
+                          remedy="Pass the raw panel, not a centred one, and drop those geos.")
+
+
+def rss_floor(M, T: Sequence[int], lam: Optional[Q], yy: Union[None, float, Q] = None,
+              sign: int = 1) -> Union[float, Q]:
+    """A lower bound on the RSS of every design whose treatment group is T and whose
+    slope has the sign ``sign`` (module docstring), a double or 0; 0 when lam is None.
+    ``yy`` is the group's y'y or a double above it (all the cap needs), computed here
+    when not given. The bound is the hull's at the NNLS point over the box
+    {0 <= x <= cap} for the series sign y, box_bound_float."""
     if lam is None:
         return Q(0)
     y, X, _ = _split(M, T)
+    y = sign * y
     if yy is None:
         yy = square_sum(y)
     cap = slope_cap(yy, lam)
     w, _ = nnls(X, y)
     fl = box_bound_float(y, X, np.minimum(w, cap), cap)
     return fl if fl > 0 else Q(0)
-
-
-def ceiling(yy: Q, r_star: Optional[Q], rss_star: Optional[Q]) -> Optional[Q]:
-    """The RSS below which a design of a group with y'y = ``yy`` could have a key
-    above the incumbent's, whose rounded correlation is ``r_star`` and RSS
-    ``rss_star``; None when there is no incumbent.
-
-    A design's corr^2 is 1 - RSS / y'y. At or below yy (1 - up^2) its correlation
-    could round above the incumbent's class, so it competes whatever its RSS; at or
-    above yy (1 - low^2) it cannot reach the class; between them it is in the class
-    and competes when its RSS is below the incumbent's."""
-    if r_star is None:
-        return None
-    up = r_star + EDGE - SLACK            # below up, round(corr, 2) <= r_star
-    low = r_star - EDGE - SLACK           # below low, round(corr, 2) < r_star
-    return max(yy * (1 - up * up), min(rss_star, yy * (1 - low * low)))
-
-
-def can_compete(yy: Q, floor: Q, r_star: Optional[Q], rss_star: Optional[Q]) -> bool:
-    """Whether a group whose designs have RSS at least ``floor`` (and y'y = ``yy``)
-    could have a design whose key is above the incumbent's (see ceiling)."""
-    c = ceiling(yy, r_star, rss_star)
-    return c is None or floor < c
 
 
 #: The relative margin of the float bracket and the float screen: 2^-48, 32 units of
@@ -312,63 +335,131 @@ def yy_bracket(y) -> Optional[Tuple[float, float]]:
     return s * (1 - _MARGIN), s * (1 + _MARGIN)
 
 
-@functools.lru_cache(maxsize=16)
-def _class_doubles(r_star: Q, rss_star: Q):
-    """1 - up^2, 1 - low^2 and the incumbent's RSS (ceiling's terms) as doubles, each
-    rounded once; None in place of 1 - up^2 when it is not positive. 1 - low^2 is
-    not positive only for a class near -1, where 1 - up^2 is (up - low is 2 EDGE),
-    so the ceiling there is yy (1 - up^2) in doubles and in rationals alike."""
-    up = r_star + EDGE - SLACK
-    low = r_star - EDGE - SLACK
-    a, b = 1 - up * up, 1 - low * low
-    return (float(a) if a > 0 else None), float(b), float(rss_star)
+#: The unit roundoff of a double.
+_U = 2.0 ** -53
 
 
-def compete_bracket(floor: Q, lo: float, hi: float, r_star: Optional[Q],
-                    rss_star: Optional[Q]) -> Optional[bool]:
-    """can_compete(yy, floor, r_star, rss_star) for every yy in [lo, hi] when the
-    doubles show one answer for all of them, else None.
-
-    ceiling(yy) = max(yy (1 - up^2), min(rss_star, yy (1 - low^2))) is nondecreasing
-    in yy, its second term being nonnegative and growing, and its first at most zero
-    whenever 1 - up^2 is: so the group competes at every yy in the bracket when the
-    floor is below ceiling(lo), and at none when it is at least ceiling(hi). Each
-    ceiling is computed in doubles from terms rounded once, by products rounded once,
-    and compared with the floor rounded once across a relative margin of 2^-48:
-    from normal positive operands the roundings move each side by under 5 * 2^-53
-    (derived here). A ceiling below 2^-1000, where rounding is not relative, is left
-    undecided; the floor needs no such guard, a floor rounded to a subnormal double
-    being within 2^-1074 of it, far below a ceiling of 2^-1000 times the margin."""
-    if r_star is None:
-        return True
-    a, b, rss = _class_doubles(r_star, rss_star)
-
-    def ceil(yy):
-        second = min(rss, yy * b)
-        return second if a is None else max(yy * a, second)
-
-    f = float(floor)
-    c_lo, c_hi = ceil(lo), ceil(hi)
-    if c_lo >= _NORMAL and f < c_lo * (1 - _MARGIN):
-        return True
-    if c_hi >= _NORMAL and f * (1 - _MARGIN) >= c_hi:
-        return False
-    return None
+def level_doubles(sums: Sequence[Q], n: int) -> np.ndarray:
+    """Each geo's level, sum / n, rounded once to a double (a Fraction's float is the
+    correctly rounded value): the float screen's terms."""
+    return np.array([float(s / n) for s in sums], dtype=float)
 
 
-YYBound = Union[Tuple[float, float], Q]
+def _screen_terms(bar: Optional[Q], ell: np.ndarray, k: int):
+    """(bar as a double, the levels as doubles, the margin) for the float screen, or
+    None when it is not shown to hold: no incumbent, or a bar or a level below 2^-1000,
+    where rounding is not relative.
+
+    The margin is (8 k + 16) 2^-53. A group's level in doubles, the sum of its k
+    rounded levels in any order, is within a relative gamma_k of its level, every term
+    being positive (gamma_m = m u / (1 - m u), Higham 2002, Sect. 3.1); its square and
+    the product with the bar, each rounded once, put the computed ceiling within
+    gamma_{2k+3} of bar L^2, and the product with 1 + margin rounds once more. A floor
+    at or above the computed bar L^2 (1 + margin) is therefore at or above bar L^2
+    whenever the margin is at least twice gamma_{2k+4}, which (8 k + 16) u is while
+    (2k + 4) u <= 1/2 (derived here)."""
+    if bar is None:
+        return None
+    try:
+        b = float(bar)
+    except OverflowError:                # a bar past the doubles: nothing is dropped in doubles
+        return None
+    if not (b >= _NORMAL and math.isfinite(b)) or not bool(np.all(ell >= _NORMAL)):
+        return None
+    return b, ell, (8 * k + 16) * _U
 
 
-def _competes(floor: Q, yy: YYBound, exact: Callable[[], Q], r_star: Optional[Q],
-              rss_star: Optional[Q]) -> bool:
-    """can_compete for a row whose y'y is a float bracket (decided in doubles where
-    compete_bracket can, else at the exact y'y that ``exact`` returns) or exact."""
-    if isinstance(yy, tuple):
-        got = compete_bracket(floor, yy[0], yy[1], r_star, rss_star)
-        if got is not None:
-            return got
-        yy = exact()
-    return can_compete(yy, floor, r_star, rss_star)
+def _drop_side(fl, Lhat, b, margin) -> np.ndarray:
+    """Whether a sign's floor ``fl`` is shown in doubles to be at or above its group's
+    ceiling (_screen_terms): the ceiling b L^2 computed as b (L L), a normal finite
+    double, and the floor at or above it times 1 + margin. A nan floor (left to
+    rss_floor) or a ceiling the doubles do not carry is never dropped."""
+    fl = np.asarray(fl, dtype=float); Lhat = np.asarray(Lhat, dtype=float)
+    with np.errstate(over="ignore", invalid="ignore"):
+        sq = Lhat * Lhat
+        c = b * sq
+        return (np.isfinite(fl) & np.isfinite(c) & (sq >= _NORMAL) & (c >= _NORMAL)
+                & (fl >= c * (1 + margin)))
+
+
+def _kernel_floors(M, lam, groups):
+    """The compiled floors of each group on y and on -y (fastfloor.floors)."""
+    Mc = np.ascontiguousarray(M, dtype=float)
+    G = np.ascontiguousarray(Mc.T @ Mc)
+    g = np.asarray(groups, dtype=np.int64)
+    return (fastfloor.floors(Mc, G, g, float(lam), 1.0)[0],
+            fastfloor.floors(Mc, G, g, float(lam), -1.0)[0])
+
+
+def _side(M, lam, T, f, sign):
+    """A kernel floor as a row carries it: rss_floor's where the kernel left the
+    group (nan), else the floor clipped at zero."""
+    if math.isnan(f):
+        return rss_floor(M, T, lam, sign=sign)
+    return f if f > 0 else Q(0)
+
+
+def _floor_row(M, lam, T):
+    """(floor on y, floor on -y, T) for the group T, in Python."""
+    y = _split(M, T)[0]
+    b = yy_bracket(y)
+    yy = b[1] if b is not None else square_sum(y)
+    return rss_floor(M, T, lam, yy=yy, sign=1), rss_floor(M, T, lam, yy=yy, sign=-1), T
+
+
+def _floor_chunk(M, lam, groups):
+    """(floor on y, floor on -y, T) for each group. With numba installed, fastfloor
+    computes the chunk in one compiled loop per sign, and a group it leaves (a nan
+    floor) takes rss_floor for that sign."""
+    if lam is None or not fastfloor.AVAILABLE or len(groups) == 0:
+        return [_floor_row(M, lam, _group(T)) for T in groups]
+    fp, fm = _kernel_floors(M, lam, groups)
+    out = []
+    for a, b, T in zip(fp, fm, groups):
+        T = _group(T)
+        out.append((_side(M, lam, T, a, 1), _side(M, lam, T, b, -1), T))
+    return out
+
+
+def _floor_chunk_screened(M, lam, groups, scr):
+    """_floor_chunk's rows less those the float screen shows cannot compete, both
+    signs' floors being at or above the group's ceiling (_drop_side), and how many it
+    dropped. ``scr`` is _screen_terms' (bar, levels, margin), or None for no screen."""
+    if scr is None:
+        return _floor_chunk(M, lam, groups), 0
+    b, ell, margin = scr
+    if lam is None or not fastfloor.AVAILABLE or len(groups) == 0:
+        rows = _floor_chunk(M, lam, groups)
+        keep = []
+        for row in rows:
+            L = np.array([float(ell[list(row[2])].sum())])
+            if not (_drop_side([float(row[0])], L, b, margin)[0] and _drop_side([float(row[1])], L, b, margin)[0]):
+                keep.append(row)
+        return keep, len(rows) - len(keep)
+    g = np.asarray(groups, dtype=np.int64)
+    fp, fm = _kernel_floors(M, lam, g)
+    Lhat = ell[g].sum(axis=1)
+    drop = _drop_side(fp, Lhat, b, margin) & _drop_side(fm, Lhat, b, margin)
+    out = []
+    for i in np.flatnonzero(~drop):
+        T = _group(g[i])
+        out.append((_side(M, lam, T, fp[i], 1), _side(M, lam, T, fm[i], -1), T))
+    return out, int(drop.sum())
+
+
+def _screened_floor_rows(M, groups, lam, pool, n_jobs, scr):
+    """_floor_rows screened where the floors are computed (_floor_chunk_screened):
+    the rows that may compete, in the order given, and how many were dropped. The
+    search calls _streamed_floor_rows, which builds the groups in the workers; this
+    form over a list of groups is its reference in the tests. The incumbent only
+    improves, so a row that cannot compete at this point cannot compete later."""
+    if pool is None or len(groups) < 2:
+        return _floor_chunk_screened(M, lam, groups, scr)
+    n = min(len(groups), 4 * n_jobs)
+    size = -(-len(groups) // n)
+    chunks = [groups[i:i + size] for i in range(0, len(groups), size)]
+    parts = _map(pool, _floor_chunk_screened, [(M, lam, c, scr) for c in chunks])
+    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)
 
 
 @dataclass
@@ -376,26 +467,47 @@ class TreatmentCertificate:
     """The outcome of :func:`certify_treatment` for one treatment size."""
 
     k: int
-    treatment: Optional[List[int]]          # None when no design of the size passes
+    treatment: Optional[List[int]]          # None only when every design fits exactly
     controls: Optional[List[int]]
-    key: Optional[tuple]
-    rss: Optional[Q]
-    passing: bool
+    key: Optional[float]                    # the library's relative key at the design: level / required impact
+    rss: Optional[Q]                        # its RSS, on the panel centred in doubles
+    level: Optional[Q]                      # its treated aggregate's mean over the raw window, exact
+    slope: Optional[int]                    # the sign of its slope, +1 or -1
     certified: bool                         # every group not ruled out was certified
     groups: int
     screened_out: int
     replaced: int = 0                       # times a survivor replaced the incumbent
     searched: int = 0                       # groups given a local search before certification
-    pass_key: Optional[tuple] = None        # the incumbent's key when the pass ends
+    pass_key: Optional[float] = None        # the incumbent's key when the pass ends
     retried: int = 0                        # open groups certified again at the final ceiling
-    gap: Q = Q(0)                           # the relative gap in required impact the certificate holds at
+    gap: Q = Q(0)                           # the relative gap in the key the certificate holds at
+    gates: Optional[Dict[str, bool]] = None  # the reference key's four gates at the design; they rank nothing
     survivors: List[dict] = field(default_factory=list)
     seconds: float = 0.0
 
 
+@dataclass
+class _Design:
+    """A design of one treatment group: its controls (geo indices), exact RSS and
+    slope sign."""
+    controls: List[int]
+    rss: Q
+    slope: int
+
+
+@dataclass
+class _GroupOutcome:
+    """A group's certification: its least-RSS design below the ceiling (None when no
+    design is), whether every sign run closed, and the signs run."""
+    design: Optional[_Design]
+    certified: bool
+    signs: Tuple[int, ...]
+
+
 def _start(M, k, n_test, restarts, pool=None):
-    """The library's greedy search and local search (#964), every geo eligible for
-    every role: the first incumbent's treatment and control groups at size k.
+    """The library's greedy search and local search (#964) under the relative key,
+    every geo eligible for every role: the first incumbent's treatment and control
+    groups at size k, M the raw panel.
 
     With a pool, local_search's restarts run on it. Its draws come from one generator
     seeded 0 and each descent depends only on its draw, so the draws are made here in
@@ -406,13 +518,14 @@ def _start(M, k, n_test, restarts, pool=None):
     from mlsynth.utils.tbr_helpers.design.search import greedy_search
 
     roles = [frozenset({"treatment", "control", "unassigned"})] * M.shape[1]
-    out = greedy_search(M, roles, max_treatment_size=k, n_test=n_test, objective="reference")
+    out = greedy_search(M, roles, max_treatment_size=k, n_test=n_test, objective="relative")
     if pool is None:
-        best = lib_local.local_search(M, roles, out[-1], n_test=n_test, restarts=restarts, seed=0)
+        best = lib_local.local_search(M, roles, out[-1], n_test=n_test, restarts=restarts, seed=0,
+                                      objective="relative")
         return sorted(best.treatment), sorted(best.control)
     if restarts < 0:
         raise MlsynthDataError(f"restarts is {restarts}; it cannot be negative.")
-    first = lib_local.local_search(M, roles, out[-1], n_test=n_test, restarts=0, seed=0)
+    first = lib_local.local_search(M, roles, out[-1], n_test=n_test, restarts=0, seed=0, objective="relative")
     best = (first.score.key, first.treatment, first.control)
     rng = np.random.default_rng(0)
     draws = [d for d in (lib_local._random_design(rng, roles, out[-1].k) for _ in range(restarts))
@@ -425,49 +538,54 @@ def _start(M, k, n_test, restarts, pool=None):
 
 
 def _descend(M, roles, T, C, n_test):
-    """local_search's descent from the design (T, C), as one of its restarts runs it:
-    (key, treatment, control) of the design it ends at."""
+    """local_search's descent from the design (T, C) under the relative key, as one of
+    its restarts runs it: (key, treatment, control) of the design it ends at."""
     from mlsynth.utils.tbr_helpers.design.local import local_search
-    from mlsynth.utils.tbr_helpers.design.objective import score_split
     from mlsynth.utils.tbr_helpers.design.search import SearchOutcome
 
     score = score_split(M[:, sorted(T)].sum(axis=1), M[:, sorted(C)].sum(axis=1),
-                        objective="reference", n_test=n_test)
+                        objective="relative", n_test=n_test)
     start = SearchOutcome(k=len(T), treatment=sorted(T), control=sorted(C), unassigned=[], score=score,
                           trace=[], converged=True, evaluations=0)
-    best = local_search(M, roles, start, n_test=n_test, restarts=0, seed=0)
+    best = local_search(M, roles, start, n_test=n_test, restarts=0, seed=0, objective="relative")
     return best.score.key, best.treatment, best.control
 
 
-def _design(M, T, C, n_test):
-    """The design (T, C), C in geo indices, as _local reports one: C in the group's
-    control indices, the reference key when it has a positive slope and passes the
-    four gates (else None), its exact RSS, and the group's controls."""
-    y, X, rest = _split(M, T)
+def _fits(M, T, C, n_test) -> bool:
+    """Whether the library scores the design (T, C) of the raw panel M at all: False
+    for an exact fit, which it scores -inf (#1000)."""
+    return bool(np.isfinite(score_split(M[:, sorted(T)].sum(axis=1), M[:, sorted(C)].sum(axis=1),
+                                        objective="relative", n_test=n_test).key[0]))
+
+
+def _design(Mc, M, T, C, n_test) -> Optional[_Design]:
+    """The design (T, C), C in geo indices: its exact RSS on the centred panel Mc,
+    y'y - (c'u)^2 / u'Gu at either slope sign, and the sign of c'u; None for an exact
+    fit."""
+    y, X, rest = _split(Mc, T)
     Cg = sorted(rest.index(j) for j in C)
     cu, uGu, yy = design_moments(y, X, Cg)
-    ratio = cu * cu / uGu if cu > 0 else Q(0)
-    gates, key = gates_of(y, X, Cg, n_test)
-    return Cg, (key if cu > 0 and all(gates) else None), yy - ratio, rest
+    if not _fits(M, T, C, n_test):
+        return None
+    return _Design(sorted(C), yy - cu * cu / uGu, 1 if cu >= 0 else -1)
 
 
-def _yy(M, T):
-    y, _, _ = _split(M, T)
-    return square_sum(y)
-
-
-def _local(M, T, n_test, restarts):
-    """The study's RSS descent in group T from ``restarts`` random starts: its design
-    (indices into the group's controls), the reference key when the design has a
-    positive slope and passes the four gates (else None), and its exact RSS."""
+def _local(Mc, M, T, n_test, restarts):
+    """The study's RSS descent in group T on y and on -y from ``restarts`` random
+    starts: the design each sign's descent ends at (control indices of the group, by
+    sign, for that sign's certificate to start from), and the better of the two as a
+    _Design (None when both fit exactly)."""
     from .search import incumbent
 
-    y, X, rest = _split(M, T)
-    _, C = incumbent(y, X, restarts=restarts)
-    cu, uGu, yy = design_moments(y, X, C)
-    ratio = cu * cu / uGu if cu > 0 else Q(0)
-    gates, key = gates_of(y, X, C, n_test)
-    return sorted(C), (key if cu > 0 and all(gates) else None), yy - ratio, rest
+    y, X, rest = _split(Mc, T)
+    starts, best = {}, None
+    for s in SIGNS:
+        _, C = incumbent(s * y, X, restarts=restarts)
+        starts[s] = sorted(C)
+        d = _design(Mc, M, T, [rest[j] for j in C], n_test)
+        if d is not None and (best is None or d.rss < best.rss):
+            best = d
+    return starts, best
 
 
 def _pool(n_jobs):
@@ -494,99 +612,6 @@ def _group(T) -> tuple:
     return tuple(int(v) for v in T)
 
 
-def _floor_row(M, lam, T):
-    y = _split(M, T)[0]
-    b = yy_bracket(y)
-    yy = b if b is not None else square_sum(y)
-    return rss_floor(M, T, lam, yy=b[1] if b is not None else yy), yy, T
-
-
-def _floor_chunk(M, lam, groups):
-    """(floor, y'y, T) for each group, the y'y a float bracket (yy_bracket) or, for a
-    series that leaves none, exact; the floor's cap reads the bracket's top, a bound
-    on y'y from above being all the cap needs. With numba installed, fastfloor
-    computes the chunk in one compiled loop, and a group it leaves (a nan floor) takes
-    this path."""
-    if lam is None or not fastfloor.AVAILABLE or len(groups) == 0:
-        return [_floor_row(M, lam, _group(T)) for T in groups]
-    Mc = np.ascontiguousarray(M, dtype=float)
-    fl, lo, hi = fastfloor.floors(Mc, np.ascontiguousarray(Mc.T @ Mc), np.asarray(groups, dtype=np.int64),
-                                  float(lam))
-    out = []
-    for f, a, b, T in zip(fl, lo, hi, groups):
-        T = _group(T)
-        if math.isnan(f):
-            out.append(_floor_row(M, lam, T))
-        else:
-            out.append((f if f > 0 else Q(0), (float(a), float(b)), T))
-    return out
-
-
-def _screen_mask(fl, lo, hi, r_star: Optional[Q], rss_star: Optional[Q]) -> np.ndarray:
-    """For each kernel row (floor ``fl``, bracket [lo, hi]), whether
-    compete_bracket(floor, lo, hi, r_star, rss_star) is False for the row as
-    _floor_chunk builds it (floor 0 when the kernel's is not positive): the same
-    doubles, the same products and comparisons, element by element. A row with a nan
-    (left to rss_floor) is never in the mask."""
-    fl, lo, hi = (np.asarray(v, dtype=float) for v in (fl, lo, hi))
-    if r_star is None:
-        return np.zeros(fl.shape, dtype=bool)
-    a, b, rss = _class_doubles(r_star, rss_star)
-
-    def ceil(yy):
-        second = np.minimum(rss, yy * b)
-        return second if a is None else np.maximum(yy * a, second)
-
-    with np.errstate(invalid="ignore"):
-        f = np.where(fl > 0, fl, 0.0)
-        c_lo, c_hi = ceil(lo), ceil(hi)
-        competes = (c_lo >= _NORMAL) & (f < c_lo * (1 - _MARGIN))
-        refused = (c_hi >= _NORMAL) & (f * (1 - _MARGIN) >= c_hi)
-    return np.isfinite(fl) & np.isfinite(lo) & np.isfinite(hi) & refused & ~competes
-
-
-def _floor_chunk_screened(M, lam, groups, cls):
-    """_floor_chunk's rows less those the float screen shows cannot compete against
-    the class ``cls`` = (r_star, rss_star), and how many it dropped. With the kernel
-    the screen reads its arrays (_screen_mask) and only the rows kept become Python
-    rows; without it, each row with a float bracket is screened by compete_bracket."""
-    r_star, rss_star = cls
-    if r_star is None:
-        return _floor_chunk(M, lam, groups), 0
-    if lam is None or not fastfloor.AVAILABLE or len(groups) == 0:
-        rows = _floor_chunk(M, lam, groups)
-        keep = [r for r in rows
-                if not (isinstance(r[1], tuple) and compete_bracket(r[0], r[1][0], r[1][1], r_star, rss_star) is False)]
-        return keep, len(rows) - len(keep)
-    Mc = np.ascontiguousarray(M, dtype=float)
-    fl, lo, hi = fastfloor.floors(Mc, np.ascontiguousarray(Mc.T @ Mc), np.asarray(groups, dtype=np.int64),
-                                  float(lam))
-    drop = _screen_mask(fl, lo, hi, r_star, rss_star)
-    out = []
-    for i in np.flatnonzero(~drop):
-        f, T = fl[i], _group(groups[i])
-        if math.isnan(f):
-            out.append(_floor_row(M, lam, T))
-        else:
-            out.append((f if f > 0 else Q(0), (float(lo[i]), float(hi[i])), T))
-    return out, int(drop.sum())
-
-
-def _screened_floor_rows(M, groups, lam, pool, n_jobs, cls):
-    """_floor_rows screened where the floors are computed (_floor_chunk_screened):
-    the rows that may compete with the class ``cls``, in the order given, and how many
-    were dropped. The search calls _streamed_floor_rows, which builds the groups in the
-    workers; this form over a list of groups is its reference in the tests. The incumbent only improves, so a row that cannot compete with the
-    class at this point cannot compete later."""
-    if pool is None or len(groups) < 2:
-        return _floor_chunk_screened(M, lam, groups, cls)
-    n = min(len(groups), 4 * n_jobs)
-    size = -(-len(groups) // n)
-    chunks = [groups[i:i + size] for i in range(0, len(groups), size)]
-    parts = _map(pool, _floor_chunk_screened, [(M, lam, c, cls) for c in chunks])
-    return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)
-
-
 #: Groups built and floored at a time in _floor_range_screened: 2^18 rows, 12.6 MB of
 #: int64 at six treated, and nothing of the range's Python rows but the kept ones.
 FLOOR_BLOCK = 1 << 18
@@ -610,7 +635,8 @@ def _unrank(r: int, p: int, k: int) -> tuple:
     return tuple(T)
 
 
-def _floor_range_screened(M, lam, p, k, lo, hi, cls, block=None):
+
+def _floor_range_screened(M, lam, p, k, lo, hi, scr, block=None):
     """_floor_chunk_screened over the k-subsets of range(p) of rank lo to hi - 1, in
     order: built ``block`` at a time from the first subset of each block
     (fastfloor.combinations_from), so only a block and the kept rows are held."""
@@ -619,38 +645,39 @@ def _floor_range_screened(M, lam, p, k, lo, hi, cls, block=None):
     while r < hi:
         n = min(block, hi - r)
         groups = fastfloor.combinations_from(np.array(_unrank(r, p, k), dtype=np.int64), n, p)
-        part, d = _floor_chunk_screened(M, lam, groups, cls)
+        part, d = _floor_chunk_screened(M, lam, groups, scr)
         rows += part
         dropped += d
         r += n
     return rows, dropped
 
 
-def _streamed_floor_rows(M, p, k, lam, pool, n_jobs, cls):
+def _streamed_floor_rows(M, p, k, lam, pool, n_jobs, scr):
     """_screened_floor_rows over every k-subset of range(p), without the list: the
     ranks in chunks over the pool, four per worker as there, each worker building its
     own range. The rows, their order and the dropped count are the list's."""
     total = comb(p, k)
     if pool is None or total < 2:
-        return _floor_range_screened(M, lam, p, k, 0, total, cls)
+        return _floor_range_screened(M, lam, p, k, 0, total, scr)
     n = min(total, 4 * n_jobs)
     size = -(-total // n)
     cuts = [(lo, min(lo + size, total)) for lo in range(0, total, size)]
-    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, cls) for lo, hi in cuts])
+    parts = _map(pool, _floor_range_screened, [(M, lam, p, k, lo, hi, scr) for lo, hi in cuts])
     return [r for rows, _ in parts for r in rows], sum(d for _, d in parts)
 
 
-def _ratio(row) -> float:
-    """The row's floor over its y'y in doubles: the queue's order, one minus the
-    group's squared-correlation bound."""
-    floor, yy, _ = row
-    top = yy[1] if isinstance(yy, tuple) else float(yy)
-    return float(floor) / top if top > 0 else math.inf
+def _bound_order(row, ell) -> float:
+    """The queue's order: the smaller of the row's two floors over its level squared,
+    in doubles, the reciprocal of a bound on its best key squared up to the common
+    constant; best bound first."""
+    fp, fm, T = row
+    L = float(ell[list(T)].sum())
+    return min(float(fp), float(fm)) / (L * L)
 
 
 def _floor_rows(M, groups, lam, pool, n_jobs):
-    """(floor, y'y, T) for each group, in the order given: in chunks over the pool,
-    four per worker, so a slow chunk does not hold the others."""
+    """(floor on y, floor on -y, T) for each group, in the order given: in chunks over
+    the pool, four per worker, so a slow chunk does not hold the others."""
     if pool is None or len(groups) < 2:
         return _floor_chunk(M, lam, groups)
     n = min(len(groups), 4 * n_jobs)
@@ -742,22 +769,52 @@ class _Lender:
             self.lent.value -= n
 
 
-def _optimum_timed(M, T, n_test, restarts, ceiling=None, start=None):
+def _optimum_timed(Mc, M, T, n_test, restarts, ceiling, floors, starts):
     t0 = time.perf_counter()
-    res, C = _optimum(M, T, n_test, restarts, ceiling=ceiling, start=start)
-    return res, C, time.perf_counter() - t0
+    res = _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts)
+    return res, time.perf_counter() - t0
 
 
-def _optimum(M, T, n_test, restarts, ceiling=None, start=None):
+def _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts) -> _GroupOutcome:
+    """Group T certified against ``ceiling`` (None: its own optimum): each sign whose
+    floor is below the ceiling is a certify_slope_free on that sign's series, from its
+    pass design in ``starts`` when there is one. A design the library scores -inf is
+    excluded and the sign certified again. The group's design is the lower-RSS of the
+    signs' designs below the ceiling."""
+    from .slopefree import NoDesignLeft, certify_slope_free
+
     with tagged(treatment=tuple(T)):
+        t0 = time.perf_counter()
         emit("group", treatment=tuple(T), ceiling=ceiling)
-        y, X, rest = _split(M, T)
-        kw = {} if start is None else {"start": set(start)}
-        res = certify_gated(y, X, n_test=n_test, restarts=restarts, ceiling=ceiling, **kw)
-        C = [rest[j] for j in res.controls] if res.passing else None
-        emit("group-done", treatment=tuple(T), certified=res.certified, passing=res.passing,
-             rounds=len(res.rounds), seconds=res.seconds)
-        return res, C
+        y, X, rest = _split(Mc, T)
+        best, certified, run = None, True, []
+        for s, f in zip(SIGNS, floors):
+            if ceiling is not None and not Q(f) < ceiling:
+                continue
+            run.append(s)
+            excluded: List[set] = []
+            while True:
+                kw = {} if starts.get(s) is None else {"start": set(starts[s])}
+                try:
+                    r = certify_slope_free(s * y, X, restarts=restarts, exclude=excluded, ceiling=ceiling, **kw)
+                except NoDesignLeft:             # no design of this sign is left
+                    break
+                if not r.certified:
+                    certified = False
+                    break
+                if r.ceiling_held:               # no design of this sign is below the ceiling
+                    break
+                C = [rest[j] for j in r.controls]
+                if not _fits(M, T, C, n_test):   # an exact fit: the library never ranks it
+                    excluded.append(set(r.controls))
+                    continue
+                rss = Q(r.incumbent)
+                if best is None or rss < best.rss:
+                    best = _Design(sorted(C), rss, s)
+                break
+        emit("group-done", treatment=tuple(T), certified=certified, found=best is not None, signs=len(run),
+             seconds=time.perf_counter() - t0)
+        return _GroupOutcome(best, certified, tuple(run))
 
 
 def _checked_gap(gap) -> Q:
@@ -776,28 +833,29 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
                       restarts: int = 50, pass_restarts: int = 10, gap=0,
                       n_jobs: int = 1, verbose: int = 0, progress=None, log=None,
                       log_level: int = 3) -> TreatmentCertificate:
-    """The reference key's best design with ``k`` treatment geos over the columns of
-    ``M`` (centred, periods by geos, every geo eligible for every role), certified
-    (module docstring). ``pass_restarts`` random starts for the local search each
-    surviving group gets before any is certified; 0 skips the pass. With ``gap`` g
-    above zero the certificate holds within g (module docstring, "The gap"): every
-    design that beats the reported one is in its correlation class and needs a
-    required impact above 1 / (1 + g) of the reported design's. ``n_jobs``
-    processes compute the floors, the pass and the certifications (module
-    docstring); 1 runs them in this process. ``verbose``, ``progress`` and ``log``
-    report the search's progress (progress.reporting), each group's events tagged
-    with the group, from the workers too."""
+    """The relative key's best design with ``k`` treatment geos over the columns of
+    the raw panel ``M`` (periods by geos, every geo eligible for every role, every
+    geo's mean positive), certified (module docstring). ``start`` is a treatment group
+    to search first in place of the library's design. ``pass_restarts`` random starts
+    for the RSS descent each group that can compete gets on each slope sign before any
+    is certified; 0 skips the pass. With ``gap`` g above zero the certificate holds
+    within g: no design's key exceeds 1 + g times the reported design's. ``n_jobs``
+    processes compute the floors, the pass and the certifications (module docstring);
+    1 runs them in this process. ``verbose``, ``progress`` and ``log`` report the
+    search's progress (progress.reporting), each group's events tagged with the group,
+    from the workers too."""
     with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):
         out = _certify_treatment_entry(M, k, n_test=n_test, start=start, restarts=restarts,
                                        pass_restarts=pass_restarts, gap=gap, n_jobs=n_jobs)
-        emit("treatment-done", certified=out.certified, treatment=out.treatment, rss=out.rss,
-             passing=out.passing, survivors=len(out.survivors), seconds=out.seconds)
+        emit("treatment-done", certified=out.certified, treatment=out.treatment, key=out.key,
+             survivors=len(out.survivors), seconds=out.seconds)
         return out
 
 
 def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, gap, n_jobs) -> TreatmentCertificate:
     t0 = time.perf_counter()
     M = _checked_panel(M)
+    _check_levels(M)
     p = M.shape[1]
     if not 1 <= k <= p - 1:
         raise MlsynthDataError(f"a treatment group of {k} geos leaves no control among {p} geos; "
@@ -824,103 +882,116 @@ def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, ga
 def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0, lender=None):
     if start is not None and len(set(start)) != k:
         raise MlsynthDataError(f"the start treatment group has {len(set(start))} geos, not {k}.")
+    n = M.shape[0]
+    Mc = M - M.mean(axis=0)
+    sums = geo_sums(M)
+    if not all(s > 0 for s in sums):    # pragma: no cover - _check_levels refuses a mean the doubles show is not positive
+        raise MlsynthDataError("every geo's level has to be positive.")
+    ell = level_doubles(sums, n)
+    levels = {}
+
+    def level(T):
+        T = tuple(T)
+        if T not in levels:
+            levels[T] = group_level(sums, T, n)
+        return levels[T]
+
+    out = TreatmentCertificate(k=k, treatment=None, controls=None, key=None, rss=None, level=None, slope=None,
+                               certified=True, groups=comb(p, k), screened_out=0, gap=g)
+    inc = {}
+
+    def take(T, d: _Design):
+        inc.update(T=list(T), C=list(d.controls), rss=d.rss, level=level(T), slope=d.slope)
+
+    def bar():
+        return None if not inc else relative_bar(inc["rss"], inc["level"], g)
+
     if start is not None:
         T0 = sorted(start)
-        C0, key0, rss0, rest0 = _local(M, T0, n_test, restarts)
-    else:                                   # the library's design, which its own search scored
-        T0, Cs = _start(M, k, n_test, restarts, pool)
-        C0, key0, rss0, rest0 = _design(M, T0, Cs, n_test)
-    out = TreatmentCertificate(k=k, treatment=None, controls=None, key=None, rss=None, passing=False,
-                               certified=True, groups=comb(p, k), screened_out=0, gap=g)
-    shrink = (1 + g) ** 2                   # the target RSS is the incumbent's over this
-
-    def take(T, res, C):
-        out.treatment, out.controls, out.rss, out.passing = list(T), sorted(C), res.rss, True
-        out.key = res.key
-
-    local = {tuple(T0): (C0, key0)}         # the first incumbent, not yet certified
-    if key0 is not None:
-        out.treatment, out.controls, out.rss, out.key = list(T0), sorted(rest0[j] for j in C0), rss0, key0
-        out.passing = True
+        starts0, d0 = _local(Mc, M, tuple(T0), n_test, restarts)
+    else:
+        T0, C0 = _start(M, k, n_test, restarts, pool)
+        starts0, d0 = {}, _design(Mc, M, T0, C0, n_test)
+    if d0 is not None:
+        take(T0, d0)
+    local = {tuple(T0): starts0}
+    found = {} if d0 is None else {tuple(T0): d0}
     left_open = []
-    held = [None, None, (None, None)]
-
-    def class_of():                         # the incumbent's class and target RSS, rebuilt when it changes
-        if out.key is None:
-            return (None, None)
-        if held[0] is not out.key or held[1] is not out.rss:
-            held[0], held[1], held[2] = out.key, out.rss, (Q(out.key[4]), out.rss / shrink if g else out.rss)
-        return held[2]
-
-    lam = gram_floor(M)                     # rows that cannot compete with the start's class are dropped where computed
-    rows, dropped = _streamed_floor_rows(M, p, k, lam, pool, n_jobs, class_of())
-    out.screened_out += dropped
-    rows.sort(key=_ratio)                  # the highest correlation bound first
-    exact = {}
-
-    def exact_yy(T, yy):                    # a row's exact y'y, computed once a group
-        if not isinstance(yy, tuple):
-            return yy
-        if T not in exact:
-            exact[T] = _yy(M, T)
-        return exact[T]
 
     def competes(row):
-        floor, yy, T = row
-        return _competes(floor, yy, lambda: exact_yy(T, yy), *class_of())
+        fp, fm, T = row
+        c = relative_ceiling(level(T), bar())
+        return c is None or Q(fp) < c or Q(fm) < c
 
-    if pass_restarts:                       # the pass: group -> (design, key or None)
+    lam = gram_floor(Mc)                 # rows that cannot compete with the start are dropped where computed
+    rows, dropped = _streamed_floor_rows(Mc, p, k, lam, pool, n_jobs, _screen_terms(bar(), ell, k))
+    out.screened_out += dropped
+    rows.sort(key=lambda r: _bound_order(r, ell))      # the best key bound first
+
+    if pass_restarts:                       # the pass: each group's RSS descent on both signs
         for wave in _waves(rows, n_jobs, lambda r: r[2] not in local and competes(r)):
-            found = _map(pool, _local, [(M, T, n_test, pass_restarts) for _, _, T in wave])
-            for (_, _, T), (C, key, rss, rest) in zip(wave, found):   # in queue order
-                local[T] = (C, key)
+            got = _map(pool, _local, [(Mc, M, T, n_test, pass_restarts) for _, _, T in wave])
+            for (_, _, T), (starts, d) in zip(wave, got):   # in queue order
+                local[T] = starts
                 out.searched += 1
-                if key is not None and (out.key is None or key > out.key):
-                    out.treatment, out.controls, out.rss, out.key = list(T), sorted(rest[j] for j in C), rss, key
-                    out.passing = True
-        out.pass_key = out.key
-        # best local design first; groups with no passing design after, in correlation-bound order
-        rows.sort(key=lambda r: (local.get(r[2], (None, None))[1] is None,
-                                 tuple(-v for v in local[r[2]][1]) if local.get(r[2], (None, None))[1] else ()))
+                if d is not None:
+                    found[T] = d
+                    if not inc or beats(level(T), d.rss, inc["level"], inc["rss"]):
+                        take(T, d)
+        if inc:
+            out.pass_key = _key(M, inc, n_test)
+        # the best design found first, then the groups with none, in bound order
+        rows.sort(key=lambda r: (0, -float(level(r[2]) ** 2 / found[r[2]].rss)) if r[2] in found and found[r[2]].rss > 0
+                  else (1, _bound_order(r, ell)))
 
-    def admit(row):                         # screened against the incumbent as the wave fills
+    def admit(row):                         # screened against the incumbent as it stands
         if competes(row):
             return True
         out.screened_out += 1
         return False
 
-    def job(row):                           # screened and given its ceiling as it is submitted
-        _, yy, T = row
-        yy = exact_yy(T, yy)
-        c = ceiling(yy, *class_of())
-        seed, pass_key = local.get(T, (None, None))
-        return _optimum_timed, (M, T, n_test, restarts, c, seed), (yy, c, pass_key)
+    def job(row):                           # given its ceiling as it is submitted
+        fp, fm, T = row
+        c = relative_ceiling(level(T), bar())
+        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), local.get(T, {})), (c, (fp, fm))
 
     def commit(row, ctx, result):           # in queue order
-        T, (yy, c, pass_key), (res, C, secs) = row[2], ctx, result
+        T, (c, fl), (res, secs) = row[2], ctx, result
         if not res.certified:
-            left_open.append((list(T), yy, c))
-        out.survivors.append(dict(treatment=list(T), certified=res.certified, passing=res.passing,
-                                  key=res.key, rounds=len(res.rounds), stopped=res.stopped,
-                                  pass_key=pass_key, ceiling=c, seconds=secs, start=list(T) == T0))
-        if res.passing and (out.key is None or res.key > out.key):
-            take(T, res, C)
+            left_open.append((T, c, fl))
+        out.survivors.append(dict(treatment=list(T), certified=res.certified, found=res.design is not None,
+                                  signs=list(res.signs), ceiling=c, seconds=secs, start=list(T) == T0))
+        d = res.design
+        if d is not None and (not inc or beats(level(T), d.rss, inc["level"], inc["rss"])):
+            take(T, d)
             out.replaced += 1
 
     occupancy = None if lender is None else (lambda running: lender.set_free(n_jobs - running))
     _window(pool, n_jobs, rows, admit, job, commit, occupancy=occupancy)
     if lender is not None:
         lender.set_free(n_jobs - 1)          # the retries run here, with the pool idle
-    for T, yy, c_then in left_open:         # the incumbent only improves, so its ceiling only falls
-        c = ceiling(yy, *class_of())
+    for T, c_then, fl in left_open:         # the incumbent only improves, so its ceiling only falls
+        c = relative_ceiling(level(T), bar())
         if c is not None and (c_then is None or c < c_then):
             out.retried += 1
-            res, C = _optimum(M, T, n_test, restarts, ceiling=c)
-            if res.passing and res.key > out.key:
-                take(T, res, C)
+            res = _optimum(Mc, M, T, n_test, restarts, c, fl, local.get(T, {}))
+            d = res.design
+            if d is not None and beats(level(T), d.rss, inc["level"], inc["rss"]):
+                take(T, d)
                 out.replaced += 1
             if res.certified:
                 continue
         out.certified = False
+    if inc:
+        out.treatment, out.controls = sorted(inc["T"]), sorted(inc["C"])
+        out.rss, out.level, out.slope = inc["rss"], inc["level"], inc["slope"]
+        out.key = _key(M, inc, n_test)
+        out.gates = gates_of(M[:, out.treatment].sum(axis=1), M, out.controls, n_test)
     out.seconds = time.perf_counter() - t0
     return out
+
+
+def _key(M, inc, n_test) -> float:
+    """The library's relative key at the incumbent, on the raw panel."""
+    return float(score_split(M[:, sorted(inc["T"])].sum(axis=1), M[:, sorted(inc["C"])].sum(axis=1),
+                             objective="relative", n_test=n_test).key[0])

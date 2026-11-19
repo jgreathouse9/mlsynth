@@ -22,12 +22,12 @@ solves
 every selected control carrying the same slope `b`. That is the regression of
 the treatment aggregate on the control aggregate, Kerman, Wang and Vaver
 (2017), eq. (1), with the intercept absorbed by the centring. Au's required
-impact is proportional to `sqrt(RSS / (n - 2))`. With `T` fixed, `S_yy` is
-fixed and `RSS = S_yy (1 - corr^2)`, so the RSS-optimal control group also has
-the highest correlation and the highest rounded correlation, and it is the
-reference key's optimum for that treatment group whenever it passes the four
-gates. A design whose correlation is not positive fails the correlation gate,
-so only positive slopes matter.
+impact is proportional to `sqrt(RSS / (n - 2))`, so with `T` fixed the
+RSS-optimal control group is the one with the least required impact, the best
+design of the group under the relative key the study certifies (The key). The
+slope can have either sign; a design with a negative slope for `y` is one with a
+positive slope for `-y` and the same RSS, so the formulation below, written for
+positive slopes, is solved on `y` and on `-y`.
 
 With `w = b u` and `b` in a slope piece `[lo, hi]`, size `m = |C|`, every
 feasible `w` lies in `{0 <= w <= hi, m lo <= sum w <= m hi}`.
@@ -298,75 +298,72 @@ convex (derived here), so its maximum over the hull need not be at a vertex.
 Their reported times (rank 4, 35 generators: 13,160 cells in 171 s) would have
 ruled it out at the ranks the GeoLift Gram matrix needs anyway.
 
-The reference key's four gates are not in this formulation, as they are not in
-the joint lift's; the next section adds them.
+The next section gives the key designs are ranked by.
 
-## The gates
+## The key
 
-The reference implementation ranks designs by the key `(corr_test, aa_test,
-bb_test, dw_test, round(corr, 2), 1 / required_impact)`, read lexicographically
-(`mlsynth.utils.tbr_helpers.design.objective.score_split`). For a fixed
-treatment group `RSS = y'y (1 - corr^2)` on the centred window, so among the
-designs that pass all four gates the one of least RSS also has the greatest
-correlation, hence the greatest rounded correlation, and the least required
-impact among designs that share it, because the required impact rises with the
-residual scale (derived here from `required_impact`'s formula). The key's
-optimum is therefore the least-RSS passing design.
+The certified search ranks a design `(T, C)` by the library's relative key,
+`level_T / required_impact` (`score_split(..., objective="relative")`, #1049):
+`level_T` is the mean of the raw treated aggregate over the window and the
+required impact is the smallest effect the experiment could detect. Power is the
+only criterion. Every design shares the window, so the required impact is one
+constant times `sqrt(RSS)`, and two designs compare on `level_T^2 / RSS`
+(`treatment.beats`, strict, so a tie keeps the first design). A design the library
+scores `-inf`, whose regression fits exactly (#1000), is never reported. The panel
+is the raw one, and every geo's mean has to be positive.
 
-The gates are tests on the fitted residuals, not constraints on `u` a
-relaxation can carry, so `gated.py` handles them lazily. `certify_gated`
-certifies the RSS-best design not yet excluded (`certify_slope_free(...,
-exclude=...)`), scores it with the library's own gates, and when a gate fails
-excludes the design with a no-good cut and certifies again. Each round's design
-is the next by RSS, so the first that passes is the passing optimum, and every
-earlier round is a certified failure. The cut
-`sum_C u - sum_notC u <= |C| - 1` admits every design but `C` at every size
-(at size `m` with `t` geos in common it reads `2t - m <= |C| - 1`, which fails
-only when the design is `C`; derived here), so one cut per excluded design is
-added to every size's relaxation. The correlation gate ends the search when it
-fails: the RSS-best remaining design has the greatest correlation of all
-remaining ones, so none of them reaches 0.8 either, and the answer is a
-certificate that no design passes. A search that excludes every positive-slope
-design ends the same way.
+The reference key's four gates (`corr_test`, `aa_test`, `bb_test`, `dw_test`) are
+read at the certified design and reported on the result (`gates.py`); they rank
+nothing. Until this switch the study certified the reference key, whose gates are
+tests on the fitted residuals that no relaxation can carry: a gated loop certified
+the RSS-best design not yet excluded, scored its gates, and on a failure excluded it
+with a no-good cut and certified again. On a 27-geo data panel at four treated geos,
+three groups ran that loop to its 50-round limit, every one of their 150 designs
+failing the Durbin-Watson gate, and those three groups set the wall time; the gate
+study (#1016) found no measurable benefit from the gates once the interval is
+calibrated. The tables in later sections that report gated rounds, rounded
+correlations or `1 / required_impact` were measured under the reference key.
 
-On the four GeoLift groups with the benchmark's A/A window (`n_test = 14`) the
-RSS-best design passes all four gates in the first round, so the gated optimum
-is the slope-free one and the gates cost one scoring call
-(`results/gated.log`):
+## Power as the only criterion
 
-| treatment group | rounds | controls | key's last entry, `1 / required_impact` | seconds |
-| --- | --- | --- | --- | --- |
-| dallas | 1 | 5, 9, 18, 38 | 0.00128 | 17 |
-| dallas, denver | 1 | 3, 5, 17, 37 | 0.00055 | 18 |
-| cincinnati, dallas, denver | 1 | 3, 5, 6, 16, 28, 33, 36 | 0.00049 | 34 |
-| chicago, cincinnati, dallas, denver | 1 | 15, 18, 19, 27, 28, 32, 35 | 0.00038 | 47 |
+The relative search on three raw data panels at four treated geos (`n_test=14`,
+`n_jobs=4`, one BLAS and numba thread, each run alone on a quiet machine, commit
+02fef7cc). Every run certified.
 
-The exclusions are exercised on simulated AR(1) panels (`brute.panel_ar`),
-where designs fail the gates: the tests check the rounds against enumeration of
-the key (`brute.gated_optimum`) on seeds drawn by hypothesis, the exclusion order, the
-correlation stop, the no-design-passes certificate and the round limit. Before
-the gates the incumbent's cut was added only at the incumbent's size, which is
-not enough once excluded designs of other sizes must stay out; the cut now goes
-to every size. The first mutation run left one mutant alive, the excluded
-designs' cuts dropped, because the branch and bound still found the right
-answer by branching around them. With the cuts the excluded design's size
-closes in one to three nodes on the test panels, and without them in eight to
-ten, so the test pins the node count at three or fewer.
+| panel | periods | groups | gap | survivors | seconds | key | the pass's key |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 27 geos | 213 | 17,550 | 0 | 11 | 3.2, 3.3 | 11.3656 | 11.3656 |
+| 27 geos | 213 | 17,550 | 1% | 10 | 2.0, 1.8 | 11.3656 | 11.3656 |
+| 43 geos | 68 | 123,410 | 0 | 196 | 101.8 | 17.5821 | 17.5356 |
+| 43 geos | 68 | 123,410 | 1% | 169 | 80.9 | 17.5356 | 17.5356 |
+| 51 geos | 331 | 249,900 | 0 | 9 | 93.4 | 6.0884 | 6.0832 |
+| 51 geos | 331 | 249,900 | 1% | 6 | 16.0 | 6.0832 | 6.0832 |
+
+On one process the 27-geo panel at 1% took 3.3 s. Under the reference key the same
+panel took 504.1 s to 653.1 s with four processes (Pentagonal cuts), most of it in
+the groups the gated loop ran to its round limit. On the 43- and 51-geo panels the
+exact search replaced the pass's design once, with a key 0.27% and 0.09% above it;
+both are inside 1%, so the gap's searches report the pass's design and certify it.
+
+The gates are read at the certified design and rank nothing. On the 27-geo panel
+the design fails `bb_test` and `dw_test`; on the other two it passes all four.
+
+The panels are local inputs, and the runs are not part of the test suite.
 
 ## The treatment groups
 
-Within one treatment group the least-RSS passing design has the key's greatest
-value (The gates). Across treatment groups the key compares the rounded
-correlation and then `1 / required_impact`, and the required impact is a constant
-times `sqrt(RSS / (n - 2))` on the shared window, so the best design with `k`
-treatment geos is the best of the groups' own optima, compared on
-`round(corr, 2)` and then on RSS (derived here). `treatment.py` searches every
-group of the size, every geo eligible for every role:
+Within one treatment group the least-RSS design, of either slope sign, has the
+key's greatest value (The key). Across treatment groups the key compares
+`level_T^2 / RSS`, so the best design with `k` treatment geos is the best of the
+groups' own optima, compared on that ratio. `treatment.py` searches every group of
+the size, every geo eligible for every role:
 
-1. An incumbent from the library's greedy search and local search (#964), with
-   its own group's optimum certified (`gated.certify_gated`).
-2. An exact floor on the RSS of every positive-slope design of every group
-   (`rss_floor`). With `w = b u` every such design is a point of
+1. An incumbent from the library's greedy search and local search (#964) under the
+   relative key.
+2. Two exact floors for every group, one on the RSS of its positive-slope designs
+   and one on its negative-slope designs, the second being the first on `-y`
+   (`rss_floor(..., sign=)`; the compiled kernel takes the same sign, which negates
+   `y` and its cross products, both exact in doubles). With `w = b u` every such design is a point of
    `{0 <= w <= cap}`, so the group's nonnegative least squares over that box is
    at most its RSS; the float hull certificate (`certificate.hull_bound_float`,
    with `lo = 0` and the size constraint slack) bounds it from below at the NNLS
@@ -379,20 +376,18 @@ group of the size, every geo eligible for every role:
    integer over a power of two); as a sum of Fractions, computed twice, it was 70%
    of the stage. The stage, `y'y` and the floor for each of the 91,390 groups at
    four geos, takes 17 s, 0.18 ms a group, where it took 49 s.
-3. A group whose floor rules it out is skipped (`can_compete`): every design's
-   `corr^2 = 1 - RSS / y'y`, so the floor bounds the group's correlation, and a
-   group that cannot reach the incumbent's rounded class, or can reach it only
-   with a larger RSS, cannot have a larger key. The class edges are half a
-   rounding step either side, less a slack of 1e-9 for the key's correlation
-   being a double; the slack is a tolerance, not derived.
-4. Every other group is certified against its ceiling, the RSS below which one of
-   its designs could beat the incumbent (`ceiling`). Each size's relaxation is
-   tested at `y'y - ceiling` instead of at the group's own optimum
-   (`certify_slope_free(..., ceiling=...)`), and the group's gated search ends,
-   certified, at the first round whose RSS-best design is not below the ceiling.
-   A group whose optimum beats the incumbent's key replaces it.
+3. Against an incumbent with level `level*` and RSS `RSS*`, a design of group `T`
+   beats it only below the group's ceiling `RSS* (level_T / level*)^2`
+   (`relative_ceiling`, from the bar `RSS* / level*^2`). A sign whose floor is at
+   or above the ceiling cannot compete, and a group neither of whose signs can is
+   skipped.
+4. Every other group has each sign that can compete certified against the
+   ceiling (`certify_slope_free(..., ceiling=...)` on `y` or `-y`), which ends at
+   its least-RSS design below the ceiling or proves none is. A design that fits
+   exactly is excluded and the sign certified again. A group whose design beats
+   the incumbent's key replaces it.
 
-On GeoLift (`n_test = 14`, `results/treatment.log`):
+Under the reference key, on GeoLift (`n_test = 14`, `results/treatment.log`):
 
 | treatment geos | groups | ruled out by the floor | certified one by one | seconds | the key's optimum | `round(corr, 2)` | `1 / required_impact` |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -448,9 +443,12 @@ is tight enough; the incumbent arrives late.
 So before any group is certified, every group the start incumbent leaves gets
 a local search of `pass_restarts` random starts (the study's RSS descent,
 `search.incumbent`), the best passing design becomes the incumbent, the groups
-are certified best local design first (the reference key's order: rounded
-correlation, then RSS), and each certification starts from its group's local
-design (`certify_slope_free(..., start=)`) instead of searching again. A
+are certified best local design first (`level_T^2 / RSS`, the relative key's
+order; groups with no pass design follow, best floor bound first), and each sign's
+certification starts from its group's local design on that sign
+(`certify_slope_free(..., start=)`) instead of searching again. The pass runs the
+descent on `y` and on `-y`. The measurements in this section were taken under the
+reference key. A
 certification still proves its group's claim against the ceiling of its turn,
 so the order changes the work, never the answer.
 
@@ -756,7 +754,7 @@ controls, and a rule fixed by `p` would misfire. The rule that fits is adaptive:
 a rung tried some number of times in a search that closed few of them is skipped
 for the rest of it, a skip changing what the screen costs and never what is
 certified. Kept deterministic across worker counts, it needs the counts carried
-between processes wave by wave, through `treatment.py`, `gated.py` and
+between processes wave by wave, through `treatment.py`, the gated loop and
 `slopefree.py`, for about 6% of the 80-geo search and nothing on the other three.
 Not built; the logs are here for the case that changes the balance.
 
@@ -1645,16 +1643,16 @@ against the incumbent's ceiling. Neither needs it exactly.
   non-finite entry or more than 2^20 periods gets no bracket and keeps the exact
   sum.
 - The slope cap reads the bracket's top: the cap needs y'y from above.
-- The ceiling is nondecreasing in y'y, so a group competes for every y'y in the
-  bracket when its floor is below ceiling(lo), and for none when the floor is at
-  least ceiling(hi). `compete_bracket` decides both in doubles across a relative
-  margin of 2^-48. The ceiling's terms and products are each rounded once, which
-  moves either side by under 5 * 2^-53 (derived here). A ceiling below 2^-1000,
-  where rounding is no longer relative, is left undecided.
-- An undecided group, and every group that is certified, reads the exact y'y,
-  computed once a group. The certificate's ceiling is the exact one.
+- The relative ceiling does not read y'y. The screen computes it in doubles as
+  `b (L L)`, `b` the bar and `L` the group's level summed from the geos' levels,
+  each rounded once, and drops a sign only when its floor is at or above that
+  times `1 + (8k + 16) 2^-53` (`_drop_side`, `_screen_terms`): the level's sum of
+  `k` positive terms is within `gamma_k` of the level, and the square, the product
+  and the margin's own product round once each (derived in `_screen_terms`). A bar
+  or level below 2^-1000, or past the doubles, leaves the screen off. A row kept is
+  decided again in rationals when it is read; only dropping has to be exact.
 
-On the four-geo GeoLift run, 91,390 brackets take 1.2 s and the 182,779 screens
+Under the reference key, on the four-geo GeoLift run, 91,390 brackets take 1.2 s and the 182,779 screens
 take 0.4 s, none of them undecided. The exact y'y is computed for the 32 certified
 groups only. `results/float_screen.log` has two alternating runs of each branch on
 one host:
@@ -1853,33 +1851,32 @@ only costs time, so no test can tell it from the original; its cost is in
 
 On 80 geos the floors leave a handful of the 1,581,580 four-geo groups, yet every
 floor came back to the parent as a Python row, was sorted, and was screened one at a
-time by `compete_bracket`. Building, sending and sorting rows that the screen then
+time by the parent's screen. Building, sending and sorting rows that the screen then
 dropped was a large part of the floors' wall time once the kernel had made the
 floors themselves cheap.
 
-The search now passes the floors the incumbent's class as it stands when they are
-computed, the start's design (`class_of()`), and each worker drops the rows the float
-screen shows cannot compete (`_floor_chunk_screened`). It counts them as screened
-out, so `screened_out` is what it was. The incumbent only improves, so its ceiling
-only falls: a row that cannot compete with the start's class
-cannot compete with any later one, and the search is the search it was.
+The search now passes the floors the start design's screen (`_screen_terms`: its
+bar, the geos' levels and the margin), and each worker drops the rows whose two
+floors the float screen shows are at or above the group's ceiling
+(`_floor_chunk_screened`). It counts them as screened out, so `screened_out` is what
+it was. The incumbent only improves, so its bar only falls: a row that cannot
+compete with the start's design cannot compete with any later one, and the search is
+the search it was.
 
-With the kernel, the screen reads the kernel's arrays (`_screen_mask`): the same
-doubles, the same products and the same comparisons as `compete_bracket`, element by
-element, with the same margin (`_MARGIN`, 2^-48) and the same guard on subnormal
-ceilings (`_NORMAL`, 2^-1000). A row inside the margin is undecided and kept for the
-parent's exact screen; a row with a nan floor, which the kernel left to `rss_floor`,
-is never dropped. Only the rows kept become Python rows. Without the kernel, or on a
-panel without a Gram floor, each row is screened by `compete_bracket` itself.
+With the kernel, the screen reads the kernel's arrays for both signs (`_drop_side`)
+and a level summed over each group's geos. A row with a nan floor on a sign, which
+the kernel left to `rss_floor`, is never dropped on that sign. Only the rows kept
+become Python rows. Without the kernel, or on a panel without a Gram floor, each row
+is screened the same way one at a time.
 
-`test_worker_screen.py` pins the mask to `compete_bracket` row by row (a property
-over floors, brackets and classes), the screened rows to the unscreened rows less
-those `compete_bracket` refuses, one process to two, and the search with the worker
-screen to the search without it: the same treatment, controls, RSS, key, survivors,
+`test_worker_screen.py` pins the compiled screen to the Python one row by row (a
+property over panels and sizes), the screened rows to the unscreened rows less those
+the screen drops, one process to two, and the search with the worker screen to the
+search without it: the same treatment, controls, RSS, key, survivors,
 `screened_out`, groups searched and replacements, at k = 2 and 3, gap 0 and 1/100,
 on one job and two.
 
-On 80 geos, 150 periods, k = 4, a 1% gap and four jobs (`results/worker_screen.log`,
+Under the reference key, on 80 geos, 150 periods, k = 4, a 1% gap and four jobs (`results/worker_screen.log`,
 two alternating rounds on one host):
 
 | | main | worker screen | with the lean NNLS too |
@@ -2121,64 +2118,14 @@ Three other arms were measured on the same four cases and not built.
   It did not fire in the certified design's group, whose incumbent is the ceiling
   (2,057.3 s at 100 geos).
 
-## The floor-guided search
+## The floor-guided search, removed
 
-`guided.py` is `certify_treatment` without its certificates. It takes the library's
-start, computes every treatment group's exact floor, and searches the controls of
-every group the floors cannot rule out, best floor first and the start group first
-of all. The answer is a design, not a proof, with a bound from the floors on how far
-it can be from the optimum.
-
-Each group's search is the study's RSS descent (`_local`, 50 restarts) and, when the
-RSS descent's design fails one of the key's gates, a descent on the key itself from
-that design: the library's local search with the treatment group fixed. The start
-group is also descended from the library's design.
-
-The bound: a group searched whose floor can still beat the reported design is open,
-since its own optimum may be better than what the search found in it. Every other
-group cannot beat the design. When no open group's correlation bound can round above
-the design's class, the optimum is in that class, its RSS is at least the least floor
-of the open groups, and its required impact is at least the design's impact times
-the square root of that floor over the design's RSS (derived here; `guided.py`'s
-docstring).
-
-On one process (`results/guided.log`, a quiet host), against each case's certified
-optimum:
-
-| panel | treated geos | groups | searched | time | design | required impact | proven at least |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| GeoLift | 3 | 9,880 | 11 | 4.6 s | the certified optimum | 1,585.8 | 1,322.4 |
-| GeoLift | 4 | 91,390 | 91 | 8.0 s | the certified optimum | 1,845.8 | 1,690.8 |
-| GeoLift | 5 | 658,008 | 489 | 32.6 s | the certified optimum | 2,047.3 | 1,831.4 |
-| `geo_panel(0)`, 60 geos | 3 | 34,220 | 10 | 17.8 s | the certified optimum | 29.9 | 26.1 |
-| `geo_panel(0)`, 80 geos | 3 | 82,160 | 4 | 48.1 s | the certified optimum | 24.5 | 23.0 |
-
-The certified search took 27.2 s at four geos and 65.0 s at five on one process
-(`results/best_start.log`). The design's impact is 6.7% to 19.9% above the bound the
-floors give; the certificates are what close that.
-
-On the same three-geo GeoLift case the library's hill climbs (`results/guided.log`)
-need a larger effect to detect: the greedy alone 2,310.2 (46% above the optimum);
-the greedy and the local search with 10 restarts 2,159.8, and with 50 restarts
-1,593.4, the optimum's treatment group with 17 controls against its 14. Over 20
-seeds of the local search none reached the optimum, at 10 restarts or at 50. At four
-and five geos, over 10 seeds with 50 restarts, the closest were 3.1% and 2.2% above
-the optimum and the furthest 18.3% and 20.5%.
-
-The first version of this search read the pass of `certify_treatment` and stopped
-where its certificates begin. At three geos it reported 1,602.4 against the optimum's
-1,585.8, a ratio of 1.0105, for two causes. The pass leaves out the start group,
-which `certify_treatment` certifies last, and the start group held the optimum; so
-the group kept the library's design, whose RSS (2,977,639.8 against the optimum's
-2,916,143.5) accounts for the whole ratio (the square root of the RSS ratio is
-1.0105). And the pass's descent minimises RSS alone: in that group its least-RSS
-design fails the Breusch-Godfrey gate, at 10 restarts and at 50, so the group
-reports no passing design. Either cause alone leaves the miss. With both removed,
-the key's descent from the library's design reaches the optimum from one seed in
-ten and stops 0.12% above it from the others, a local optimum of the library's
-moves; the RSS descent with 50 restarts, then the key's descent, reaches it in the
-search above. The first version's bound also left out the start group's floor; at
-four and five geos that floor was not the least, and the bound did not change.
+`guided.py` was `certify_treatment` without its certificates: the floors, a search
+in every group they left, and a bound from the floors on how far its design could be
+from the optimum. It was built because certifying the reference key was slow, and it
+searched for the reference key's passing designs. It was removed with the switch to
+the relative key, whose certified search takes 3.2 s on a 27-geo data panel at four
+treated geos (Power as the only criterion).
 
 ## A certificate within a gap
 
@@ -2189,16 +2136,13 @@ deep. A group that holds the optimum, or a near-tie, cannot be screened out by a
 floor.
 
 `certify_treatment(..., gap=g)` asks a weaker question. Every screen and every
-ceiling reads a target RSS, the incumbent's RSS over (1 + g)^2, in place of the
-incumbent's own. A certified search then proves that the reported design needs at
-most 1 + g times the optimum's required impact: every design with a larger key is in
-the reported design's correlation class, with an RSS at least the target, and the
-required impact is a constant times the square root of the RSS (derived in
-`treatment.py`'s docstring). A design that could round above the class is still
-excluded exactly, since the ceiling's first term does not read the RSS. With `g = 0`
-the search is the exact one. `test_gap.py` checks the claim against enumeration.
+ceiling reads the bar `RSS* / (level*^2 (1 + g)^2)` in place of `RSS* / level*^2`.
+A certified search then proves that no design's key exceeds `1 + g` times the
+reported design's, the key being the level over a constant times `sqrt(RSS)`
+(derived in `treatment.py`'s docstring). With `g = 0` the search is the exact one.
+`test_gap.py` checks the claim against enumeration.
 
-At 1% (`results/gap.log`, four processes, each run alone):
+Under the reference key, at 1% (`results/gap.log`, four processes, each run alone):
 
 | panel | treated geos | groups | exact | gap 1% | survivors | slowest group | design |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -2611,13 +2555,13 @@ fixing is certified to the solver's value.
 - `fbound.py`: the slope-free certificate in floating point with rigorous rounding bounds, and `certificate()`, which calls the exact bound only between the float bounds.
 - `workspace.py`: a size's full relaxation on one SCS workspace, and `Workspaces`, one search's
   workspaces and triangle pool.
-- `gated.py`: the reference key's four gates on the slope-free search, `certify_gated()`.
-- `treatment.py`: the search over treatment groups, `certify_treatment()`.
-- `guided.py`: the floor-guided search without certificates, `guided_treatment()`, and its bound.
+- `gates.py`: the reference key's four gates, read at the certified design as diagnostics.
+- `treatment.py`: the search over treatment groups under the relative key, `certify_treatment()`.
 - `fastfloor.py`: the floors of a chunk of groups in one compiled loop, with numba installed.
 - `fastprice.py`: pricing's bound pass in one compiled loop, with numba installed.
-- `brute.py`: enumeration, the truth the tests check against, the simulated AR(1) panels, and
-  `treatment_optimum`, every treatment and control group of a small panel scored by the library's key.
+- `brute.py`: enumeration, the truth the tests check against, the simulated panels (raw and
+  centred), and `relative_optimum`, every treatment and control group of a small raw panel scored by the
+  library's relative key.
 - `run.py`: `python -m benchmarks.studies.tbr_bnb.run certify` and `... lifts`.
 - `beds.py`: the five test beds, `run_bed`, and `python -m benchmarks.studies.tbr_bnb.beds`; the baseline in `results/beds_baseline.json`.
 - `progress.py`: the search's progress events, `reporting`, the stderr printer, the parquet log and `read_log`.

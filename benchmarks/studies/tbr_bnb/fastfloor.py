@@ -315,9 +315,12 @@ def _certificate(M, rest, y, w, cap, r, e, ar, g, d):
 
 
 @njit(cache=_CACHE)
-def _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, c, w, idx, L, z, x, g, d):
-    """The floor, bracket and cap of one group (T sorted), the point left in w.
-    Returns (floor, lo, hi, cap); nan where the group is left to rss_floor."""
+def _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, c, w, idx, L, z, x, g, d, sign):
+    """The floor, bracket and cap of one group (T sorted) for the series ``sign``
+    times the group's aggregate, the point left in w. Returns (floor, lo, hi, cap);
+    nan where the group is left to rss_floor. Negating y negates its cross products
+    and nothing else, and both are exact in doubles, so the -y floor carries the
+    +y floor's argument unchanged."""
     n, p = M.shape
     kk = T.shape[0]
     m = rest.shape[0]
@@ -330,6 +333,7 @@ def _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, c, w, idx, L, z, x, g, d):
         v = 0.0
         for q in range(kk):
             v += M[t, T[q]]
+        v = sign * v
         y[t] = v
         av = abs(v)
         if not (np.isfinite(v) and (v == 0.0 or (av >= _TINY and av <= _HUGE))):
@@ -357,7 +361,7 @@ def _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, c, w, idx, L, z, x, g, d):
         acc = 0.0
         for q in range(kk):
             acc += Gf[rest[i], T[q]]
-        c[i] = acc
+        c[i] = sign * acc
     _nnls_gram(Gf, rest, c, passive, w, idx, L, z, x, 500)
     for j in range(m):
         if not (w[j] >= 0.0):
@@ -422,10 +426,12 @@ def combinations_from(first, count, p):
 
 
 @njit(cache=_CACHE)
-def floors(M, Gf, groups, lamf):
+def floors(M, Gf, groups, lamf, sign=1.0):
     """(floor, lo, hi) for each row of ``groups``: the box bound (not yet clipped at
     zero) and the bracket on y'y, nan where the group is left to rss_floor. M is the
-    panel, Gf = M'M, and lamf the Gram floor as a double."""
+    panel, Gf = M'M, and lamf the Gram floor as a double. With ``sign`` -1 the series
+    is minus the group's aggregate: the floor bounds the RSS of the group's
+    negative-slope designs."""
     n, p = M.shape
     N = groups.shape[0]
     kk = groups.shape[1]
@@ -444,7 +450,7 @@ def floors(M, Gf, groups, lamf):
         rest = _controls(p, T)
         for i in range(m):                       # the previous support, carried over by geo
             passive[i] = held[rest[i]]
-        fl, lo, hi, cap = _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, c, w, idx, L, z, x, g, d)
+        fl, lo, hi, cap = _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, c, w, idx, L, z, x, g, d, sign)
         for j in range(p):
             held[j] = False
         for i in range(m):
@@ -456,7 +462,7 @@ def floors(M, Gf, groups, lamf):
 
 
 @njit(cache=_CACHE)
-def floor_parts(M, Gf, T, lamf):
+def floor_parts(M, Gf, T, lamf, sign=1.0):
     """One group from a cold start, with its point and series: (floor, lo, hi, w, y,
     cap), w over the controls in ascending order. For tests and inspection."""
     n, p = M.shape
@@ -468,7 +474,7 @@ def floor_parts(M, Gf, T, lamf):
     idx = np.empty(m, np.int64); L = np.empty((m, m)); z = np.empty(m); x = np.empty(m)
     g = np.empty(m); d = np.empty(m)
     passive = np.zeros(m, np.bool_)
-    fl, lo, hi, cap = _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, c, w, idx, L, z, x, g, d)
+    fl, lo, hi, cap = _one(M, Gf, T, lamf, rest, passive, y, r, e, ar, c, w, idx, L, z, x, g, d, sign)
     return fl, lo, hi, w, y, cap
 
 

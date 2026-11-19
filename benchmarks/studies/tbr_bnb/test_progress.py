@@ -1,7 +1,7 @@
 """Progress reporting for the TBR certified search (#965).
 
-The search emits events at four levels: 1, the treatment search, each group, each
-gated round, the screen, the hull, each size and each new incumbent; 2, every node;
+The search emits events at four levels: 1, the treatment search, each group, the
+screen, the hull, each size and each new incumbent; 2, every node;
 3, every first-order schedule, triangle round, relaxation solve and priced subtree;
 4 adds Clarabel's own iteration log. ``verbose`` prints them to stderr, ``progress``
 calls a function with each, and ``log`` writes them to a parquet dataset. Reporting
@@ -16,9 +16,7 @@ from hypothesis import strategies as st
 from mlsynth.exceptions import MlsynthConfigError
 
 from . import progress, slopefree
-from .brute import geo_panel, panel, panel_ar
-from .gated import certify_gated
-from .guided import guided_treatment
+from .brute import geo_panel, panel, raw_panel
 from .progress import KINDS, Event, emit, read_log, reporting, tagged
 from .slopefree import certify_slope_free
 from .treatment import certify_treatment
@@ -302,16 +300,8 @@ def test_the_log_level_is_its_own():
     assert set(read_log(d / "one")["level"]) == {1}
 
 
-def test_gated_rounds_are_reported():
-    y, X = panel_ar(1)
-    seen, kw = _collect(1)
-    out = certify_gated(y, X, n_test=N_TEST, restarts=5, **kw)
-    assert len([e for e in seen if e.kind == "gated-round"]) == len(out.rounds)
-    assert sum(e.kind == "slope-free" for e in seen) >= len(out.rounds)
-
-
 def test_the_treatment_search_reports_each_group_tagged():
-    M = geo_panel(5, p=6)
+    M = raw_panel(5, p=6)
     seen, kw = _collect(1)
     out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, **kw)
     done = [e for e in seen if e.kind == "group-done"]
@@ -323,28 +313,25 @@ def test_the_treatment_search_reports_each_group_tagged():
 
 
 def test_workers_write_their_own_parts(tmp_path):
-    M = geo_panel(5, p=6)
-    one = certify_treatment(M, 2, n_test=N_TEST, restarts=5, log=tmp_path / "one", log_level=1)
-    two = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=2, log=tmp_path / "two", log_level=1)
+    """From a poor start with no pass, two workers certify groups side by side; each
+    writes its own part of the log, and the design is the one-process search's."""
+    M = raw_panel(5, p=6)
+    kw = dict(n_test=N_TEST, restarts=5, pass_restarts=0, start=[0, 5])
+    one = certify_treatment(M, 2, log=tmp_path / "one", log_level=1, **kw)
+    two = certify_treatment(M, 2, n_jobs=2, log=tmp_path / "two", log_level=1, **kw)
     a, b = read_log(tmp_path / "one"), read_log(tmp_path / "two")
     assert b["pid"].nunique() > 1
     assert (b["kind"] == "treatment").sum() == 1      # a worker does not write the parent's buffered rows
-    key = lambda df: sorted(df[df["kind"] == "group-done"]["treatment"])  # noqa: E731
-    assert key(a) == key(b) and (one.treatment, one.key) == (two.treatment, two.key)
+    assert (a["kind"] == "group-done").sum() == len(one.survivors) + one.retried
+    assert (b["kind"] == "group-done").sum() == len(two.survivors) + two.retried
+    assert (one.treatment, one.controls, one.key) == (two.treatment, two.controls, two.key)
 
 
 def test_workers_print_to_the_same_stderr(capfd):
-    M = geo_panel(5, p=6)
-    certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=2, verbose=1)
+    M = raw_panel(5, p=6)
+    certify_treatment(M, 2, n_test=N_TEST, restarts=5, pass_restarts=0, start=[0, 5], n_jobs=2, verbose=1)
     err = capfd.readouterr().err
     assert err.count(" group-done ") >= 2 and " treatment-done " in err
-
-
-def test_the_guided_search_reports_each_group():
-    M = geo_panel(5, p=6)
-    seen, kw = _collect(1)
-    out = guided_treatment(M, 2, n_test=N_TEST, restarts=5, **kw)
-    assert len([e for e in seen if e.kind == "group-done"]) == out.searched
 
 
 def test_a_failed_solve_is_reported_and_raised(monkeypatch):

@@ -18,7 +18,7 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from . import slopefree
-from .brute import geo_panel, panel
+from .brute import geo_panel, panel, raw_panel
 from .slopefree import certify_slope_free
 from .treatment import _split
 
@@ -309,12 +309,12 @@ def test_the_treatment_search_lends_its_workers_and_takes_them_back(monkeypatch,
     from . import treatment
     real = treatment._optimum
 
-    def spy(M, T, *a, **k):
+    def spy(Mc, M, T, *a):
         (tmp_path / f"{'-'.join(map(str, T))}").write_text(str(slopefree.SPARE[0] is not slopefree._lend_none))
-        return real(M, T, *a, **k)
+        return real(Mc, M, T, *a)
 
     monkeypatch.setattr(treatment, "_optimum", spy)
-    M = geo_panel(5, p=6)
+    M = raw_panel(5, p=6)
     one = treatment.certify_treatment(M, 2, n_test=8, restarts=5)
     two = treatment.certify_treatment(M, 2, n_test=8, restarts=5, n_jobs=2)
     assert {f.read_text() for f in tmp_path.iterdir()} >= {"True"}
@@ -328,6 +328,6 @@ def test_the_search_tells_the_lender_what_is_free(monkeypatch):
     from . import treatment
     seen, real = [], treatment._Lender.set_free
     monkeypatch.setattr(treatment._Lender, "set_free", lambda self, n: seen.append(n) or real(self, n))
-    treatment.certify_treatment(geo_panel(5, p=6), 2, n_test=8, restarts=5, n_jobs=3)
+    treatment.certify_treatment(raw_panel(5, p=6), 2, n_test=8, restarts=5, n_jobs=3)
     assert all(0 <= n <= 3 for n in seen)
     assert seen[-2:] == [3, 2]                       # every worker free at the window's end; two lent to the retries
