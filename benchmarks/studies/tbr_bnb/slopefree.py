@@ -462,7 +462,7 @@ def _solve_in_full_space(R: Rows, A0, s, cs, solver: str) -> Optional[Solve]:
         if solver == "scs":
             prob.solve(solver="SCS", eps_abs=SCS_EPS, eps_rel=SCS_EPS, verbose=clarabel_log())
         else:
-            prob.solve(solver="CLARABEL", max_threads=1, verbose=clarabel_log())   # a thread pool would hang a worker forked after it
+            prob.solve(solver="CLARABEL", verbose=clarabel_log(), **CLARABEL_SETTINGS)
     except cp.error.SolverError:
         emit("solve", relaxation=R.level, solver=solver, rows_eq=R.n_eq, rows_in=R.n_in, status="error",
              seconds=time.perf_counter() - t0)
@@ -498,7 +498,7 @@ def _solve_on_face(R: Rows, A0, s, cs) -> Solve:
     prob = cp.Problem(cp.Maximize(cp.trace((T.T @ A0 @ T) @ W)), [W >> 0, ce, ci, cd])
     t0 = time.perf_counter()
     try:
-        prob.solve(solver="CLARABEL", max_threads=1, verbose=clarabel_log())   # one thread, as in solve()
+        prob.solve(solver="CLARABEL", verbose=clarabel_log(), **CLARABEL_SETTINGS)
     except cp.error.SolverError:
         emit("solve", relaxation=R.level, solver="clarabel", rows_eq=len(keep_e), rows_in=len(keep_i), status="error",
              seconds=time.perf_counter() - t0)
@@ -970,6 +970,19 @@ def _one_relaxation(solver: str) -> str:
 #: loosened by at most (1 + m) times its dual residual, so at 1e-6 the size-21 root
 #: of the 100-geo group bounds within 1.3e-4 of its value (results/scs.log).
 SCS_EPS = 1e-6
+
+#: Clarabel's settings on every relaxation slopefree.solve hands it. One thread:
+#: Clarabel's automatic threading starts a native thread pool, and a worker of
+#: certify_treatment's pool forked after it never returns from its next solve
+#: (test_parallel.py). No iterative refinement (``iterative_refinement_enable``,
+#: on by default in Clarabel.rs 0.11): each iteration's KKT system is solved once,
+#: not solved again against its residual. The certificate is built from the
+#: multipliers and is a bound at any multipliers (fbound.certificate; rule 26 of
+#: agents/agents_solvers.md), so the refinement's accuracy is accuracy the bound
+#: does not read. The refinement solve was 38% of a solve's time on the captured
+#: 27-geo nodes, with the same iteration counts (README, "Clarabel without
+#: iterative refinement").
+CLARABEL_SETTINGS = {"max_threads": 1, "iterative_refinement_enable": False}
 
 #: Whether size_certificate solves the Shor relaxation between the dual tier and the
 #: full relaxation. The dual tier bounds the full rows, so a size the weaker Shor
