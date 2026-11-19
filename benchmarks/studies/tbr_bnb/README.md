@@ -1572,6 +1572,51 @@ screened out is searched anyway. The search before the pool (the library's
 greedy and local search) runs in one process; the start group is certified in a
 wave like every other group (next section).
 
+## Clarabel without iterative refinement
+
+Clarabel factors a regularized KKT matrix, the true one plus a shift of 1e-8 on
+its diagonal, and by default corrects each solve with that factor by iterative
+refinement: it computes the residual of the true system, solves for a correction
+with the same factor, and repeats, up to ten rounds a solve. The correction buys
+accuracy in the primal-dual point. The search reads only the multipliers, through
+the exact weak-duality certificate (`fbound.certificate`, rule 26 of
+`agents/agents_solvers.md`), which is a valid bound at any multipliers, so
+`slopefree.solve` turns refinement off (`CLARABEL_SETTINGS`) on both of its
+Clarabel paths. SCS has no such setting and is unchanged.
+
+Replayed through `slopefree.solve`'s own path on 100 captured direct solves of
+each panel (drawn with seed 3; the group screen's solves left out), both arms on
+each solve in turn, Clarabel's solve time summed, a solve closed when its
+certificate is at most 0:
+
+| panel | refinement on | off | iterations on, off | closed on, off | verdict flips | worst bound change |
+| --- | --- | --- | --- | --- | --- | --- |
+| 27 geos | 28.81 s | 17.79 s (-38%) | 3,193, 3,188 | 4, 4 | 0 | 0.26% |
+| 43 geos | 148.87 s | 102.03 s (-31%) | 3,465, 3,477 | 15, 15 | 0 | 1.9% |
+
+End to end, the relative search at four treated geos (`n_test=14`, `gap=0`, one
+process, one BLAS and numba thread, the arms run alone and in mirrored order on
+commit 444f21f7 with only the setting changed):
+
+| panel | arm | seconds | Clarabel's core | survivors | the design |
+| --- | --- | --- | --- | --- | --- |
+| 27 geos | on | 4.7 | 0.37 s | 11 | the same in both arms, key 11.3656 |
+| 27 geos | off | 5.1 | 0.24 s | 11 | |
+| 43 geos | on | 389.5, 393.9 | 316.5 s, 319.5 s | 191 | the same in both arms, key 17.5821 |
+| 43 geos | off | 297.8, 304.1 | 223.4 s, 229.8 s | 191 | |
+| 51 geos | on | 251.5 | 20.4 s | 9 | the same in both arms, key 6.0884 |
+| 51 geos | off | 258.0 | 16.5 s | 9 | |
+
+The 43-geo panel spends three quarters of its time in Clarabel, most of it in the
+group screen's last solve of each of its 191 surviving groups, and its search is
+23% shorter without refinement. The 51-geo panel's time is in the SCS workspace of
+`size_certificate` (172.5 s and 180.7 s), which the setting does not touch, and the
+27-geo panel's in the floors and the pass; both move by less than run-to-run noise.
+`test_clarabel_settings.py` pins the settings on the full-space and face paths,
+checks SCS is not given them, and checks the certificate at the multipliers a solve
+without refinement returns against enumeration, at fixtures and as a hypothesis
+property.
+
 ## Halving the four-geo run
 
 A profile of the four-geo GeoLift search on one process (98 s on that host)
