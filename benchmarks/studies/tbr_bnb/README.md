@@ -324,6 +324,32 @@ study (#1016) found no measurable benefit from the gates once the interval is
 calibrated. The tables in later sections that report gated rounds, rounded
 correlations or `1 / required_impact` were measured under the reference key.
 
+## Power as the only criterion
+
+The relative search on three raw data panels at four treated geos (`n_test=14`,
+`n_jobs=4`, one BLAS and numba thread, each run alone on a quiet machine, commit
+02fef7cc). Every run certified.
+
+| panel | periods | groups | gap | survivors | seconds | key | the pass's key |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 27 geos | 213 | 17,550 | 0 | 11 | 3.2, 3.3 | 11.3656 | 11.3656 |
+| 27 geos | 213 | 17,550 | 1% | 10 | 2.0, 1.8 | 11.3656 | 11.3656 |
+| 43 geos | 68 | 123,410 | 0 | 196 | 101.8 | 17.5821 | 17.5356 |
+| 43 geos | 68 | 123,410 | 1% | 169 | 80.9 | 17.5356 | 17.5356 |
+| 51 geos | 331 | 249,900 | 0 | 9 | 93.4 | 6.0884 | 6.0832 |
+| 51 geos | 331 | 249,900 | 1% | 6 | 16.0 | 6.0832 | 6.0832 |
+
+On one process the 27-geo panel at 1% took 3.3 s. Under the reference key the same
+panel took 504.1 s to 653.1 s with four processes (Pentagonal cuts), most of it in
+the groups the gated loop ran to its round limit. On the 43- and 51-geo panels the
+exact search replaced the pass's design once, with a key 0.27% and 0.09% above it;
+both are inside 1%, so the gap's searches report the pass's design and certify it.
+
+The gates are read at the certified design and rank nothing. On the 27-geo panel
+the design fails `bb_test` and `dw_test`; on the other two it passes all four.
+
+The panels are local inputs, and the runs are not part of the test suite.
+
 ## The treatment groups
 
 Within one treatment group the least-RSS design, of either slope sign, has the
@@ -2098,7 +2124,7 @@ Three other arms were measured on the same four cases and not built.
 in every group they left, and a bound from the floors on how far its design could be
 from the optimum. It was built because certifying the reference key was slow, and it
 searched for the reference key's passing designs. It was removed with the switch to
-the relative key, whose certified search takes 10.9 s on a 27-geo data panel at four
+the relative key, whose certified search takes 3.2 s on a 27-geo data panel at four
 treated geos (Power as the only criterion).
 
 ## A certificate within a gap
