@@ -194,12 +194,32 @@ class TBRMMDesign(BaseModel):
     n_candidates_evaluated: int = Field(
         default=0,
         description="Objective evaluations spent reaching this design.")
-    search: Literal["greedy", "local"] = Field(
+    search: Literal["greedy", "local", "exact"] = Field(
         default="greedy",
-        description="Which search produced the design: Algorithm 1's greedy, or "
-                    "the local search that starts from it. Under 'local' the "
-                    "trace opens at the greedy's key and records the accepted "
-                    "steps of the winning descent.")
+        description="Which search produced the design: Algorithm 1's greedy, "
+                    "the local search that starts from it, or the certified "
+                    "search. Under 'local' the trace opens at the greedy's key "
+                    "and records the accepted steps of the winning descent; "
+                    "under 'exact' it holds the design's key alone.")
+    certified: Optional[bool] = Field(
+        default=None,
+        description="Under search='exact', whether the search resolved every "
+                    "treatment group of this size, so no design the rules allow "
+                    "ranks above 1 + proven_gap times this one. False when "
+                    "exact_time_limit ran out first. None under the other "
+                    "searches.")
+    proven_gap: Optional[float] = Field(
+        default=None,
+        description="Under search='exact', the relative gap the search proved: "
+                    "no allowed design's objective exceeds 1 + proven_gap times "
+                    "this design's. At most exact_gap when certified. None under "
+                    "the other searches, and when the time limit ran out before "
+                    "every treatment group had a bound.")
+    timed_out: Optional[bool] = Field(
+        default=None,
+        description="Under search='exact', whether exact_time_limit ran out "
+                    "before every treatment group of this size was resolved. "
+                    "None under the other searches.")
     greedy_key: Optional[Tuple[float, ...]] = Field(
         default=None,
         description="Under search='local', the key the greedy's design scored at "

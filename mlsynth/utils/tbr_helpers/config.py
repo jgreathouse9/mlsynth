@@ -188,7 +188,7 @@ class TBRConfig(BaseEstimatorConfig):
                     "reference walk's design.",
     )
 
-    search: Literal["greedy", "local"] = Field(
+    search: Literal["greedy", "local", "exact"] = Field(
         default="greedy",
         description="Searched mode: what runs after Algorithm 1. 'greedy' "
                     "(default) returns the hill climb's designs, which is what "
@@ -200,7 +200,39 @@ class TBRConfig(BaseEstimatorConfig):
                     "direct fit confirms it improves the objective, so a design is "
                     "never worse than the greedy's. On the GeoLift markets it "
                     "shrinks the smallest detectable impact by 17% at one treated "
-                    "geo. Requires objective='reference' or 'relative'.",
+                    "geo. Requires objective='reference' or 'relative'. 'exact' "
+                    "returns, at each size, the design the relative objective "
+                    "ranks first among every design the eligibility and the "
+                    "business rules allow, with a certificate that none ranks "
+                    "higher (a branch and bound over the treatment groups and, "
+                    "within each, the control groups; see exact_gap, "
+                    "exact_time_limit and n_jobs). Requires objective='relative'. "
+                    "Under it inference defaults to 'calibrated', unless "
+                    "variance='hac' is set.",
+    )
+
+    exact_gap: float = Field(
+        default=0.0,
+        description="Searched mode with search='exact': the relative gap g the "
+                    "certificate may hold at. With g above zero no allowed "
+                    "design's objective exceeds 1 + g times the reported "
+                    "design's, and the search stops sooner. 0 (default) "
+                    "certifies the optimum.",
+    )
+
+    exact_time_limit: Optional[float] = Field(
+        default=120.0,
+        description="Searched mode with search='exact': seconds each treatment "
+                    "size's search may take. When it runs out the size reports "
+                    "the best design found, not certified, with the gap proven "
+                    "so far (proven_gap on the design). None for no limit.",
+    )
+
+    n_jobs: Optional[int] = Field(
+        default=None,
+        description="Searched mode with search='exact': processes the search "
+                    "runs on. None (default) uses every core; 1 runs in this "
+                    "process. The designs do not depend on it.",
     )
 
     local_restarts: int = Field(
@@ -532,6 +564,21 @@ class TBRConfig(BaseEstimatorConfig):
         """``"named"`` when the split is given, ``"searched"`` when it is found."""
         return "searched" if self.max_treatment_size is not None else "named"
 
+    @model_validator(mode="before")
+    @classmethod
+    def _calibrated_under_the_exact_search(cls, data):
+        """Calibrated inference is the default under search='exact'.
+
+        A searched design's posterior interval covers well below its level, and
+        the calibration holds back blank periods the search never sees. Set only
+        when the caller names no inference and no HAC variance, which answers
+        the same serial correlation and is refused beside calibration.
+        """
+        if isinstance(data, dict) and data.get("search") == "exact" \
+                and "inference" not in data and data.get("variance") != "hac":
+            data = {**data, "inference": "calibrated"}
+        return data
+
     @model_validator(mode="after")
     def _one_way_to_name_the_groups(self):
         """The groups are either given or searched for, and never both.
@@ -570,6 +617,39 @@ class TBRConfig(BaseEstimatorConfig):
                 "search='local' improves a searched design and a named split has "
                 "nothing to search; drop it, or drop treatment_col/control_col to "
                 "design instead.")
+        exact_settings = {"exact_gap", "exact_time_limit", "n_jobs"} & self.model_fields_set
+        if self.search != "exact" and exact_settings:
+            raise MlsynthConfigError(
+                f"{sorted(exact_settings)} tune the certified search, which runs "
+                f"only with search='exact'; set it, or drop them.")
+        if self.search == "exact":
+            if not searched:
+                raise MlsynthConfigError(
+                    "search='exact' certifies a searched design and a named "
+                    "split has nothing to search; drop it, or drop "
+                    "treatment_col/control_col to design instead.")
+            if self.objective != "relative":
+                raise MlsynthConfigError(
+                    "search='exact' certifies the relative objective, the level "
+                    "over the smallest detectable impact; set "
+                    "objective='relative'.")
+            if "control_start" in self.model_fields_set:
+                raise MlsynthConfigError(
+                    "control_start chooses where Algorithm 1's climb starts, and "
+                    "search='exact' does not run the climb; drop it.")
+            g = self.exact_gap
+            if not (math.isfinite(g) and g >= 0.0):
+                raise MlsynthConfigError(
+                    f"exact_gap must be finite and non-negative; got {g!r}.")
+            L = self.exact_time_limit
+            if L is not None and not (math.isfinite(L) and L > 0.0):
+                raise MlsynthConfigError(
+                    f"exact_time_limit must be a positive number of seconds, or "
+                    f"None for no limit; got {L!r}.")
+            if self.n_jobs is not None and self.n_jobs < 1:
+                raise MlsynthConfigError(
+                    f"n_jobs must be at least 1, or None for every core; got "
+                    f"{self.n_jobs}.")
         if self.search == "local" and self.objective == "paper":
             raise MlsynthConfigError(
                 "search='local' scores its moves with the reference or relative "
