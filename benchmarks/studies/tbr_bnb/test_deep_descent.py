@@ -38,9 +38,9 @@ def calls(monkeypatch):
     seen = []
     real = search.incumbent
 
-    def spy(y, X, *, restarts, seed):
+    def spy(y, X, *, restarts, seed, **kw):
         seen.append(restarts)
-        return real(y, X, restarts=restarts, seed=seed)
+        return real(y, X, restarts=restarts, seed=seed, **kw)
 
     monkeypatch.setattr(search, "incumbent", spy)
     return seen
@@ -150,7 +150,7 @@ def test_a_deep_design_no_better_is_not_adopted(monkeypatch):
     y, X, _, C = _fixture()
     worse = set(search.incumbent(y, X, restarts=1, seed=0)[1])
     monkeypatch.setattr(search, "incumbent",
-                        lambda y, X, *, restarts, seed: (None, set(C) if restarts == 1 else worse))
+                        lambda y, X, *, restarts, seed, **kw: (None, set(C) if restarts == 1 else worse))
     seen, kw = _collect()
     out = certify_slope_free(y, X, restarts=1, deep_restarts=200, **kw)
     assert set(out.controls) == C and out.certified
@@ -160,7 +160,7 @@ def test_a_deep_design_no_better_is_not_adopted(monkeypatch):
 def test_an_equal_deep_design_is_not_reported(monkeypatch):
     """A deep design at the same ratio is not a new incumbent."""
     y, X, _, C = _fixture()
-    monkeypatch.setattr(search, "incumbent", lambda y, X, *, restarts, seed: (None, set(C)))
+    monkeypatch.setattr(search, "incumbent", lambda y, X, *, restarts, seed, **kw: (None, set(C)))
     seen, kw = _collect()
     certify_slope_free(y, X, restarts=1, deep_restarts=200, **kw)
     assert not [e for e in seen if e.kind == "incumbent" and e.fields["source"] == "descent"]
@@ -295,9 +295,9 @@ def test_property_the_deep_descent_runs_exactly_when_the_search_reaches_the_hull
     seen = []
     real = search.incumbent
 
-    def spy(y, X, *, restarts, seed):
+    def spy(y, X, *, restarts, seed, **kw):
         seen.append(restarts)
-        return real(y, X, restarts=restarts, seed=seed)
+        return real(y, X, restarts=restarts, seed=seed, **kw)
 
     old, search.incumbent = search.incumbent, spy
     try:

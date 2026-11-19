@@ -11562,11 +11562,11 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "the-only-control-can-be-dropped"
-  find = "                toggled[u] = np.inf                     # dropping the only control leaves no design\n"
-  replace = "                pass                                    # dropping the only control leaves no design\n"
+  find = "                toggled[u] = np.inf                     # a drop would leave the band (or no design)\n"
+  replace = "                pass                                    # a drop would leave the band (or no design)\n"
   models = "the empty design scored as a move, which scores y'y and is never below a design's RSS"
   expected = "survived"
-  accepted-because = "EQUIVALENT on every input measured. Dropping the only control j gives c'u - c_j and u'Gu - 2 v_j + G_jj, both zero up to the rounding the updates carried, which scores y'y (or, after drift, y'y less the square of one residue over another), and the descent takes a move only when it lowers the RSS below the current one by a relative 1e-12, which y'y never does since every design's RSS is at most y'y. Measured on 3,600 descents over simulated panels of one to nine controls and 40 fourteen-geo panels at three treated: no descent returned the empty design or raised. The guard stays for the drifted case, where a ratio of two residues is not bounded."
+  accepted-because = "EQUIVALENT on every input measured. Dropping the only control j gives c'u - c_j and u'Gu - 2 v_j + G_jj, both zero up to the rounding the updates carried, which scores y'y (or, after drift, y'y less the square of one residue over another), and the descent takes a move only when it lowers the RSS below the current one by a relative 1e-12, which y'y never does since every design's RSS is at most y'y. Measured on 3,600 descents over simulated panels of one to nine controls and 40 fourteen-geo panels at three treated: no descent returned the empty design or raised. The guard stays for the drifted case, where a ratio of two residues is not bounded. It also keeps a descent at a band's bottom (min_controls above one), where a drop is a real move and not equivalent; that case is the-band-bottom-is-ignored in tbr-bnb-control-rules-descent, killed by test_control_rules.py."
 
   [[target.mutant]]
   id = "the-swaps-are-never-taken"
@@ -12200,14 +12200,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-given-start-skips-the-descent"
-  find = "    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
+  find = "    if start is not None and allowed(start) and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
   replace = "    if start is not None:\n"
   models = "a caller's design taken whatever the descent finds, as the 10-restart pass design at five geos on GeoLift"
 
   [[target.mutant]]
   id = "the-lower-ratio-design-starts"
-  find = "    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
-  replace = "    if start is not None and _ratio(c, G, set(start))[1] <= _ratio(c, G, C)[1]:\n"
+  find = "    if start is not None and allowed(start) and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
+  replace = "    if start is not None and allowed(start) and _ratio(c, G, set(start))[1] <= _ratio(c, G, C)[1]:\n"
   models = "the search started from the design with the higher RSS of the two"
 
   [[target.mutant]]
@@ -12798,14 +12798,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "an-excluded-neighbour-is-the-incumbent"
-  find = "        if not T or set(T) in excluded:\n"
-  replace = "        if not T:\n"
+  find = "        if not T or set(T) in excluded or (ok is not None and not ok(set(T))):\n"
+  replace = "        if not T or (ok is not None and not ok(set(T))):\n"
   models = "the incumbent taken from an excluded design's neighbours without checking it is not itself excluded"
 
   [[target.mutant]]
   id = "the-excluded-designs-are-not-cut"
-  find = "        _branch(c, G, into, m, excluded + [set(state[\"C\"])], [], rounds, per_round, 0, max_depth, state, excluded)\n"
-  replace = "        _branch(c, G, into, m, [set(state[\"C\"])], [], rounds, per_round, 0, max_depth, state, excluded)\n"
+  find = "        _branch(c, G, into, m, excluded + [set(state[\"C\"])], root, rounds, per_round, 0, max_depth, state, excluded)\n"
+  replace = "        _branch(c, G, into, m, [set(state[\"C\"])], root, rounds, per_round, 0, max_depth, state, excluded)\n"
   models = "the excluded designs left out of the relaxation, so a size holding one cannot be certified below it"
 
   [[target.mutant]]
@@ -12858,7 +12858,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-start-is-ignored"
-  find = "    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
+  find = "    if start is not None and allowed(start) and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
   replace = "    if False:\n"
   models = "a caller's design ignored, the descent's taken even when the caller's is better"
 
@@ -14755,8 +14755,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "deep-descent-seeded-off-the-first"
-  find = "        C2 = set(incumbent(y, X, restarts=deep_restarts, seed=seed)[1])"
-  replace = "        C2 = set(incumbent(y, X, restarts=restarts, seed=seed)[1])"
+  find = "        C2 = set(incumbent(y, X, restarts=deep_restarts, seed=seed, fixed=fixed, band=band)[1])"
+  replace = "        C2 = set(incumbent(y, X, restarts=restarts, seed=seed, fixed=fixed, band=band)[1])"
   models = "the second descent runs with the first descent's restarts, so it returns the same design"
 
   [[target.mutant]]
@@ -17447,8 +17447,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-group-gets-no-deadline"
-  find = "                                           deadline=until, **kw)\n"
-  replace = "                                           deadline=None, **kw)\n"
+  find = "                                           deadline=until, **kw, **({} if cols is None else cols.search()))\n"
+  replace = "                                           deadline=None, **kw, **({} if cols is None else cols.search()))\n"
   models = "a group's certification not given the deadline, so its branch and bound runs to the end"
 
   [[target.mutant]]
@@ -17585,20 +17585,20 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "a-group-with-no-control-is-admitted"
-  find = "        return bool(self.controls(T))\n"
+  find = "        return len(geos) >= max(lo, 1) and len(self.must - T) <= hi\n"
   replace = "        return True\n"
   models = "a group whose every candidate control is ruled out handed to the certificate with no columns"
 
   [[target.mutant]]
   id = "bordering-donors-are-not-removed"
-  find = "        banned = self.rules.banned_controls(T) if self.rules is not None else frozenset()\n"
-  replace = "        banned = frozenset()\n"
+  find = "        return self.rules.banned_controls(T) if self.rules is not None else frozenset()\n"
+  replace = "        return frozenset()\n"
   models = "exclude_bordering_donors ignored, so a treated geo's neighbour may be a control"
 
   [[target.mutant]]
   id = "a-geo-that-may-not-be-a-control-is-one"
-  find = "        return sorted(self.controllable - frozenset(T) - banned)\n"
-  replace = "        return sorted(frozenset(range(len(self.roles))) - frozenset(T) - banned)\n"
+  find = "        return sorted(self.controllable - frozenset(T) - self._banned(T))\n"
+  replace = "        return sorted(frozenset(range(len(self.roles))) - frozenset(T) - self._banned(T))\n"
   models = "the controls drawn from every geo outside the group, roles ignored"
 
   [[target.mutant]]
@@ -17638,18 +17638,6 @@ timeout = 900.0
   models = "a start group the rules forbid accepted as the first incumbent"
 
   [[target.mutant]]
-  id = "a-geo-that-has-to-be-a-control-passes"
-  find = "    if must:\n"
-  replace = "    if False:\n"
-  models = "a geo that has to be a control accepted while the certificate cannot fix it in"
-
-  [[target.mutant]]
-  id = "the-control-band-passes"
-  find = "    if rules is not None and (rules.min_controls is not None or rules.max_controls is not None):\n"
-  replace = "    if False:\n"
-  models = "min_controls or max_controls accepted while the certificate does not limit the control size"
-
-  [[target.mutant]]
   id = "rules-from-other-roles-pass"
   find = "        if rules.treatable != treatable or rules.controllable != controllable:\n"
   replace = "        if False:\n"
@@ -17667,3 +17655,153 @@ timeout = 900.0
   find = "            adm.rules.audit(sorted(adm.forced), k)\n"
   replace = "            pass\n"
   models = "a rule set no group can meet refused only after the floors and the start have run"
+
+[[target]]
+name = "tbr-bnb-control-rules-descent"
+module-path = "benchmarks/studies/tbr_bnb/search.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_control_rules.py benchmarks/studies/tbr_bnb/test_rules.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-fixed-control-can-be-dropped"
+  find = "            toggled[pinned] = np.inf                    # a fixed control stays in\n"
+  replace = "            pass\n"
+  models = "the descent drops a fixed control, so its design breaks the fixing"
+
+  [[target.mutant]]
+  id = "a-fixed-control-can-be-swapped-out"
+  find = "            A, B = np.flatnonzero(u & ~pinned), np.flatnonzero(~u)\n"
+  replace = "            A, B = np.flatnonzero(u), np.flatnonzero(~u)\n"
+  models = "a swap moves a fixed control out"
+
+  [[target.mutant]]
+  id = "the-band-top-is-ignored"
+  find = "            if size >= hi:\n                toggled[~u] = np.inf                    # an add would leave the band\n"
+  replace = "            if False:\n                toggled[~u] = np.inf                    # an add would leave the band\n"
+  models = "the descent adds controls past max_controls"
+
+  [[target.mutant]]
+  id = "the-band-bottom-is-ignored"
+  find = "            if size <= lo:\n"
+  replace = "            if size <= 1:\n"
+  models = "the descent drops controls below min_controls"
+
+  [[target.mutant]]
+  id = "a-start-outside-the-band"
+  find = "        n = int(rng.integers(least, hi + 1)) - len(fixed)\n"
+  replace = "        n = int(rng.integers(least, p + 1)) - len(fixed)\n"
+  models = "random starts larger than the band, so a descent can end outside it"
+
+  [[target.mutant]]
+  id = "a-start-without-the-fixed"
+  find = "        return set(fixed) | set(rng.choice(free, size=n, replace=False).tolist()) if n else set(fixed)\n"
+  replace = "        return set(rng.choice(free, size=max(n, 1), replace=False).tolist())\n"
+  models = "random starts without the fixed controls, which the descent then never adds"
+
+  [[target.mutant]]
+  id = "an-impossible-band-passes"
+  find = "    if lo < 1 or hi > p or lo > hi or len(fixed) > hi:\n"
+  replace = "    if lo < 1 or hi > p:\n"
+  models = "a band no design can meet, or more fixed controls than it holds, accepted"
+
+[[target]]
+name = "tbr-bnb-control-rules-certificate"
+module-path = "benchmarks/studies/tbr_bnb/slopefree.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_control_rules.py benchmarks/studies/tbr_bnb/test_rules.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-start-outside-the-rules-is-taken"
+  find = "    if start is not None and allowed(start) and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
+  replace = "    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:\n"
+  models = "a start that breaks a fixing or the band becomes the incumbent"
+
+  [[target.mutant]]
+  id = "a-neighbour-outside-the-rules"
+  find = "        if not T or set(T) in excluded or (ok is not None and not ok(set(T))):\n"
+  replace = "        if not T or set(T) in excluded:\n"
+  models = "the fallback neighbour may break a fixing or the band"
+
+  [[target.mutant]]
+  id = "the-fallback-ignores-the-rules"
+  find = "        C = _best_neighbour(c, G, [C] + excluded, excluded, ok=allowed)\n"
+  replace = "        C = _best_neighbour(c, G, [C] + excluded, excluded)\n"
+  models = "the fallback for an excluded incumbent searched without the rules"
+
+  [[target.mutant]]
+  id = "the-sizes-are-not-the-band"
+  find = "    sizes = [m for m in sizes if max(lo, len(fixed)) <= m <= hi]   # the band's sizes\n"
+  replace = "    sizes = list(sizes)\n"
+  models = "sizes outside the band branched on, so the certificate can return a design the band forbids"
+
+  [[target.mutant]]
+  id = "the-root-fixes-nothing"
+  find = "    root = [(j, 1) for j in sorted(fixed)]  # every size's root fixes the fixed columns in\n"
+  replace = "    root = []\n"
+  models = "the branch and bound searched without the fixings, so it can return a design missing a required control"
+
+  [[target.mutant]]
+  id = "the-incumbent-descent-ignores-the-rules"
+  find = "    C = set(incumbent(y, X, restarts=restarts, seed=seed, fixed=fixed, band=band)[1])\n"
+  replace = "    C = set(incumbent(y, X, restarts=restarts, seed=seed)[1])\n"
+  models = "the first incumbent drawn without the rules"
+
+  [[target.mutant]]
+  id = "the-deep-descent-ignores-the-rules"
+  find = "        C2 = set(incumbent(y, X, restarts=deep_restarts, seed=seed, fixed=fixed, band=band)[1])"
+  replace = "        C2 = set(incumbent(y, X, restarts=deep_restarts, seed=seed)[1])"
+  models = "the deep descent's design, which replaces the incumbent when better, drawn without the rules"
+
+[[target]]
+name = "tbr-bnb-control-rules-groups"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_control_rules.py benchmarks/studies/tbr_bnb/test_rules.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "required-controls-are-not-fixed"
+  find = "        return _Columns(tuple(geos), frozenset(i for i, j in enumerate(geos) if j in need),\n"
+  replace = "        return _Columns(tuple(geos), frozenset(),\n"
+  models = "geos that have to be controls left free in the group's search"
+
+  [[target.mutant]]
+  id = "the-band-is-not-passed"
+  find = "                        (lo, min(hi, len(geos))))\n"
+  replace = "                        (1, len(geos)))\n"
+  models = "the control-size band dropped between the rules and the group's search"
+
+  [[target.mutant]]
+  id = "a-banned-required-control-is-admitted"
+  find = "        if (self.must - T) & self._banned(T):\n"
+  replace = "        if False:\n"
+  models = "a group whose required control it bans admitted"
+
+  [[target.mutant]]
+  id = "too-few-candidates-for-the-band"
+  find = "        return len(geos) >= max(lo, 1) and len(self.must - T) <= hi\n"
+  replace = "        return len(geos) >= 1 and len(self.must - T) <= hi\n"
+  models = "a group with fewer candidate controls than min_controls admitted"
+
+  [[target.mutant]]
+  id = "too-many-required-controls-for-the-band"
+  find = "        return len(geos) >= max(lo, 1) and len(self.must - T) <= hi\n"
+  replace = "        return len(geos) >= max(lo, 1)\n"
+  models = "a group leaving more required controls than max_controls admitted"
+
+  [[target.mutant]]
+  id = "the-band-is-not-read-from-the-rules"
+  find = "    band = rules.control_band if rules is not None else (1, p)\n"
+  replace = "    band = (1, p)\n"
+  models = "min_controls and max_controls ignored"
+
+  [[target.mutant]]
+  id = "the-descent-gets-no-rules"
+  find = "        _, C = incumbent(s * y, X, restarts=restarts, **({} if cols is None else cols.search()))\n"
+  replace = "        _, C = incumbent(s * y, X, restarts=restarts)\n"
+  models = "the pass's descent without the fixings and the band"
+
+  [[target.mutant]]
+  id = "the-certificate-gets-no-rules"
+  find = "                                           deadline=until, **kw, **({} if cols is None else cols.search()))\n"
+  replace = "                                           deadline=until, **kw)\n"
+  models = "the group's certificate without the fixings and the band"

@@ -88,7 +88,7 @@ import math
 import time
 from dataclasses import dataclass, field
 from fractions import Fraction as Q
-from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Callable, Dict, FrozenSet, List, Optional, Sequence, Set, Tuple
 
 import cvxpy as cp
 import numpy as np
@@ -1771,9 +1771,9 @@ class NoDesignLeft(ValueError):
     every one near the incumbent is excluded."""
 
 
-def _best_neighbour(c, G, seeds, excluded):
+def _best_neighbour(c, G, seeds, excluded, ok=None):
     """The best positive-slope design one add, drop or swap from any seed that is
-    not excluded, or None."""
+    not excluded and that ``ok`` allows (every design when None), or None."""
     p = len(c); cand = set()
     for S in seeds:
         S = set(S)
@@ -1783,7 +1783,7 @@ def _best_neighbour(c, G, seeds, excluded):
                 cand.update(frozenset((S - {k}) | {j}) for k in S)
     best = None
     for T in cand:
-        if not T or set(T) in excluded:
+        if not T or set(T) in excluded or (ok is not None and not ok(set(T))):
             continue
         cu, r = _ratio(c, G, T)
         if cu > 0 and (best is None or r > best[0]):
@@ -1871,7 +1871,9 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
                         shor: bool = SHOR_TIER,
                         deep_restarts: Optional[int] = None,
                         pentagons: Optional[bool] = None,
-                        deadline: Optional[float] = None) -> SlopeFreeCertificate:
+                        deadline: Optional[float] = None,
+                        fixed: FrozenSet[int] = frozenset(),
+                        band: Optional[Tuple[int, int]] = None) -> SlopeFreeCertificate:
     """Certify that no control group with a positive slope, other than the designs in
     ``exclude``, has a lower RSS than the incumbent.
 
@@ -1920,6 +1922,14 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
 
     Past ``deadline`` (deadline.py) every node the branch and bound enters is left
     open, so the search ends uncertified.
+
+    Under ``fixed`` (columns every design holds) and ``band`` (the smallest and
+    largest control group) only the designs they allow are searched: the incumbent
+    descent keeps to both (search.incumbent), a start or a neighbour that breaks them
+    is not taken, only the band's sizes are branched on, and each size's root fixes
+    the fixed columns in. The group screen and the hull stage bound every design of
+    every size, a superset of the allowed ones, so a size or a group they rule out
+    holds no allowed design either.
     """
     from .search import hull_survivors, incumbent, pieces_to
 
@@ -1943,14 +1953,20 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
     p = X.shape[1]
     solver = default_solver(p) if solver is None else solver
     excluded = [set(e) for e in exclude]
-    C = set(incumbent(y, X, restarts=restarts, seed=seed)[1])
+    fixed = frozenset(int(j) for j in fixed)
+    C = set(incumbent(y, X, restarts=restarts, seed=seed, fixed=fixed, band=band)[1])
+    lo, hi = (1, p) if band is None else (int(band[0]), int(band[1]))
+
+    def allowed(S) -> bool:                # a design the fixings and the band allow
+        return fixed <= set(S) and lo <= len(S) <= hi
+
     D = ExactData(y, X)
     c, G = D.c, D.G
-    if start is not None and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:
+    if start is not None and allowed(start) and _ratio(c, G, set(start))[1] >= _ratio(c, G, C)[1]:
         C = set(start)                   # kept unless the descent found a design with a lower RSS
     cu, lam = _ratio(c, G, C)
     if set(C) in excluded or not cu > 0:
-        C = _best_neighbour(c, G, [C] + excluded, excluded)
+        C = _best_neighbour(c, G, [C] + excluded, excluded, ok=allowed)
         if C is None:
             if excluded:
                 raise NoDesignLeft("no design is left: every positive-slope design near the "
@@ -1972,7 +1988,7 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
                                         group_seconds=screen.seconds,
                                         seconds=time.perf_counter() - t_all)
     if deep_restarts > restarts and not excluded:
-        C2 = set(incumbent(y, X, restarts=deep_restarts, seed=seed)[1])
+        C2 = set(incumbent(y, X, restarts=deep_restarts, seed=seed, fixed=fixed, band=band)[1])
         cu2, lam2 = _ratio(c, G, C2)
         if lam2 > lam:                     # 0 when the slope is not positive, and lam > 0
             C, cu, lam = C2, cu2, lam2
@@ -1987,6 +2003,8 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
         sizes = sorted({pc[2] for pc in s1})
         t_h = time.perf_counter() - t0
         emit("hull", sizes=sizes, seconds=t_h)
+    sizes = [m for m in sizes if max(lo, len(fixed)) <= m <= hi]   # the band's sizes
+    root = [(j, 1) for j in sorted(fixed)]  # every size's root fixes the fixed columns in
     inc = {"lam": test, "C": set(C), "every": clarabel_every, "round": rounding, "face": face, "solver": solver, "shor": shor,
            "pentagons": pentagons, "deadline": deadline}
     if solver == "workspace":
@@ -1997,7 +2015,7 @@ def _certify_slope_free(y: np.ndarray, X: np.ndarray, *, restarts: int = 50, see
                                group_seconds=0.0 if screen is None else screen.seconds)
     def one_size(m, into, state):            # a size certified at a ratio stays certified at a larger one
         t0 = time.perf_counter(); n0 = into.nodes; o0 = len(into.open)
-        _branch(c, G, into, m, excluded + [set(state["C"])], [], rounds, per_round, 0, max_depth, state, excluded)
+        _branch(c, G, into, m, excluded + [set(state["C"])], root, rounds, per_round, 0, max_depth, state, excluded)
         return into.nodes - n0, len(into.open) - o0, time.perf_counter() - t0
 
     def size_done(m, nodes, opened, secs):

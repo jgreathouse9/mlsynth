@@ -31,7 +31,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from fractions import Fraction
-from typing import List, Optional, Sequence, Set, Tuple
+from typing import FrozenSet, List, Optional, Sequence, Set, Tuple
 
 import cvxpy as cp
 import numpy as np
@@ -195,7 +195,8 @@ def run_node(y, X, lift, inc: Incumbent, scale2, lo, hi, m, fixed, y_warm, stats
         run_node(y, X, lift, inc, scale2, lo, hi, m, fixed + [(j, val)], warm, stats, depth + 1, max_depth)
 
 
-def incumbent(y: np.ndarray, X: np.ndarray, *, restarts: int = 200, seed: int = 0) -> Tuple[float, Set[int]]:
+def incumbent(y: np.ndarray, X: np.ndarray, *, restarts: int = 200, seed: int = 0,
+              fixed: FrozenSet[int] = frozenset(), band: Optional[Tuple[int, int]] = None) -> Tuple[float, Set[int]]:
     """The best control group an RSS-only add/drop/swap descent finds from random starts.
 
     Every move of a step is scored at once from c = X'y, G = X'X and v = G u for the
@@ -206,10 +207,24 @@ def incumbent(y: np.ndarray, X: np.ndarray, *, restarts: int = 200, seed: int = 
     from the series one move at a time the descent took 0.48 s a GeoLift group (10
     restarts, 36 controls); from the Gram, 0.011 s, with the same designs on the 73
     groups measured. The Gram scores choose the design; the RSS returned is the
-    design's positive_rss, since the two differ by rounding (1e-12 relative)."""
+    design's positive_rss, since the two differ by rounding (1e-12 relative).
+
+    Under ``fixed`` (column indices every design holds) and ``band`` (the smallest
+    and largest control group, (1, p) when None) every start and every move keeps to
+    both: a fixed control is never dropped or swapped out, nothing is added at the
+    band's top or dropped at its bottom, so the design returned is one they allow."""
     if restarts < 1:
         raise MlsynthDataError(f"restarts is {restarts}; the descent needs at least one start.")
     p = X.shape[1]
+    lo, hi = (1, p) if band is None else (int(band[0]), int(band[1]))
+    fixed = frozenset(int(j) for j in fixed)
+    if any(j < 0 or j >= p for j in fixed):
+        raise MlsynthDataError(f"fixed controls {sorted(fixed)} are not all among the {p} columns.")
+    if lo < 1 or hi > p or lo > hi or len(fixed) > hi:
+        raise MlsynthDataError(f"no control group of {p} columns holds the {len(fixed)} fixed and has a size "
+                               f"in the band ({lo}, {hi}).")
+    pinned = np.zeros(p, dtype=bool)
+    pinned[sorted(fixed)] = True
     rng = np.random.default_rng(seed)
     y = np.asarray(y, dtype=float); X = np.asarray(X, dtype=float)
     yy = float(y @ y); c = X.T @ y; G = X.T @ X; d = np.diag(G).copy()
@@ -225,10 +240,14 @@ def incumbent(y: np.ndarray, X: np.ndarray, *, restarts: int = 200, seed: int = 
         while True:
             sign = np.where(u, -1.0, 1.0)              # drop the members, add the others
             toggled = rss(s + sign * c, q + sign * 2.0 * v + d)
-            if u.sum() == 1:
-                toggled[u] = np.inf                     # dropping the only control leaves no design
+            size = int(u.sum())
+            if size <= lo:
+                toggled[u] = np.inf                     # a drop would leave the band (or no design)
+            if size >= hi:
+                toggled[~u] = np.inf                    # an add would leave the band
+            toggled[pinned] = np.inf                    # a fixed control stays in
             j = int(np.argmin(toggled)); best, move = float(toggled[j]), (j,)
-            A, B = np.flatnonzero(u), np.flatnonzero(~u)
+            A, B = np.flatnonzero(u & ~pinned), np.flatnonzero(~u)
             if A.size and B.size:
                 swapped = rss(s - c[A][:, None] + c[B][None, :],
                               q - 2.0 * v[A][:, None] + d[A][:, None] + 2.0 * v[B][None, :] + d[B][None, :]
@@ -247,8 +266,14 @@ def incumbent(y: np.ndarray, X: np.ndarray, *, restarts: int = 200, seed: int = 
                 v = v + G[:, b] - G[:, a]; u[a] = False; u[b] = True
             cur = best
 
-    starts = [set(rng.choice(p, size=int(rng.integers(1, p + 1)), replace=False).tolist())
-              for _ in range(restarts)]
+    free = [j for j in range(p) if j not in fixed]
+    least = max(lo, len(fixed))
+
+    def start():
+        n = int(rng.integers(least, hi + 1)) - len(fixed)
+        return set(fixed) | set(rng.choice(free, size=n, replace=False).tolist()) if n else set(fixed)
+
+    starts = [start() for _ in range(restarts)]
     _, C = min((descend(C) for C in starts), key=lambda r: r[0])
     return positive_rss(y, X, C), C
 
