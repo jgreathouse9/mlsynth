@@ -43,7 +43,7 @@ def test_smoke_the_bracket_holds_on_a_geo_group():
 
 def test_smoke_the_search_certifies():
     M = raw_panel(5)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, blank_periods=0)
     assert out.certified and out.treatment is not None
 
 
@@ -189,9 +189,9 @@ def test_rows_with_no_bracket_certify_the_same_design(monkeypatch):
     the same."""
     M = raw_panel(5)
     monkeypatch.setattr(fastfloor, "AVAILABLE", False)
-    want = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
+    want = certify_treatment(M, 2, n_test=N_TEST, restarts=3, blank_periods=0)
     monkeypatch.setattr(treatment, "yy_bracket", lambda y: None)
-    got = certify_treatment(M, 2, n_test=N_TEST, restarts=3)
+    got = certify_treatment(M, 2, n_test=N_TEST, restarts=3, blank_periods=0)
     assert (got.treatment, got.controls, got.key, got.rss, got.certified) == \
         (want.treatment, want.controls, want.key, want.rss, want.certified)
     assert got.screened_out == want.screened_out

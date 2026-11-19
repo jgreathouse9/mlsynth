@@ -315,9 +315,9 @@ def test_the_search_with_the_kernel_certifies_the_same_design(monkeypatch, k):
     from .brute import raw_panel
     M = raw_panel(5, p=7)
     monkeypatch.setattr(fastfloor, "AVAILABLE", False)
-    want = certify_treatment(M, k, n_test=N_TEST, restarts=3)
+    want = certify_treatment(M, k, n_test=N_TEST, restarts=3, blank_periods=0)
     monkeypatch.setattr(fastfloor, "AVAILABLE", True)
-    got = certify_treatment(M, k, n_test=N_TEST, restarts=3)
+    got = certify_treatment(M, k, n_test=N_TEST, restarts=3, blank_periods=0)
     assert (got.treatment, got.key, got.rss, got.certified) == (want.treatment, want.key, want.rss, want.certified)
 
 

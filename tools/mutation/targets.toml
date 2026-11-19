@@ -13122,8 +13122,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "one-job-starts-a-pool"
-  find = "    if n_jobs == 1:\n        return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0)\n"
-  replace = "    if False:\n        return _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0)\n"
+  find = "    if n_jobs == 1:\n        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0)\n"
+  replace = "    if False:\n        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0)\n"
   models = "the sequential search sent through a pool of one worker, paying its start and the pickling for nothing"
 
   [[target.mutant]]
@@ -14599,8 +14599,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "certify-takes-the-panel-unchecked"
-  find = "    M = _checked_panel(M)\n    _check_levels(M)\n"
-  replace = "    M = np.asarray(M, dtype=float)\n    _check_levels(M)\n"
+  find = "    whole = _checked_panel(M)\n"
+  replace = "    whole = np.asarray(M, dtype=float)\n"
   models = "certify_treatment reads the panel without the check, so a nan or an inf reaches the library's least squares and comes back as numpy's LinAlgError"
 
   [[target.mutant]]
@@ -17153,7 +17153,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-gates-are-not-reported"
-  find = "        out.gates = gates_of(M[:, out.treatment].sum(axis=1), M, out.controls, n_test)\n"
+  find = "        out.gates = gates_of(y, whole, out.controls, n_test)\n"
   replace = "        out.gates = None\n"
   models = "the reference key's gates, documented as reported on the design, never read"
 
@@ -17234,3 +17234,57 @@ timeout = 900.0
   find = "        c[i] = sign * acc\n"
   replace = "        c[i] = acc\n"
   models = "the kernel's -y floor with the +y cross products, an NNLS on mismatched data whose bound is not -y's"
+
+[[target]]
+name = "tbr-bnb-blank-periods"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_blank_periods.py benchmarks/studies/tbr_bnb/test_relative.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-search-reads-the-blank-periods"
+  find = "    M = whole[:whole.shape[0] - B]       # the design window: the search never reads a blank period\n"
+  replace = "    M = whole\n"
+  models = "the search run on the whole panel, blank periods included, so the A/A test at a blank origin scores a window the design was chosen on"
+
+  [[target.mutant]]
+  id = "the-default-holds-back-nothing"
+  find = "    if blank_periods == 0 and type(blank_periods) is int:\n"
+  replace = "    if blank_periods is None or (blank_periods == 0 and type(blank_periods) is int):\n"
+  models = "None read as no blank periods, so the default search sees every period"
+
+  [[target.mutant]]
+  id = "the-default-is-two-test-lengths"
+  find = "BLANK_TESTS = 3\n"
+  replace = "BLANK_TESTS = 2\n"
+  models = "the default hold-back shorter than the library's calibrated inference, so the study and the library hold back different windows"
+
+  [[target.mutant]]
+  id = "the-gates-read-on-the-design-window"
+  find = "        out.gates = gates_of(y, whole, out.controls, n_test)\n"
+  replace = "        out.gates = gates_of(y[:M.shape[0]], M, out.controls, n_test)\n"
+  models = "the four gates read on the design window, not the whole panel the library reports a design on"
+
+  [[target.mutant]]
+  id = "the-last-blank-window-is-not-tested"
+  find = "            for o in range(design_periods, y.size - n_test + 1, n_test)]\n"
+  replace = "            for o in range(design_periods, y.size - n_test, n_test)]\n"
+  models = "the last whole blank window dropped from the A/A tests"
+
+  [[target.mutant]]
+  id = "the-first-aa-window-starts-in-the-design-window"
+  find = "            for o in range(design_periods, y.size - n_test + 1, n_test)]\n"
+  replace = "            for o in range(design_periods - n_test, y.size - n_test + 1, n_test)]\n"
+  models = "an A/A test on the design window's last periods counted as a blank one"
+
+  [[target.mutant]]
+  id = "a-short-design-window-is-not-refused"
+  find = "    design_end(n, B)                     # refuses too short a design window\n"
+  replace = "    pass\n"
+  models = "a hold-back leaving fewer than the library's minimum design periods accepted, so the search fits on a window the calibration refuses"
+
+  [[target.mutant]]
+  id = "a-non-integer-blank-count-passes"
+  find = "    if blank_periods is not None and (type(blank_periods) is not int or blank_periods < 0):\n"
+  replace = "    if blank_periods is not None and blank_periods < 0:\n"
+  models = "a float, a bool or a string taken as a count of blank periods"

@@ -59,7 +59,7 @@ def _runner_up(M, k):
 def test_smoke_a_gap_certificate_is_within_its_gap():
     M = raw_panel(5)
     g = Q(1, 20)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, gap=g)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, gap=g, blank_periods=0)
     assert out.certified and out.gap == g
     assert _within(M, 2, out, g)
 
@@ -70,8 +70,8 @@ def test_smoke_a_gap_certificate_is_within_its_gap():
 def test_no_gap_is_the_exact_search():
     """gap = 0 is the search without one: the same design, survivors and ceilings."""
     M = raw_panel(5)
-    plain = certify_treatment(M, 2, n_test=N_TEST, restarts=5)
-    zero = certify_treatment(M, 2, n_test=N_TEST, restarts=5, gap=0)
+    plain = certify_treatment(M, 2, n_test=N_TEST, restarts=5, blank_periods=0)
+    zero = certify_treatment(M, 2, n_test=N_TEST, restarts=5, gap=0, blank_periods=0)
     assert plain.gap == zero.gap == 0
     assert (zero.treatment, zero.controls, zero.rss) == (plain.treatment, plain.controls, plain.rss)
     assert [(s["treatment"], s["ceiling"]) for s in zero.survivors] == \
@@ -84,7 +84,7 @@ def test_each_survivor_is_certified_at_the_gaps_ceiling():
     because the key is the level over a constant times sqrt(RSS)."""
     M = raw_panel(5)
     g = Q(1, 50)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, gap=g)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, gap=g, blank_periods=0)
     assert out.replaced == 0 and out.survivors     # the incumbent is the pass's throughout
     sums, n = geo_sums(M), M.shape[0]
     for s in out.survivors:
@@ -98,10 +98,10 @@ def test_a_start_within_the_gap_is_kept():
     the start's design and certifies it; with no gap the best group replaces it."""
     M = raw_panel(5)
     best, second, g, _ = _runner_up(M, 2)
-    kept = certify_treatment(M, 2, n_test=N_TEST, start=list(second), restarts=5, pass_restarts=0, gap=g)
+    kept = certify_treatment(M, 2, n_test=N_TEST, start=list(second), restarts=5, pass_restarts=0, gap=g, blank_periods=0)
     assert kept.certified and tuple(kept.treatment) == second and kept.replaced == 0
     assert _within(M, 2, kept, g)
-    exact = certify_treatment(M, 2, n_test=N_TEST, start=list(second), restarts=5, pass_restarts=0)
+    exact = certify_treatment(M, 2, n_test=N_TEST, start=list(second), restarts=5, pass_restarts=0, blank_periods=0)
     assert exact.certified and tuple(exact.treatment) == best and exact.replaced >= 1
 
 
@@ -111,14 +111,14 @@ def test_a_start_just_outside_the_gap_is_replaced():
     M = raw_panel(5)
     best, second, _, just = _runner_up(M, 2)
     short = (1 + just) * Q(999, 1000) - 1
-    out = certify_treatment(M, 2, n_test=N_TEST, start=list(second), restarts=5, pass_restarts=0, gap=short)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=list(second), restarts=5, pass_restarts=0, gap=short, blank_periods=0)
     assert out.certified and tuple(out.treatment) == best
 
 
 def test_a_gap_screens_out_at_least_as_many_groups():
     M = raw_panel(5, p=7)
-    plain = certify_treatment(M, 2, n_test=N_TEST, restarts=5, pass_restarts=0)
-    wide = certify_treatment(M, 2, n_test=N_TEST, restarts=5, pass_restarts=0, gap=1)
+    plain = certify_treatment(M, 2, n_test=N_TEST, restarts=5, pass_restarts=0, blank_periods=0)
+    wide = certify_treatment(M, 2, n_test=N_TEST, restarts=5, pass_restarts=0, gap=1, blank_periods=0)
     assert wide.screened_out >= plain.screened_out
     assert len(wide.survivors) <= len(plain.survivors)
 
@@ -128,7 +128,7 @@ def test_a_gap_screens_out_at_least_as_many_groups():
 @SETTINGS
 def test_property_a_certified_design_is_within_its_gap(seed, k, g):
     M = raw_panel(seed, n=30, p=6)
-    out = certify_treatment(M, k, n_test=N_TEST, restarts=3, gap=g)
+    out = certify_treatment(M, k, n_test=N_TEST, restarts=3, gap=g, blank_periods=0)
     assert out.certified and out.gap == g
     assert _within(M, k, out, g)
 
@@ -140,14 +140,14 @@ def test_a_huge_gap_keeps_the_start_and_still_certifies():
     """With a gap of a million every ceiling is far below any design: the start's
     design is reported, certified within the gap."""
     M = raw_panel(5)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, gap=10 ** 6)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, gap=10 ** 6, blank_periods=0)
     assert out.certified and out.replaced == 0
     assert _within(M, 2, out, Q(10 ** 6))
 
 
 def test_a_float_gap_is_read_exactly():
     M = raw_panel(5)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, gap=0.05)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, gap=0.05, blank_periods=0)
     assert out.gap == Q(0.05) and isinstance(out.gap, Q)
 
 
@@ -157,4 +157,4 @@ def test_a_float_gap_is_read_exactly():
 @pytest.mark.parametrize("bad", [-Q(1, 100), -1, float("nan"), float("inf"), True, "0.01", None])
 def test_a_gap_that_is_not_a_nonnegative_number_raises(bad):
     with pytest.raises(MlsynthDataError, match="gap"):
-        certify_treatment(raw_panel(5), 2, n_test=N_TEST, restarts=3, gap=bad)
+        certify_treatment(raw_panel(5), 2, n_test=N_TEST, restarts=3, gap=bad, blank_periods=0)

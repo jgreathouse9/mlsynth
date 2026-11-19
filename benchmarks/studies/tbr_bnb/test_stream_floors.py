@@ -157,10 +157,10 @@ def test_without_a_screen_every_row_comes_back():
 @pytest.mark.parametrize("n_jobs", [1, 2])
 def test_the_search_over_the_stream_is_the_search_over_the_list(monkeypatch, k, n_jobs):
     R, M = _panel(5)
-    streamed = treatment.certify_treatment(R, k, n_test=N_TEST, restarts=5, pass_restarts=3, n_jobs=n_jobs)
+    streamed = treatment.certify_treatment(R, k, n_test=N_TEST, restarts=5, pass_restarts=3, n_jobs=n_jobs, blank_periods=0)
     monkeypatch.setattr(treatment, "_streamed_floor_rows", lambda M, p, k, lam, pool, n_jobs, cls:
                         treatment._screened_floor_rows(M, list(combinations(range(p), k)), lam, pool, n_jobs, cls))
-    listed = treatment.certify_treatment(R, k, n_test=N_TEST, restarts=5, pass_restarts=3, n_jobs=n_jobs)
+    listed = treatment.certify_treatment(R, k, n_test=N_TEST, restarts=5, pass_restarts=3, n_jobs=n_jobs, blank_periods=0)
     for attr in ("treatment", "controls", "rss", "key", "slope", "certified"):
         assert getattr(streamed, attr) == getattr(listed, attr), attr
 
@@ -176,7 +176,7 @@ def test_the_search_streams_its_floors(monkeypatch):
         return out
 
     monkeypatch.setattr(treatment, "_streamed_floor_rows", spy)
-    treatment.certify_treatment(R, 3, n_test=N_TEST, restarts=5, pass_restarts=3, n_jobs=1)
+    treatment.certify_treatment(R, 3, n_test=N_TEST, restarts=5, pass_restarts=3, n_jobs=1, blank_periods=0)
     (p, k, cls, dropped), = seen
     want = _class(R, 3)
     assert (p, k) == (M.shape[1], 3) and dropped > 0

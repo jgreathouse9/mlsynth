@@ -68,7 +68,7 @@ def _centred(M):
 
 def test_smoke_the_certified_design_is_the_optimum():
     M = raw_panel(5)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, blank_periods=0)
     best, T, C = relative_optimum(M, 2, N_TEST)
     assert out.certified
     assert out.key == pytest.approx(best, rel=REL)
@@ -81,14 +81,14 @@ def test_smoke_the_certified_design_is_the_optimum():
 @pytest.mark.parametrize("seed,k", [(0, 1), (0, 2), (1, 3), (4, 2), (5, 1), (5, 3)])
 def test_the_optimum_on_small_panels(seed, k):
     M = raw_panel(seed)
-    out = certify_treatment(M, k, n_test=N_TEST, restarts=5)
+    out = certify_treatment(M, k, n_test=N_TEST, restarts=5, blank_periods=0)
     best, _, _ = relative_optimum(M, k, N_TEST)
     assert out.certified and out.key == pytest.approx(best, rel=REL)
 
 
 def test_every_group_is_screened_or_certified():
     M = raw_panel(5)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, blank_periods=0)
     assert out.groups == comb(M.shape[1], 2)
     assert out.screened_out + len(out.survivors) == out.groups
     assert all(s["certified"] for s in out.survivors)
@@ -96,7 +96,7 @@ def test_every_group_is_screened_or_certified():
 
 def test_the_screen_rules_out_groups():
     M = raw_panel(5)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, blank_periods=0)
     assert out.screened_out > 0
 
 
@@ -107,7 +107,7 @@ def test_a_better_group_replaces_a_poor_start():
     best, T, _ = relative_optimum(M, 2, N_TEST)
     worst = _worst(M)
     assert set(worst) != T
-    out = certify_treatment(M, 2, n_test=N_TEST, start=worst, restarts=5, pass_restarts=0)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=worst, restarts=5, pass_restarts=0, blank_periods=0)
     assert out.certified and set(out.treatment) == T
     assert out.key == pytest.approx(best, rel=REL)
     assert out.replaced >= 1
@@ -148,7 +148,7 @@ def test_property_a_group_ruled_out_has_no_better_design(seed, k):
     """Against the certified optimum, enumeration finds no design with a larger key:
     no group the screen ruled out held one."""
     M = raw_panel(seed % 200, p=6)
-    out = certify_treatment(M, k, n_test=N_TEST, restarts=3)
+    out = certify_treatment(M, k, n_test=N_TEST, restarts=3, blank_periods=0)
     best, _, _ = relative_optimum(M, k, N_TEST)
     assert out.certified and out.key == pytest.approx(best, rel=REL)
 
@@ -158,7 +158,7 @@ def test_property_a_group_ruled_out_has_no_better_design(seed, k):
 
 def test_one_control_left():
     M = raw_panel(2, p=4)
-    out = certify_treatment(M, 3, n_test=N_TEST, restarts=3)
+    out = certify_treatment(M, 3, n_test=N_TEST, restarts=3, blank_periods=0)
     best, T, C = relative_optimum(M, 3, N_TEST)
     assert out.certified and set(out.treatment) == T and len(out.controls) == 1
     assert out.key == pytest.approx(best, rel=REL)
@@ -320,7 +320,7 @@ def test_a_singular_positive_gram_gives_the_diagonal_floor():
 
 def test_more_geos_than_periods_still_certifies():
     M = wide_panel(0)
-    out = certify_treatment(M, 1, n_test=4, restarts=5)
+    out = certify_treatment(M, 1, n_test=4, restarts=5, blank_periods=0)
     best, T, C = relative_optimum(M, 1, 4)
     assert out.certified
     assert out.key == pytest.approx(best, rel=REL)
@@ -338,7 +338,7 @@ def test_each_survivor_is_certified_against_the_incumbents_ceiling(monkeypatch):
 
     monkeypatch.setattr(slopefree, "certify_slope_free", spy)
     M = raw_panel(5)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, start=_worst(M), pass_restarts=0)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=3, start=_worst(M), pass_restarts=0, blank_periods=0)
     assert seen and len(seen) >= len(out.survivors)
     assert all(c is not None and c > 0 for _, c in seen)
     for s in out.survivors:
@@ -382,7 +382,7 @@ def _improving(monkeypatch):
     real = treatment._bound_order
     monkeypatch.setattr(treatment, "_bound_order", lambda r, ell: -real(r, ell))
     M = raw_panel(0, p=7)
-    plain = certify_treatment(M, 2, n_test=N_TEST, start=[0, 1], restarts=3, pass_restarts=0)
+    plain = certify_treatment(M, 2, n_test=N_TEST, start=[0, 1], restarts=3, pass_restarts=0, blank_periods=0)
     sv = [s["treatment"] for s in plain.survivors]
     assert plain.replaced >= 2 and sv.index(sorted(plain.treatment)) > 0
     return M, [0, 1], plain
@@ -395,7 +395,7 @@ def test_a_group_left_open_is_retried_against_the_final_ceiling(monkeypatch):
     M, start, plain = _improving(monkeypatch)
     turn = _retried_turn(M, plain)
     seen = _flaky(monkeypatch, {turn})
-    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0, blank_periods=0)
     assert out.certified and out.retried == 1
     assert seen[-1] is not None and (seen[turn - 1] is None or seen[-1] < seen[turn - 1])
     assert out.key == plain.key
@@ -407,7 +407,7 @@ def test_a_retried_group_can_replace_the_incumbent(monkeypatch):
     the incumbent, which lowers the winner's ceiling, so it is retried, and its
     optimum, found on the retry, replaces the incumbent."""
     M = raw_panel(0, p=7)
-    plain = certify_treatment(M, 2, n_test=N_TEST, start=[0, 1], restarts=3, pass_restarts=0)
+    plain = certify_treatment(M, 2, n_test=N_TEST, start=[0, 1], restarts=3, pass_restarts=0, blank_periods=0)
     turn = 1 + [s["treatment"] for s in plain.survivors].index(sorted(plain.treatment))
     real = treatment._optimum
     calls = []
@@ -420,7 +420,7 @@ def test_a_retried_group_can_replace_the_incumbent(monkeypatch):
         return res
 
     monkeypatch.setattr(treatment, "_optimum", wrapped)
-    out = certify_treatment(M, 2, n_test=N_TEST, start=[0, 1], restarts=3, pass_restarts=0)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=[0, 1], restarts=3, pass_restarts=0, blank_periods=0)
     assert out.certified and out.retried == 1 and len(out.survivors) > len(plain.survivors)
     assert out.key == plain.key and sorted(out.treatment) == sorted(plain.treatment)
 
@@ -429,7 +429,7 @@ def test_a_group_still_open_after_its_retry_leaves_the_search_uncertified(monkey
     M, start, plain = _improving(monkeypatch)
     n = len(plain.survivors)
     _flaky(monkeypatch, {_retried_turn(M, plain), n + 1})     # open on its turn and on its retry
-    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0, blank_periods=0)
     assert not out.certified and out.retried == 1
 
 
@@ -440,8 +440,8 @@ def test_the_pass_needs_no_more_certifications_than_without_it():
     M = raw_panel(5, p=7)
     start = _worst(M)
     best, T, _ = relative_optimum(M, 2, N_TEST)
-    off = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0)
-    on = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=10)
+    off = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=0, blank_periods=0)
+    on = certify_treatment(M, 2, n_test=N_TEST, start=start, restarts=3, pass_restarts=10, blank_periods=0)
     for out in (off, on):
         assert out.certified and set(out.treatment) == T
         assert out.key == pytest.approx(best, rel=REL)
@@ -453,7 +453,7 @@ def test_the_pass_needs_no_more_certifications_than_without_it():
 def test_the_pass_adopts_its_best_design_as_the_incumbent():
     M = raw_panel(5)
     best, T, _ = relative_optimum(M, 2, N_TEST)
-    out = certify_treatment(M, 2, n_test=N_TEST, start=_worst(M), restarts=3, pass_restarts=10)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=_worst(M), restarts=3, pass_restarts=10, blank_periods=0)
     assert out.pass_key == pytest.approx(best, rel=REL)
     assert out.replaced == 0
 
@@ -468,7 +468,7 @@ def test_groups_are_certified_best_pass_design_first(monkeypatch):
         return real(Mc, M_, T, *a)
 
     monkeypatch.setattr(treatment, "_optimum", spy)
-    out = certify_treatment(M, 2, n_test=N_TEST, start=_worst(M), restarts=3, pass_restarts=10)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=_worst(M), restarts=3, pass_restarts=10, blank_periods=0)
     assert out.certified and len(order) == len(out.survivors)
     sums, n = geo_sums(M), M.shape[0]
     vals = []
@@ -489,14 +489,14 @@ def test_each_certification_starts_from_its_groups_pass_designs(monkeypatch):
 
     monkeypatch.setattr(treatment, "_optimum", spy)
     M = raw_panel(5, p=7)
-    out = certify_treatment(M, 2, n_test=N_TEST, start=_worst(M), restarts=3, pass_restarts=10)
+    out = certify_treatment(M, 2, n_test=N_TEST, start=_worst(M), restarts=3, pass_restarts=10, blank_periods=0)
     assert len(seen) == len(out.survivors) >= 1
     assert all(set(s) == {1, -1} for s in seen)
 
 
 def test_a_negative_pass_is_refused():
     with pytest.raises(MlsynthDataError, match="pass_restarts"):
-        certify_treatment(raw_panel(0), 2, n_test=N_TEST, pass_restarts=-1)
+        certify_treatment(raw_panel(0), 2, n_test=N_TEST, pass_restarts=-1, blank_periods=0)
 
 
 def test_a_refused_certificate_is_reported(monkeypatch):
@@ -509,7 +509,7 @@ def test_a_refused_certificate_is_reported(monkeypatch):
         return res
 
     monkeypatch.setattr(slopefree, "certify_slope_free", short)
-    out = certify_treatment(raw_panel(5), 2, n_test=N_TEST, restarts=3)
+    out = certify_treatment(raw_panel(5), 2, n_test=N_TEST, restarts=3, blank_periods=0)
     assert not out.certified
 
 
@@ -519,9 +519,9 @@ def test_a_refused_certificate_is_reported(monkeypatch):
 @pytest.mark.parametrize("k", [0, 6, -1])
 def test_a_size_without_a_control_raises(k):
     with pytest.raises(MlsynthDataError, match="treatment"):
-        certify_treatment(raw_panel(0), k, n_test=N_TEST)
+        certify_treatment(raw_panel(0), k, n_test=N_TEST, blank_periods=0)
 
 
 def test_a_start_of_the_wrong_size_raises():
     with pytest.raises(MlsynthDataError, match="start"):
-        certify_treatment(raw_panel(0), 2, n_test=N_TEST, start=[0])
+        certify_treatment(raw_panel(0), 2, n_test=N_TEST, start=[0], blank_periods=0)

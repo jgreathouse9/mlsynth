@@ -33,8 +33,8 @@ def _answer(out):
 
 def test_smoke_two_processes_certify_the_sequential_design():
     M = raw_panel(5, p=6)
-    one = certify_treatment(M, 2, n_test=N_TEST, restarts=5)
-    two = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=2)
+    one = certify_treatment(M, 2, n_test=N_TEST, restarts=5, blank_periods=0)
+    two = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=2, blank_periods=0)
     assert two.certified and _answer(two) == _answer(one)
 
 
@@ -45,8 +45,8 @@ def test_smoke_two_processes_certify_the_sequential_design():
 @given(seed=st.integers(0, 300), k=st.integers(1, 2), jobs=st.integers(2, 3))
 def test_property_every_n_jobs_certifies_the_same_design(seed, k, jobs):
     M = raw_panel(seed, p=6)
-    one = certify_treatment(M, k, n_test=N_TEST, restarts=5)
-    many = certify_treatment(M, k, n_test=N_TEST, restarts=5, n_jobs=jobs)
+    one = certify_treatment(M, k, n_test=N_TEST, restarts=5, blank_periods=0)
+    many = certify_treatment(M, k, n_test=N_TEST, restarts=5, n_jobs=jobs, blank_periods=0)
     assert _answer(many) == _answer(one)
 
 
@@ -54,7 +54,7 @@ def test_property_every_n_jobs_certifies_the_same_design(seed, k, jobs):
 def test_two_processes_reach_the_optimum(seed):
     M = raw_panel(seed, p=6)
     best, T, C = relative_optimum(M, 2, N_TEST)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=2)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=2, blank_periods=0)
     assert out.certified and out.key == pytest.approx(best, rel=1e-9) and set(out.treatment) == set(T)
 
 
@@ -65,7 +65,7 @@ def test_every_ceiling_holds_against_the_final_incumbent():
     """A survivor certified in parallel holds no design below its ceiling, and its
     ceiling is at least the final incumbent's for it: the incumbent only improves."""
     M = raw_panel(5, p=6)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=3, pass_restarts=0, start=[0, 5])
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=3, pass_restarts=0, start=[0, 5], blank_periods=0)
     bar = treatment.relative_bar(out.rss, out.level, out.gap)
     sums = treatment.geo_sums(M)
     assert len(out.survivors) >= 2
@@ -77,7 +77,7 @@ def test_every_ceiling_holds_against_the_final_incumbent():
 
 def test_every_group_is_screened_or_certified_in_parallel():
     M = raw_panel(4, p=6)
-    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=2)
+    out = certify_treatment(M, 2, n_test=N_TEST, restarts=5, n_jobs=2, blank_periods=0)
     assert out.screened_out + len(out.survivors) == out.groups
 
 
@@ -88,7 +88,7 @@ def test_a_tie_in_a_wave_keeps_the_first_design(monkeypatch):
     incumbent's RSS times the square of its level over the incumbent's."""
     M = raw_panel(5, p=6)
     kw = dict(n_test=N_TEST, restarts=5, pass_restarts=0, start=[0, 5])
-    plain = certify_treatment(M, 2, n_jobs=2, **kw)
+    plain = certify_treatment(M, 2, n_jobs=2, **kw, blank_periods=0)
     assert len(plain.survivors) >= 2
     target, real = plain.survivors[1]["treatment"], treatment._optimum
     sums = treatment.geo_sums(M)
@@ -103,7 +103,7 @@ def test_a_tie_in_a_wave_keeps_the_first_design(monkeypatch):
         return res
 
     monkeypatch.setattr(treatment, "_optimum", tied)       # read inside the forked workers
-    out = certify_treatment(M, 2, n_jobs=2, **kw)
+    out = certify_treatment(M, 2, n_jobs=2, **kw, blank_periods=0)
     assert not treatment.beats(L, tie, plain.level, plain.rss)
     assert (out.treatment, out.controls, out.key) == (plain.treatment, plain.controls, plain.key)
 
@@ -132,21 +132,21 @@ def test_a_pool_maps_in_order_as_this_process_does():
 
 def test_one_job_starts_no_pool(monkeypatch):
     monkeypatch.setattr(treatment, "_pool", lambda n: pytest.fail("a pool was started for one job"))
-    out = certify_treatment(raw_panel(3, p=5), 1, n_test=N_TEST, restarts=5, n_jobs=1)
+    out = certify_treatment(raw_panel(3, p=5), 1, n_test=N_TEST, restarts=5, n_jobs=1, blank_periods=0)
     assert out.certified
 
 
 def test_more_jobs_than_groups():
     M = raw_panel(3, p=4)
-    one = certify_treatment(M, 1, n_test=N_TEST, restarts=5)
-    out = certify_treatment(M, 1, n_test=N_TEST, restarts=5, n_jobs=8)
+    one = certify_treatment(M, 1, n_test=N_TEST, restarts=5, blank_periods=0)
+    out = certify_treatment(M, 1, n_test=N_TEST, restarts=5, n_jobs=8, blank_periods=0)
     assert _answer(out) == _answer(one)
 
 
 @pytest.mark.parametrize("bad", [0, -2])
 def test_a_non_positive_n_jobs_is_refused(bad):
     with pytest.raises(MlsynthDataError, match="n_jobs"):
-        certify_treatment(raw_panel(3, p=5), 1, n_test=N_TEST, n_jobs=bad)
+        certify_treatment(raw_panel(3, p=5), 1, n_test=N_TEST, n_jobs=bad, blank_periods=0)
 
 
 def test_a_worker_failure_is_reported(monkeypatch):
@@ -163,7 +163,7 @@ def test_a_worker_failure_is_reported(monkeypatch):
 
     monkeypatch.setattr(treatment, "_optimum", broken)     # read inside the forked worker
     with pytest.raises(ValueError, match="in a worker"):
-        certify_treatment(raw_panel(5, p=6), 2, n_test=N_TEST, restarts=5, n_jobs=2)
+        certify_treatment(raw_panel(5, p=6), 2, n_test=N_TEST, restarts=5, n_jobs=2, blank_periods=0)
 
 
 _PARENT = None
@@ -191,7 +191,7 @@ def test_a_worker_error_in_the_pass_is_reported(monkeypatch):
     monkeypatch.setattr(treatment, "_local", _local_failing_in_workers)
     with pytest.raises(ValueError, match="in a worker"):
         certify_treatment(raw_panel(5, p=6), 2, n_test=N_TEST, restarts=3, pass_restarts=2, n_jobs=2,
-                          start=[0, 5])          # a poor start, so the pass searches other groups
+                          start=[0, 5], blank_periods=0)          # a poor start, so the pass searches other groups
 
 
 def test_a_group_left_open_in_a_wave_is_retried(monkeypatch, tmp_path):
@@ -201,7 +201,7 @@ def test_a_group_left_open_in_a_wave_is_retried(monkeypatch, tmp_path):
     short once, and a file marks it, since each worker is its own process."""
     M = raw_panel(5, p=6)
     kw = dict(n_test=N_TEST, restarts=3, pass_restarts=0, start=[0, 5])
-    plain = certify_treatment(M, 2, n_jobs=2, **kw)
+    plain = certify_treatment(M, 2, n_jobs=2, **kw, blank_periods=0)
     target = plain.survivors[1]["treatment"]
     real, mark = treatment._optimum, tmp_path / "cut"
 
@@ -213,7 +213,7 @@ def test_a_group_left_open_in_a_wave_is_retried(monkeypatch, tmp_path):
         return res
 
     monkeypatch.setattr(treatment, "_optimum", flaky)
-    out = certify_treatment(M, 2, n_jobs=2, **kw)
+    out = certify_treatment(M, 2, n_jobs=2, **kw, blank_periods=0)
     assert mark.exists() and out.retried >= 1
     assert _answer(out) == _answer(plain)
 
