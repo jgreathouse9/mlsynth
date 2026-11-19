@@ -2533,7 +2533,10 @@ pass, the group screen and every size's branch and bound run on the allowed
 columns only. The floors still read every other geo's column, a superset of the
 allowed designs, so they stay lower bounds. The start is the library's greedy and
 local search under the same roles and rules, which keep every design they visit
-admissible, and a caller's start group the rules forbid is refused.
+admissible, and a caller's start group the rules forbid is refused. A rule set no
+group of the size can meet (the library's `DesignRules.audit`, or more geos that
+have to be treated than the group holds) is refused before the floors, naming the
+rule.
 
 Two rules reach inside the certificate and come separately: a geo that has to be
 a control (a role set with `"control"` and without `"unassigned"`), which needs a

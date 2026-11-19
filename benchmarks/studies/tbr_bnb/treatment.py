@@ -989,6 +989,11 @@ def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, ga
         raise MlsynthDataError(f"n_jobs is {n_jobs!r}; it has to be a positive integer.")
     g = _checked_gap(gap)
     adm = _checked_roles(eligibility, rules, p)
+    if adm is not None:                     # refuse up front a problem no group of size k admits
+        if len(adm.forced) > k:
+            raise MlsynthDataError(f"{len(adm.forced)} geos have to be treated and the treatment group holds {k}.")
+        if adm.rules is not None:
+            adm.rules.audit(sorted(adm.forced), k)
     limit = _checked_time_limit(time_limit)
     until = deadline.at(limit)
     emit("treatment", k=k, p=p, groups=comb(p, k), n_jobs=n_jobs)

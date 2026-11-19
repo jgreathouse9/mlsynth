@@ -17654,3 +17654,16 @@ timeout = 900.0
   find = "        if rules.treatable != treatable or rules.controllable != controllable:\n"
   replace = "        if False:\n"
   models = "rules built from other role sets accepted, so the two disagree on which geos may be treated"
+
+
+  [[target.mutant]]
+  id = "more-forced-geos-than-the-group-pass"
+  find = "        if len(adm.forced) > k:\n"
+  replace = "        if False:\n"
+  models = "more geos that have to be treated than the group holds accepted, so the search runs on a problem with no design"
+
+  [[target.mutant]]
+  id = "the-audit-is-not-run"
+  find = "            adm.rules.audit(sorted(adm.forced), k)\n"
+  replace = "            pass\n"
+  models = "a rule set no group can meet refused only after the floors and the start have run"

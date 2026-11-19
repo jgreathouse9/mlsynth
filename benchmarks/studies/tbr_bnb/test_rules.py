@@ -225,12 +225,28 @@ def _rule_sets(draw):
     return roles, DesignRules.build(roles, conflict_pairs=pairs, strata=strata, exclude_bordering_donors=border)
 
 
+def _audit_refuses(roles, rules):
+    forced = [j for j, r in enumerate(roles) if r == frozenset({TREATMENT})]
+    try:
+        rules.audit(forced, K)
+    except MlsynthDataError:
+        return True
+    return len(forced) > K
+
+
 @given(seed=st.integers(0, 5_000), rr=_rule_sets())
 @SETTINGS
 def test_property_the_certified_design_is_the_enumerated_optimum_under_the_rules(seed, rr):
+    """Rules the library's audit refuses have no design, and the search refuses them
+    too; any others give the enumerated optimum, or no design when there is none."""
     roles, rules = rr
     M = raw_panel(seed, n=30, p=6)
     best, T, C = rules_optimum(M, K, N_TEST, roles, rules)
+    if _audit_refuses(roles, rules):
+        assert T is None
+        with pytest.raises(MlsynthDataError):
+            _run(M, roles, rules)
+        return
     out = _run(M, roles, rules)
     assert out.certified
     if T is None:
@@ -325,3 +341,34 @@ def test_a_start_the_rules_admit_reaches_the_same_design():
     other = next(G for G in combinations(range(M.shape[1]), 2) if rules.admits(G) and list(G) != best.treatment)
     out = _run(M, roles, rules, start=list(other))
     assert (out.treatment, out.controls, out.key) == (best.treatment, best.controls, best.key)
+
+
+def test_rules_no_group_can_meet_are_refused_naming_the_rule():
+    """DesignRules.audit's refusals: a problem no treatment group of the size admits
+    is refused up front, with the rule that binds."""
+    roles = [frozenset({TREATMENT})] * 2 + [ALL] * 5
+    rules = DesignRules.build(roles, strata=[([0, 1], None, 1)])
+    with pytest.raises(MlsynthDataError, match="max_per_stratum"):
+        _run(_panel(), roles, rules)
+
+
+def test_more_geos_that_have_to_be_treated_than_the_group_holds_are_refused():
+    roles = [frozenset({TREATMENT})] * 3 + [ALL] * 4
+    with pytest.raises(MlsynthDataError, match="have to be treated"):
+        _run(_panel(), roles)
+
+
+def test_an_impossible_rule_set_is_refused_before_the_floors(monkeypatch):
+    """The refusal comes before any floor is computed, which on a large panel is the
+    expensive step; the library's start would raise too, but only after the start."""
+    from . import treatment
+
+    def no_floors(*a, **k):
+        raise AssertionError("the floors ran on a rule set no group can meet")
+
+    monkeypatch.setattr(treatment, "_streamed_floor_rows", no_floors)
+    monkeypatch.setattr(treatment, "_start", no_floors)
+    roles = [frozenset({TREATMENT})] * 2 + [ALL] * 5
+    rules = DesignRules.build(roles, strata=[([0, 1], None, 1)])
+    with pytest.raises(MlsynthDataError, match="max_per_stratum"):
+        _run(_panel(), roles, rules)
