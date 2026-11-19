@@ -20,7 +20,7 @@ from mlsynth.utils.tbr_helpers.design import local as lib_local
 from mlsynth.utils.tbr_helpers.design.local import local_search
 from mlsynth.utils.tbr_helpers.design.search import greedy_search
 
-from . import treatment
+from mlsynth.utils.tbr_helpers.design.exact import treatment
 from .brute import raw_panel
 
 SETTINGS = settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])

@@ -13,9 +13,8 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from .brute import panel, positive_optimum
-from .certificate import ExactData
-from .slopefree import (Rows, bound, certify_slope_free, design_value, dyadic_below, objective,
-                        separate_triangles, size_certificate, solve)
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import Rows, bound, certify_slope_free, design_value, dyadic_below, objective, separate_triangles, size_certificate, solve
 
 SETTINGS = settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -25,7 +24,7 @@ def _bound_every_node(monkeypatch):
     """These tests are of the relaxation and its branching, so every node is
     bounded: on panels this small, pricing would close every size at its root
     (test_pricing.py checks that the two give the same answer)."""
-    from . import slopefree
+    from mlsynth.utils.tbr_helpers.design.exact import slopefree
     monkeypatch.setattr(slopefree, "PRICE_LIMIT", 0)
 
 
@@ -251,7 +250,7 @@ def test_some_ratios_round_up_to_nearest():
 
 def _worse_incumbent(monkeypatch, y, X):
     """Hand the search the worst single-control design with a positive slope."""
-    from . import search
+    from mlsynth.utils.tbr_helpers.design.exact import search
     D = ExactData(y, X)
     singles = [j for j in range(X.shape[1]) if D.c[j] > 0]
     worst = min(singles, key=lambda j: D.c[j] ** 2 / D.G[j, j])
@@ -296,7 +295,7 @@ def test_triangles_need_three_geos():
 def test_a_round_adds_the_separated_triangles(monkeypatch):
     """A size whose root bound is above zero gets the separated triangles in the next
     round's constraints, and is certified when that round's bound is at most zero."""
-    from . import slopefree as sf
+    from mlsynth.utils.tbr_helpers.design.exact import slopefree as sf
     y, X = panel(0, p=5)
     _, c, G = _exact(y, X)
     seen, bounds = [], iter([Q(1), Q(-1)])
@@ -309,7 +308,7 @@ def test_a_round_adds_the_separated_triangles(monkeypatch):
 
     monkeypatch.setattr(sf, "Rows", rows)
     monkeypatch.setattr(sf, "dual_multipliers", lambda *a, **k: (None, {"evals": 0}))   # the full tier's rounds
-    from . import fbound
+    from mlsynth.utils.tbr_helpers.design.exact import fbound
     monkeypatch.setattr(fbound, "certificate", lambda A, R, *a, **k: Q(1) if R.level == "shor" else next(bounds))
     monkeypatch.setattr(sf, "separate_triangles", lambda u, U, k=400: [(0.1, 0, (0, 1, 2))])
     res = sf.size_certificate(c, G, Q(1, 2), 2)
@@ -318,7 +317,7 @@ def test_a_round_adds_the_separated_triangles(monkeypatch):
 
 
 def test_rounds_stop_at_the_limit(monkeypatch):
-    from . import slopefree as sf
+    from mlsynth.utils.tbr_helpers.design.exact import slopefree as sf
     y, X = panel(0, p=5)
     _, c, G = _exact(y, X)
     monkeypatch.setattr(sf, "bound", lambda *a, **k: Q(1))
@@ -391,7 +390,7 @@ def test_a_ceiling_above_the_optimum_changes_nothing():
 def test_a_ceiling_held_from_a_poor_incumbent_still_adopts_a_design_below_it(monkeypatch):
     """With a poor incumbent above the ceiling, branching that reaches a design below
     the ceiling adopts it, so the ceiling is not reported held."""
-    from . import search
+    from mlsynth.utils.tbr_helpers.design.exact import search
 
     y, X = panel(1, p=6)
     best, C = positive_optimum(y, X)
@@ -424,7 +423,7 @@ def test_property_the_ceiling_is_held_exactly_when_no_design_is_below_it(seed, f
 
 
 def _node(y, X, m, fixes, lam, max_depth=12):
-    from .slopefree import SlopeFreeCertificate, _branch
+    from mlsynth.utils.tbr_helpers.design.exact.slopefree import SlopeFreeCertificate, _branch
 
     D = ExactData(y, X)
     out = SlopeFreeCertificate(incumbent=Q(0), controls=[], ratio=Q(0), sizes_after_hull=[])
@@ -440,7 +439,7 @@ def _node(y, X, m, fixes, lam, max_depth=12):
 def test_a_node_with_one_design_is_evaluated_not_bounded(monkeypatch, fixes):
     """A node whose fixings leave a single design of its size is that design: it is
     evaluated exactly, with no relaxation solved, even at the depth limit."""
-    from . import slopefree
+    from mlsynth.utils.tbr_helpers.design.exact import slopefree
 
     monkeypatch.setattr(slopefree, "size_certificate",
                         lambda *a, **k: pytest.fail("a one-design node was bounded"))
@@ -460,7 +459,7 @@ def test_a_node_with_one_design_is_evaluated_not_bounded(monkeypatch, fixes):
     [(0, 0), (1, 0), (2, 0), (3, 0)],       # more fixed out than the size leaves
 ])
 def test_a_node_holding_no_design_of_its_size_is_not_counted(monkeypatch, fixes):
-    from . import slopefree
+    from mlsynth.utils.tbr_helpers.design.exact import slopefree
 
     monkeypatch.setattr(slopefree, "size_certificate", lambda *a, **k: pytest.fail("an empty node was bounded"))
     y, X = panel(0, p=5)
@@ -479,7 +478,7 @@ def test_a_one_design_node_below_the_incumbent_is_closed():
 
 def _first_ratio(monkeypatch):
     """The ratio the slope-free search starts from: the incumbent's at the first node."""
-    from . import slopefree
+    from mlsynth.utils.tbr_helpers.design.exact import slopefree
 
     real = slopefree._branch
     seen = []
@@ -509,7 +508,7 @@ def test_a_given_start_is_kept_when_the_descent_finds_nothing_better(monkeypatch
 def test_a_start_better_than_the_descents_design_is_used(monkeypatch):
     """With the descent patched to its poorest design, a caller's optimum starts the
     search: the descent does not overrule a better start."""
-    from . import search
+    from mlsynth.utils.tbr_helpers.design.exact import search
 
     y, X = panel(1, p=5)
     best, C = positive_optimum(y, X)
@@ -528,7 +527,7 @@ def test_a_poor_start_gives_way_to_the_descents_design(monkeypatch):
     starts); at five geos on GeoLift one such start had RSS 5,089,437.7 where the
     descent from 50 reached 4,860,705.3, and its certification ran 300 s to the depth
     limit. The search starts from whichever has the higher ratio."""
-    from .search import incumbent
+    from mlsynth.utils.tbr_helpers.design.exact.search import incumbent
 
     y, X = panel(1, p=5)
     D = ExactData(y, X)
@@ -542,7 +541,7 @@ def test_a_poor_start_gives_way_to_the_descents_design(monkeypatch):
 
 
 def test_a_start_with_no_positive_slope_gives_way_to_the_descent(monkeypatch):
-    from .search import incumbent
+    from mlsynth.utils.tbr_helpers.design.exact.search import incumbent
 
     y, X = panel(1, p=5)
     D = ExactData(y, X)
@@ -560,7 +559,7 @@ def test_a_start_with_no_positive_slope_gives_way_to_the_descent(monkeypatch):
 def test_property_the_search_starts_from_the_better_of_the_start_and_the_descent(monkeypatch, seed, pick):
     """Whatever design is handed over, the search starts at the larger positive ratio of
     it and the descent's design, and certifies the enumerated optimum."""
-    from .search import incumbent
+    from mlsynth.utils.tbr_helpers.design.exact.search import incumbent
 
     y, X = panel(seed, p=6)
     D = ExactData(y, X)

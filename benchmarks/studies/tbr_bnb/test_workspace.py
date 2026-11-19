@@ -19,13 +19,13 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import fbound, slopefree, workspace
+from mlsynth.utils.tbr_helpers.design.exact import fbound, slopefree, workspace
 from .brute import geo_panel, panel
-from .certificate import ExactData
-from .progress import reporting
-from .slopefree import Rows, bound, certify_slope_free, objective, size_certificate
-from .treatment import _split
-from .workspace import Workspaces
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.progress import reporting
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import Rows, bound, certify_slope_free, objective, size_certificate
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
+from mlsynth.utils.tbr_helpers.design.exact.workspace import Workspaces
 
 SETTINGS = settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -253,7 +253,7 @@ def test_a_binding_fixing_reaches_the_relaxation(monkeypatch):
 def test_a_size_clarabel_closes_the_workspace_closes():
     y, X = _bed()
     D = ExactData(y, X)
-    from .search import incumbent
+    from mlsynth.utils.tbr_helpers.design.exact.search import incumbent
     C = set(incumbent(y, X, restarts=5)[1])
     lam = slopefree._ratio(D.c, D.G, C)[1]
     closed = 0

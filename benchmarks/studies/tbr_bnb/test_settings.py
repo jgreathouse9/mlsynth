@@ -4,10 +4,10 @@ measured value, and each is checked to reach the solver it sets."""
 import numpy as np
 import pytest
 
-from . import dual, search
+from mlsynth.utils.tbr_helpers.design.exact import dual, search
 from .brute import panel, positive_optimum
-from .lifts import Lift
-from .oracle import Oracle
+from mlsynth.utils.tbr_helpers.design.exact.lifts import Lift
+from mlsynth.utils.tbr_helpers.design.exact.oracle import Oracle
 
 
 def test_the_lbfgs_memory_is_the_measured_one():

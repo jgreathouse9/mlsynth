@@ -3,9 +3,9 @@ import numpy as np
 import pytest
 
 from .brute import panel
-from .dual import smoothed_lbfgs, spectral_bundle
-from .lifts import Lift
-from .oracle import Oracle
+from mlsynth.utils.tbr_helpers.design.exact.dual import smoothed_lbfgs, spectral_bundle
+from mlsynth.utils.tbr_helpers.design.exact.lifts import Lift
+from mlsynth.utils.tbr_helpers.design.exact.oracle import Oracle
 
 
 @pytest.fixture(scope="module")

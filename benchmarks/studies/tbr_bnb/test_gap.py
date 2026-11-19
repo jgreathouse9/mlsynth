@@ -16,7 +16,7 @@ from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.tbr_helpers.design.objective import score_split
 
 from .brute import raw_panel, relative_optimum
-from .treatment import certify_treatment, geo_sums, group_level, relative_bar, relative_ceiling
+from mlsynth.utils.tbr_helpers.design.exact.treatment import certify_treatment, geo_sums, group_level, relative_bar, relative_ceiling
 
 N_TEST = 8
 SETTINGS = settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])

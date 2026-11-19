@@ -25,11 +25,11 @@ from scipy.optimize import nnls
 
 from mlsynth.exceptions import MlsynthDataError
 
-from . import fastfloor, treatment
+from mlsynth.utils.tbr_helpers.design.exact import fastfloor, treatment
 from .brute import geo_panel
-from . import certificate
-from .certificate import ExactData, add_down, hull_bound
-from .treatment import _split, certify_treatment, gram_floor, rss_floor, square_sum
+from mlsynth.utils.tbr_helpers.design.exact import certificate
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData, add_down, hull_bound
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split, certify_treatment, gram_floor, rss_floor, square_sum
 
 needs_numba = pytest.mark.skipif(not fastfloor.AVAILABLE, reason="numba is not installed")
 
@@ -147,16 +147,16 @@ def test_the_order_of_the_groups_does_not_change_a_floor():
 
 @needs_numba
 def test_a_script_loads_the_kernel_after_the_suite_compiled_it():
-    """The suite imports the module as studies.tbr_bnb.fastfloor and a script as
-    benchmarks.studies.tbr_bnb.fastfloor. numba records the module's name in its disk
-    cache, so the cache is written only under the second name: a script compiles the
-    kernel, then loads it, without the import error a shared cache raised."""
-    assert fastfloor._CACHE is (fastfloor.__name__ == fastfloor.CANONICAL_NAME)
-    M = geo_panel(5)                                  # the suite's own compile, under its name
+    """numba records the module's name in its disk cache, so a cache written under one
+    import name fails to load under another. The kernel lives in the library and is
+    imported under one name only, its canonical one, so it is cached: a script
+    compiles the kernel, then loads it, without the import error a shared cache raised."""
+    assert fastfloor.__name__ == fastfloor.CANONICAL_NAME and fastfloor._CACHE
+    M = geo_panel(5)                                  # the suite's own compile
     fastfloor.floors(np.ascontiguousarray(M), np.ascontiguousarray(M.T @ M),
                      np.array([[0, 1]], np.int64), float(gram_floor(M)))
     root = Path(__file__).resolve().parents[3]
-    code = ("import numpy as np; from benchmarks.studies.tbr_bnb import fastfloor as f; "
+    code = ("import numpy as np; from mlsynth.utils.tbr_helpers.design.exact import fastfloor as f; "
             "M = np.random.default_rng(0).normal(10, 1, (30, 6)).cumsum(0); "
             "fl, lo, hi = f.floors(M, M.T @ M, np.array([[0, 1]], np.int64), 1e-3); "
             "assert f._CACHE and np.isfinite(hi[0])")
@@ -378,7 +378,7 @@ _SINGULAR = """
 import sys
 import numpy as np
 sys.path.insert(0, {root!r})
-from benchmarks.studies.tbr_bnb import fastfloor as ff
+from mlsynth.utils.tbr_helpers.design.exact import fastfloor as ff
 G = np.array([[1.0, 0.0, 1.0], [0.0, 1.0, 1.0], [1.0, 1.0, 2.0]])   # column 3 is 1 + 2
 c = np.array([1.0, 1.0, 1.5])
 w = np.zeros(3); passive = np.zeros(3, np.bool_); idx = np.zeros(3, np.int64)

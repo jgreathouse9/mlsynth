@@ -16,9 +16,9 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthDataError
 
-from . import treatment
+from mlsynth.utils.tbr_helpers.design.exact import treatment
 from .brute import geo_panel, raw_panel, relative_optimum
-from .treatment import certify_treatment
+from mlsynth.utils.tbr_helpers.design.exact.treatment import certify_treatment
 
 N_TEST = 8
 SETTINGS = settings(max_examples=6, deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -223,8 +223,8 @@ def test_a_group_left_open_in_a_wave_is_retried(monkeypatch, tmp_path):
 
 def _recorded_size():
     """A relaxation of the size the four-geo GeoLift search solves (36 controls)."""
-    from . import slopefree as sf
-    from .certificate import ExactData
+    from mlsynth.utils.tbr_helpers.design.exact import slopefree as sf
+    from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
 
     M = geo_panel(11, n=90, p=37)
     D = ExactData(M[:, 0], M[:, 1:])
@@ -233,7 +233,7 @@ def _recorded_size():
 
 
 def _solve_status(c, G, lam, R):
-    from . import slopefree as sf
+    from mlsynth.utils.tbr_helpers.design.exact import slopefree as sf
     return sf.solve(c, G, lam, R).status
 
 
@@ -255,8 +255,8 @@ def test_the_relaxation_is_solved_on_one_thread(monkeypatch):
 def test_the_face_solve_is_on_one_thread(monkeypatch):
     """The face solve (face.py) is a Clarabel solve of its own, run in the same workers."""
     import cvxpy as cp
-    from . import slopefree as sf
-    from .certificate import ExactData
+    from mlsynth.utils.tbr_helpers.design.exact import slopefree as sf
+    from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
 
     M = geo_panel(11, n=20, p=9)
     D = ExactData(M[:, 0], M[:, 1:])

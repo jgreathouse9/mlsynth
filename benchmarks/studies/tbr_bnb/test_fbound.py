@@ -17,10 +17,10 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthDataError
 
-from . import fbound, slopefree as sf
+from mlsynth.utils.tbr_helpers.design.exact import fbound, slopefree as sf
 from .brute import panel, positive_optimum
-from .certificate import ExactData
-from .slopefree import Rows, _slack, bound, certify_slope_free, dyadic_below, objective, size_certificate
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import Rows, _slack, bound, certify_slope_free, dyadic_below, objective, size_certificate
 
 SETTINGS = settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -380,7 +380,7 @@ def test_the_search_certifies_the_same_design_with_fewer_exact_bounds(monkeypatc
 def test_the_workspace_decides_by_the_certificate(monkeypatch):
     """The workspace's chunks are decided by the certificate: with the floats
     forced to defer, every chunk's decision is the exact bound's."""
-    from .workspace import Workspaces
+    from mlsynth.utils.tbr_helpers.design.exact.workspace import Workspaces
     D, lam, A = _instance(p=6)
     R = _rows(D, 3, box=True)
     seen = []

@@ -16,8 +16,9 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from scipy.optimize import Bounds, minimize
 
-from . import beds, slopefree
-from .slopefree import _lbfgsb, _lbfgsb_supported
+from mlsynth.utils.tbr_helpers.design.exact import slopefree
+from . import beds
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import _lbfgsb, _lbfgsb_supported
 
 SETTINGS = settings(max_examples=80, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

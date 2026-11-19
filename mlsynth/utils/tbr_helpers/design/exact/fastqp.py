@@ -52,15 +52,23 @@ except ImportError:  # pragma: no cover - the suite runs with numba installed
 
 #: Compiled code is cached on disk only under this module name (fastfloor.CANONICAL_NAME
 #: gives the reason); under any other name the kernel compiles in memory.
-CANONICAL_NAME = "benchmarks.studies.tbr_bnb.fastqp"
+CANONICAL_NAME = "mlsynth.utils.tbr_helpers.design.exact.fastqp"
 _CACHE = __name__ == CANONICAL_NAME
 
-if AVAILABLE:
-    # dgelsy as an external symbol resolved by name, so the kernel can be cached on
-    # disk (a ctypes pointer is a constant of one process and turns caching off).
-    _llvm.add_symbol("mlsynth_tbr_fastqp_dgelsy",
-                     get_cython_function_address("scipy.linalg.cython_lapack", "dgelsy"))
-    _dgelsy = types.ExternalFunction("mlsynth_tbr_fastqp_dgelsy", types.void(*([types.voidptr] * 13)))
+#: dgelsy as an external symbol resolved by name, so the kernel can be cached on disk
+#: (a ctypes pointer is a constant of one process and turns caching off). Registering
+#: the name with LLVM is process-wide state, so ``_link`` does it before the first
+#: compiled solve, not at import.
+_DGELSY = "mlsynth_tbr_fastqp_dgelsy"
+_dgelsy = types.ExternalFunction(_DGELSY, types.void(*([types.voidptr] * 13))) if AVAILABLE else None
+_linked = []
+
+
+def _link():
+    """Register dgelsy's address under ``_DGELSY``, once a process."""
+    if not _linked:
+        _llvm.add_symbol(_DGELSY, get_cython_function_address("scipy.linalg.cython_lapack", "dgelsy"))
+        _linked.append(True)
 
 _EPS = float(np.finfo(float).eps)
 _SQRT_HALF = math.sqrt(0.5)
@@ -578,6 +586,7 @@ def solve(B, A, *, warm_start=None, linear=None, tol=_DEFAULT_TOL, max_iter=None
         wsa, has_ws = _EMPTY, False
     else:
         wsa, has_ws = np.ascontiguousarray(np.asarray(ws, dtype=float).ravel()), True
+    _link()
     w, pivots, converged, kkt, status = _core(S, t, A, wsa, has_ws, up, has_up, float(tol))
     if status == 2:                              # the unit scale at its rounding boundary
         return _library(B, A, **kw)

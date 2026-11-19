@@ -25,10 +25,10 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import progress, slopefree
+from mlsynth.utils.tbr_helpers.design.exact import progress, slopefree
 from .brute import panel, positive_optimum
-from .certificate import ExactData
-from .slopefree import _ratio, certify_slope_free, size_certificate
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import _ratio, certify_slope_free, size_certificate
 
 SETTINGS = settings(max_examples=80, deadline=None, suppress_health_check=[HealthCheck.too_slow,
                                                                           HealthCheck.function_scoped_fixture])
@@ -130,7 +130,7 @@ def test_the_workspace_path_is_not_judged(monkeypatch):
     monotone across rounds: on the beer panel's search closing calls rose to 6.1 times their
     round-0 bound before closing, and a ratio of 0.6 would have stopped 23 of them. The rule
     judges only the exact relaxation's rounds."""
-    from . import workspace
+    from mlsynth.utils.tbr_helpers.design.exact import workspace
     monkeypatch.setattr(slopefree, "HOPELESS_RATIO", 0.6); monkeypatch.setattr(slopefree, "HOPELESS_FROM", 1)
     bounds = iter([10, 9, 8, 7, -1]); solves = []
     tri = iter(itertools.combinations(range(8), 3))

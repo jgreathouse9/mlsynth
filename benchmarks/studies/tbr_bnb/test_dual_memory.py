@@ -14,11 +14,11 @@ import scipy.optimize
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from . import slopefree
+from mlsynth.utils.tbr_helpers.design.exact import slopefree
 from .brute import geo_panel, panel, positive_optimum
-from .certificate import ExactData
-from .slopefree import DUAL_MEMORY, Rows, certify_slope_free, dual_multipliers, group_certificate, objective
-from .treatment import _split
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import DUAL_MEMORY, Rows, certify_slope_free, dual_multipliers, group_certificate, objective
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
 
 SETTINGS = settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 

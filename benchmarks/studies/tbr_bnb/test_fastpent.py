@@ -21,8 +21,8 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import fastpent, slopefree
-from .slopefree import _pentagon_search, _pentagon_starts, _sign_matrix, separate_pentagons, separate_triangles
+from mlsynth.utils.tbr_helpers.design.exact import fastpent, slopefree
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import _pentagon_search, _pentagon_starts, _sign_matrix, separate_pentagons, separate_triangles
 from .test_pentagons import _design, _many_pentagons, _pentagon_point
 
 needs_numba = pytest.mark.skipif(not fastpent.AVAILABLE, reason="numba is not installed")

@@ -21,13 +21,12 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import fbound, slopefree
+from mlsynth.utils.tbr_helpers.design.exact import fbound, slopefree
 from .brute import geo_panel
-from .certificate import ExactData
-from .search import incumbent
-from .slopefree import (FIRST_ORDER_ROUNDS, SIZE_LADDER_FROM, SCREEN_LADDER_FROM, SCREEN_SCHEDULES, Rows, dual_multipliers,
-                        dyadic_below, objective, size_certificate)
-from .treatment import _split
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.search import incumbent
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import FIRST_ORDER_ROUNDS, SIZE_LADDER_FROM, SCREEN_LADDER_FROM, SCREEN_SCHEDULES, Rows, dual_multipliers, dyadic_below, objective, size_certificate
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
 
 #: The schedules and the triangle rounds forced on, whatever the group's size.
 LADDER = dict(schedules=SCREEN_SCHEDULES, first_order_rounds=FIRST_ORDER_ROUNDS)

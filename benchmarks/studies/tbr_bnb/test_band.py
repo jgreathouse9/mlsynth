@@ -7,9 +7,9 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from .brute import panel, piece_optimum
-from .certificate import ExactData, hull_bound
-from .hull import Band, ControlBound
-from .search import hull_survivors, pieces_to
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData, hull_bound
+from mlsynth.utils.tbr_helpers.design.exact.hull import Band, ControlBound
+from mlsynth.utils.tbr_helpers.design.exact.search import hull_survivors, pieces_to
 
 SETTINGS = settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -89,7 +89,7 @@ def test_two_tiers_keep_exactly_the_capped_hulls_survivors(seed):
     are then judged by the capped hull, so the stage's output is unchanged."""
     y, X = panel(seed)
     D = ExactData(y, X)
-    from .search import incumbent
+    from mlsynth.utils.tbr_helpers.design.exact.search import incumbent
     v, C = incumbent(y, X, restarts=20)
     x = X[:, sorted(C)].sum(1); b = float((y @ x) / (x @ x))
     UB = D.rss(C, b)
@@ -111,7 +111,7 @@ def test_a_band_that_holds_the_nnls_point_is_the_nnls_value():
 def test_the_band_prunes_only_on_its_certificate(monkeypatch):
     """A band value at the incumbent is a float; the pair is ruled out only when
     the exact certificate clears the incumbent, and otherwise reaches the capped hull."""
-    from . import search
+    from mlsynth.utils.tbr_helpers.design.exact import search
     y, X = panel(5)
     D = ExactData(y, X)
     v, C = search.incumbent(y, X, restarts=20)

@@ -17,10 +17,10 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from . import slopefree
+from mlsynth.utils.tbr_helpers.design.exact import slopefree
 from .brute import geo_panel, panel, raw_panel
-from .slopefree import certify_slope_free
-from .treatment import _split
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import certify_slope_free
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
 
 SETTINGS = settings(max_examples=8, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 FIELDS = ("incumbent", "controls", "ratio", "certified", "ceiling_held")
@@ -153,8 +153,8 @@ def test_sizes_are_applied_in_ascending_order(monkeypatch):
 
 def _poor_start(monkeypatch, y, X):
     """Start the search from the worst positive-slope single control, so sizes adopt."""
-    from . import search
-    from .certificate import ExactData
+    from mlsynth.utils.tbr_helpers.design.exact import search
+    from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
     D = ExactData(y, X)
     ratios = [(slopefree._ratio(D.c, D.G, {j})[1], j) for j in range(X.shape[1])
               if slopefree._ratio(D.c, D.G, {j})[0] > 0]
@@ -205,7 +205,7 @@ def test_stale_sizes_that_leave_nodes_open_are_run_again(monkeypatch, seed):
 def test_each_size_gets_its_own_workspaces(monkeypatch):
     """A size's thread solves on workspaces of its own: the search's one would have
     its spaces and pool rewritten by the other threads."""
-    from .workspace import Workspaces
+    from mlsynth.utils.tbr_helpers.design.exact.workspace import Workspaces
     made, real = [], Workspaces.__init__
     monkeypatch.setattr(Workspaces, "__init__", lambda self: made.append(1) or real(self))
     y, X = panel(5, n=20, p=10)
@@ -280,7 +280,7 @@ def test_an_error_in_a_size_is_reported_and_the_workers_given_back(monkeypatch):
 
 
 def test_the_lender_lends_only_what_is_free():
-    from .treatment import _Lender
+    from mlsynth.utils.tbr_helpers.design.exact.treatment import _Lender
     lend = _Lender()
     assert lend.take(3) == 0                         # nothing free yet
     lend.set_free(2)
@@ -295,7 +295,7 @@ def test_the_lender_lends_only_what_is_free():
 
 def test_the_window_reports_how_many_run():
     from concurrent.futures import ThreadPoolExecutor
-    from . import treatment
+    from mlsynth.utils.tbr_helpers.design.exact import treatment
     seen = []
     with ThreadPoolExecutor(4) as pool:
         treatment._window(pool, 2, list(range(5)), lambda r: True, lambda r: (time.sleep, (0.005,), None),
@@ -306,7 +306,7 @@ def test_the_window_reports_how_many_run():
 def test_the_treatment_search_lends_its_workers_and_takes_them_back(monkeypatch, tmp_path):
     """Inside the workers the size loop holds the search's lender; after the search the
     default is back."""
-    from . import treatment
+    from mlsynth.utils.tbr_helpers.design.exact import treatment
     real = treatment._optimum
 
     def spy(Mc, M, T, *a, **k):
@@ -325,7 +325,7 @@ def test_the_treatment_search_lends_its_workers_and_takes_them_back(monkeypatch,
 def test_the_search_tells_the_lender_what_is_free(monkeypatch):
     """The window reports its idle workers to the lender, every one of them once the
     groups are done."""
-    from . import treatment
+    from mlsynth.utils.tbr_helpers.design.exact import treatment
     seen, real = [], treatment._Lender.set_free
     monkeypatch.setattr(treatment._Lender, "set_free", lambda self, n: seen.append(n) or real(self, n))
     treatment.certify_treatment(raw_panel(5, p=6), 2, n_test=8, restarts=5, n_jobs=3, blank_periods=0)

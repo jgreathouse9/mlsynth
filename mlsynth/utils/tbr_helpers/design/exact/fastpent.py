@@ -40,7 +40,7 @@ except ImportError:  # pragma: no cover - the suite runs with numba installed
 
 #: Compiled code is cached on disk only under this module name (fastfloor.CANONICAL_NAME
 #: gives the reason). Under any other name the kernel compiles in memory.
-CANONICAL_NAME = "benchmarks.studies.tbr_bnb.fastpent"
+CANONICAL_NAME = "mlsynth.utils.tbr_helpers.design.exact.fastpent"
 _CACHE = __name__ == CANONICAL_NAME
 
 

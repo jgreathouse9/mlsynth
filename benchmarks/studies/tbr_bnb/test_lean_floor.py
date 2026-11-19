@@ -18,12 +18,11 @@ from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 from scipy.optimize import nnls
 
-from . import treatment
+from mlsynth.utils.tbr_helpers.design.exact import treatment
 from .brute import geo_panel, panel
-from .certificate import (ExactData, _greedy_lambda, add_down, box_bound_float, hull_bound, hull_bound_float,
-                          knapsack_dual)
-from . import certificate
-from .treatment import _split, gram_floor, root_above, rss_floor, slope_cap, square_sum, yy_bracket
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData, _greedy_lambda, add_down, box_bound_float, hull_bound, hull_bound_float, knapsack_dual
+from mlsynth.utils.tbr_helpers.design.exact import certificate
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split, gram_floor, root_above, rss_floor, slope_cap, square_sum, yy_bracket
 
 SETTINGS = settings(max_examples=120, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 FINITE = st.floats(allow_nan=False, allow_infinity=False)

@@ -8,10 +8,8 @@ from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 
 from .brute import panel
-from .certificate import (ExactData, dual_bound, gradient_bound, hull_bound, hull_bound_float, hull_clears,
-                          inflate, knapsack_dual, linear_bound, objective_bound, perturbed_knapsack_bound,
-                          qarr, residual_bound, round_down)
-from .hull import Band
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData, dual_bound, gradient_bound, hull_bound, hull_bound_float, hull_clears, inflate, knapsack_dual, linear_bound, objective_bound, perturbed_knapsack_bound, qarr, residual_bound, round_down
+from mlsynth.utils.tbr_helpers.design.exact.hull import Band
 
 SETTINGS = settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -356,7 +354,7 @@ def test_the_stage_keeps_the_exact_certificates_survivors(seed, monkeypatch):
     """hull_survivors with the float certificate first keeps exactly the pairs it
     keeps with the exact certificate alone, and asks the exact one only for the
     pairs the float one cannot clear."""
-    from . import search
+    from mlsynth.utils.tbr_helpers.design.exact import search
     y, X = panel(seed)
     D = ExactData(y, X)
     _, C = search.incumbent(y, X, restarts=20)

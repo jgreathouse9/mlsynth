@@ -15,11 +15,11 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from . import slopefree
+from mlsynth.utils.tbr_helpers.design.exact import slopefree
 from .brute import panel, positive_optimum, raw_panel, relative_optimum
-from .certificate import ExactData
-from .slopefree import certify_slope_free, size_certificate
-from .treatment import certify_treatment
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import certify_slope_free, size_certificate
+from mlsynth.utils.tbr_helpers.design.exact.treatment import certify_treatment
 
 SETTINGS = settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 N_TEST = 8

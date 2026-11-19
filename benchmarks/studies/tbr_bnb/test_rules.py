@@ -22,7 +22,7 @@ from mlsynth.utils.tbr_helpers.design.objective import score_split
 from mlsynth.utils.tbr_helpers.design.rules import CONTROL, TREATMENT, UNASSIGNED, DesignRules
 
 from .brute import raw_panel, relative_optimum
-from .treatment import _checked_roles, certify_treatment
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _checked_roles, certify_treatment
 
 N_TEST = 4
 K = 2
@@ -356,7 +356,7 @@ def test_more_geos_that_have_to_be_treated_than_the_group_holds_are_refused():
 def test_an_impossible_rule_set_is_refused_before_the_floors(monkeypatch):
     """The refusal comes before any floor is computed, which on a large panel is the
     expensive step; the library's start would raise too, but only after the start."""
-    from . import treatment
+    from mlsynth.utils.tbr_helpers.design.exact import treatment
 
     def no_floors(*a, **k):
         raise AssertionError("the floors ran on a rule set no group can meet")

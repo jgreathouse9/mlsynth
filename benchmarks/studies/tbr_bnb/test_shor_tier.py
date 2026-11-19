@@ -13,11 +13,11 @@ from hypothesis import strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
 
-from . import slopefree
+from mlsynth.utils.tbr_helpers.design.exact import slopefree
 from .brute import geo_panel, panel, positive_optimum
-from .certificate import ExactData
-from .slopefree import certify_slope_free, size_certificate
-from .treatment import _split
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import certify_slope_free, size_certificate
+from mlsynth.utils.tbr_helpers.design.exact.treatment import _split
 
 
 @pytest.fixture(autouse=True)

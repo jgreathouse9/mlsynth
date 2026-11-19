@@ -12,9 +12,9 @@ from hypothesis import strategies as st
 from mlsynth.utils.marex_helpers.branch import _from_fractions, lambda_min_lower
 
 from .brute import panel, piece_optimum, wide_panel
-from .certificate import ExactData, gram_lower, hull_bound, joint_bound, shor_bound
-from .hull import ControlBound
-from .lifts import Lift
+from mlsynth.utils.tbr_helpers.design.exact.certificate import ExactData, gram_lower, hull_bound, joint_bound, shor_bound
+from mlsynth.utils.tbr_helpers.design.exact.hull import ControlBound
+from mlsynth.utils.tbr_helpers.design.exact.lifts import Lift
 
 SETTINGS = settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
@@ -198,7 +198,7 @@ def test_a_hull_bound_on_an_empty_band_is_infinite_or_above():
 
 def test_no_eigenvalue_bound_means_no_certificate(monkeypatch):
     """When lambda_min cannot be bounded the certificates report None, never a number."""
-    from . import certificate
+    from mlsynth.utils.tbr_helpers.design.exact import certificate
     y, X = panel(10)
     monkeypatch.setattr(certificate, "lambda_min_lower", lambda D: None)
     L = Lift(y, X, "full"); _solve(L, 0.4, 0.9, 3)
@@ -208,7 +208,7 @@ def test_no_eigenvalue_bound_means_no_certificate(monkeypatch):
 
 
 # ---------------------------------------------------------------- the trace bounds and the multipliers' signs
-from .certificate import joint_trace, shor_trace  # noqa: E402
+from mlsynth.utils.tbr_helpers.design.exact.certificate import joint_trace, shor_trace
 
 
 @SETTINGS

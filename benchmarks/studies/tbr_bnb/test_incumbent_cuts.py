@@ -14,10 +14,10 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from . import slopefree
+from mlsynth.utils.tbr_helpers.design.exact import slopefree
 from .beds import BEDS
 from .brute import panel, positive_optimum
-from .slopefree import _ratio, certify_slope_free
+from mlsynth.utils.tbr_helpers.design.exact.slopefree import _ratio, certify_slope_free
 
 SETTINGS = settings(max_examples=15, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 
