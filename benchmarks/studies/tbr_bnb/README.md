@@ -389,8 +389,9 @@ eight periods:
 | 40 | independent | 14.8% / 13.7% | 56.5% / 47.3% |
 | 104 | independent | 12.1% / 12.6% | 55.5% / 54.8% |
 
-Holding periods back costs power on short panels and is within noise on long ones,
-and it does not lower the false-positive rate. TBR's test refits on the whole
+Under TBR's own interval, iid or HAC, holding periods back costs power on short
+panels and is within noise on long ones, and it does not lower the false-positive
+rate. TBR's test refits on the whole
 pre-period, design window included, so the periods the search chose on still set
 the interval; the blank periods only feed `blank_aa`, which nothing acts on. On
 rolling placebo windows of the three data panels (two treated geos, a test of seven
@@ -402,6 +403,28 @@ no search, showed 17% to 19% on the AR(1) panels; on panels with independent fac
 where the random design sits at 10%, the searched designs ran 2 to 6 points above it,
 less on longer panels. The data panels' placebo windows ran at 17% to 37% with either
 the iid or the HAC scale.
+
+Blank periods pay off in the test. The library's calibrated inference
+(`calibration.calibrate` and `calibrated_band`: the real design's and 24 placebo
+designs' standardised errors at every blank origin, trended to the experiment's
+distance and mixed with TBR's posterior) needs a design chosen without the blank
+windows, which is what `blank_periods=None` gives. On the same replicates and
+windows, the blank design with the calibrated band, one-sided at 10%:
+
+| setting | false positives, iid / calibrated | detections of 3%, iid / calibrated |
+| --- | --- | --- |
+| 40 periods, AR(1) (500) | 19.4% / 9.2% | 45.0% / 29.0% |
+| 104 periods, AR(1) (500) | 15.0% / 11.0% | 54.8% / 44.6% |
+| 40 periods, independent (500) | 12.4% / 9.4% | 48.4% / 36.4% |
+| 104 periods, independent (500) | 11.8% / 10.0% | 53.4% / 48.4% |
+| 27-geo panel (25 windows) | 32% / 12% | 80% / 52% |
+| 43-geo panel (30 overlapping windows) | 63% / 7% | 93% / 73% |
+| 51-geo panel (42 windows) | 17% / 10% | 67% / 50% |
+
+The calibrated band holds the nominal rate where the iid band runs two to six times
+over it, and the detections it gives up are those the iid band bought with false
+positives. So the search holds back nothing by default, and a caller that tests with
+the calibrated band passes `blank_periods=None`.
 
 `test_blank_periods.py` checks that the default holds back nothing, that the design
 is the design window's enumerated optimum and the same as a search given only that window, that rewriting the blank

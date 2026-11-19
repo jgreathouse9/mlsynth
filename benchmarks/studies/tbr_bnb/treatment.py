@@ -966,8 +966,11 @@ def proven_gap(bounds, rss_star, level_star, g) -> Optional[Q]:
 #: A/A test has whole windows the design never saw. The default holds back none. A
 #: design chosen on the design window alone detected a planted 3% lift less often
 #: than one chosen on the whole panel (on simulated panels of 40 pre-periods, 43%
-#: against 54%; within noise at 104), at the same false-positive rate, since TBR's
-#: test fits on the whole pre-period, design window included (README, "Blank periods").
+#: against 54%; within noise at 104), at the same false-positive rate under TBR's own
+#: interval, which fits on the whole pre-period, design window included. The library's
+#: calibrated band needs the blank windows unseen, and with it the false-positive rate
+#: held at the nominal 10% where TBR's ran at 12% to 63% (README, "Blank periods"); a
+#: caller testing with it passes None.
 BLANK_TESTS = 3
 
 
