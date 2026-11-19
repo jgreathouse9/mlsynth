@@ -349,17 +349,18 @@ The gates are read at the certified design and rank nothing. On the 27-geo panel
 the design fails `bb_test` and `dw_test`; on the other two it passes all four.
 
 The panels are local inputs, and the runs are not part of the test suite. These runs
-read the whole panel; the search now holds back blank periods by default (next
-section).
+read the whole panel, which is the search's default (next section).
 
 ## Blank periods
 
 `certify_treatment` holds back the last `blank_periods` periods of the panel and
-certifies on the periods before them, the design window. The default is three test
-lengths (`BLANK_TESTS`), the library's own default for its calibrated inference
-(`calibration.resolve_blank_periods`), and the library's floor of two test lengths
-and three design periods (`design_end`) apply; `blank_periods=0` searches the whole
-panel, the search before this section.
+certifies on the periods before them, the design window. The default holds back none
+and searches the whole panel. `blank_periods=None` holds back three test lengths
+(`BLANK_TESTS`), the library's own default for its calibrated inference
+(`calibration.resolve_blank_periods`), whose floor of two test lengths applies. The
+search's start scores designs with the A/A test, which needs a test length and three
+periods to fit on, so a hold-back leaving fewer than `n_test + 3` design periods is
+refused; that is more than the library's three (`design_end`).
 
 The certified search picks one design out of every treatment and control group by
 its fit on the periods it reads, so an A/A test on those periods scores a fit the
@@ -371,12 +372,44 @@ every period before the test window, then test the cumulative effect over the ne
 window, so a geo needs a positive level there and nowhere else. The four gates are
 read on the whole panel, as the library reports a design.
 
-`test_blank_periods.py` checks that the design is the design window's enumerated
-optimum and the same as a search given only that window, that rewriting the blank
+Three test lengths were the default for one release. A Monte Carlo study measured
+what holding them back buys, and the default went back to none. Each replicate drew a
+factor panel of 14 geos (two AR(1) common factors, idiosyncratic noise at 6% to 18%
+of a geo's level), chose a design with two treated geos both ways with the certified
+search, and ran the library's TBR test (`objective.holdout_fit`, one-sided at
+`SIG_LEVEL`, a nominal false-positive rate of 10%) on the same panel with the
+treated geos' test window scaled by 1 and by 1.03. 1,000 replicates a row, a test of
+eight periods:
+
+| pre-period | factors | false positives, whole panel / blank | detections of 3%, whole / blank |
+| --- | --- | --- | --- |
+| 40 | AR(1), rho 0.7 | 18.4% / 19.1% | 54.2% / 43.0% |
+| 56 | AR(1), rho 0.7 | 14.3% / 15.0% | 53.4% / 50.5% |
+| 104 | AR(1), rho 0.7 | 13.8% / 13.9% | 55.2% / 54.2% |
+| 40 | independent | 14.8% / 13.7% | 56.5% / 47.3% |
+| 104 | independent | 12.1% / 12.6% | 55.5% / 54.8% |
+
+Holding periods back costs power on short panels and is within noise on long ones,
+and it does not lower the false-positive rate. TBR's test refits on the whole
+pre-period, design window included, so the periods the search chose on still set
+the interval; the blank periods only feed `blank_aa`, which nothing acts on. On
+rolling placebo windows of the three data panels (two treated geos, a test of seven
+periods), the whole-panel design detected a planted 3% lift in 12 windows the blank
+design missed, against 5 the other way.
+
+The excess false positives are not the search's own. A design drawn at random, with
+no search, showed 17% to 19% on the AR(1) panels; on panels with independent factors,
+where the random design sits at 10%, the searched designs ran 2 to 6 points above it,
+less on longer panels. The data panels' placebo windows ran at 17% to 37% with either
+the iid or the HAC scale.
+
+`test_blank_periods.py` checks that the default holds back nothing, that the design
+is the design window's enumerated optimum and the same as a search given only that window, that rewriting the blank
 periods changes nothing the search reports (also as a hypothesis property over
 panels, blank lengths and rewrites), that each blank A/A test is the library's,
 that the pool holds back the same periods, and that a count below two test lengths,
-one that is not a count, or one that leaves too short a design window raises.
+one that is not a count, or one that leaves too short a design window raises, the
+last as a hypothesis property at the boundary `n_test + 3`.
 
 ## The treatment groups
 
