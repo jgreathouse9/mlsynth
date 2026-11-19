@@ -245,9 +245,43 @@ class TestPathsNoManifestCanEverClaim:
     @pytest.mark.parametrize("path", [
         "mlsynth/tests/test_fdid.py",
         "benchmarks/tests/test_case_deps.py",
+        "benchmarks/studies/tbr_bnb/test_relative.py",
+        "benchmarks/studies/tbr_bnb/conftest.py",
+        "benchmarks/studies/test_top.py",
     ])
     def test_a_test_module_is_not_a_hole(self, path):
         assert case_deps.select([path], ["a", "b"], self.MAP) == []
+
+    @pytest.mark.parametrize("path", [
+        "benchmarks/studies/tbr_bnb/treatment.py",
+        "benchmarks/studies/tbr_bnb/brute.py",
+        "benchmarks/studies/tbr_bnb/test_data.csv",
+        "benchmarks/studies/tbr_bnb/results/test_log.json",
+        "benchmarks/studies/tbr_bnb/contest.py",
+        "benchmarks/cases/test_like_name.py",
+        "mlsynth/utils/test_helpers.py",
+    ])
+    def test_a_study_module_that_is_not_a_test_still_widens(self, path):
+        """Only pytest's own files in a study are unreachable: its library
+        modules are what a case imports, and a file named like a test outside
+        a study, or not a Python module, is not collected by pytest."""
+        assert case_deps.never_reachable(path) is False
+        assert case_deps.select([path], ["a", "b"], self.MAP) == ["a", "b"]
+
+    def test_a_study_pull_request_selects_no_mapped_case(self):
+        """The diff that ran the whole registry on #1091: a study's code, its
+        tests, one test module the last sweep predates, and its README. No case
+        imports the study, so nothing the map names changes."""
+        changed = [
+            "benchmarks/studies/tbr_bnb/treatment.py",
+            "benchmarks/studies/tbr_bnb/test_blank_periods.py",
+            "benchmarks/studies/tbr_bnb/test_relative.py",
+            "benchmarks/studies/tbr_bnb/README.md",
+            "tools/mutation/targets.toml",
+        ]
+        swept = frozenset({"benchmarks/studies/tbr_bnb/treatment.py"})
+        assert case_deps.select(changed, ["a", "b"], self.MAP, swept=swept,
+                                added=changed[1:2]) == []
 
     def test_the_package_init_is_not_a_hole(self):
         assert case_deps.select(["mlsynth/__init__.py"], ["a", "b"], self.MAP) == []
@@ -307,7 +341,7 @@ def test_the_shipped_manifest_names_nothing_unclaimable():
     """A measured entry naming one of these would mean the measurement is wrong."""
     manifest = case_deps.load()
     stray = {p for deps in manifest.values() for p in deps
-             if p.startswith(case_deps.NEVER_REACHABLE)
+             if case_deps.never_reachable(p)
              or p in case_deps.RE_EXPORT_ONLY}
     assert not stray, stray
 
@@ -444,6 +478,7 @@ class TestTheMapClaimsWhatADiffCanName:
 
     @pytest.mark.parametrize("path", [
         "mlsynth/tests/conftest.py", "benchmarks/tests/test_x.py",
+        "benchmarks/studies/tbr_bnb/test_x.py", "benchmarks/studies/s/conftest.py",
         "mlsynth/__pycache__/x.cpython-311.pyc", "docs/x.rst", "setup.py",
         "mlsynth/utils/x.pyc",
         "benchmarks/reference/.cache/dpsc/src/matrix.py",
@@ -890,7 +925,7 @@ class TestTheInstallReachesEveryCase:
     def test_the_list_is_not_prose_and_not_unreachable(self):
         for path in case_deps.ENVIRONMENT:
             assert not path.endswith(case_deps.PROSE_SUFFIXES)
-            assert not path.startswith(case_deps.NEVER_REACHABLE)
+            assert not case_deps.never_reachable(path)
 
 
 # --------------------------------------------------------------------------
@@ -1117,3 +1152,32 @@ def test_combining_keeps_measurements_drops_failures_and_carries_the_rest(
     ok, _ = benchmark_deps.should_record_inventory(
         benchmark_deps.measured_in(paths), merged)
     assert ok == (not carried)
+
+
+_STUDY_TESTS = st.sampled_from([
+    "benchmarks/studies/tbr_bnb/test_relative.py",
+    "benchmarks/studies/marex_bnb/test_bounds.py",
+    "benchmarks/studies/tbr_bnb/conftest.py",
+    "mlsynth/tests/test_a.py",
+])
+
+
+@given(changed=st.lists(_PATHS, max_size=6), tests=st.lists(_STUDY_TESTS, min_size=1, max_size=3),
+       swept=st.lists(_PATHS, max_size=6), added=st.lists(_PATHS, max_size=3))
+@settings(max_examples=250, deadline=None)
+def test_a_test_module_never_changes_the_selection(changed, tests, swept, added):
+    """No case executes a test module, in the library, the benchmarks or a study,
+    so adding any number of them to any diff selects exactly the same cases."""
+    m = {"a": ["mlsynth/x.py"], "b": ["mlsynth/y.py"]}
+    cases = ["a", "b", "c"]
+    kw = dict(added=added, swept=frozenset(swept))
+    assert case_deps.select(changed + tests, cases, m, **kw) == case_deps.select(changed, cases, m, **kw)
+
+
+def test_the_inventory_leaves_out_a_studys_tests_and_keeps_its_code():
+    """A sweep records what a case could have claimed; a study's tests are not
+    that, its modules are."""
+    inventory = set(case_deps.reachable_inventory())
+    assert "benchmarks/studies/tbr_bnb/treatment.py" in inventory
+    assert "benchmarks/studies/tbr_bnb/test_treatment.py" not in inventory
+    assert not [p for p in inventory if case_deps.never_reachable(p)]

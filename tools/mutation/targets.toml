@@ -8725,8 +8725,8 @@ timeout = 120.0
 
   [[target.mutant]]
   id = "the-map-claims-the-reference-cache"
-  find = "                   and not p.startswith(case_deps.NEVER_REACHABLE + case_deps.UNTRACKED)"
-  replace = "                   and not p.startswith(case_deps.NEVER_REACHABLE)"
+  find = "                   and not case_deps.never_reachable(p) and not p.startswith(case_deps.UNTRACKED)"
+  replace = "                   and not case_deps.never_reachable(p)"
   models = "the recorder keeping what a case reads from the gitignored reference cache, so the daily refresh commits paths that exist only where the references were fetched and the shipped-manifest test fails everywhere else"
 
 [[target]]
@@ -8737,8 +8737,8 @@ timeout = 120.0
 
   [[target.mutant]]
   id = "the-inventory-walks-the-reference-cache"
-  find = "            if rel.startswith(NEVER_REACHABLE + UNTRACKED) or rel in RE_EXPORT_ONLY:"
-  replace = "            if rel.startswith(NEVER_REACHABLE) or rel in RE_EXPORT_ONLY:"
+  find = "            if never_reachable(rel) or rel.startswith(UNTRACKED) or rel in RE_EXPORT_ONLY:"
+  replace = "            if never_reachable(rel) or rel in RE_EXPORT_ONLY:"
   models = "the sweep's inventory recording the reference cache's files as reachable, so the inventory differs between a machine that fetched the references and one that did not"
 
 # One limit rule (#843): MAREX's search stops at a work limit in the cost
@@ -17252,3 +17252,69 @@ timeout = 900.0
   find = "        c[i] = sign * acc\n"
   replace = "        c[i] = acc\n"
   models = "the kernel's -y floor with the +y cross products, an NNLS on mismatched data whose bound is not -y's"
+
+[[target]]
+name = "case-deps-study-tests"
+module-path = "benchmarks/case_deps.py"
+test-command = "python -m pytest benchmarks/tests/test_case_deps.py benchmarks/tests/test_case_deps_imports.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "a-studys-tests-are-holes-again"
+  find = "    return name == \"conftest.py\" or (name.startswith(\"test_\") and name.endswith(\".py\"))\n"
+  replace = "    return False\n"
+  models = "a study's test module counted as a dependency the map missed, so a pull request touching one runs the whole registry"
+
+  [[target.mutant]]
+  id = "every-study-file-is-unreachable"
+  find = "    return name == \"conftest.py\" or (name.startswith(\"test_\") and name.endswith(\".py\"))\n"
+  replace = "    return True\n"
+  models = "a study's library modules treated as unreachable, so a change a case can execute stops widening the selection"
+
+  [[target.mutant]]
+  id = "a-test-name-anywhere-is-unreachable"
+  find = "    if not path.startswith(STUDIES):\n        return False\n"
+  replace = "    pass\n"
+  models = "a library or case module named test_* treated as a test module outside the studies"
+
+  [[target.mutant]]
+  id = "a-test-name-of-any-kind-is-unreachable"
+  find = "(name.startswith(\"test_\") and name.endswith(\".py\"))"
+  replace = "name.startswith(\"test_\")"
+  models = "a study's data file named test_* treated as a test module"
+
+  [[target.mutant]]
+  id = "a-studys-conftest-is-a-hole"
+  find = "    return name == \"conftest.py\" or (name.startswith(\"test_\")"
+  replace = "    return (name.startswith(\"test_\")"
+  models = "a study's conftest.py counted as a hole"
+
+  [[target.mutant]]
+  id = "the-graph-keeps-the-studys-tests"
+  find = "        and not never_reachable(f.relative_to(base).as_posix()))"
+  replace = "        and not f.relative_to(base).as_posix().startswith(NEVER_REACHABLE))"
+  models = "the import graph walking a study's test modules, which import its code and so read as importers no case claims"
+
+  [[target.mutant]]
+  id = "the-inventory-walks-the-studys-tests"
+  find = "            if never_reachable(rel) or rel.startswith(UNTRACKED) or rel in RE_EXPORT_ONLY:"
+  replace = "            if rel.startswith(NEVER_REACHABLE + UNTRACKED) or rel in RE_EXPORT_ONLY:"
+  models = "the sweep inventory recording a study's test modules as covered by nothing, which hides that they are unreachable"
+
+  [[target.mutant]]
+  id = "the-hole-test-forgets-the-studys-tests"
+  find = "    if never_reachable(path) or path in RE_EXPORT_ONLY:\n        return False"
+  replace = "    if path.startswith(NEVER_REACHABLE) or path in RE_EXPORT_ONLY:\n        return False"
+  models = "the hole test reading only the test trees' prefixes, the defect #1091 hit"
+
+[[target]]
+name = "case-deps-study-tests-measured"
+module-path = "tools/benchmark_deps.py"
+test-command = "python -m pytest benchmarks/tests/test_case_deps.py benchmarks/tests/test_case_deps_imports.py -q -x -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-map-claims-a-studys-tests"
+  find = "                   and not case_deps.never_reachable(p) and not p.startswith(case_deps.UNTRACKED)"
+  replace = "                   and not p.startswith(case_deps.NEVER_REACHABLE + case_deps.UNTRACKED)"
+  models = "a measurement recording a study's test module in a case's entry"
