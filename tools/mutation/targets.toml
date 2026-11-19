@@ -13140,8 +13140,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "one-job-starts-a-pool"
-  find = "    if n_jobs == 1:\n        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0, until=until)\n"
-  replace = "    if False:\n        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0, until=until)\n"
+  find = "    if n_jobs == 1:\n        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0, until=until,\n"
+  replace = "    if False:\n        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0, until=until,\n"
   models = "the sequential search sent through a pool of one worker, paying its start and the pickling for nothing"
 
   [[target.mutant]]
@@ -14695,8 +14695,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-search-gives-the-start-no-pool"
-  find = "        T0, C0 = _start(M, k, n_test, restarts, pool)"
-  replace = "        T0, C0 = _start(M, k, n_test, restarts)"
+  find = "        T0, C0 = _start(M, k, n_test, restarts, pool, adm)"
+  replace = "        T0, C0 = _start(M, k, n_test, restarts, None, adm)"
   models = "certify_treatment runs the start's restarts in one process though it has a pool: the same design, four times slower on four jobs"
 
 [[target]]
@@ -17195,8 +17195,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "certifications-are-not-seeded"
-  find = "        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), local.get(T, {}), until), (c, (fp, fm))\n"
-  replace = "        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), {}, until), (c, (fp, fm))\n"
+  find = "        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), local.get(T, {}), until, cols(T)), (c, (fp, fm))\n"
+  replace = "        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), {}, until, cols(T)), (c, (fp, fm))\n"
   models = "each sign's certificate started without its pass design, a descent run twice"
 
   [[target.mutant]]
@@ -17453,14 +17453,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-job-gets-no-deadline"
-  find = "local.get(T, {}), until), (c, (fp, fm))"
-  replace = "local.get(T, {}), None), (c, (fp, fm))"
+  find = "local.get(T, {}), until, cols(T)), (c, (fp, fm))"
+  replace = "local.get(T, {}), None, cols(T)), (c, (fp, fm))"
   models = "the window's certifications not given the deadline"
 
   [[target.mutant]]
   id = "the-retry-gets-no-deadline"
-  find = "            res = _optimum(Mc, M, T, n_test, restarts, c, fl, local.get(T, {}), until=until)\n"
-  replace = "            res = _optimum(Mc, M, T, n_test, restarts, c, fl, local.get(T, {}))\n"
+  find = "            res = _optimum(Mc, M, T, n_test, restarts, c, fl, local.get(T, {}), until=until, cols=cols(T))\n"
+  replace = "            res = _optimum(Mc, M, T, n_test, restarts, c, fl, local.get(T, {}), cols=cols(T))\n"
   models = "a retry not given the deadline"
 
   [[target.mutant]]
@@ -17558,3 +17558,99 @@ timeout = 900.0
   find = "        out.open.append((m, tuple(fixes)))\n        node(\"open\")\n"
   replace = "        node(\"open\")\n"
   models = "a node skipped for lack of time counted as pruned, so the certificate closes unproved"
+
+[[target]]
+name = "tbr-bnb-rules"
+module-path = "benchmarks/studies/tbr_bnb/treatment.py"
+test-command = "python -m pytest benchmarks/studies/tbr_bnb/test_rules.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-group-may-hold-an-untreatable-geo"
+  find = "        if not T <= self.treatable or not self.forced <= T:\n"
+  replace = "        if not self.forced <= T:\n"
+  models = "a geo whose roles forbid treatment admitted to a treatment group"
+
+  [[target.mutant]]
+  id = "a-forced-geo-may-be-left-out"
+  find = "        if not T <= self.treatable or not self.forced <= T:\n"
+  replace = "        if not T <= self.treatable:\n"
+  models = "a group that leaves out a geo that may only be treated admitted"
+
+  [[target.mutant]]
+  id = "the-rules-are-not-read"
+  find = "        if self.rules is not None and not self.rules.admits(T):\n            return False\n"
+  replace = "        if False:\n            return False\n"
+  models = "conflicts, stratum quotas, the budget and the tolerance ignored on the groups the search certifies"
+
+  [[target.mutant]]
+  id = "a-group-with-no-control-is-admitted"
+  find = "        return bool(self.controls(T))\n"
+  replace = "        return True\n"
+  models = "a group whose every candidate control is ruled out handed to the certificate with no columns"
+
+  [[target.mutant]]
+  id = "bordering-donors-are-not-removed"
+  find = "        banned = self.rules.banned_controls(T) if self.rules is not None else frozenset()\n"
+  replace = "        banned = frozenset()\n"
+  models = "exclude_bordering_donors ignored, so a treated geo's neighbour may be a control"
+
+  [[target.mutant]]
+  id = "a-geo-that-may-not-be-a-control-is-one"
+  find = "        return sorted(self.controllable - frozenset(T) - banned)\n"
+  replace = "        return sorted(frozenset(range(len(self.roles))) - frozenset(T) - banned)\n"
+  models = "the controls drawn from every geo outside the group, roles ignored"
+
+  [[target.mutant]]
+  id = "the-floor-survivors-are-not-filtered"
+  find = "        kept = [r for r in rows if adm.admits(r[2])]\n"
+  replace = "        kept = list(rows)\n"
+  models = "inadmissible groups left in the queue, so the pass and the certificates search them"
+
+  [[target.mutant]]
+  id = "the-certificate-ignores-the-columns"
+  find = "        y, X, rest = _split(Mc, T, cols)\n        best, certified, run = None, True, []\n"
+  replace = "        y, X, rest = _split(Mc, T)\n        best, certified, run = None, True, []\n"
+  models = "a group certified over every other geo's column, so its design can hold a control the rules exclude"
+
+  [[target.mutant]]
+  id = "the-pass-ignores-the-columns"
+  find = "    y, X, rest = _split(Mc, T, cols)\n    starts, best = {}, None\n"
+  replace = "    y, X, rest = _split(Mc, T)\n    starts, best = {}, None\n"
+  models = "the pass's descent over every other geo, so the incumbent it sets can break the rules"
+
+  [[target.mutant]]
+  id = "the-start-ignores-the-rules"
+  find = "                                        objective=\"relative\", rules=adm.rules) if o.k == k]\n"
+  replace = "                                        objective=\"relative\", rules=None) if o.k == k]\n"
+  models = "the library's greedy start run without the rules, so the first incumbent can be a design the rules forbid"
+
+  [[target.mutant]]
+  id = "the-start-local-search-ignores-the-rules"
+  find = "                                      objective=\"relative\", rules=adm.rules)\n        return sorted(best.treatment), sorted(best.control)\n"
+  replace = "                                      objective=\"relative\", rules=None)\n        return sorted(best.treatment), sorted(best.control)\n"
+  models = "the start's local search run without the rules, so it can walk out of them"
+
+  [[target.mutant]]
+  id = "a-caller-start-is-not-checked"
+  find = "    if start is not None and adm is not None and not adm.admits(start):\n"
+  replace = "    if False:\n"
+  models = "a start group the rules forbid accepted as the first incumbent"
+
+  [[target.mutant]]
+  id = "a-geo-that-has-to-be-a-control-passes"
+  find = "    if must:\n"
+  replace = "    if False:\n"
+  models = "a geo that has to be a control accepted while the certificate cannot fix it in"
+
+  [[target.mutant]]
+  id = "the-control-band-passes"
+  find = "    if rules is not None and (rules.min_controls is not None or rules.max_controls is not None):\n"
+  replace = "    if False:\n"
+  models = "min_controls or max_controls accepted while the certificate does not limit the control size"
+
+  [[target.mutant]]
+  id = "rules-from-other-roles-pass"
+  find = "        if rules.treatable != treatable or rules.controllable != controllable:\n"
+  replace = "        if False:\n"
+  models = "rules built from other role sets accepted, so the two disagree on which geos may be treated"

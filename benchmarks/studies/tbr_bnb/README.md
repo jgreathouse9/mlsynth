@@ -2512,6 +2512,39 @@ for no structural reason. Nothing in the data gives an orbit to prune. The lever
 the ones above: a gap, so the search stops separating designs it cannot tell apart,
 and a tighter relaxation, so fewer of them survive a node.
 
+## Business rules
+
+`certify_treatment(..., eligibility=, rules=)` takes the library's role sets (one set
+of `"treatment"`, `"control"` and `"unassigned"` per geo) and its `DesignRules`,
+built from the same role sets. A treatment group is a design when every geo in it
+may be treated, every geo that may only be treated is in it, the rules admit it
+(no two treated geos in conflict, the stratum minimums and maximums, the budget,
+the population tolerance), and it leaves at least one control. Its controls are
+drawn from the geos that may be controls, outside the group, and not banned by it
+(`exclude_bordering_donors`).
+
+None of this changes what a certificate proves. A treatment-side rule decides
+which groups exist, so it filters the queue: the floors are computed for every
+group as before and the groups the rules exclude are dropped from the floors'
+survivors and counted in `inadmissible` (a group the floors drop cannot compete
+whether the rules admit it or not). A control-side rule removes columns, and a
+group with fewer candidate controls is the same search on a smaller instance: the
+pass, the group screen and every size's branch and bound run on the allowed
+columns only. The floors still read every other geo's column, a superset of the
+allowed designs, so they stay lower bounds. The start is the library's greedy and
+local search under the same roles and rules, which keep every design they visit
+admissible, and a caller's start group the rules forbid is refused.
+
+Two rules reach inside the certificate and come separately: a geo that has to be
+a control (a role set with `"control"` and without `"unassigned"`), which needs a
+fixing at every size's root, and `min_controls` / `max_controls`, which limit the
+sizes searched. Until then they are refused, naming the rule.
+
+`test_rules.py` builds each rule to bind against the unconstrained optimum and
+checks the certified design against enumeration of exactly the designs the rules
+allow, scored by the library's relative key, and the same as a hypothesis property
+over random role sets, conflict graphs, stratum maximums and border exclusions.
+
 ## The test beds
 
 Every change to the search is measured first on five fixed beds of simulated

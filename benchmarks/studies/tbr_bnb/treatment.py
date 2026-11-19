@@ -99,7 +99,7 @@ from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import dataclass, field
 from fractions import Fraction as Q
 from math import comb
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, FrozenSet, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 from scipy.optimize import nnls
@@ -126,10 +126,78 @@ def gram_floor(M) -> Optional[Q]:
     return gram_lower(Mq.T @ Mq)
 
 
-def _split(M, T):
+def _split(M, T, cols=None):
+    """The treated aggregate of group T, its candidate control columns and their geo
+    indices: ``cols`` when the rules restrict them (_Admissible.controls), else every
+    other geo."""
     T = sorted(T)
-    rest = [j for j in range(M.shape[1]) if j not in T]
+    rest = [j for j in range(M.shape[1]) if j not in T] if cols is None else list(cols)
     return M[:, T].sum(axis=1), M[:, rest], rest
+
+
+_ROLES = frozenset({"treatment", "control", "unassigned"})
+
+
+@dataclass(frozen=True)
+class _Admissible:
+    """The library's role sets and DesignRules read as the certified search needs them:
+    which treatment groups are designs (admits) and which geos a group may draw its
+    controls from (controls). A group is a design when every geo in it may be treated,
+    every geo that may only be treated is in it, the rules admit it (conflicts, stratum
+    quotas, budget, population tolerance), and it leaves a control. Its controls are the
+    geos that may be controls, outside it and not banned by it (exclude_bordering_donors).
+    A smaller set of control columns is the same search on a smaller instance, so every
+    certificate below holds as before."""
+    roles: Tuple[FrozenSet[str], ...]
+    rules: Optional[object]
+    treatable: FrozenSet[int]
+    controllable: FrozenSet[int]
+    forced: FrozenSet[int]
+
+    def controls(self, T) -> List[int]:
+        banned = self.rules.banned_controls(T) if self.rules is not None else frozenset()
+        return sorted(self.controllable - frozenset(T) - banned)
+
+    def admits(self, T) -> bool:
+        T = frozenset(T)
+        if not T <= self.treatable or not self.forced <= T:
+            return False
+        if self.rules is not None and not self.rules.admits(T):
+            return False
+        return bool(self.controls(T))
+
+
+def _checked_roles(eligibility, rules, p: int) -> Optional[_Admissible]:
+    """None when every geo may take every role and there are no rules; else the
+    _Admissible they describe, refusing role sets that do not describe the panel's
+    geos, rules built from other role sets, and the rules that reach inside the
+    certificate: a geo that has to be a control, and the control-size band."""
+    if eligibility is None and rules is None:
+        return None
+    roles = [_ROLES] * p if eligibility is None else list(eligibility)
+    if len(roles) != p:
+        raise MlsynthDataError(f"eligibility has {len(roles)} role sets for {p} geos; it needs one per geo.")
+    for j, r in enumerate(roles):
+        if not isinstance(r, (set, frozenset)) or not r or not set(r) <= _ROLES:
+            raise MlsynthDataError(f"eligibility[{j}] is {r!r}; a role set is a non-empty set of "
+                                   f"{sorted(_ROLES)}.")
+    roles = tuple(frozenset(r) for r in roles)
+    treatable = frozenset(j for j, r in enumerate(roles) if "treatment" in r)
+    controllable = frozenset(j for j, r in enumerate(roles) if "control" in r)
+    if rules is not None:
+        if rules.n_units != p:
+            raise MlsynthDataError(f"the rules cover {rules.n_units} geos and the panel has {p}.")
+        if rules.treatable != treatable or rules.controllable != controllable:
+            raise MlsynthDataError("the rules were built from other role sets than eligibility; build them "
+                                   "with DesignRules.build(eligibility, ...).")
+    must = sorted(j for j in controllable if "unassigned" not in roles[j])
+    if must:
+        raise MlsynthDataError(f"the geo at column {must[0]} has to be a control when it is not treated; the "
+                               f"certified search does not take geos that have to be controls yet.")
+    if rules is not None and (rules.min_controls is not None or rules.max_controls is not None):
+        raise MlsynthDataError("the certified search does not take min_controls or max_controls yet.")
+    forced = frozenset(j for j, r in enumerate(roles) if r == frozenset({"treatment"}))
+    return _Admissible(roles, rules, treatable, controllable, forced)
 
 
 def _checked_panel(M) -> np.ndarray:
@@ -494,6 +562,7 @@ class TreatmentCertificate:
     blank_periods: int = 0                  # the last periods held back from the search
     design_periods: int = 0                 # the periods the search certified on, before them
     blank_aa: List[bool] = field(default_factory=list)  # the library's A/A test at each blank origin
+    inadmissible: int = 0                   # groups the floors left that the roles or rules rule out
     time_limit: Optional[float] = None      # the seconds the search was given, None for no limit
     timed_out: bool = False                 # the limit passed before every group was resolved
     unresolved: int = 0                     # groups neither ruled out nor certified
@@ -520,7 +589,7 @@ class _GroupOutcome:
     signs: Tuple[int, ...]
 
 
-def _start(M, k, n_test, restarts, pool=None):
+def _start(M, k, n_test, restarts, pool=None, adm=None):
     """The library's greedy search and local search (#964) under the relative key,
     every geo eligible for every role: the first incumbent's treatment and control
     groups at size k, M the raw panel.
@@ -533,6 +602,14 @@ def _start(M, k, n_test, restarts, pool=None):
     from mlsynth.utils.tbr_helpers.design import local as lib_local
     from mlsynth.utils.tbr_helpers.design.search import greedy_search
 
+    if adm is not None:                     # under roles or rules: the library's own search keeps to them
+        out = [o for o in greedy_search(M, list(adm.roles), max_treatment_size=k, n_test=n_test,
+                                        objective="relative", rules=adm.rules) if o.k == k]
+        if not out:
+            return None, None
+        best = lib_local.local_search(M, list(adm.roles), out[-1], n_test=n_test, restarts=restarts, seed=0,
+                                      objective="relative", rules=adm.rules)
+        return sorted(best.treatment), sorted(best.control)
     roles = [frozenset({"treatment", "control", "unassigned"})] * M.shape[1]
     out = greedy_search(M, roles, max_treatment_size=k, n_test=n_test, objective="relative")
     if pool is None:
@@ -574,11 +651,11 @@ def _fits(M, T, C, n_test) -> bool:
                                         objective="relative", n_test=n_test).key[0]))
 
 
-def _design(Mc, M, T, C, n_test) -> Optional[_Design]:
+def _design(Mc, M, T, C, n_test, cols=None) -> Optional[_Design]:
     """The design (T, C), C in geo indices: its exact RSS on the centred panel Mc,
     y'y - (c'u)^2 / u'Gu at either slope sign, and the sign of c'u; None for an exact
     fit."""
-    y, X, rest = _split(Mc, T)
+    y, X, rest = _split(Mc, T, cols)
     Cg = sorted(rest.index(j) for j in C)
     cu, uGu, yy = design_moments(y, X, Cg)
     if not _fits(M, T, C, n_test):
@@ -586,19 +663,19 @@ def _design(Mc, M, T, C, n_test) -> Optional[_Design]:
     return _Design(sorted(C), yy - cu * cu / uGu, 1 if cu >= 0 else -1)
 
 
-def _local(Mc, M, T, n_test, restarts):
+def _local(Mc, M, T, n_test, restarts, cols=None):
     """The study's RSS descent in group T on y and on -y from ``restarts`` random
     starts: the design each sign's descent ends at (control indices of the group, by
     sign, for that sign's certificate to start from), and the better of the two as a
     _Design (None when both fit exactly)."""
     from .search import incumbent
 
-    y, X, rest = _split(Mc, T)
+    y, X, rest = _split(Mc, T, cols)
     starts, best = {}, None
     for s in SIGNS:
         _, C = incumbent(s * y, X, restarts=restarts)
         starts[s] = sorted(C)
-        d = _design(Mc, M, T, [rest[j] for j in C], n_test)
+        d = _design(Mc, M, T, [rest[j] for j in C], n_test, cols)
         if d is not None and (best is None or d.rss < best.rss):
             best = d
     return starts, best
@@ -791,13 +868,13 @@ class _Lender:
             self.lent.value -= n
 
 
-def _optimum_timed(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=None):
+def _optimum_timed(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=None, cols=None):
     t0 = time.perf_counter()
-    res = _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=until)
+    res = _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=until, cols=cols)
     return res, time.perf_counter() - t0
 
 
-def _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=None) -> _GroupOutcome:
+def _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=None, cols=None) -> _GroupOutcome:
     """Group T certified against ``ceiling`` (None: its own optimum): each sign whose
     floor is below the ceiling is a certify_slope_free on that sign's series, from its
     pass design in ``starts`` when there is one. A design the library scores -inf is
@@ -809,7 +886,7 @@ def _optimum(Mc, M, T, n_test, restarts, ceiling, floors, starts, until=None) ->
     with tagged(treatment=tuple(T)):
         t0 = time.perf_counter()
         emit("group", treatment=tuple(T), ceiling=ceiling)
-        y, X, rest = _split(Mc, T)
+        y, X, rest = _split(Mc, T, cols)
         best, certified, run = None, True, []
         for s, f in zip(SIGNS, floors):
             if ceiling is not None and not Q(f) < ceiling:
@@ -861,7 +938,7 @@ def _checked_gap(gap) -> Q:
 def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] = None,
                       restarts: int = 50, pass_restarts: int = 10, gap=0,
                       n_jobs: int = 1, blank_periods: Optional[int] = 0,
-                      time_limit: Optional[float] = TIME_LIMIT, verbose: int = 0,
+                      time_limit: Optional[float] = TIME_LIMIT, eligibility=None, rules=None, verbose: int = 0,
                       progress=None, log=None, log_level: int = 3) -> TreatmentCertificate:
     """The relative key's best design with ``k`` treatment geos over the columns of
     the raw panel ``M`` (periods by geos, every geo eligible for every role, every
@@ -878,20 +955,25 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
     ``time_limit`` seconds (TIME_LIMIT; None for no limit) and reports the best design
     found, not certified, with ``proven_gap``: no design's key exceeds 1 + proven_gap
     times the reported design's (proven_gap; None when the floors were not all
-    computed). ``verbose``, ``progress`` and
+    computed). ``eligibility`` is the library's role set per geo and ``rules`` its
+    DesignRules (built from the same role sets); together they decide which treatment
+    groups are designs and which geos each may draw its controls from (_Admissible).
+    ``verbose``, ``progress`` and
     ``log`` report the search's progress (progress.reporting), each group's events
     tagged with the group, from the workers too."""
     with reporting(verbose=verbose, progress=progress, log=log, log_level=log_level):
         out = _certify_treatment_entry(M, k, n_test=n_test, start=start, restarts=restarts,
                                        pass_restarts=pass_restarts, gap=gap, n_jobs=n_jobs,
-                                       blank_periods=blank_periods, time_limit=time_limit)
+                                       blank_periods=blank_periods, time_limit=time_limit,
+                                       eligibility=eligibility, rules=rules)
         emit("treatment-done", certified=out.certified, treatment=out.treatment, key=out.key,
              survivors=len(out.survivors), seconds=out.seconds)
         return out
 
 
 def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, gap, n_jobs,
-                             blank_periods=0, time_limit=None) -> TreatmentCertificate:
+                             blank_periods=0, time_limit=None, eligibility=None,
+                             rules=None) -> TreatmentCertificate:
     t0 = time.perf_counter()
     whole = _checked_panel(M)
     B = _checked_blank(blank_periods, n_test, whole.shape[0])
@@ -906,11 +988,13 @@ def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, ga
     if not isinstance(n_jobs, int) or n_jobs < 1:
         raise MlsynthDataError(f"n_jobs is {n_jobs!r}; it has to be a positive integer.")
     g = _checked_gap(gap)
+    adm = _checked_roles(eligibility, rules, p)
     limit = _checked_time_limit(time_limit)
     until = deadline.at(limit)
     emit("treatment", k=k, p=p, groups=comb(p, k), n_jobs=n_jobs)
     if n_jobs == 1:
-        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0, until=until)
+        out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, None, t0, until=until,
+                                 adm=adm)
     else:
         from . import slopefree
         lender, before = _Lender(), slopefree.SPARE
@@ -918,7 +1002,7 @@ def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, ga
         try:
             with _pool(n_jobs) as pool:
                 out = _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0,
-                                         lender=lender, until=until)
+                                         lender=lender, until=until, adm=adm)
         finally:
             slopefree.SPARE = before
     out.blank_periods, out.design_periods, out.time_limit = B, M.shape[0], limit
@@ -1002,9 +1086,16 @@ def _blank_aa(y, x, design_periods: int, n_test: int) -> List[bool]:
 
 
 def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_jobs, pool, t0, lender=None,
-                       until=None):
+                       until=None, adm=None):
     if start is not None and len(set(start)) != k:
         raise MlsynthDataError(f"the start treatment group has {len(set(start))} geos, not {k}.")
+    if start is not None and adm is not None and not adm.admits(start):
+        raise MlsynthDataError(f"the start treatment group {sorted(start)} is not a design under the roles and "
+                               f"rules.")
+
+    def cols(T):                            # the control columns group T may draw from
+        return None if adm is None else adm.controls(T)
+
     n = M.shape[0]
     Mc = M - M.mean(axis=0)
     sums = geo_sums(M)
@@ -1031,10 +1122,13 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
 
     if start is not None:
         T0 = sorted(start)
-        starts0, d0 = _local(Mc, M, tuple(T0), n_test, restarts)
+        starts0, d0 = _local(Mc, M, tuple(T0), n_test, restarts, cols(T0))
     else:
-        T0, C0 = _start(M, k, n_test, restarts, pool)
-        starts0, d0 = {}, _design(Mc, M, T0, C0, n_test)
+        T0, C0 = _start(M, k, n_test, restarts, pool, adm)
+        if T0 is None:                      # the library finds no design of size k under the rules
+            T0, starts0, d0 = [], {}, None
+        else:
+            starts0, d0 = {}, _design(Mc, M, T0, C0, n_test, cols(T0))
     if d0 is not None:
         take(T0, d0)
     local = {tuple(T0): starts0}
@@ -1051,13 +1145,17 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
     rows, dropped = _streamed_floor_rows(Mc, p, k, lam, pool, n_jobs, _screen_terms(bar(), ell, k), until=until)
     out.screened_out += dropped
     unread = comb(p, k) - len(rows) - dropped   # floors never computed: out of time (deadline.py)
+    if adm is not None:                     # a group the roles or rules rule out is no design
+        kept = [r for r in rows if adm.admits(r[2])]
+        out.inadmissible = len(rows) - len(kept)
+        rows = kept
     rows.sort(key=lambda r: _bound_order(r, ell))      # the best key bound first
 
     if pass_restarts:                       # the pass: each group's RSS descent on both signs
         for wave in _waves(rows, n_jobs, lambda r: r[2] not in local and competes(r)):
             if deadline.passed(until):
                 break
-            got = _map(pool, _local, [(Mc, M, T, n_test, pass_restarts) for _, _, T in wave])
+            got = _map(pool, _local, [(Mc, M, T, n_test, pass_restarts, cols(T)) for _, _, T in wave])
             for (_, _, T), (starts, d) in zip(wave, got):   # in queue order
                 local[T] = starts
                 out.searched += 1
@@ -1083,7 +1181,7 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
     def job(row):                           # given its ceiling as it is submitted
         fp, fm, T = row
         c = relative_ceiling(level(T), bar())
-        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), local.get(T, {}), until), (c, (fp, fm))
+        return _optimum_timed, (Mc, M, T, n_test, restarts, c, (fp, fm), local.get(T, {}), until, cols(T)), (c, (fp, fm))
 
     def commit(row, ctx, result):           # in queue order
         T, (c, fl), (res, secs) = row[2], ctx, result
@@ -1104,7 +1202,7 @@ def _certify_treatment(M, k, p, n_test, start, restarts, pass_restarts, g, n_job
         c = relative_ceiling(level(T), bar())
         if c is not None and (c_then is None or c < c_then) and not deadline.passed(until):
             out.retried += 1
-            res = _optimum(Mc, M, T, n_test, restarts, c, fl, local.get(T, {}), until=until)
+            res = _optimum(Mc, M, T, n_test, restarts, c, fl, local.get(T, {}), until=until, cols=cols(T))
             d = res.design
             if d is not None and beats(level(T), d.rss, inc["level"], inc["rss"]):
                 take(T, d)
