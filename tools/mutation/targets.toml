@@ -17266,10 +17266,10 @@ timeout = 900.0
   models = "the search run on the whole panel, blank periods included, so the A/A test at a blank origin scores a window the design was chosen on"
 
   [[target.mutant]]
-  id = "the-default-holds-back-nothing"
+  id = "none-holds-back-nothing"
   find = "    if blank_periods == 0 and type(blank_periods) is int:\n"
   replace = "    if blank_periods is None or (blank_periods == 0 and type(blank_periods) is int):\n"
-  models = "None read as no blank periods, so the default search sees every period"
+  models = "None read as no blank periods, so asking for the library's three test lengths holds back none"
 
   [[target.mutant]]
   id = "the-default-is-two-test-lengths"
@@ -17296,16 +17296,28 @@ timeout = 900.0
   models = "an A/A test on the design window's last periods counted as a blank one"
 
   [[target.mutant]]
-  id = "a-short-design-window-is-not-refused"
-  find = "    design_end(n, B)                     # refuses too short a design window\n"
-  replace = "    pass\n"
-  models = "a hold-back leaving fewer than the library's minimum design periods accepted, so the search fits on a window the calibration refuses"
-
-  [[target.mutant]]
   id = "a-non-integer-blank-count-passes"
   find = "    if blank_periods is not None and (type(blank_periods) is not int or blank_periods < 0):\n"
   replace = "    if blank_periods is not None and blank_periods < 0:\n"
   models = "a float, a bool or a string taken as a count of blank periods"
+
+  [[target.mutant]]
+  id = "the-default-holds-back-three-test-lengths"
+  find = "                      n_jobs: int = 1, blank_periods: Optional[int] = 0,\n"
+  replace = "                      n_jobs: int = 1, blank_periods: Optional[int] = None,\n"
+  models = "the default holding back three test lengths, which costs power on short panels and buys no false-positive control (README, Blank periods)"
+
+  [[target.mutant]]
+  id = "a-window-too-short-for-the-search-passes"
+  find = "    if n - B < n_test + MIN_HOLDOUT_PRETEST:\n"
+  replace = "    if False:\n"
+  models = "a hold-back leaving too few periods for the start's A/A test accepted, so the search fails inside the library's local search with an error that does not name blank_periods"
+
+  [[target.mutant]]
+  id = "the-search-window-check-is-off-by-one"
+  find = "    if n - B < n_test + MIN_HOLDOUT_PRETEST:\n"
+  replace = "    if n - B < n_test + MIN_HOLDOUT_PRETEST - 1:\n"
+  models = "a design window one period short of the start's A/A test accepted"
 
 [[target]]
 name = "case-deps-study-tests"

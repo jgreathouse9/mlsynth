@@ -105,8 +105,9 @@ import numpy as np
 from scipy.optimize import nnls
 
 from mlsynth.exceptions import MlsynthDataError
-from mlsynth.utils.tbr_helpers.calibration import design_end, resolve_blank_periods
-from mlsynth.utils.tbr_helpers.design.objective import aa_test_ok, check_positive_levels, score_split
+from mlsynth.utils.tbr_helpers.calibration import resolve_blank_periods
+from mlsynth.utils.tbr_helpers.design.objective import (MIN_HOLDOUT_PRETEST, aa_test_ok, check_positive_levels,
+                                                        score_split)
 
 from . import deadline, fastfloor
 from .certificate import box_bound_float, gram_lower, qarr
@@ -859,7 +860,7 @@ def _checked_gap(gap) -> Q:
 
 def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] = None,
                       restarts: int = 50, pass_restarts: int = 10, gap=0,
-                      n_jobs: int = 1, blank_periods: Optional[int] = None,
+                      n_jobs: int = 1, blank_periods: Optional[int] = 0,
                       time_limit: Optional[float] = TIME_LIMIT, verbose: int = 0,
                       progress=None, log=None, log_level: int = 3) -> TreatmentCertificate:
     """The relative key's best design with ``k`` treatment geos over the columns of
@@ -871,7 +872,7 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
     within g: no design's key exceeds 1 + g times the reported design's. ``n_jobs``
     processes compute the floors, the pass and the certifications (module docstring);
     1 runs them in this process. The last ``blank_periods`` periods of ``M`` are held
-    back from the search, BLANK_TESTS test lengths when None and none when 0 (see
+    back from the search, none by default and BLANK_TESTS test lengths when None (see
     BLANK_TESTS); the result reports the A/A test at each of their origins in
     ``blank_aa`` and the four gates on the whole panel. The search stops at
     ``time_limit`` seconds (TIME_LIMIT; None for no limit) and reports the best design
@@ -890,7 +891,7 @@ def certify_treatment(M, k: int, *, n_test: int, start: Optional[Sequence[int]] 
 
 
 def _certify_treatment_entry(M, k, *, n_test, start, restarts, pass_restarts, gap, n_jobs,
-                             blank_periods=None, time_limit=None) -> TreatmentCertificate:
+                             blank_periods=0, time_limit=None) -> TreatmentCertificate:
     t0 = time.perf_counter()
     whole = _checked_panel(M)
     B = _checked_blank(blank_periods, n_test, whole.shape[0])
@@ -959,25 +960,36 @@ def proven_gap(bounds, rss_star, level_star, g) -> Optional[Q]:
     return worst
 
 
-#: Blank periods held back from the search by default, in test lengths: the library's
-#: calibrated inference holds back three (mlsynth.utils.tbr_helpers.calibration.
-#: resolve_blank_periods), and refuses fewer than two, so the A/A test has whole
-#: windows the design never saw. The certified search picks one design out of every
-#: treatment and control group on the window it reads, so an A/A test on that window
-#: scores a fit the search chose; on a blank window it scores one it could not have.
+#: Blank periods held back from the search when ``blank_periods`` is None, in test
+#: lengths: the library's calibrated inference holds back three (mlsynth.utils.
+#: tbr_helpers.calibration.resolve_blank_periods), and refuses fewer than two, so the
+#: A/A test has whole windows the design never saw. The default holds back none. A
+#: design chosen on the design window alone detected a planted 3% lift less often
+#: than one chosen on the whole panel (on simulated panels of 40 pre-periods, 43%
+#: against 54%; within noise at 104), at the same false-positive rate under TBR's own
+#: interval, which fits on the whole pre-period, design window included. The library's
+#: calibrated band needs the blank windows unseen, and with it the false-positive rate
+#: held at the nominal 10% where TBR's ran at 12% to 63% (README, "Blank periods"); a
+#: caller testing with it passes None.
 BLANK_TESTS = 3
 
 
 def _checked_blank(blank_periods, n_test: int, n: int) -> int:
     """B: BLANK_TESTS test lengths when None, none when 0, else at least two test
-    lengths, leaving the library's MIN_DESIGN_PERIODS to design on."""
+    lengths. The design window left has to hold the A/A test the search's start
+    scores designs with: one test length and MIN_HOLDOUT_PRETEST periods to fit on
+    before it, more than the library's MIN_DESIGN_PERIODS (calibration.design_end)."""
     if blank_periods == 0 and type(blank_periods) is int:
         return 0
     if blank_periods is not None and (type(blank_periods) is not int or blank_periods < 0):
         raise MlsynthDataError(f"blank_periods is {blank_periods!r}; it has to be a count of periods, "
                                f"0 for none or None for {BLANK_TESTS} test lengths.")
     B = resolve_blank_periods(BLANK_TESTS * n_test if blank_periods is None else blank_periods, n_test)
-    design_end(n, B)                     # refuses too short a design window
+    if n - B < n_test + MIN_HOLDOUT_PRETEST:
+        raise MlsynthDataError(f"blank_periods={B} leaves {n - B} of {n} periods to design on; the search scores "
+                               f"designs with an A/A test that needs {n_test + MIN_HOLDOUT_PRETEST} "
+                               f"(a test of {n_test} and {MIN_HOLDOUT_PRETEST} to fit on). Hold back fewer "
+                               f"periods, or pass blank_periods=0.")
     return B
 
 
