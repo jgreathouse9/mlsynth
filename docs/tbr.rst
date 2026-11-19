@@ -954,8 +954,9 @@ subset of the same markets, where every design can be scored, the local search
 with 50 restarts reaches the best design at all four sizes, and with 10
 restarts at one of them; the greedy reaches it at none, and at two to four
 treated geos returns a design that fails the Durbin-Watson gate. More restarts
-buy more of the design space, and nothing short of scoring every design
-certifies the best one: the search is a heuristic.
+buy more of the design space, and the local search cannot tell when it has
+found the best design: it is a heuristic. ``search="exact"`` (next section)
+can.
 
 The local search needs ``objective="reference"`` or ``objective="relative"``,
 since the paper's p-values are not quadratic forms in the memberships. Under
@@ -964,6 +965,65 @@ contracted with each geo's mean over the window, and every step is confirmed by
 the direct fit under the relative key. The restarts at size :math:`k` draw
 from ``local_seed + k``. Each design records ``search`` and, under
 ``search="local"``, the greedy's key at its size as ``greedy_key``.
+
+A certified search
+------------------
+
+``search="exact"`` returns, at each treatment size, the design the relative
+objective ranks first among every design the eligibility and the business rules
+allow, together with a certificate: a proof that no allowed design ranks higher.
+The greedy and the local search return a good design; this one returns the best
+design, or says how far from the best its design can be.
+
+Scoring every design is out of reach: 100 geos with four treated already allow
+about :math:`3.9 \times 10^6` treatment groups, and each has :math:`2^{96}`
+control groups. The search proves most of them cannot win without scoring them.
+For each treatment group it first computes a floor, a number no design with that
+treatment group can beat, and sets aside every group whose floor is below the
+best design found so far. For the groups left it searches the control groups by
+branch and bound: it splits the control groups into families by fixing geos in
+or out, bounds the best design in each family from above with a semidefinite
+relaxation of the regression, and discards a family whose bound is below the
+best design found. A family that cannot be discarded is split again. When no
+treatment group and no family is left, the design found is the best, and the
+discarded bounds are the certificate. The bounds are checked in exact
+arithmetic where floating point cannot decide them, so the certificate does
+not depend on rounding.
+
+The search certifies the relative objective, the treated level over the
+smallest detectable impact (`Ranking by relative MDE`_), so it requires
+``objective="relative"``. Every business rule binds it the way it binds the
+greedy (`Business constraints on the design`_), including geos that have to be
+controls and ``min_controls`` / ``max_controls``, and the population tolerance.
+
+Three settings tune it, and they are refused with any other search:
+
+* ``exact_time_limit`` (120 seconds by default) bounds each treatment size's
+  search. When it runs out the size reports the best design found, not
+  certified, with the gap proven so far.
+* ``exact_gap`` (0 by default) lets the search stop once its design is within a
+  relative gap :math:`g` of the best: no allowed design's objective exceeds
+  :math:`1 + g` times the reported one's.
+* ``n_jobs`` sets how many processes the search runs on, every core by
+  default. The designs do not depend on it.
+
+Each design records ``certified``, ``proven_gap`` and ``timed_out``. Under the
+exact search ``inference`` defaults to ``"calibrated"`` (`Calibrated
+inference`_), unless ``variance="hac"`` is set: a searched design's posterior
+interval covers well below its level, and the calibration's blank periods are
+held back from the search, so the interval is calibrated on periods no design
+choice saw. Naming ``inference`` keeps the caller's choice.
+
+A panel on which every allowed design fits the treated aggregate exactly has no
+residual scale, so no design has a detectable impact to rank. The greedy
+returns such a design scored :math:`-\infty`; the exact search raises,
+naming the sizes.
+
+The time grows with how many treatment groups survive their floors, not with
+the panel's size alone, so a panel can take longer than the default limit at
+some sizes. The result then says so, and raising ``exact_time_limit`` or
+``exact_gap`` trades time for the certificate. The search and its measurements
+are in ``benchmarks/studies/tbr_bnb``.
 
 Business constraints on the design
 ----------------------------------

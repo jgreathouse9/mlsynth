@@ -23,6 +23,7 @@ from ...post_fit import compute_post_fit_tbrmm, to_effect_result
 from ..calibration import calibrate, design_end, resolve_blank_periods
 from ..posterior import fit_pretest
 from .estimate import measure_design
+from .certified import exact_search
 from .local import local_search
 from .objective import check_positive_levels, required_impact
 from .rules import DesignRules
@@ -274,10 +275,19 @@ def run(config: TBRConfig) -> TBRResults:
         rules = (rules if rules is not None
                  else DesignRules.build(eligibility)).with_tolerance(tolerance)
 
-    outcomes = greedy_search(
-        search_matrix, eligibility, max_treatment_size=config.max_treatment_size,
-        n_test=config.n_test, objective=config.objective,
-        control_start=config.control_start, rules=rules)
+    if config.search == "exact":
+        certified = exact_search(
+            search_matrix, eligibility, max_treatment_size=config.max_treatment_size,
+            n_test=config.n_test, rules=rules, gap=config.exact_gap,
+            time_limit=config.exact_time_limit, n_jobs=config.n_jobs)
+        outcomes = [o for o, _ in certified]
+        certificates = [c for _, c in certified]
+    else:
+        outcomes = greedy_search(
+            search_matrix, eligibility, max_treatment_size=config.max_treatment_size,
+            n_test=config.n_test, objective=config.objective,
+            control_start=config.control_start, rules=rules)
+        certificates = [None] * len(outcomes)
     greedy_keys = [None] * len(outcomes)
     from_witness = {o.k: o.from_witness for o in outcomes}
     if config.search == "local":
@@ -302,7 +312,7 @@ def run(config: TBRConfig) -> TBRResults:
 
     designs = []
     measured = []
-    for o, greedy_key in zip(outcomes, greedy_keys):
+    for o, greedy_key, cert in zip(outcomes, greedy_keys, certificates):
         treatment_units = [units[j] for j in o.treatment]
         control_units = [units[j] for j in o.control]
         effect, treated_path, control_path = (
@@ -326,6 +336,10 @@ def run(config: TBRConfig) -> TBRResults:
             greedy_key=(None if greedy_key is None
                         else tuple(float(v) for v in greedy_key)),
             abandoned_restarts=o.abandoned_restarts,
+            certified=None if cert is None else bool(cert.certified),
+            proven_gap=(None if cert is None or cert.proven_gap is None
+                        else float(cert.proven_gap)),
+            timed_out=None if cert is None else bool(cert.timed_out),
             calibrated_required_impact=(
                 k_test * _reference_impact(search_matrix, o.treatment,
                                            o.control, config.n_test)

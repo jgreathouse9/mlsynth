@@ -17829,3 +17829,153 @@ timeout = 300.0
   find = "            if not best < cur - 1e-12 * yy:\n"
   replace = "            if not best < cur * (1 - 1e-12):\n"
   models = "the improvement test relative to the current RSS, which assumes it is positive: at an exact fit the RSS is rounding and can be negative, a move that changes nothing passes, and the descent cycles between two exact fits forever"
+
+[[target]]
+name = "tbr-exact-config"
+module-path = "mlsynth/utils/tbr_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_exact_search.py -q -p no:cacheprovider -x -W ignore -k 'calibrated_inference_is_the_default or refused or needs_the_relative or nothing_to'"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "calibrated-is-not-the-exact-default"
+  find = "            data = {**data, \"inference\": \"calibrated\"}\n"
+  replace = "            data = dict(data)\n"
+  models = "search='exact' left on the posterior interval, which covers well below its level on a searched design"
+
+  [[target.mutant]]
+  id = "the-calibrated-default-overrides-the-caller"
+  find = "                and \"inference\" not in data and data.get(\"variance\") != \"hac\":\n"
+  replace = "                and data.get(\"variance\") != \"hac\":\n"
+  models = "an inference the caller named replaced by the calibrated default"
+
+  [[target.mutant]]
+  id = "the-calibrated-default-meets-hac"
+  find = "                and \"inference\" not in data and data.get(\"variance\") != \"hac\":\n"
+  replace = "                and \"inference\" not in data:\n"
+  models = "calibration defaulted beside variance='hac', which the config refuses, so a caller asking only for HAC gets an error about a setting they never chose"
+
+  [[target.mutant]]
+  id = "exact-settings-pass-without-the-exact-search"
+  find = "        if self.search != \"exact\" and exact_settings:\n"
+  replace = "        if False and exact_settings:\n"
+  models = "exact_gap, exact_time_limit or n_jobs accepted under the greedy, where nothing reads them"
+
+  [[target.mutant]]
+  id = "a-named-split-takes-the-exact-search"
+  find = "            if not searched:\n                raise MlsynthConfigError(\n                    \"search='exact' certifies"
+  replace = "            if False:\n                raise MlsynthConfigError(\n                    \"search='exact' certifies"
+  models = "search='exact' accepted with a named split, which has nothing to search"
+
+  [[target.mutant]]
+  id = "the-exact-search-takes-any-objective"
+  find = "            if self.objective != \"relative\":\n"
+  replace = "            if False:\n"
+  models = "the certified search run under the reference or paper objective, which it does not certify"
+
+  [[target.mutant]]
+  id = "a-control-start-passes-under-the-exact-search"
+  find = "            if \"control_start\" in self.model_fields_set:\n"
+  replace = "            if False:\n"
+  models = "control_start accepted where the climb it tunes does not run"
+
+  [[target.mutant]]
+  id = "a-negative-gap-passes"
+  find = "            if not (math.isfinite(g) and g >= 0.0):\n"
+  replace = "            if not (math.isfinite(g) and g >= -1.0):\n"
+  models = "a negative exact_gap accepted, a certificate tighter than optimal that no search can meet"
+
+  [[target.mutant]]
+  id = "a-zero-time-limit-passes"
+  find = "            if L is not None and not (math.isfinite(L) and L > 0.0):\n"
+  replace = "            if L is not None and not (math.isfinite(L) and L >= 0.0):\n"
+  models = "a time limit of zero seconds accepted, which ends every size before it starts"
+
+  [[target.mutant]]
+  id = "zero-processes-pass"
+  find = "            if self.n_jobs is not None and self.n_jobs < 1:\n"
+  replace = "            if self.n_jobs is not None and self.n_jobs < 0:\n"
+  models = "n_jobs=0 accepted, a pool with no worker"
+
+[[target]]
+name = "tbr-exact-adapter"
+module-path = "mlsynth/utils/tbr_helpers/design/certified.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_exact_search.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-search-holds-back-blank-periods-again"
+  find = "                                 blank_periods=0, time_limit=time_limit,\n"
+  replace = "                                 blank_periods=None, time_limit=time_limit,\n"
+  models = "the certified search holding back its own blank periods on a window the pipeline already cut, so it scores fewer periods than the design reports"
+
+  [[target.mutant]]
+  id = "sizes-start-below-the-forced-geos"
+  find = "    for k in range(max(len(forced), 1), max_treatment_size + 1):\n"
+  replace = "    for k in range(1, max_treatment_size + 1):\n"
+  models = "a size smaller than the geos that have to be treated searched, which no design can meet"
+
+  [[target.mutant]]
+  id = "a-size-below-a-stratum-minimum-is-searched"
+  find = "                continue            # the rules need more treated geos than k\n"
+  replace = "                pass\n"
+  models = "a size the strata's minimums cannot fill searched, so the fit raises where the greedy skips it"
+
+  [[target.mutant]]
+  id = "the-gap-is-not-passed"
+  find = "        cert = certify_treatment(y_matrix, k, n_test=n_test, gap=gap, n_jobs=jobs,\n"
+  replace = "        cert = certify_treatment(y_matrix, k, n_test=n_test, gap=0, n_jobs=jobs,\n"
+  models = "exact_gap accepted, recorded in the config and never handed to the search"
+
+  [[target.mutant]]
+  id = "the-processes-are-not-passed"
+  find = "    jobs = (os.cpu_count() or 1) if n_jobs is None else int(n_jobs)\n"
+  replace = "    jobs = 1\n"
+  models = "every search run in one process whatever n_jobs says, the designs unchanged and the time multiplied"
+
+  [[target.mutant]]
+  id = "the-time-limit-is-not-passed"
+  find = "                                 blank_periods=0, time_limit=time_limit,\n"
+  replace = "                                 blank_periods=0, time_limit=None,\n"
+  models = "exact_time_limit ignored, so a size runs until it is certified however long that takes"
+
+  [[target.mutant]]
+  id = "the-design-is-scored-by-another-objective"
+  find = "                            objective=\"relative\", n_test=n_test)\n"
+  replace = "                            objective=\"reference\", n_test=n_test)\n"
+  models = "the certified design reported with the reference objective's value, not the relative key it was certified on"
+
+  [[target.mutant]]
+  id = "an-empty-size-is-not-named"
+  find = "            empty.append(k)\n"
+  replace = "            pass\n"
+  models = "the error for a panel with no design to rank names no size"
+
+[[target]]
+name = "tbr-exact-pipeline"
+module-path = "mlsynth/utils/tbr_helpers/design/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_tbr_exact_search.py -q -p no:cacheprovider -x -W ignore -k 'smoke or time_limit or gap'"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-exact-search-runs-the-greedy"
+  find = "    if config.search == \"exact\":\n        certified = exact_search(\n"
+  replace = "    if False:\n        certified = exact_search(\n"
+  models = "search='exact' accepted and the greedy run in its place, its designs labelled exact"
+
+  [[target.mutant]]
+  id = "the-certificate-is-dropped"
+  find = "            certified=None if cert is None else bool(cert.certified),\n"
+  replace = "            certified=None,\n"
+  models = "the design reported without saying whether the search certified it"
+
+  [[target.mutant]]
+  id = "the-proven-gap-is-dropped"
+  find = "            proven_gap=(None if cert is None or cert.proven_gap is None\n"
+  replace = "            proven_gap=(None if True or cert.proven_gap is None\n"
+  models = "the gap the search proved left off the design"
+
+  [[target.mutant]]
+  id = "the-time-out-is-dropped"
+  find = "            timed_out=None if cert is None else bool(cert.timed_out),\n"
+  replace = "            timed_out=None,\n"
+  models = "a size the time limit cut short reported without saying so"
