@@ -52,6 +52,7 @@ def test_fixed_against_brute_force(kw):
 
 @settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 3))
+@example(seed=116734, n=8, kind=1)   # root LP 0 up to noise: an uncapped rescale by 4^50 left no design (inf)
 def test_property_against_brute_force(seed, n, kind):
     check(gen(np.random.default_rng(seed), n, kind))
 
@@ -245,3 +246,48 @@ def test_root_mip_returns_a_partition_no_dearer_than_the_start(seed, n, kind, ar
     c = _valid(z, out["design"], n)
     assert abs(c - out["opt"]) <= 1e-9 * max(1.0, c)
     assert c <= _valid(z, start, n) * (1 + 1e-12)
+
+
+# --- the big-M of the master --------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("which", ["bnp", "bcp", "bcp_r1"])
+@pytest.mark.parametrize("dear", [1.0, 1e9, 1e12])
+def test_a_feasible_master_uses_no_artificial_however_dear_its_columns(which, dear):
+    """Columns dearer than the artificials' price (1e7 before) made a feasible master cover a market
+    artificially, and the node was pruned as infeasible: the search returned no design at all."""
+    from . import bnp
+    n = 4; cols = [(0, 1), (2, 3), (0, 2), (1, 3)]; costs = [dear, dear, 2 * dear, 2 * dear]
+    if which == "bnp":
+        out = bnp.solve_feasible(bnp.master, cols, costs, n, False)
+    elif which == "bcp":
+        out = bnp.solve_feasible(bcp._master, cols, costs, n, False, [])
+    else:
+        out = bnp.solve_feasible(bcp._master_r1, cols, costs, n, False, [])
+    assert out[-1] <= 1e-9 and abs(out[0] - 2 * dear) <= 1e-9 * 2 * dear
+
+
+@pytest.mark.parametrize("which", ["bnp", "bcp", "bcp_r1"])
+def test_an_infeasible_master_still_reports_its_artificial(which):
+    from . import bnp
+    n = 4; cols = [(0, 1), (0, 2)]; costs = [1e9, 1e9]          # markets 2 and 3 can never both be covered
+    fn, rest = {"bnp": (bnp.master, ()), "bcp": (bcp._master, ([],)), "bcp_r1": (bcp._master_r1, ([],))}[which]
+    out = bnp.solve_feasible(fn, cols, costs, n, False, *rest)
+    assert out[-1] > 1e-6
+
+
+@settings(max_examples=200, deadline=None)
+@given(costs=st.lists(st.floats(0.0, 1e14), min_size=1, max_size=30))
+def test_artificials_cost_1e3_times_the_dearest_column(costs):
+    from . import bnp
+    assert bnp.artificial_price(costs) >= max(bnp.BIG, 1e3 * max(costs))
+
+
+@pytest.mark.parametrize("which", ["bnp", "bcp", "bcp_r1"])
+def test_artificials_priced_too_low_are_raised_until_a_feasible_master_drops_them(which):
+    """Artificials at 1e-9 of the dearest column: the phase-1 LP finds the master feasible, and it is solved
+    again at a higher price until no artificial is in use."""
+    from . import bnp
+    n = 4; cols = [(0, 1), (2, 3), (0, 2), (1, 3)]; costs = [1e12, 1e12, 2e12, 2e12]
+    fn, rest = {"bnp": (bnp.master, ()), "bcp": (bcp._master, ([],)), "bcp_r1": (bcp._master_r1, ([],))}[which]
+    out = bnp.solve_feasible(fn, cols, costs, n, False, *rest, factor=1e-9)
+    assert out[-1] <= 1e-9 and abs(out[0] - 2e12) <= 1e-9 * 2e12

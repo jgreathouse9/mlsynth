@@ -16,7 +16,7 @@ import heapq, math, time
 import numpy as np
 from numba import njit
 import highspy
-from . import sg, dive
+from . import sg, dive, rank1
 
 BIG = 1e7
 
@@ -77,12 +77,33 @@ def compat_py(T, c):
     return _compat(T, idx, len(c), T.shape[0])
 
 
-def master(cols, costs, n, odd):
+def artificial_price(costs, factor=1e3):
+    """The artificials' cost: `factor` times the dearest column, and at least BIG."""
+    return max(BIG, factor * float(np.max(np.abs(np.asarray(costs, float)), initial=0.0)))
+
+
+def solve_feasible(fn, cols, costs, n, odd, *rest, factor=1e3):
+    """A big-M master whose artificial use means infeasible. The artificials cost 1e3 times the dearest column
+    (a fixed 1e7 lost to columns costing 9e9 after a rescale, and a feasible node was pruned); when one is still
+    in use, a phase-1 LP (zero column costs, unit artificials) settles feasibility, and a feasible node is
+    solved again with the price raised 1e3 times, up to 1e18."""
+    costs = np.asarray(costs, float)
+    big = artificial_price(costs, factor)
+    while True:
+        out = fn(cols, costs, n, odd, *rest, big=big)
+        if out[-1] <= 1e-6 or big >= 1e18:
+            return out
+        if fn(cols, np.zeros(len(costs)), n, odd, *rest, big=1.0)[-1] > 1e-9:
+            return out                                      # infeasible: the artificial use is real
+        big *= 1e3
+
+
+def master(cols, costs, n, odd, big=BIG):
     """Master LP with artificial singletons; returns lp, pi, tau, x (x over cols only), artificial use."""
     h = highspy.Highs(); h.setOptionValue("output_flag", False); h.setOptionValue("threads", 1)
     m = len(cols) + n
     lp = highspy.HighsLp(); lp.num_col_ = m; lp.num_row_ = n + (1 if odd else 0)
-    lp.col_cost_ = np.concatenate([np.asarray(costs, float), np.full(n, BIG)])
+    lp.col_cost_ = np.concatenate([np.asarray(costs, float), np.full(n, big)])
     lp.col_lower_ = np.zeros(m); lp.col_upper_ = np.full(m, np.inf)
     ru = np.ones(lp.num_row_)
     if odd: ru[n] = np.inf                                # parity row: sum over odd columns >= 1
@@ -117,11 +138,13 @@ class BnP:
         n = self.n; rounds = 0
         while True:
             cols = [c for c in self.cols if compat_py(T, c)]
-            lp, pi, tau, x, art = master(cols, [self.score[c] for c in cols], n, self.odd)
+            lp, pi, tau, x, art = solve_feasible(master, cols, [self.score[c] for c in cols], n, self.odd)
             if not self.rescaled and 0 < lp < 1e-2 * n and art < 1e-9:
-                k = int(round(math.log(n / lp, 4))); f = 4.0 ** k
-                self.z = self.z * 2.0 ** k; self.scale *= f; self.rescaled = True
-                self.score = {c: dive._sc(self.z, c) for c in self.score}; continue
+                self.rescaled = True        # once, capped: an LP of 0 up to noise would scale by 4^50
+                k = rank1._rescale_power(n, lp, max(self.score.values()))
+                if k > 0:
+                    self.z = self.z * 2.0 ** k; self.scale *= 4.0 ** k
+                    self.score = {c: dive._sc(self.z, c) for c in self.score}; continue
             rounds += 1
             rows, s_, rc, m, best = _scan_rf(self.z, pi, tau, T, self.lo, self.hi, -1e-9 * max(1.0, abs(lp)), 5_000_000)
             new = 0

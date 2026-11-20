@@ -18045,9 +18045,35 @@ timeout = 900.0
   find = "            if not rescaled and 0 < lp < 1e-2 * n:"
   replace = "            if 0 < lp < 1e-2 * n:"
   models = "the cost rescale on every tiny LP: an LP of 0 up to noise rescales again each time, and the costs reach 8e31"
+  expected = "survived"
+  accepted-because = "equivalent under the cap: _rescale_power never lifts the dearest column past 1e10, so a second rescale can add at most what the cap leaves, and no test can see the difference. The once-only guard stays as documentation of intent and to save the re-solves."
 
   [[target.mutant]]
   id = "rescale-uncapped"
   find = "    if top > 0:\n        k = min(k, int(math.floor((math.log(cap) - math.log(top)) / math.log(4))))"
   replace = "    if False:\n        k = min(k, int(math.floor((math.log(cap) - math.log(top)) / math.log(4))))"
   models = "the rescale power taken from the LP alone: an LP of 1.6e-30 gives 4^50, costs of 8e31, and HiGHS returns 'Unknown'"
+
+[[target]]
+name = "supergeo-bnp"
+module-path = "benchmarks/studies/supergeo/bnp.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_bcp.py benchmarks/studies/supergeo/test_bnp.py -q -p no:cacheprovider -x -k \"artificial or brute or property\""
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "artificials-at-a-fixed-price"
+  find = "    return max(BIG, factor * float(np.max(np.abs(np.asarray(costs, float)), initial=0.0)))"
+  replace = "    return BIG"
+  models = "the artificials at a fixed 1e7 whatever the columns cost: after a rescale columns cost 9e9, a feasible master covers a market artificially, and the node is pruned as infeasible"
+
+  [[target.mutant]]
+  id = "a-feasible-master-is-not-solved-again"
+  find = "        big *= 1e3\n"
+  replace = "        return out\n"
+  models = "the phase-1 LP finds the master feasible and its artificial use is reported anyway: the node is pruned"
+
+  [[target.mutant]]
+  id = "phase-one-skipped"
+  find = "        if fn(cols, np.zeros(len(costs)), n, odd, *rest, big=1.0)[-1] > 1e-9:"
+  replace = "        if True:"
+  models = "any artificial in use read as infeasibility without the phase-1 check"

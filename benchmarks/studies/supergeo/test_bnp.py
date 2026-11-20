@@ -1,7 +1,7 @@
 """Branch and price against brute force over every partition into groups of 2..4."""
 import itertools, os, sys
 import numpy as np
-from hypothesis import given, settings, strategies as st, HealthCheck
+from hypothesis import example, given, settings, strategies as st, HealthCheck
 from . import bnp, dive
 
 
@@ -36,6 +36,7 @@ def test_fixed():
 
 @settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 2))
+@example(seed=116734, n=8, kind=1)   # root LP 0 up to noise: an uncapped rescale by 4^50
 def test_property(seed, n, kind):
     rng = np.random.default_rng(seed)
     z = [rng.integers(1, 30, n).astype(float), rng.integers(1, 80, n) / 10.0, rng.lognormal(0, 1.3, n) * 100][kind]

@@ -173,12 +173,12 @@ def _viable(z, T, i, lo, hi, ub, cap):
     return out[:m], los[:m], m
 
 
-def _master(cols, costs, n, odd, cuts):
+def _master(cols, costs, n, odd, cuts, big=BIG):
     """Master LP: partition rows (= 1), parity row (>= 1, odd N), cut rows (<= 1), artificial singletons."""
     h = highspy.Highs(); h.setOptionValue("output_flag", False); h.setOptionValue("threads", 1)
     C = len(cols); m = C + n; nr = n + (1 if odd else 0) + len(cuts)
     lp = highspy.HighsLp(); lp.num_col_, lp.num_row_ = m, nr
-    lp.col_cost_ = np.concatenate([np.asarray(costs, float), np.full(n, BIG)])
+    lp.col_cost_ = np.concatenate([np.asarray(costs, float), np.full(n, big)])
     lp.col_lower_ = np.zeros(m); lp.col_upper_ = np.full(m, np.inf)
     rl = np.ones(nr); ru = np.ones(nr)
     p0 = n + (1 if odd else 0)
@@ -214,12 +214,12 @@ def _master(cols, costs, n, odd, cuts):
     return h.getInfo().objective_function_value, y[:n], tau, sigma, x[:C], float(x[C:].sum())
 
 
-def _master_r1(cols, costs, n, odd, cuts):
+def _master_r1(cols, costs, n, odd, cuts, big=BIG):
     """As _master, with rank-1 cut rows (coefficient floor(u . a_c), right-hand side floor(u . 1))."""
     h = highspy.Highs(); h.setOptionValue("output_flag", False); h.setOptionValue("threads", 1)
     C = len(cols); m = C + n; p0 = n + (1 if odd else 0); nr = p0 + len(cuts)
     lp = highspy.HighsLp(); lp.num_col_, lp.num_row_ = m, nr
-    lp.col_cost_ = np.concatenate([np.asarray(costs, float), np.full(n, BIG)])
+    lp.col_cost_ = np.concatenate([np.asarray(costs, float), np.full(n, big)])
     lp.col_lower_ = np.zeros(m); lp.col_upper_ = np.full(m, np.inf)
     rl = np.ones(nr); ru = np.ones(nr)
     if odd: ru[n] = np.inf
@@ -279,11 +279,14 @@ class BCP:
         n = self.n
         while True:
             cols = [c for c in self.cols if bnp.compat_py(T, c)]
-            lp, pi, tau, sigma, x, art = _master(cols, [self.score[c] for c in cols], n, self.odd, self.cuts)
+            lp, pi, tau, sigma, x, art = bnp.solve_feasible(_master, cols, [self.score[c] for c in cols], n, self.odd, self.cuts)
             self.stats["lps"] += 1
             if not self.rescaled and 0 < lp < 1e-2 * n and art < 1e-9:
-                k = int(round(math.log(n / lp, 4))); self.z = self.z * 2.0 ** k; self.scale *= 4.0 ** k
-                self.rescaled = True; self.score = {c: dive._sc(self.z, c) for c in self.score}; continue
+                self.rescaled = True        # once, capped: an LP of 0 up to noise would scale by 4^50
+                k = rank1._rescale_power(n, lp, max(self.score.values()))
+                if k > 0:
+                    self.z = self.z * 2.0 ** k; self.scale *= 4.0 ** k
+                    self.score = {c: dive._sc(self.z, c) for c in self.score}; continue
             new = 0; best = 0.0; scan = None
             if self.universe is not None:
                 pass                    # every group that can be in a better design is in the master
@@ -307,13 +310,16 @@ class BCP:
         n = self.n
         while True:
             cols = [c for c in self.cols if bnp.compat_py(T, c)]
-            lp, pi, tau, sigma, x, art = _master_r1(cols, [self.score[c] for c in cols], n, self.odd, self.cuts)
+            lp, pi, tau, sigma, x, art = bnp.solve_feasible(_master_r1, cols, [self.score[c] for c in cols], n, self.odd, self.cuts)
             self.stats["lps"] += 1
             for sg_, c in zip(sigma, self.cuts):
                 k_ = c.key(); self.age[k_] = 0 if sg_ < -1e-12 else self.age.get(k_, 0) + 1
             if not self.rescaled and 0 < lp < 1e-2 * n and art < 1e-9:
-                k = int(round(math.log(n / lp, 4))); self.z = self.z * 2.0 ** k; self.scale *= 4.0 ** k
-                self.rescaled = True; self.score = {c: dive._sc(self.z, c) for c in self.score}; continue
+                self.rescaled = True        # once, capped: an LP of 0 up to noise would scale by 4^50
+                k = rank1._rescale_power(n, lp, max(self.score.values()))
+                if k > 0:
+                    self.z = self.z * 2.0 ** k; self.scale *= 4.0 ** k
+                    self.score = {c: dive._sc(self.z, c) for c in self.score}; continue
             new = 0; best = 0.0; scan = None
             if self.universe is not None:
                 pass                    # every group that can be in a better design is in the master
