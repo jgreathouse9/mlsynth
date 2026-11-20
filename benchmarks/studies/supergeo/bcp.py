@@ -42,6 +42,13 @@ from . import sg, dive, sr, bnp, lns, rank1
 BIG = 1e7
 GROUP_LIMIT = 64
 
+#: Tuned cut management (tune_cuts.py): every rank-1 family at every depth, a cut purged
+#: after 2 LP solves with a zero dual, at most 250 cuts. On 20-market GeoLift subsets it
+#: took 3.2 times fewer nodes than subset-row cuts alone (tuning set) and 2.8 times fewer
+#: on held-out subsets, in 15% and 8% less time.
+def managed():
+    return dict(families=rank1.FAMILIES, purge_after=2, deep_depth=None, max_active=250)
+
 
 @njit(cache=True)
 def _scan_bcp(z, pi, tau, Q, R, T, lo, hi, thresh, cap):

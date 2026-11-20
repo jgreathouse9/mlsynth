@@ -165,6 +165,32 @@ the node reduction. On the hardest subset they give up part of it (158 nodes
 against 104) for nodes six times cheaper, and match subset-row cuts in time with
 under half their nodes.
 
+### Tuning the depth limit and purge age
+
+Grid over the depth to which every rank-1 family is separated (0, 1, 2, 3, every
+depth) and the purge age (2, 5, 10, never), pool capped at 250, on 20-market
+subsets 0 to 2; the best two and two baselines then on held-out subsets 3 to 5
+(`python -m benchmarks.studies.supergeo.tune_cuts tune` / `validate`). All 75 runs
+found the optimum the exact certificate gives.
+
+| setting | tuning: time, nodes | held out: time, nodes |
+| --- | --- | --- |
+| every depth, purge 2 | 57.5 s, 130 | 42.6 s, 69 |
+| depth 2, purge 2 | 58.7 s, 130 | 43.0 s, 69 |
+| depth 1, purge 5 | 71.7 s, 184 | 46.2 s, 74 |
+| subset-row cuts | 67.4 s, 421 | 46.5 s, 192 |
+| every depth, never purge | 79.9 s, 130 | |
+| depth 0, never purge | 118.8 s, 380 | |
+
+The purge age sets the cost of a node: a cut dropped after 2 LP solves with a zero
+dual is fastest at every depth, and never purging costs about 40% more time for
+the same tree. The depth limit sets the tree: depth 0 loses the whole node
+reduction and depth 1 about half of it, and from depth 2 the tree is the one
+unrestricted separation gives. With purge age 2 no depth limit is needed
+(`bcp.managed()`): 2.8 to 3.2 times fewer nodes than subset-row cuts, in 8 to 15%
+less time. Per instance the time is mixed (held-out subset 3: 13.0 s against
+9.2 s), so the gain is in total time and in nodes.
+
 The managed property test found a defect in both searches: with integer sizes the
 root LP can be 0, so the cost rescale fired at a later node while the incumbent
 and the open bounds stayed in the old units (2/128 reported for an optimum of 2).
