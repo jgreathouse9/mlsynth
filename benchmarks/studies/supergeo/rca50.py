@@ -12,11 +12,30 @@ from START: ``lns`` (pairs plus repair for 10 s, what :mod:`.fifty` used) or ``o
 starting designs available against the certified optimum. One JSON line each."""
 import cProfile, json, pathlib, pstats, sys, time
 import numpy as np
-from . import bcp, dive, fifty, incumbent as inc_mod, lns
+from . import bcp, bnp, dive, fifty, incumbent as inc_mod, lns, rank1, sr
 
 OPTIMA = pathlib.Path(__file__).with_name("fifty_optima.json")
-PARTS = {"pricing": ("_scan_bcp", "_scan_bcp_r1"), "master LP": ("_master", "_master_r1"),
-         "separation": ("separate", "_separate"), "branching": ("_branch",), "purge": ("_purge",)}
+PARTS = {"pricing": [(bcp, "_scan_bcp"), (bcp, "_scan_bcp_r1")],
+         "master LP": [(bcp, "_master"), (bcp, "_master_r1")],
+         "separation": [(rank1, "separate"), (sr, "_separate")],
+         "branching": [(bcp.BCP, "_branch")], "purge": [(bcp.BCP, "_purge")],
+         "column filter": [(bnp, "compat_py")]}
+
+
+def _instrument():
+    """Wrap each component's entry point with a timer (numba kernels are invisible to cProfile)."""
+    acc = {k: 0.0 for k in PARTS}; calls = {k: 0 for k in PARTS}
+    for label, targets in PARTS.items():
+        for owner, name in targets:
+            f = getattr(owner, name)
+            def wrap(*a, _f=f, _l=label, **k):
+                t = time.perf_counter()
+                try:
+                    return _f(*a, **k)
+                finally:
+                    acc[_l] += time.perf_counter() - t; calls[_l] += 1
+            setattr(owner, name, wrap)
+    return acc, calls
 
 
 def kwargs(arm):
@@ -35,20 +54,18 @@ def cost(z, design):
 
 
 def profile(name, arm, nodes):
-    z = fifty.instance(name); b = bcp.BCP(z, verbose=False, **kwargs(arm))
-    start = lns_start(z)
+    z = fifty.instance(name); start = lns_start(z)
+    acc, calls = _instrument()
+    b = bcp.BCP(z, verbose=False, **kwargs(arm))
     pr = cProfile.Profile(); t0 = time.perf_counter(); pr.enable()
     out = b.solve(incumbent=start, time_limit=3600, node_limit=nodes)
     pr.disable(); total = time.perf_counter() - t0
-    st = pstats.Stats(pr).stats
-    part = {}
-    for label, names in PARTS.items():
-        part[label] = sum(v[3] for (f, l, fn), v in st.items() if fn in names and "supergeo" in f)
-    calls = {fn: v[1] for (f, l, fn), v in st.items() if "supergeo" in f and fn in ("_master", "_master_r1", "separate", "_separate")}
+    pstats.Stats(pr).sort_stats("tottime").dump_stats(str(pathlib.Path.cwd() / f"rca50_{name}_{arm}.prof"))
     rec = dict(mode="profile", instance=name, arm=arm, nodes=out["nodes"], lps=out["lps"], total=round(total, 2),
                per_node=round(total / max(out["nodes"], 1), 3), cuts=out["cuts"], calls=calls,
-               **{k: round(v, 2) for k, v in part.items()})
-    rec["rest"] = round(total - sum(part[k] for k in ("pricing", "master LP", "separation", "branching")), 2)
+               **{k: round(v, 2) for k, v in acc.items()})
+    # the column filter runs inside the master-LP loop, not inside a timed part
+    rec["rest"] = round(total - sum(acc[k] for k in ("pricing", "master LP", "separation", "branching", "column filter")), 2)
     print(json.dumps(rec), flush=True)
 
 
