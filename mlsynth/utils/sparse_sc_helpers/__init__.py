@@ -31,7 +31,7 @@ Layout:
 
     structures.py    : SparseSCInputs / Design / Inference / Results
     setup.py         : panel + predictor preparation
-    inner.py         : the cvxpy W-weight QP
+    inner.py         : the certified, centred W-weight QP
     objective.py     : training loss with L1 penalty + validation MSE
     optimization.py  : the lambda grid sweep + scipy minimize
     inference.py     : Abadie placebo permutation test

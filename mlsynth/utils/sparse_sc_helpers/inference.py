@@ -27,6 +27,7 @@ import numpy as np
 
 from .objective import outcome_scale as _outcome_scale
 from .objective import outer_loss
+from .inner import WarmStart
 from .optimization import default_v20, recover_w, sweep_lambda
 from scipy.optimize import minimize
 
@@ -224,7 +225,7 @@ def _refit_at_lambda(
     bounds = [(0.0, None)] * (P - 1)
     res = minimize(
         outer_loss, x0=v20,
-        args=(X1, X0, Z1_outer, Z0_outer, float(lam), solver),
+        args=(X1, X0, Z1_outer, Z0_outer, float(lam), solver, WarmStart()),
         method="L-BFGS-B", bounds=bounds,
         options={"maxiter": 200, "ftol": 1e-8},
     )

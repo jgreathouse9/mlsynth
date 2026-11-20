@@ -32,12 +32,13 @@ derivation is in the module docstring of ``optimization.py``.
 
 from __future__ import annotations
 
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
+from scipy.linalg import null_space
 
 from ...exceptions import MlsynthDataError
-from .inner import solve_w
+from .inner import WarmStart, solve_w
 
 # Donors with w_i smaller than this are treated as inactive when
 # building the reduced KKT system. Setting this too tight (1e-12) makes
@@ -71,14 +72,16 @@ def outer_loss(
     Z0: np.ndarray,
     lam: float,
     solver: Any = None,
+    warm: Optional[WarmStart] = None,
 ) -> float:
     """Outer V-objective: ``mean((Z1 - Z0 w(v))^2) + lam * ||v||_1``.
 
     Pass the validation block to match the paper's Algorithm 1; pass
-    the training block to match the MATLAB driver.
+    the training block to match the MATLAB driver. ``warm`` carries the
+    inner answer from one call to the next.
     """
     v = np.concatenate([[1.0], v2])
-    w = solve_w(v, X1, X0, solver=solver)
+    w = solve_w(v, X1, X0, solver=solver, warm=warm)
     residual = Z1 - Z0 @ w
     return float(np.mean(residual ** 2) + lam * np.sum(np.abs(v)))
 
@@ -107,6 +110,7 @@ def outer_loss_and_grad(
     lam: float,
     solver: Any = None,
     active_tol: float = ACTIVE_TOL,
+    warm: Optional[WarmStart] = None,
 ) -> Tuple[float, np.ndarray]:
     """Return ``(loss, grad)`` of the outer V-objective w.r.t. ``v_2``.
 
@@ -119,9 +123,15 @@ def outer_loss_and_grad(
     The L1 part contributes ``+lam`` per coordinate (right-derivative
     under the ``v_2 >= 0`` bound L-BFGS-B already enforces).
 
-    Falls back to lstsq if the reduced KKT matrix is numerically
-    singular (which can happen when the same donor appears at multiple
-    predictor rows).
+    The adjoint ``z`` solves the reduced KKT system
+    ``2 H_AA z + mu 1 = b, 1' z = 0``. With ``z = N y`` for an orthonormal
+    basis ``N`` of ``1' z = 0`` it is ``y = (1/2) (D N)^+ (D N)^+' N' b`` with
+    ``D = V^(1/2) (X0_A - X1 1')``, computed from the SVD of ``D N``: the
+    Hessian is never formed, the level of each predictor drops out (on
+    ``1' z = 0``, ``X0_A z = (X0_A - X1 1') z``), and a rank-deficient active
+    set gets the minimum-norm adjoint, with rank decided by
+    ``max(shape) eps`` times the largest singular value (agents_solvers.md,
+    rules 5 and 6). This replaced a Gram-form solve with a 1e-12 ridge (#934).
     """
     v2 = np.asarray(v2, dtype=float)
     X1 = np.asarray(X1, dtype=float)
@@ -132,7 +142,7 @@ def outer_loss_and_grad(
     P, _ = X0.shape
     v = np.concatenate([[1.0], v2])
 
-    w = solve_w(v, X1, X0, solver=solver)
+    w = solve_w(v, X1, X0, solver=solver, warm=warm)
     r_outer = Z1 - Z0 @ w
     T_outer = max(int(Z1.shape[0]), 1)
     loss = float(np.mean(r_outer ** 2) + lam * np.sum(np.abs(v)))
@@ -144,38 +154,21 @@ def outer_loss_and_grad(
     XA = X0[:, active]                       # (P, |A|)
     ZA = Z0[:, active]                       # (T_outer, |A|)
     nA = active.size
-    w_A = w[active]
 
-    # Reduced KKT system
-    #   [ 2 H_AA   1_A ] [w_A]   [2 g_A]
-    #   [ 1_A^T   0   ] [mu ] = [1   ]
-    # with H_AA = XA' diag(v) XA. Build it then add a trace-scaled
-    # ridge for numerical robustness.
-    HAA = XA.T @ (v[:, None] * XA)
-    HAA = 0.5 * (HAA + HAA.T)
-    diag_mean = np.trace(HAA) / nA if nA > 0 else 1.0
-    if diag_mean <= 0:
-        diag_mean = 1.0
-    HAA = HAA + 1e-12 * diag_mean * np.eye(nA)
-
-    M_kkt = np.zeros((nA + 1, nA + 1))
-    M_kkt[:nA, :nA] = 2.0 * HAA
-    M_kkt[:nA, nA] = 1.0
-    M_kkt[nA, :nA] = 1.0
-
-    # Adjoint RHS: [Z0_A' r_outer ; 0]. Then z_aug = M_kkt^{-1} RHS
-    # and dL/dv_k = -(4/T_outer) * r_k * (X0[k, A] @ z) where
-    # r_k = X1[k] - X0[k, A] w_A and z = z_aug[:|A|].
-    b_aug = np.concatenate([ZA.T @ r_outer, [0.0]])
-    try:
-        z_aug = np.linalg.solve(M_kkt, b_aug)
-    except np.linalg.LinAlgError:
-        z_aug = np.linalg.lstsq(M_kkt, b_aug, rcond=None)[0]
-    z = z_aug[:nA]
+    b = ZA.T @ r_outer                       # adjoint right-hand side
+    if nA > 1:
+        N = null_space(np.ones((1, nA)))     # (|A|, |A| - 1), orthonormal
+        DN = (np.sqrt(v)[:, None] * (XA - X1[:, None])) @ N
+        _, S, Vt = np.linalg.svd(DN, full_matrices=False)
+        keep = S > max(DN.shape) * np.finfo(float).eps * (S[0] if S.size else 0.0)
+        y = 0.5 * (Vt[keep].T @ ((Vt[keep] @ (N.T @ b)) / S[keep] ** 2))
+        z = N @ y
+    else:
+        z = np.zeros(nA)                     # one active donor: w is pinned locally
 
     # Per-predictor pre-fit residual r_k = X1[k] - X0[k, :] w
     r_pred = X1 - X0 @ w                     # (P,)
-    Xz = XA @ z                              # (P,)
+    Xz = (XA - X1[:, None]) @ z              # (P,); equals XA @ z since 1'z = 0
     grad_smooth_v = -(4.0 / T_outer) * r_pred * Xz   # (P,)
 
     # L1 contribution: +lam per coordinate (right-derivative under v>=0)
