@@ -225,7 +225,8 @@ def _master_r1(cols, costs, n, odd, cuts):
 
 class BCP:
     def __init__(self, z0, lo=2, hi=4, add=2000, cuts=True, group_branching=True,
-                 cuts_per_round=50, max_cuts=2000, cut_rounds=20, verbose=True, families=None):
+                 cuts_per_round=50, max_cuts=2000, cut_rounds=20, verbose=True, families=None,
+                 purge_after=None, deep_depth=None, max_active=None, shallow_families=((3, (1, 1, 1), 2),)):
         self.n = n = len(z0); self.lo, self.hi, self.add = lo, hi, add; self.odd = n % 2 == 1
         self.z = np.asarray(z0, float).copy(); self.scale = 1.0; self.rescaled = False
         self.cols = list(sg.initial_pool(self.z, lo, hi)); self.score = {c: dive._sc(self.z, c) for c in self.cols}
@@ -233,6 +234,12 @@ class BCP:
         self.cuts_per_round, self.max_cuts, self.cut_rounds = cuts_per_round, max_cuts, cut_rounds
         self.verbose = verbose; self.stats = dict(nodes=0, group_branches=0, pair_branches=0, lps=0)
         self.families = families; self.r1keys = set()          # families: rank-1 cuts from rank1 in place of SR3
+        # cut management (rank-1 path): purge a cut after `purge_after` LP solves with a zero dual; separate
+        # every family only at depth <= deep_depth and `shallow_families` below; keep at most max_active cuts,
+        # the most recently active first. Dropping a cut weakens the relaxation and keeps every bound valid.
+        self.purge_after, self.deep_depth, self.max_active = purge_after, deep_depth, max_active
+        self.shallow_families = list(shallow_families); self.age = {}
+        self.stats.update(purged=0, max_pool=0)
 
     def _QR(self, sigma):
         return sr.duals_to_QR(self.n, self.cuts, sigma) if len(self.cuts) else (np.zeros((self.n, self.n)), np.zeros((1, 1, 1)))
@@ -266,6 +273,8 @@ class BCP:
             cols = [c for c in self.cols if bnp.compat_py(T, c)]
             lp, pi, tau, sigma, x, art = _master_r1(cols, [self.score[c] for c in cols], n, self.odd, self.cuts)
             self.stats["lps"] += 1
+            for sg_, c in zip(sigma, self.cuts):
+                k_ = c.key(); self.age[k_] = 0 if sg_ < -1e-12 else self.age.get(k_, 0) + 1
             if not self.rescaled and 0 < lp < 1e-2 * n and art < 1e-9:
                 k = int(round(math.log(n / lp, 4))); self.z = self.z * 2.0 ** k; self.scale *= 4.0 ** k
                 self.rescaled = True; self.score = {c: dive._sc(self.z, c) for c in self.score}; continue
@@ -283,19 +292,39 @@ class BCP:
                          + (n / self.lo) * min(0.0, best))
                 return bound, lp, dict(zip(cols, x)), art
 
-    def node(self, T, ub):
-        """Column generation with subset-row separation. Returns (bound, x, art)."""
+    def _purge(self):
+        if self.families is None:
+            return
+        drop = set()
+        if self.purge_after is not None:
+            drop |= {c.key() for c in self.cuts if self.age.get(c.key(), 0) >= self.purge_after}
+        keep = [c for c in self.cuts if c.key() not in drop]
+        if self.max_active is not None and len(keep) > self.max_active:
+            keep.sort(key=lambda c: self.age.get(c.key(), 0))
+            drop |= {c.key() for c in keep[self.max_active:]}
+            keep = keep[:self.max_active]
+        if drop:
+            self.cuts = [c for c in self.cuts if c.key() not in drop]
+            for k_ in drop: self.r1keys.discard(k_); self.age.pop(k_, None)
+            self.stats["purged"] += len(drop)
+        self.stats["max_pool"] = max(self.stats["max_pool"], len(self.cuts))
+
+    def node(self, T, ub, depth=0):
+        """Column generation with cut separation. Returns (bound, x, art)."""
         P = np.zeros((self.n, self.n)); Tt = np.zeros((self.n, self.n, self.n))
+        fams = self.families if (self.deep_depth is None or depth <= self.deep_depth) else self.shallow_families
+        self._purge()
         for r in range(self.cut_rounds + 1):
             bound, lp, x, art = self._cg(T)
             if art > 1e-6 or bound >= ub * (1 - 1e-9) or not self.use_cuts or len(self.cuts) >= self.max_cuts or r == self.cut_rounds:
                 return bound, x, art
             if self.families is not None:
-                found = rank1.separate(list(x.keys()), np.array(list(x.values())), self.n, self.families)
+                found = rank1.separate(list(x.keys()), np.array(list(x.values())), self.n, fams)
                 new = [c for v, c in found if c.key() not in self.r1keys][:self.cuts_per_round]
                 if not new:
                     return bound, x, art
-                for c in new: self.r1keys.add(c.key()); self.cuts.append(c)
+                for c in new: self.r1keys.add(c.key()); self.cuts.append(c); self.age[c.key()] = 0
+                self._purge()
                 continue
             sup = [(c, v) for c, v in x.items() if v > 1e-9]
             cr = np.zeros((len(sup), 4), np.int64); cl = np.zeros(len(sup), np.int64); xv = np.zeros(len(sup))
@@ -370,6 +399,7 @@ class BCP:
         T0 = np.zeros((n, n), np.int8)
         bound, x, art = self.node(T0, np.inf)
         root_bound = bound
+        self.rescaled = True        # the cost scale is fixed at the root: the incumbent and every bound share it
         best_design, ub = None, np.inf
         if incumbent is None and heuristic_seconds > 0:
             o = list(np.argsort(self.z))
@@ -378,15 +408,15 @@ class BCP:
         if incumbent is not None:
             best_design = [tuple(sorted(int(v) for v in g)) for g in incumbent]
             ub = sum(dive._sc(self.z, g) for g in best_design)
-        heap = [(bound, 0, T0, (bound, x, art))]; nid = 0; status = "optimal"; last = t0
+        heap = [(bound, 0, T0, (bound, x, art), 0)]; nid = 0; status = "optimal"; last = t0
         while heap:
             if time.perf_counter() - t0 > time_limit: status = "time limit"; break
             if self.stats["nodes"] >= node_limit: status = "node limit"; break
-            bnd, _, T, cached = heapq.heappop(heap)
+            bnd, _, T, cached, depth = heapq.heappop(heap)
             if bnd >= ub * (1 - 1e-9): continue
             self.stats["nodes"] += 1
             if cached is None:
-                bnd, x, art = self.node(T, ub)
+                bnd, x, art = self.node(T, ub, depth)
             else:
                 bnd, x, art = cached
             if art > 1e-6 or bnd >= ub * (1 - 1e-9): continue
@@ -397,7 +427,7 @@ class BCP:
                 continue
             for prio, T2 in self._branch(T, x, ub):
                 nid += 1
-                heapq.heappush(heap, (max(bnd, prio), nid, T2, None))
+                heapq.heappush(heap, (max(bnd, prio), nid, T2, None, depth + 1))
             now = time.perf_counter()
             if self.verbose and now - last > 30:
                 glb = min([h[0] for h in heap], default=ub)

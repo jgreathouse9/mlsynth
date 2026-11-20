@@ -141,6 +141,7 @@ class BnP:
         root_T = np.zeros((n, n), np.int8)
         heap = []; nid = 0; nodes = 0; root_bound = None
         bound, lp, x, art, r = self.node_cg(root_T)
+        self.rescaled = True        # the cost scale is fixed at the root: the incumbent and every bound share it
         if best_design is not None:
             ub = sum(dive._sc(self.z, g) for g in best_design)          # scaled units, after any rescale
         heapq.heappush(heap, (bound, nid, root_T, (bound, lp, x, art)))
