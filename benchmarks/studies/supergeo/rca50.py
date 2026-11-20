@@ -75,7 +75,8 @@ def run_from(name, arm, start, limit):
     out = bcp.BCP(z, verbose=False, **kwargs(arm)).solve(incumbent=design, time_limit=limit)
     print(json.dumps(dict(mode="incumbent", instance=name, arm=arm, start=start, start_cost=cost(z, design) / 1.0,
                           status=out["status"], nodes=out["nodes"], t=round(out["t"], 1), bound=out["bound"],
-                          opt=out["opt"], root_bound=out["root_bound"])), flush=True)
+                          opt=out["opt"], root_bound=out["root_bound"], lps=out["lps"],
+                          group_branches=out["group_branches"], pair_branches=out["pair_branches"])), flush=True)
 
 
 def heuristics(name):
