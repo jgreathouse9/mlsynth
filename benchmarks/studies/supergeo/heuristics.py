@@ -3,8 +3,7 @@
     python -m benchmarks.studies.supergeo.heuristics
 
 Optima: the exact certificate (:mod:`.certify_exact`) for GeoLift subsets and all
-40 markets; the best known design (0.003882, steered repair) at N = 210, which
-is not proven optimal."""
+40 markets."""
 import time
 import numpy as np
 from . import sg, dive, lns, incumbent, certify_exact, scale
@@ -53,5 +52,3 @@ if __name__ == "__main__":
         for r, z in enumerate(scale.subsets(k, reps)):
             run(f"K={k} subset {r}", z, certify_exact.certify(z, verbose=False)["opt"])
     z = next(scale.subsets(40, 1)); run("K=40 all GeoLift", z, 0.0088722102117969)
-    rng = np.random.default_rng(0); pre = np.exp(rng.normal(0, 1.3, 210)) * 1000
-    run("N=210 simulated (best known, not proven)", pre / np.median(np.diff(np.sort(pre))), 0.003882)
