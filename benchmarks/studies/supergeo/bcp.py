@@ -31,6 +31,17 @@ in the node puts the market in exactly one group, and a group whose loss reaches
 the incumbent cannot be in a better design, so the children are complete.
 Otherwise branch on the Ryan-Foster pair whose together-weight is closest to 1/2.
 
+Reduced-cost fixing. With the root's duals, a design D costs at least
+    S + sum over c in D of rc(c) >= S + rc(c) + (N / lo - 1) m    for each c in D,
+S = sum pi + tau [N odd] + sum sigma rhs and m = min(0, min rc), because sigma <= 0
+meets each cut's row at most at its right-hand side and an odd N has an odd group.
+So a group in a design costing at most the incumbent U has rc <= U - bound + m,
+bound = S + (N / lo) m the root bound. After the root, the search keeps those groups
+(the universe) and nothing else: the master holds every one of them, so pricing
+stops, and the bound of a node is its LP over the universe. Each better incumbent
+shrinks the universe again with the same root duals. Above `universe_limit` groups
+nothing is fixed and pricing continues.
+
 Floating point throughout. Exactness is the job of :mod:`.certify_exact`, which
 can verify the design this search returns."""
 import heapq, math, time
@@ -233,7 +244,8 @@ def _master_r1(cols, costs, n, odd, cuts):
 class BCP:
     def __init__(self, z0, lo=2, hi=4, add=2000, cuts=True, group_branching=True,
                  cuts_per_round=50, max_cuts=2000, cut_rounds=20, verbose=True, families=None,
-                 purge_after=None, deep_depth=None, max_active=None, shallow_families=((3, (1, 1, 1), 2),)):
+                 purge_after=None, deep_depth=None, max_active=None, shallow_families=((3, (1, 1, 1), 2),),
+                 fix_columns=True, universe_limit=200_000):
         self.n = n = len(z0); self.lo, self.hi, self.add = lo, hi, add; self.odd = n % 2 == 1
         self.z = np.asarray(z0, float).copy(); self.scale = 1.0; self.rescaled = False
         self.cols = list(sg.initial_pool(self.z, lo, hi)); self.score = {c: dive._sc(self.z, c) for c in self.cols}
@@ -247,6 +259,9 @@ class BCP:
         self.purge_after, self.deep_depth, self.max_active = purge_after, deep_depth, max_active
         self.shallow_families = list(shallow_families); self.age = {}
         self.stats.update(purged=0, max_pool=0)
+        self.fix_columns, self.universe_limit = fix_columns, universe_limit
+        self.universe = None; self._root = None; self._last = None
+        self.stats.update(universe=0, universe_at_fix=0, refixes=0, scans_after_fix=0)
 
     def _QR(self, sigma):
         return sr.duals_to_QR(self.n, self.cuts, sigma) if len(self.cuts) else (np.zeros((self.n, self.n)), np.zeros((1, 1, 1)))
@@ -262,16 +277,23 @@ class BCP:
             if not self.rescaled and 0 < lp < 1e-2 * n and art < 1e-9:
                 k = int(round(math.log(n / lp, 4))); self.z = self.z * 2.0 ** k; self.scale *= 4.0 ** k
                 self.rescaled = True; self.score = {c: dive._sc(self.z, c) for c in self.score}; continue
-            Q, R = self._QR(sigma)
-            if R.shape[0] == 1: R = np.zeros((n, n, n))
-            rows, s_, rc, m, best = _scan_bcp(self.z, pi, tau, Q, R, T, self.lo, self.hi, -1e-9 * max(1.0, abs(lp)), 5_000_000)
-            new = 0
-            for t in np.argsort(rc)[:self.add]:
-                c = tuple(int(v) for v in rows[t] if v >= 0)
-                if c not in self.score:
-                    self.score[c] = float(s_[t]); self.cols.append(c); new += 1
+            new = 0; best = 0.0; scan = None
+            if self.universe is not None:
+                pass                    # every group that can be in a better design is in the master
+            else:
+                self.stats["scans_after_fix"] += self.universe is not None
+                Q, R = self._QR(sigma)
+                if R.shape[0] == 1: R = np.zeros((n, n, n))
+                rows, s_, rc, m, best = _scan_bcp(self.z, pi, tau, Q, R, T, self.lo, self.hi, -1e-9 * max(1.0, abs(lp)), 5_000_000)
+                for t in np.argsort(rc)[:self.add]:
+                    c = tuple(int(v) for v in rows[t] if v >= 0)
+                    if c not in self.score:
+                        self.score[c] = float(s_[t]); self.cols.append(c); new += 1
+                z_ = self.z
+                scan = lambda th, cap: _scan_bcp(z_, pi, tau, Q, R, T, self.lo, self.hi, th, cap)
             if new == 0:
                 bound = float(np.sum(pi)) + tau + float(np.sum(sigma)) + (n / self.lo) * min(0.0, best)
+                self._last = (bound, best, scan)
                 return bound, lp, dict(zip(cols, x)), art
 
     def _cg_r1(self, T):
@@ -285,18 +307,25 @@ class BCP:
             if not self.rescaled and 0 < lp < 1e-2 * n and art < 1e-9:
                 k = int(round(math.log(n / lp, 4))); self.z = self.z * 2.0 ** k; self.scale *= 4.0 ** k
                 self.rescaled = True; self.score = {c: dive._sc(self.z, c) for c in self.score}; continue
-            cs, cn, cd = rank1._arrays(self.cuts)
-            sig = np.zeros(max(len(self.cuts), 1)); sig[:len(self.cuts)] = sigma
-            rows, s_, rc, m, best = _scan_bcp_r1(self.z, pi, tau, cs, cn, cd, sig, len(self.cuts), T, self.lo, self.hi,
-                                                 -1e-9 * max(1.0, abs(lp)), 5_000_000)
-            new = 0
-            for t in np.argsort(rc)[:self.add]:
-                c = tuple(int(v) for v in rows[t] if v >= 0)
-                if c not in self.score:
-                    self.score[c] = float(s_[t]); self.cols.append(c); new += 1
+            new = 0; best = 0.0; scan = None
+            if self.universe is not None:
+                pass                    # every group that can be in a better design is in the master
+            else:
+                self.stats["scans_after_fix"] += self.universe is not None
+                cs, cn, cd = rank1._arrays(self.cuts)
+                sig = np.zeros(max(len(self.cuts), 1)); sig[:len(self.cuts)] = sigma; mc = len(self.cuts)
+                rows, s_, rc, m, best = _scan_bcp_r1(self.z, pi, tau, cs, cn, cd, sig, mc, T, self.lo, self.hi,
+                                                     -1e-9 * max(1.0, abs(lp)), 5_000_000)
+                for t in np.argsort(rc)[:self.add]:
+                    c = tuple(int(v) for v in rows[t] if v >= 0)
+                    if c not in self.score:
+                        self.score[c] = float(s_[t]); self.cols.append(c); new += 1
+                z_ = self.z
+                scan = lambda th, cap: _scan_bcp_r1(z_, pi, tau, cs, cn, cd, sig, mc, T, self.lo, self.hi, th, cap)
             if new == 0:
                 bound = (float(np.sum(pi)) + tau + float(sum(sg_ * c.rhs for sg_, c in zip(sigma, self.cuts)))
                          + (n / self.lo) * min(0.0, best))
+                self._last = (bound, best, scan)
                 return bound, lp, dict(zip(cols, x)), art
 
     def _purge(self):
@@ -315,6 +344,34 @@ class BCP:
             for k_ in drop: self.r1keys.discard(k_); self.age.pop(k_, None)
             self.stats["purged"] += len(drop)
         self.stats["max_pool"] = max(self.stats["max_pool"], len(self.cuts))
+
+    def _fix(self, ub, design):
+        """Keep only the groups that can be in a design costing at most ub (root duals; see the module docstring)."""
+        if not self.fix_columns or self._root is False:
+            return
+        if self._root is None:
+            bound, best, scan = self._root_last      # the root's duals: a node's hold only in its subtree
+            m_ = min(0.0, best)
+            theta = ub - bound + m_ + 1e-9 * max(1.0, abs(ub))
+            rows, s_, rc, cnt, _ = scan(theta, self.universe_limit + 1)
+            if cnt > self.universe_limit:
+                self._root = False
+                return
+            cols = [tuple(int(v) for v in r if v >= 0) for r in rows]
+            for c, sc in zip(cols, s_):
+                self.score.setdefault(c, float(sc))
+            self._root = dict(bound=bound, m=m_, rc=dict(zip(cols, (float(r) for r in rc))))
+            self.stats["universe_at_fix"] = len(cols)
+        else:
+            self.stats["refixes"] += 1
+        r = self._root
+        theta = ub - r["bound"] + r["m"] + 1e-9 * max(1.0, abs(ub))
+        keep = {c for c, rc in r["rc"].items() if rc <= theta} | {tuple(sorted(int(v) for v in g)) for g in design}
+        for c in keep:
+            if c not in self.score: self.score[c] = dive._sc(self.z, c)
+        self.universe = keep
+        self.cols = sorted(keep)
+        self.stats["universe"] = len(keep)
 
     def node(self, T, ub, depth=0):
         """Column generation with cut separation. Returns (bound, x, art)."""
@@ -401,12 +458,13 @@ class BCP:
             kids.append((0.0, T2))
         return kids
 
-    def solve(self, incumbent=None, time_limit=600, node_limit=10**7, heuristic_seconds=0.0):
+    def solve(self, incumbent=None, time_limit=600, node_limit=10**7, heuristic_seconds=0.0, root_mip_seconds=0.0):
         n = self.n; t0 = time.perf_counter()
         T0 = np.zeros((n, n), np.int8)
         bound, x, art = self.node(T0, np.inf)
         root_bound = bound
         self.rescaled = True        # the cost scale is fixed at the root: the incumbent and every bound share it
+        self._root_last = self._last
         best_design, ub = None, np.inf
         if incumbent is None and heuristic_seconds > 0:
             o = list(np.argsort(self.z))
@@ -415,6 +473,7 @@ class BCP:
         if incumbent is not None:
             best_design = [tuple(sorted(int(v) for v in g)) for g in incumbent]
             ub = sum(dive._sc(self.z, g) for g in best_design)
+            self._fix(ub, best_design)
         heap = [(bound, 0, T0, (bound, x, art), 0)]; nid = 0; status = "optimal"; last = t0
         while heap:
             if time.perf_counter() - t0 > time_limit: status = "time limit"; break
@@ -430,7 +489,9 @@ class BCP:
             frac = {c: v for c, v in x.items() if v > 1e-9}
             if frac and all(abs(v - 1) < 1e-9 for v in frac.values()):
                 val = sum(self.score[c] for c in frac)
-                if val < ub: ub, best_design = val, list(frac)
+                if val < ub:
+                    ub, best_design = val, list(frac)
+                    self._fix(ub, best_design)
                 continue
             for prio, T2 in self._branch(T, x, ub):
                 nid += 1

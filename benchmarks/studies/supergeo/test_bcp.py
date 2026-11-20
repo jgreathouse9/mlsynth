@@ -122,3 +122,82 @@ def test_the_cost_scale_is_fixed_at_the_root():
         b = bcp.BCP(np.asarray(z, float), verbose=False, **(dict(kw, families=rank1.FAMILIES) if kw else {}))
         out = b.solve(time_limit=300)
         assert abs(out["opt"] - brute(np.asarray(z, float))) <= 1e-9 * max(1.0, out["opt"])
+
+
+# --- reduced-cost fixing ----------------------------------------------------------------------------------------
+
+def _sorted_pairs(z):
+    """A poor start: neighbours in size order, paired (a triple at the top for odd N), with no repair."""
+    o = [int(v) for v in np.argsort(z)]; n = len(z)
+    return [tuple(o[i:i + 2]) for i in range(0, n - 3, 2)] + [tuple(o[-3:])] if n % 2 else [tuple(o[i:i + 2]) for i in range(0, n, 2)]
+
+
+def _designs(n):
+    """Every partition of range(n) into groups of 2..4."""
+    def go(U):
+        if not U:
+            yield []
+            return
+        i = min(U); rest = sorted(U - {i})
+        for k in (1, 2, 3):
+            for others in itertools.combinations(rest, k):
+                g = (i,) + others
+                for d in go(U - set(g)):
+                    yield [g] + d
+    yield from go(frozenset(range(n)))
+
+
+_ARMS = [{}, {"families": "rank1"}, {"families": "rank1", "purge_after": 1, "deep_depth": 0, "max_active": 15}]
+
+
+def _bcp(z, **kw):
+    if kw.get("families") == "rank1":
+        kw = dict(kw, families=rank1.FAMILIES)
+    return bcp.BCP(np.asarray(z, float), verbose=False, **kw)
+
+
+@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 9), kind=st.integers(0, 3), arm=st.integers(0, 2))
+@example(seed=0, n=9, kind=2, arm=0)    # odd N: the parity dual enters every odd group's reduced cost
+def test_fixing_keeps_every_group_of_every_design_no_dearer_than_the_incumbent(seed, n, kind, arm):
+    """After the root, the universe holds every group of every design costing at most the incumbent, under
+    every cut family; the master's pool stays inside it."""
+    z = np.asarray(gen(np.random.default_rng(seed), n, kind), float)
+    b = _bcp(z, **_ARMS[arm])
+    out = b.solve(incumbent=_sorted_pairs(z), node_limit=1, root_mip_seconds=0.0)
+    assert b.universe is not None
+    ub = out["opt"]
+    for d in _designs(n):
+        if sum(dive._sc(z, g) for g in d) <= ub * (1 + 1e-9) + 1e-12:
+            assert set(d) <= b.universe, (d, ub)
+    assert set(b.cols) <= b.universe | set(out["design"])
+
+
+def test_fixing_stops_pricing_and_shrinks_with_the_incumbent():
+    """A 12-market subset from a poor start: once fixed no node prices, and the universe at the optimum is no
+    larger than the one fixed at the start."""
+    z = list(_subsets(12, 5))[0]
+    b = _bcp(z)
+    out = b.solve(incumbent=_sorted_pairs(z), root_mip_seconds=0.0, time_limit=300)
+    assert out["status"] == "optimal" and abs(out["opt"] - brute(z)) <= 1e-9 * max(1.0, out["opt"])
+    assert out["scans_after_fix"] == 0
+    assert out["universe"] <= out["universe_at_fix"]
+    assert out["opt"] < sum(dive._sc(z, g) for g in _sorted_pairs(z))       # the start was improved, so a refix ran
+    assert out["refixes"] >= 1 and out["universe"] < out["universe_at_fix"]
+
+
+def test_over_the_universe_limit_nothing_is_fixed():
+    rng = np.random.default_rng(5)
+    for t in range(6):
+        z = gen(rng, int(rng.integers(5, 11)), t % 4)
+        b = _bcp(z, universe_limit=0)
+        out = check(z, universe_limit=0)
+        b.solve(time_limit=300)
+        assert b.universe is None and out["universe"] == 0
+
+
+@pytest.mark.parametrize("kw", [{"fix_columns": False}, {"fix_columns": False, "families": "rank1"}])
+def test_without_fixing_against_brute_force(kw):
+    rng = np.random.default_rng(2)
+    for t in range(12):
+        check(gen(rng, int(rng.integers(4, 12)), t % 4), **kw)
