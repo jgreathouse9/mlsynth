@@ -17979,3 +17979,75 @@ timeout = 600.0
   find = "            timed_out=None if cert is None else bool(cert.timed_out),\n"
   replace = "            timed_out=None,\n"
   models = "a size the time limit cut short reported without saying so"
+
+[[target]]
+name = "supergeo-bcp"
+module-path = "benchmarks/studies/supergeo/bcp.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_bcp.py -q -p no:cacheprovider -x"
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "fixing-reads-a-nodes-duals"
+  find = "            bound, best, scan = self._root_last      # the root's duals: a node's hold only in its subtree"
+  replace = "            bound, best, scan = self._last"
+  models = "reduced-cost fixing with the duals of whichever node solved last: when the first incumbent is a leaf deep in the tree, those duals price under that node's branching decisions, and a group a better design needs elsewhere is dropped"
+
+  [[target.mutant]]
+  id = "parity-dual-left-out-of-elimination"
+  find = "                scan = lambda th, cap: _scan_bcp(z_, pi, tau, Q, R, T, self.lo, self.hi, th, cap)"
+  replace = "                scan = lambda th, cap: _scan_bcp(z_, pi, 0.0, Q, R, T, self.lo, self.hi, th, cap)"
+  models = "the parity dual left out of the elimination scan for odd N: every odd group's reduced cost reads tau too high, so an odd group a better design needs is eliminated"
+
+  [[target.mutant]]
+  id = "pricing-continues-after-fixing"
+  find = "            if self.universe is not None:\n                pass                    # every group that can be in a better design is in the master\n            else:\n                self.stats[\"scans_after_fix\"] += self.universe is not None\n                Q, R"
+  replace = "            if False:\n                pass\n            else:\n                self.stats[\"scans_after_fix\"] += self.universe is not None\n                Q, R"
+  models = "the full scan kept after the universe is fixed: correct, and the 4 to 11 times the cost per node the root-cause analysis measured at 50 markets"
+
+  [[target.mutant]]
+  id = "the-universe-never-shrinks"
+  find = "        keep = {c for c, rc in r[\"rc\"].items() if rc <= theta} | "
+  replace = "        keep = set(r[\"rc\"]) | "
+  models = "a better incumbent never refilters the universe: the master keeps every group fixed at the start's cost, 3,284 on the 50-state panel where 422 can be in a better design"
+
+  [[target.mutant]]
+  id = "the-master-keeps-every-priced-column"
+  find = "        self.cols = sorted(keep)\n"
+  replace = "        self.cols = sorted(set(self.cols) | keep)\n"
+  models = "the universe computed and the master's pool left as it was: every column priced before the fix stays in every node LP"
+
+  [[target.mutant]]
+  id = "root-mip-at-the-solver-default-gap"
+  find = "return_status=True, gap=0.0)"
+  replace = "return_status=True)"
+  models = "the root MIP at HiGHS's default relative gap of 1e-4: it stops at a warm start that close, the lognormal instance's 8.2e-6"
+
+  [[target.mutant]]
+  id = "root-mip-result-discarded"
+  find = "        if val < ub:\n            self.stats[\"root_mip_improved\"] = 1"
+  replace = "        if False:\n            self.stats[\"root_mip_improved\"] = 1"
+  models = "the root MIP solved and its design thrown away: the search starts from the heuristic, 48.9 times the optimum on the 50-state panel"
+
+  [[target.mutant]]
+  id = "no-refix-after-the-root-mip"
+  find = "            self._fix(val, found)\n"
+  replace = "            pass\n"
+  models = "the root MIP's incumbent not used to shrink the universe: the tree runs over the set fixed at the heuristic's cost"
+
+[[target]]
+name = "supergeo-rank1"
+module-path = "benchmarks/studies/supergeo/rank1.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_rank1.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "rescale-every-round"
+  find = "            if not rescaled and 0 < lp < 1e-2 * n:"
+  replace = "            if 0 < lp < 1e-2 * n:"
+  models = "the cost rescale on every tiny LP: an LP of 0 up to noise rescales again each time, and the costs reach 8e31"
+
+  [[target.mutant]]
+  id = "rescale-uncapped"
+  find = "    if top > 0:\n        k = min(k, int(math.floor((math.log(cap) - math.log(top)) / math.log(4))))"
+  replace = "    if False:\n        k = min(k, int(math.floor((math.log(cap) - math.log(top)) / math.log(4))))"
+  models = "the rescale power taken from the LP alone: an LP of 1.6e-30 gives 4^50, costs of 8e31, and HiGHS returns 'Unknown'"

@@ -35,7 +35,10 @@ def main(name, arm, limit=1800.0):
     rec = dict(instance=name, arm=arm, status=out["status"], nodes=out["nodes"], t=round(out["t"], 1),
                root_bound=out["root_bound"], bound=out["bound"], opt=out["opt"],
                gap=(out["opt"] - out["bound"]) / out["opt"] if out["opt"] > 0 else 0.0,
-               cuts=out["cuts"], max_pool=out.get("max_pool", 0), design=[list(map(int, g)) for g in out["design"]])
+               cuts=out["cuts"], max_pool=out.get("max_pool", 0), lps=out["lps"],
+               group_branches=out["group_branches"], pair_branches=out["pair_branches"],
+               universe_at_fix=out.get("universe_at_fix", 0), universe=out.get("universe", 0),
+               root_mip_improved=out.get("root_mip_improved", 0), design=[list(map(int, g)) for g in out["design"]])
     print(json.dumps(rec), flush=True)
 
 
