@@ -83,6 +83,26 @@ Without an incumbent every group of the outlier counts as viable, the count
 exceeds the group-branching limit (64), and the search pair-branches until it
 finds a design.
 
+## Scaling to 16 and 20 markets
+
+Three subsets each (seed 2026), branch, cut and price with a 2 s exact-repair
+incumbent, every optimum checked against the exact certificate
+(`python -m benchmarks.studies.supergeo.scale K 3 300`):
+
+| K | subset | branch and price | branch, cut and price | root bound / optimum: plain, with cuts | group / pair branches |
+| --- | --- | --- | --- | --- | --- |
+| 16 | 0 | 3 nodes, 0.6 s | root, 2.6 s | 0.536, 1.000 | 0 / 0 |
+| 16 | 1 | 121 nodes, 13.7 s | 35 nodes, 8.4 s | 0.246, 0.425 | 2 / 0 |
+| 16 | 2 | 61 nodes, 6.3 s | 10 nodes, 4.4 s | 0.203, 0.671 | 1 / 0 |
+| 20 | 0 | 1,337 nodes, 124.5 s | 346 nodes, 43.8 s | 0.055, 0.093 | 26 / 0 |
+| 20 | 1 | 53 nodes, 6.0 s | 20 nodes, 6.1 s | 0.248, 0.401 | 3 / 0 |
+| 20 | 2 | 161 nodes, 16.7 s | 55 nodes, 11.4 s | 0.222, 0.352 | 5 / 0 |
+
+Branch, cut and price takes 2.7 to 3.9 times fewer nodes at 20 markets, and
+group branching did all of its branching. The cuts close less of the root gap
+as `K` grows (all of it on four of five 12-market subsets; 0.09 to 0.40 of the
+optimum at 20 markets), so the search depends more on the incumbent.
+
 ## Tests
 
 `python -m pytest benchmarks/studies/supergeo -q`. Brute force over every
