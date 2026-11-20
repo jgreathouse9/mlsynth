@@ -106,6 +106,14 @@ def test_cut_management_keeps_the_optimum_and_bounds_the_pool():
     assert out["purged"] >= 1 and out["max_pool"] <= 60
 
 
+@settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 3))
+@example(seed=0, n=10, kind=0)
+def test_tuned_setting_against_brute_force(seed, n, kind):
+    """bcp.managed(), the setting tune_cuts.py selected, is exact on every instance."""
+    check(gen(np.random.default_rng(seed), n, kind), **bcp.managed())
+
+
 def test_the_cost_scale_is_fixed_at_the_root():
     """Integer sizes whose root LP is 0 exactly: no later node may change the cost scale, or the
     incumbent and the bounds are in different units (the defect reported 2/128 for an optimum of 2)."""
