@@ -99,7 +99,29 @@ incumbent, every optimum checked against the exact certificate
 | 20 | 2 | 161 nodes, 16.7 s | 55 nodes, 11.4 s | 0.222, 0.352 | 5 / 0 |
 
 Branch, cut and price takes 2.7 to 3.9 times fewer nodes at 20 markets, and
-group branching did all of its branching. The cuts close less of the root gap
+group branching did all of its branching.
+
+## Starting heuristics
+
+Cost of the starting design over the exact optimum
+(`python -m benchmarks.studies.supergeo.heuristics`; `N = 210` left out for now):
+
+| instance | pairs + repair 2 s | greedy | GRASP 2 s | GRASP + LP-guided MIP 1 s |
+| --- | --- | --- | --- | --- |
+| 12 markets, 5 subsets | 1 on all | 1 to 652 | 1 on all | 1 on all |
+| 16 markets, 3 subsets | 1 on all | 4.5 to 4,813 | 1 on all | 1 on all |
+| 20 markets, subset 0 | 1 | 197 | 1.026 | 1.026 |
+| 20 markets, subset 1 | 1.064 | 1.064 | 1 | 1 |
+| 20 markets, subset 2 | 1 | 4,480 | 1.274 | 1 |
+| 40 markets (all GeoLift) | 53.7 | 932 | 2.14 | 2.14 |
+
+The largest-first greedy alone is a poor design: the last markets it places are
+forced together however badly they balance. Up to 20 markets the incumbent the
+search already used was optimal on 10 of 11 instances, so the nodes in the
+scaling tables above go to the proof, not the search for a design. At 40 markets
+GRASP is 25 times closer to the optimum than pairs plus repair, and a 1 s MIP over
+the root's columns did not improve it; the earlier restricted master over 5,000
+low-reduced-cost columns found the 40-market optimum in 18 s. The cuts close less of the root gap
 as `K` grows (all of it on four of five 12-market subsets; 0.09 to 0.40 of the
 optimum at 20 markets), so the search depends more on the incumbent.
 
