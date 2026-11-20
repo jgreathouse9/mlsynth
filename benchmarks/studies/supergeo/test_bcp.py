@@ -201,3 +201,47 @@ def test_without_fixing_against_brute_force(kw):
     rng = np.random.default_rng(2)
     for t in range(12):
         check(gen(rng, int(rng.integers(4, 12)), t % 4), **kw)
+
+
+# --- the root MIP over the fixed universe ------------------------------------------------------------------------
+
+def _valid(z, design, n):
+    assert sorted(g for c in design for g in c) == list(range(n))
+    assert all(2 <= len(c) <= 4 for c in design)
+    return sum(dive._sc(np.asarray(z, float), tuple(c)) for c in design)
+
+
+def test_root_mip_improves_a_poor_start():
+    """12-market subset 0 from sorted pairs: the MIP over the universe reaches the optimum before any branching,
+    and the universe is fixed again at the new incumbent."""
+    z = list(_subsets(12, 5))[0]
+    start = _sorted_pairs(z)
+    out = _bcp(z).solve(incumbent=start, node_limit=1, root_mip_seconds=30.0)
+    want = brute(z)
+    assert abs(out["opt"] - want) <= 1e-9 * want
+    assert abs(_valid(z, out["design"], len(z)) - want) <= 1e-9 * want
+    assert out["root_mip_improved"] and out["universe"] < out["universe_at_fix"]
+
+
+def test_root_mip_closes_a_gap_below_the_solver_default():
+    """One market 5,000 against sizes below 40: the second-best design is 8.3e-8 above the optimum (relative),
+    under HiGHS's default relative gap of 1e-4. The MIP runs with gap 0, so it still moves to the optimum."""
+    z = np.r_[np.random.default_rng(0).integers(1, 40, 8).astype(float), 5000.0]
+    start = [(0, 1, 2, 8), (3, 4), (5, 6, 7)]
+    assert abs(_valid(z, start, 9) - 24216245.0) < 1e-6
+    out = _bcp(z).solve(incumbent=start, node_limit=1, root_mip_seconds=30.0)
+    assert out["opt"] == 24216243.0 == brute(z)
+
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 9), kind=st.integers(0, 3), arm=st.integers(0, 2),
+       budget=st.sampled_from([1e-9, 30.0]))
+def test_root_mip_returns_a_partition_no_dearer_than_the_start(seed, n, kind, arm, budget):
+    """With any budget, even one too short to solve, the incumbent after the root is a partition into groups of
+    2 to 4, costs what the search reports, and costs no more than the start."""
+    z = np.asarray(gen(np.random.default_rng(seed), n, kind), float)
+    start = _sorted_pairs(z)
+    out = _bcp(z, **_ARMS[arm]).solve(incumbent=start, node_limit=1, root_mip_seconds=budget)
+    c = _valid(z, out["design"], n)
+    assert abs(c - out["opt"]) <= 1e-9 * max(1.0, c)
+    assert c <= _valid(z, start, n) * (1 + 1e-12)

@@ -42,13 +42,20 @@ stops, and the bound of a node is its LP over the universe. Each better incumben
 shrinks the universe again with the same root duals. Above `universe_limit` groups
 nothing is fixed and pricing continues.
 
+Incumbent. With the universe fixed, one set-partitioning MIP over it (HiGHS,
+relative and absolute gap 0, warm-started from the start design, at most
+`root_mip_seconds`) gives the incumbent the search begins from, and the universe is
+fixed again at its cost. A best-first search finds a design only where a node LP
+is integral, so from a poor start it may never improve: 48.9 times the optimum on
+the 50-state panel, unchanged after 30 minutes.
+
 Floating point throughout. Exactness is the job of :mod:`.certify_exact`, which
 can verify the design this search returns."""
 import heapq, math, time
 import numpy as np
 from numba import njit
 import highspy
-from . import sg, dive, sr, bnp, lns, rank1
+from . import sg, dive, sr, bnp, lns, rank1, dsr
 
 BIG = 1e7
 GROUP_LIMIT = 64
@@ -261,7 +268,7 @@ class BCP:
         self.stats.update(purged=0, max_pool=0)
         self.fix_columns, self.universe_limit = fix_columns, universe_limit
         self.universe = None; self._root = None; self._last = None
-        self.stats.update(universe=0, universe_at_fix=0, refixes=0, scans_after_fix=0)
+        self.stats.update(universe=0, universe_at_fix=0, refixes=0, scans_after_fix=0, root_mip_improved=0)
 
     def _QR(self, sigma):
         return sr.duals_to_QR(self.n, self.cuts, sigma) if len(self.cuts) else (np.zeros((self.n, self.n)), np.zeros((1, 1, 1)))
@@ -373,6 +380,23 @@ class BCP:
         self.cols = sorted(keep)
         self.stats["universe"] = len(keep)
 
+    def _root_mip(self, ub, design, seconds):
+        """Set partitioning over the universe from `design`; returns the cheaper of the two and refixes."""
+        cols = self.cols; pos = {c: j for j, c in enumerate(cols)}
+        sel, _, _ = dsr.solve_partition(cols, [self.score[c] for c in cols], self.n,
+                                        warm=[pos[g] for g in design], time_limit=seconds, return_status=True, gap=0.0)
+        if sel is None:
+            return ub, design
+        found = [cols[j] for j in sel]
+        if sorted(g for c in found for g in c) != list(range(self.n)):
+            return ub, design                  # the solver's point is not a partition (time limit with no solution)
+        val = sum(dive._sc(self.z, c) for c in found)
+        if val < ub:
+            self.stats["root_mip_improved"] = 1
+            self._fix(val, found)
+            return val, found
+        return ub, design
+
     def node(self, T, ub, depth=0):
         """Column generation with cut separation. Returns (bound, x, art)."""
         P = np.zeros((self.n, self.n)); Tt = np.zeros((self.n, self.n, self.n))
@@ -458,7 +482,7 @@ class BCP:
             kids.append((0.0, T2))
         return kids
 
-    def solve(self, incumbent=None, time_limit=600, node_limit=10**7, heuristic_seconds=0.0, root_mip_seconds=0.0):
+    def solve(self, incumbent=None, time_limit=600, node_limit=10**7, heuristic_seconds=0.0, root_mip_seconds=300.0):
         n = self.n; t0 = time.perf_counter()
         T0 = np.zeros((n, n), np.int8)
         bound, x, art = self.node(T0, np.inf)
@@ -474,6 +498,8 @@ class BCP:
             best_design = [tuple(sorted(int(v) for v in g)) for g in incumbent]
             ub = sum(dive._sc(self.z, g) for g in best_design)
             self._fix(ub, best_design)
+            if self.universe is not None and root_mip_seconds > 0:
+                ub, best_design = self._root_mip(ub, best_design, root_mip_seconds)
         heap = [(bound, 0, T0, (bound, x, art), 0)]; nid = 0; status = "optimal"; last = t0
         while heap:
             if time.perf_counter() - t0 > time_limit: status = "time limit"; break

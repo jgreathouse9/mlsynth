@@ -113,11 +113,15 @@ def steered(z, pi, design, rows, rc, lo=2, hi=4, max_free=18, seconds=300, seed=
 import highspy
 
 
-def solve_partition(cols, costs, nrow, warm=None, time_limit=10.0, return_status=False):
+def solve_partition(cols, costs, nrow, warm=None, time_limit=10.0, return_status=False, gap=None):
     """Set partitioning MIP over `cols` (tuples of local row indices) with HiGHS,
-    warm-started from `warm` (indices into cols). Returns (chosen indices, value)."""
+    warm-started from `warm` (indices into cols). Returns (chosen indices, value).
+    `gap`, when given, is both the relative and the absolute MIP gap; HiGHS's default
+    relative gap of 1e-4 stops at the warm start when it is that close."""
     h = highspy.Highs(); h.setOptionValue("output_flag", False)
     h.setOptionValue("time_limit", float(time_limit)); h.setOptionValue("threads", 1)
+    if gap is not None:
+        h.setOptionValue("mip_rel_gap", float(gap)); h.setOptionValue("mip_abs_gap", float(gap))
     lp = highspy.HighsLp()
     m = len(cols)
     lp.num_col_, lp.num_row_ = m, nrow
