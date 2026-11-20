@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from hypothesis import given, settings, strategies as st, HealthCheck
-from . import bcp, dive
+from . import bcp, dive, rank1
 
 GEOLIFT = pathlib.Path(__file__).resolve().parents[3] / "basedata" / "geolift_test_data.csv"
 
@@ -24,6 +24,8 @@ def brute(z):
 
 def check(z, **kw):
     z = np.asarray(z, float)
+    if kw.get("families") == "rank1":
+        kw = dict(kw, families=rank1.FAMILIES)
     out = bcp.BCP(z, verbose=False, **kw).solve(time_limit=300)
     want = brute(z)
     assert out["status"] == "optimal"
@@ -39,7 +41,8 @@ def gen(rng, n, kind):
             rng.lognormal(0, 1.3, n) * 100, np.r_[rng.integers(10, 21, n - 1), 47.0]][kind]
 
 
-@pytest.mark.parametrize("kw", [{}, {"cuts": False}, {"group_branching": False}, {"cuts": False, "group_branching": False}])
+@pytest.mark.parametrize("kw", [{}, {"cuts": False}, {"group_branching": False}, {"cuts": False, "group_branching": False},
+                                {"families": "rank1"}, {"families": "rank1", "group_branching": False}])
 def test_fixed_against_brute_force(kw):
     rng = np.random.default_rng(1)
     for t in range(16):
@@ -69,3 +72,15 @@ def test_geolift_12_market_subsets():
     for z in _subsets(12, 5):
         nodes.append(check(z)["nodes"])
     assert nodes[0] < 100, nodes
+
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 3))
+def test_rank1_property_against_brute_force(seed, n, kind):
+    check(gen(np.random.default_rng(seed), n, kind), families="rank1")
+
+
+def test_geolift_12_market_subsets_rank1():
+    """With every rank-1 family the outlier subset is exact at the root."""
+    nodes = [check(z, families="rank1")["nodes"] for z in _subsets(12, 5)]
+    assert nodes[0] <= 1, nodes

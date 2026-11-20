@@ -37,7 +37,7 @@ import heapq, math, time
 import numpy as np
 from numba import njit
 import highspy
-from . import sg, dive, sr, bnp, lns
+from . import sg, dive, sr, bnp, lns, rank1
 
 BIG = 1e7
 GROUP_LIMIT = 64
@@ -70,6 +70,40 @@ def _scan_bcp(z, pi, tau, Q, R, T, lo, hi, thresh, cap):
                     idx[3] = d
                     if bnp._compat(T, idx, 4, n):
                         s = sg._score(z, idx, 4); r = s - pi[i] - pi[j] - pi[c] - pi[d] - sr._cutterm(idx, 4, Q, R)
+                        if r < best: best = r
+                        if r <= thresh and m < cap:
+                            out[m, 0] = i; out[m, 1] = j; out[m, 2] = c; out[m, 3] = d; sc[m] = s; rc[m] = r; m += 1
+    return out[:m], sc[:m], rc[:m], m, best
+
+
+@njit(cache=True)
+def _scan_bcp_r1(z, pi, tau, cs, cn, cd, sigma, mc, T, lo, hi, thresh, cap):
+    """As _scan_bcp, with rank-1 cuts (rows cs, numerators cn, denominators cd, duals sigma)."""
+    n = z.shape[0]
+    out = np.full((cap, 4), -1, np.int64); sc = np.empty(cap); rc = np.empty(cap)
+    idx = np.empty(4, np.int64); m = 0; best = np.inf
+    for i in range(n):
+        idx[0] = i
+        for j in range(i + 1, n):
+            idx[1] = j
+            if lo <= 2 and bnp._compat(T, idx, 2, n):
+                s = sg._score(z, idx, 2); r = s - pi[i] - pi[j] - rank1._cutterm(idx, 2, cs, cn, cd, sigma, mc)
+                if r < best: best = r
+                if r <= thresh and m < cap:
+                    out[m, 0] = i; out[m, 1] = j; sc[m] = s; rc[m] = r; m += 1
+            if hi < 3: continue
+            for c in range(j + 1, n):
+                idx[2] = c
+                if lo <= 3 and bnp._compat(T, idx, 3, n):
+                    s = sg._score(z, idx, 3); r = s - pi[i] - pi[j] - pi[c] - tau - rank1._cutterm(idx, 3, cs, cn, cd, sigma, mc)
+                    if r < best: best = r
+                    if r <= thresh and m < cap:
+                        out[m, 0] = i; out[m, 1] = j; out[m, 2] = c; sc[m] = s; rc[m] = r; m += 1
+                if hi < 4: continue
+                for d in range(c + 1, n):
+                    idx[3] = d
+                    if bnp._compat(T, idx, 4, n):
+                        s = sg._score(z, idx, 4); r = s - pi[i] - pi[j] - pi[c] - pi[d] - rank1._cutterm(idx, 4, cs, cn, cd, sigma, mc)
                         if r < best: best = r
                         if r <= thresh and m < cap:
                             out[m, 0] = i; out[m, 1] = j; out[m, 2] = c; out[m, 3] = d; sc[m] = s; rc[m] = r; m += 1
@@ -155,20 +189,57 @@ def _master(cols, costs, n, odd, cuts):
     return h.getInfo().objective_function_value, y[:n], tau, sigma, x[:C], float(x[C:].sum())
 
 
+def _master_r1(cols, costs, n, odd, cuts):
+    """As _master, with rank-1 cut rows (coefficient floor(u . a_c), right-hand side floor(u . 1))."""
+    h = highspy.Highs(); h.setOptionValue("output_flag", False); h.setOptionValue("threads", 1)
+    C = len(cols); m = C + n; p0 = n + (1 if odd else 0); nr = p0 + len(cuts)
+    lp = highspy.HighsLp(); lp.num_col_, lp.num_row_ = m, nr
+    lp.col_cost_ = np.concatenate([np.asarray(costs, float), np.full(n, BIG)])
+    lp.col_lower_ = np.zeros(m); lp.col_upper_ = np.full(m, np.inf)
+    rl = np.ones(nr); ru = np.ones(nr)
+    if odd: ru[n] = np.inf
+    rl[p0:] = -np.inf; ru[p0:] = [c.rhs for c in cuts]
+    lp.row_lower_ = rl; lp.row_upper_ = ru
+    start = np.zeros(m + 1, np.int32); idx = []; val = []
+    for j, c in enumerate(cols):
+        ent = [(g, 1.0) for g in c] + ([(n, 1.0)] if odd and len(c) % 2 else [])
+        for t, cut in enumerate(cuts):
+            cf = cut.coef(c)
+            if cf: ent.append((p0 + t, float(cf)))
+        for r, v in ent: idx.append(r); val.append(v)
+        start[j + 1] = start[j] + len(ent)
+    for i in range(n):
+        ent = [(i, 1.0)] + ([(n, 1.0)] if odd else [])
+        for r, v in ent: idx.append(r); val.append(v)
+        start[C + i + 1] = start[C + i] + len(ent)
+    lp.a_matrix_.format_ = highspy.MatrixFormat.kColwise; lp.a_matrix_.start_ = start
+    lp.a_matrix_.index_ = np.array(idx, np.int32); lp.a_matrix_.value_ = np.array(val)
+    h.passModel(lp); h.run()
+    st = h.modelStatusToString(h.getModelStatus())
+    if st != "Optimal":
+        raise RuntimeError(f"node master not solved: {st}")
+    sol = h.getSolution(); y = np.array(sol.row_dual); x = np.array(sol.col_value)
+    tau = max(float(y[n]), 0.0) if odd else 0.0
+    return h.getInfo().objective_function_value, y[:n], tau, np.minimum(y[p0:], 0.0), x[:C], float(x[C:].sum())
+
+
 class BCP:
     def __init__(self, z0, lo=2, hi=4, add=2000, cuts=True, group_branching=True,
-                 cuts_per_round=50, max_cuts=2000, cut_rounds=20, verbose=True):
+                 cuts_per_round=50, max_cuts=2000, cut_rounds=20, verbose=True, families=None):
         self.n = n = len(z0); self.lo, self.hi, self.add = lo, hi, add; self.odd = n % 2 == 1
         self.z = np.asarray(z0, float).copy(); self.scale = 1.0; self.rescaled = False
         self.cols = list(sg.initial_pool(self.z, lo, hi)); self.score = {c: dive._sc(self.z, c) for c in self.cols}
         self.cuts = []; self.use_cuts = cuts; self.group_branching = group_branching
         self.cuts_per_round, self.max_cuts, self.cut_rounds = cuts_per_round, max_cuts, cut_rounds
         self.verbose = verbose; self.stats = dict(nodes=0, group_branches=0, pair_branches=0, lps=0)
+        self.families = families; self.r1keys = set()          # families: rank-1 cuts from rank1 in place of SR3
 
     def _QR(self, sigma):
         return sr.duals_to_QR(self.n, self.cuts, sigma) if len(self.cuts) else (np.zeros((self.n, self.n)), np.zeros((1, 1, 1)))
 
     def _cg(self, T):
+        if self.families is not None:
+            return self._cg_r1(T)
         n = self.n
         while True:
             cols = [c for c in self.cols if bnp.compat_py(T, c)]
@@ -189,6 +260,29 @@ class BCP:
                 bound = float(np.sum(pi)) + tau + float(np.sum(sigma)) + (n / self.lo) * min(0.0, best)
                 return bound, lp, dict(zip(cols, x)), art
 
+    def _cg_r1(self, T):
+        n = self.n
+        while True:
+            cols = [c for c in self.cols if bnp.compat_py(T, c)]
+            lp, pi, tau, sigma, x, art = _master_r1(cols, [self.score[c] for c in cols], n, self.odd, self.cuts)
+            self.stats["lps"] += 1
+            if not self.rescaled and 0 < lp < 1e-2 * n and art < 1e-9:
+                k = int(round(math.log(n / lp, 4))); self.z = self.z * 2.0 ** k; self.scale *= 4.0 ** k
+                self.rescaled = True; self.score = {c: dive._sc(self.z, c) for c in self.score}; continue
+            cs, cn, cd = rank1._arrays(self.cuts)
+            sig = np.zeros(max(len(self.cuts), 1)); sig[:len(self.cuts)] = sigma
+            rows, s_, rc, m, best = _scan_bcp_r1(self.z, pi, tau, cs, cn, cd, sig, len(self.cuts), T, self.lo, self.hi,
+                                                 -1e-9 * max(1.0, abs(lp)), 5_000_000)
+            new = 0
+            for t in np.argsort(rc)[:self.add]:
+                c = tuple(int(v) for v in rows[t] if v >= 0)
+                if c not in self.score:
+                    self.score[c] = float(s_[t]); self.cols.append(c); new += 1
+            if new == 0:
+                bound = (float(np.sum(pi)) + tau + float(sum(sg_ * c.rhs for sg_, c in zip(sigma, self.cuts)))
+                         + (n / self.lo) * min(0.0, best))
+                return bound, lp, dict(zip(cols, x)), art
+
     def node(self, T, ub):
         """Column generation with subset-row separation. Returns (bound, x, art)."""
         P = np.zeros((self.n, self.n)); Tt = np.zeros((self.n, self.n, self.n))
@@ -196,6 +290,13 @@ class BCP:
             bound, lp, x, art = self._cg(T)
             if art > 1e-6 or bound >= ub * (1 - 1e-9) or not self.use_cuts or len(self.cuts) >= self.max_cuts or r == self.cut_rounds:
                 return bound, x, art
+            if self.families is not None:
+                found = rank1.separate(list(x.keys()), np.array(list(x.values())), self.n, self.families)
+                new = [c for v, c in found if c.key() not in self.r1keys][:self.cuts_per_round]
+                if not new:
+                    return bound, x, art
+                for c in new: self.r1keys.add(c.key()); self.cuts.append(c)
+                continue
             sup = [(c, v) for c, v in x.items() if v > 1e-9]
             cr = np.zeros((len(sup), 4), np.int64); cl = np.zeros(len(sup), np.int64); xv = np.zeros(len(sup))
             for a, (c, v) in enumerate(sup):
