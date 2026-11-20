@@ -15,7 +15,7 @@ import numpy as np
 from numba import njit
 from scipy.optimize import linprog
 from scipy.sparse import csc_matrix
-from . import sg
+from . import sg, rank1
 
 
 @njit(cache=True)
@@ -145,15 +145,18 @@ def run(z0, lo=2, hi=4, add=2000, cut_rounds=30, cuts_per_round=100, verbose=Tru
     score = {c: sc(c) for c in cols}
     cuts = []; hist = []
     P = np.zeros((n, n)); T = np.zeros((n, n, n))
-    rnd = 0
+    rnd = 0; rescaled = False
     while True:
         # column generation to convergence at the current cuts
         while True:
             lp, pi, sigma, x = master(cols, np.array([score[c] for c in cols]), n, cuts)
-            if 0 < lp < 1e-2 * n:
-                f = n / lp; z *= np.sqrt(f); scale *= f
-                score = {c: v * f for c, v in score.items()}; hist = [(a, b * f, c_) for a, b, c_ in hist]
-                continue
+            if not rescaled and 0 < lp < 1e-2 * n:
+                rescaled = True                         # once, and capped at costs of 1e10 (see rank1._rescale_power)
+                f = 4.0 ** rank1._rescale_power(n, lp, max(score.values()))
+                if f > 1:
+                    z *= np.sqrt(f); scale *= f
+                    score = {c: v * f for c, v in score.items()}; hist = [(a, b * f, c_) for a, b, c_ in hist]
+                    continue
             Q, R = duals_to_QR(n, cuts, sigma)
             rows, s_, rc, m, mrc = _scan_cuts(z, pi, Q, R, lo, hi, -1e-9 * max(1.0, lp), 5_000_000)
             new = 0

@@ -172,17 +172,28 @@ def master(cols, costs, n, odd, cuts):
     return h.getInfo().objective_function_value, y[:n], tau, np.minimum(y[p0:], 0.0), np.array(sol.col_value)
 
 
+def _rescale_power(n, lp, top, cap=1e10):
+    """The power of 4 that lifts the LP to about n, no higher than keeps the dearest column below `cap`."""
+    k = int(round((math.log(n) - math.log(lp)) / math.log(4)))
+    if top > 0:
+        k = min(k, int(math.floor((math.log(cap) - math.log(top)) / math.log(4))))
+    return max(k, 0)
+
+
 def root_bound(z0, families=FAMILIES, rounds=30, per_round=50, max_cuts=3000, lo=2, hi=4, add=2000):
     """Column generation with rank-1 separation at the root. hist: (cuts, bound in original units) per round."""
     n = len(z0); odd = n % 2 == 1; z = np.asarray(z0, float).copy(); scale = 1.0
     cols = list(sg.initial_pool(z, lo, hi)); score = {c: dive._sc(z, c) for c in cols}
-    cuts, keys, hist = [], set(), []
+    cuts, keys, hist = [], set(), []; rescaled = False
     for rnd in range(rounds + 1):
         while True:
             lp, pi, tau, sigma, x = master(cols, [score[c] for c in cols], n, odd, cuts)
-            if 0 < lp < 1e-2 * n:
-                k = int(round(math.log(n / lp, 4))); z = z * 2.0 ** k; scale *= 4.0 ** k
-                score = {c: dive._sc(z, c) for c in score}; continue
+            if not rescaled and 0 < lp < 1e-2 * n:
+                rescaled = True                         # once, and capped at costs of 1e10: an LP of 0 up to noise
+                k = _rescale_power(n, lp, max(score.values()))   # (1.6e-30 seen) would scale by 4^50
+                if k > 0:
+                    z = z * 2.0 ** k; scale *= 4.0 ** k
+                    score = {c: dive._sc(z, c) for c in score}; continue
             rows, s_, rc, m, best = price(z, pi, tau, cuts, sigma, lo, hi, -1e-9 * max(1.0, abs(lp)))
             new = 0
             for t in np.argsort(rc)[:add]:

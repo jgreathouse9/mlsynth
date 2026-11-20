@@ -2,7 +2,7 @@
 import itertools
 import numpy as np
 import pytest
-from hypothesis import given, settings, strategies as st, HealthCheck
+from hypothesis import example, given, settings, strategies as st, HealthCheck
 from . import rank1, sr, dive, test_bcp
 
 FAMILIES = rank1.FAMILIES
@@ -65,6 +65,7 @@ def test_pricing_kernel_matches_direct_reduced_costs(seed, n):
 
 @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(seed=st.integers(0, 10**9), n=st.integers(5, 11), kind=st.integers(0, 3))
+@example(seed=114462, n=6, kind=1)   # LP 0 up to noise: a rescale on every round drove the costs to 8e31 and HiGHS to "Unknown"
 def test_root_bound_never_exceeds_the_optimum(seed, n, kind):
     z = test_bcp.gen(np.random.default_rng(seed), n, kind)
     out = rank1.root_bound(z, rounds=15)
@@ -81,3 +82,22 @@ def test_sr3_only_reproduces_the_subset_row_bound():
         b = sr.run(z, cut_rounds=40, cuts_per_round=50, verbose=False)
         b = b["hist"][-1][1] / b["scale"]
         assert abs(a - b) <= 1e-6 * max(1.0, abs(b)), (a, b)
+
+
+def test_subset_row_rounds_rescale_once():
+    """The instance whose root LP is 0 up to noise: the subset-row loop scales the costs once, not every round."""
+    z = test_bcp.gen(np.random.default_rng(114462), 6, 1)
+    out = sr.run(z, cut_rounds=15, cuts_per_round=50, verbose=False)
+    opt = test_bcp.brute(np.asarray(z, float))
+    assert out["scale"] < 1e12
+    assert out["hist"][-1][1] / out["scale"] <= opt * (1 + 1e-7) + 1e-12
+
+
+@settings(max_examples=200, deadline=None)
+@given(n=st.integers(4, 300), lp=st.floats(1e-300, 10.0), top=st.floats(0.0, 1e12))
+def test_rescale_power_is_capped(n, lp, top):
+    """The rescale never takes the dearest column past 1e10, and is never a shrink."""
+    k = rank1._rescale_power(n, lp, top)
+    assert k >= 0
+    if k > 0 and top > 0:
+        assert top * 4.0 ** k <= 1e10 * (1 + 1e-12)
