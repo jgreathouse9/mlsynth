@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from hypothesis import example, given, settings, strategies as st, HealthCheck
-from . import bcp, dive, rank1
+from . import bcp, certify_exact, dive, rank1
 
 GEOLIFT = pathlib.Path(__file__).resolve().parents[3] / "basedata" / "geolift_test_data.csv"
 
@@ -225,13 +225,16 @@ def test_root_mip_improves_a_poor_start():
 
 
 def test_root_mip_closes_a_gap_below_the_solver_default():
-    """One market 5,000 against sizes below 40: the second-best design is 8.3e-8 above the optimum (relative),
-    under HiGHS's default relative gap of 1e-4. The MIP runs with gap 0, so it still moves to the optimum."""
-    z = np.r_[np.random.default_rng(0).integers(1, 40, 8).astype(float), 5000.0]
-    start = [(0, 1, 2, 8), (3, 4), (5, 6, 7)]
-    assert abs(_valid(z, start, 9) - 24216245.0) < 1e-6
-    out = _bcp(z).solve(incumbent=start, node_limit=1, root_mip_seconds=30.0)
-    assert out["opt"] == 24216243.0 == brute(z)
+    """One market 17,022 against 19 below 80: the start is 7.1e-9 above the optimum (relative), under HiGHS's
+    default relative gap of 1e-4. Over this universe (116 groups) the MIP at the default gap returns the start,
+    and at gap 0 it reaches the certified optimum. Two smaller instances tried first (9 and 10 markets) reached
+    the optimum at either gap, so they could not tell the gaps apart."""
+    z = np.array([58.0, 50.0, 68.0, 22.0, 76.0, 22.0, 67.0, 77.0, 77.0, 3.0, 33.0, 60.0, 27.0, 7.0, 55.0, 39.0,
+                  11.0, 9.0, 53.0, 17022.0])
+    start = [(12, 15, 16), (0, 6, 17), (1, 2, 3, 9), (4, 7, 8, 19), (5, 10, 14), (11, 13, 18)]
+    assert _valid(z, start, 20) == 281971266.0
+    out = _bcp(z).solve(incumbent=start, node_limit=0, root_mip_seconds=60.0)     # no node: only the root MIP
+    assert out["opt"] == 281971264.0 == certify_exact.certify(z, verbose=False)["opt"]
 
 
 @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
