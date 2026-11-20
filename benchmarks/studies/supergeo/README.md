@@ -124,6 +124,28 @@ subset-row cuts left at 0.051, becomes exact at the root. They close less of the
 cancellation gap, and less as the number of markets grows: 0.31 of what
 subset-row cuts left at 16 markets on average, 0.1 to 0.4 at 20, 0.05 at 40.
 
+### Rank-1 cuts inside branch, cut and price
+
+Every rank-1 family separated at every node (`BCP(families=rank1.FAMILIES)`)
+against subset-row cuts alone, 2 s incumbent, optima checked against the exact
+certificate (`python -m benchmarks.studies.supergeo.compare_cuts K 3`):
+
+| instance | subset-row cuts | every rank-1 family |
+| --- | --- | --- |
+| 16 markets, subset 0 | root, 3.4 s | root, 3.4 s |
+| 16 markets, subset 1 | 35 nodes, 10.9 s | 7 nodes, 6.8 s |
+| 16 markets, subset 2 | 10 nodes, 4.1 s | 10 nodes, 5.5 s |
+| 20 markets, subset 0 | 346 nodes, 43.0 s | 104 nodes, 84.4 s (850 cuts) |
+| 20 markets, subset 1 | 20 nodes, 5.9 s | 5 nodes, 5.3 s |
+| 20 markets, subset 2 | 55 nodes, 11.2 s | 21 nodes, 13.2 s (395 cuts) |
+
+The rank-1 families cut nodes by up to 5 times. Time follows only when the cut
+pool stays small: pricing evaluates every cut for every column, and separation
+over row sets of 4 and 5 runs at every node, so on the hardest subset 850 cuts
+made each node 6.5 times dearer than with subset-row cuts. Cut management
+(dropping cuts whose dual stays zero, separating row sets of 4 and 5 only near
+the root) is the next step.
+
 ## Starting heuristics
 
 Cost of the starting design over the exact optimum
