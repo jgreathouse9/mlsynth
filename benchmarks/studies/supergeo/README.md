@@ -101,6 +101,29 @@ incumbent, every optimum checked against the exact certificate
 Branch, cut and price takes 2.7 to 3.9 times fewer nodes at 20 markets, and
 group branching did all of its branching.
 
+## Rank-1 cuts on 4 and 5 rows
+
+Root bound over the exact optimum after separating to a fixed point, subset-row
+cuts only against every family of `rank1.py` (3 rows with 1/2; 4 rows with 1/3
+and with (2/3, 1/3, 1/3, 1/3); 5 rows with 1/3 and with 1/2)
+(`python -m benchmarks.studies.supergeo.rank1_bounds`):
+
+| instance | no cuts | subset-row cuts | every rank-1 family |
+| --- | --- | --- | --- |
+| 12 markets, subset 0 (outlier) | 0.004 | 0.051 | 1.000 (170 cuts, 1 s) |
+| 16 markets, subset 0 | 0.536 | 1.000 | 1.000 |
+| 16 markets, subset 1 | 0.246 | 0.425 | 0.702 (191 cuts, 3 s) |
+| 16 markets, subset 2 | 0.203 | 0.671 | 0.961 (171 cuts, 2 s) |
+| 20 markets, subset 0 | 0.055 | 0.093 | 0.173 (161 cuts, 4 s) |
+| 20 markets, subset 1 | 0.248 | 0.401 | 0.634 (163 cuts, 1 s) |
+| 20 markets, subset 2 | 0.222 | 0.352 | 0.426 (147 cuts, 2 s) |
+| 40 markets (all GeoLift) | 0.273 | 0.326 | 0.357 (174 cuts, 13 s) |
+
+The 4- and 5-row cuts close the coupling gap: the outlier subset, whose bound
+subset-row cuts left at 0.051, becomes exact at the root. They close less of the
+cancellation gap, and less as the number of markets grows: 0.31 of what
+subset-row cuts left at 16 markets on average, 0.1 to 0.4 at 20, 0.05 at 40.
+
 ## Starting heuristics
 
 Cost of the starting design over the exact optimum
