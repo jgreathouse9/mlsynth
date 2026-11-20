@@ -220,6 +220,81 @@ low-reduced-cost columns found the 40-market optimum in 18 s. The cuts close les
 as `K` grows (all of it on four of five 12-market subsets; 0.09 to 0.40 of the
 optimum at 20 markets), so the search depends more on the incumbent.
 
+## Fifty markets: why branch, cut and price is slow
+
+Two 50-market instances (`fifty.py`): the 50-state, 40-month panel of the SYNDES
+benchmark (`basedata/urate_cps.csv`, months 34 to 37 summed) and 50 lognormal
+sizes (seed 2026). Every run below used one thread per process, four processes
+on four cores, 30 minutes; the profile ran alone. Measurements: `rca50.py`.
+Certified optima: `fifty_optima.json`.
+
+Incident. Both arms (subset-row cuts; `bcp.managed()`) hit the time limit on both
+instances. The exact certificate solved both, in 24 s (lognormal) and 293 s
+(50-state).
+
+| instance | arm | nodes | incumbent / optimum | bound / optimum |
+| --- | --- | --- | --- | --- |
+| 50-state | subset-row | 3,371 | 48.9 | 0.758 |
+| 50-state | tuned | 210 | 48.9 | 0.445 |
+| lognormal | subset-row | 4,740 | optimum + 0.0621 | optimum - 0.0004 |
+| lognormal | tuned | 166 | optimum + 0.0621 | optimum - 0.0009 |
+
+Time to solve is nodes times time per node, and both factors are wrong.
+
+Cause 1, the incumbent. The search starts from pairs plus repair (10 s), 48.9 times
+the optimum on the 50-state panel. Best-first search finds a leaf only when a node
+LP is integral, and in the four incident runs the incumbent never moved, so no node
+with a bound below 48.9 times the optimum is pruned. GRASP is no better there
+(55.7 times). The certificate found the optimum with a MIP over the columns that
+survive reduced-cost elimination at the root.
+
+Cause 2, no reduced-cost fixing. At the optimum's cost only 422 (50-state) and 486
+(lognormal) of the 251,125 groups can be in a better design. The search still
+prices all 251,125 at every LP (51% of a subset-row node) and keeps every column it
+has priced in the master.
+
+| start | universe | 50-state | lognormal |
+| --- | --- | --- | --- |
+| pairs + repair | every group | time limit, bound 0.758 | time limit |
+| optimum | every group | time limit, 8,218 nodes, bound 0.973 | time limit, 4,849 nodes |
+| pairs + repair | root survivors | time limit, 6,895 nodes, bound 0.868 | time limit, 18,682 nodes |
+| optimum | root survivors | optimal, 9,059 nodes, 488 s | optimal, 22,405 nodes, 752 s |
+
+Each cause is necessary: removing either one alone leaves both instances unsolved
+at 30 minutes, and removing both solves both, at the certificate's optimum. The
+fixed universe cuts the time per node 4.1 times (0.219 to 0.054 s, 50-state) and 11
+times (0.371 to 0.034 s, lognormal); at the unrestricted rate the 9,059 nodes the
+50-state search needs from the optimum take about 1,980 s, past the limit, where
+the unrestricted run stopped with its bound at 0.973.
+
+Cause 3, group branching on lognormal. `_viable` keeps a group when its loss is
+below the incumbent. When one group carries nearly all of the cost (7,616 here),
+almost every group passes: 179,257 of them, a median of 14,990 per market and over
+64 on 49 of 50 markets, so group branching (at most 64 children) applies to one market and
+the search branches on pairs (9,960 of 10,027 branches even over the survivors).
+The reduced-cost test leaves 486 groups, at most 64 per market, on all 50. Its
+effect on the node count is not measured yet. On the 50-state panel the two tests
+agree (454 and 422 groups) and group branching already runs.
+
+Cause 4, the tuned setting at 50 markets. A tuned node took 12.4 s against 1.15 s
+(first 30 nodes, 50-state, alone):
+
+| per node | subset-row | tuned |
+| --- | --- | --- |
+| separation | 0.001 s | 7.15 s |
+| master LP | 0.30 s | 3.27 s, 2.47 s of it `Cut.coef` in Python (47 million calls) |
+| pricing | 0.58 s | 1.67 s |
+| branching | 0.15 s | 0.15 s |
+
+Separation enumerates every row set of 4 and 5 among the fractional rows: 15,504
+five-row sets at 20 markets, where the setting was tuned, and 2,118,760 at 50.
+
+With causes 1 and 2 removed the tree still needs 9,059 and 22,405 LP nodes, at 34
+to 54 ms each, where the certificate's exact search covers the same survivors in
+7.5 million nodes in 7 s. The root LP is 0.135 of the 50-state optimum, so the LP
+bound rises slowly under branching, and a node that costs a microsecond and
+carries a weak bound wins over a node that costs 50 ms and carries the LP bound.
+
 ## Tests
 
 `python -m pytest benchmarks/studies/supergeo -q`. Brute force over every
