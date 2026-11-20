@@ -295,6 +295,59 @@ to 54 ms each, where the certificate's exact search covers the same survivors in
 bound rises slowly under branching, and a node that costs a microsecond and
 carries a weak bound wins over a node that costs 50 ms and carries the LP bound.
 
+### After the fixes
+
+Fixes 1 and 2 are in `bcp.py`: reduced-cost fixing at the root (`fix_columns`,
+on by default) and a set-partitioning MIP over the fixed universe after the root
+(`root_mip_seconds`, default 300; gap 0, since HiGHS's default relative gap of
+1e-4 stops at a warm start that close). Same runs as the incident (four
+processes on four cores, 30 minutes, pairs plus repair for 10 s first):
+
+| instance | arm | before | after |
+| --- | --- | --- | --- |
+| 50-state | subset-row | time limit, incumbent 48.9 x optimum | optimal, 741 s, 8,968 nodes |
+| lognormal | subset-row | time limit, incumbent optimum + 0.062 | optimal, 709 s, 23,020 nodes |
+| 50-state | tuned | time limit | time limit (cause 4), bound 0.63 of the optimum |
+| lognormal | tuned | time limit | time limit (cause 4) |
+
+Both optima match the certificate. In every run the root MIP reached the
+optimum, and the universe fell from 3,284 and 3,188 groups to 421 and 487.
+Plunging dives were measured as the alternative to the MIP: 9.4 and 21.8 times
+the 50-state optimum after 900 s, no improvement on lognormal.
+
+The certificate's exact-cover search (`verify_nb`) over the root survivors, from
+the same pairs-plus-repair start and with no MIP at all, is faster than either:
+
+| instance | exact search | branch, cut and price after the fixes | certificate with the HiGHS MIP |
+| --- | --- | --- | --- |
+| 50-state | 40.9 s, 39.0 million nodes | 741 s | 293 s |
+| lognormal | 18.0 s, 7.5 million nodes | 709 s | 24 s |
+
+A search node costs about a microsecond and carries a weak bound; an LP node
+costs 30 to 50 ms and carries the LP bound, and at 50 markets the cheap node
+wins. The exact search holds a group as a 64-bit mask, so it stops at 62
+markets; past that the LP tree is the route.
+
+Three defects found on the way, each pre-existing:
+
+- The cost rescale in `rank1.root_bound`, `sr.run`, `bcp` and `bnp` had no
+  ceiling: an intermediate LP of 1.6e-30 (0 up to noise) scaled the costs by
+  4^50, and HiGHS returned "Unknown". The rescale is now once and capped at
+  costs of 1e10 (`rank1._rescale_power`).
+- The artificials cost a fixed 1e7. After a rescale a column cost 9.3e9, a
+  feasible root master covered a market artificially, the root was pruned as
+  infeasible, and the search returned no design (sizes 6.1, 0.2, 7.9, 4.7, 2.4,
+  7.7, 6.1, 1.0). The artificials now cost 1e3 times the dearest column, and
+  when one is still in use a phase-1 LP decides between infeasible and "price
+  too low" (`bnp.solve_feasible`).
+- A test of the default MIP gap on 9 markets could not tell it from gap 0; the
+  test now uses 20 markets, where it can.
+
+Mutants (`tools/mutation/targets.toml`, targets `supergeo-bcp`, `supergeo-bnp`,
+`supergeo-rank1`): 13 in all, 12 killed. `rescale-every-round` survives and is
+recorded as equivalent: under the cap a second rescale cannot lift the costs past
+1e10, so no test can see it.
+
 ## Tests
 
 `python -m pytest benchmarks/studies/supergeo -q`. Brute force over every
