@@ -142,9 +142,33 @@ certificate (`python -m benchmarks.studies.supergeo.compare_cuts K 3`):
 The rank-1 families cut nodes by up to 5 times. Time follows only when the cut
 pool stays small: pricing evaluates every cut for every column, and separation
 over row sets of 4 and 5 runs at every node, so on the hardest subset 850 cuts
-made each node 6.5 times dearer than with subset-row cuts. Cut management
-(dropping cuts whose dual stays zero, separating row sets of 4 and 5 only near
-the root) is the next step.
+made each node 6.5 times dearer than with subset-row cuts.
+
+### Cut management
+
+`BCP(..., purge_after=5, deep_depth=1, max_active=250)`: a cut is dropped after 5
+LP solves with a zero dual, every family is separated only to depth 1 (subset-row
+cuts below), and at most 250 cuts stay in the pool. Same subsets, optima checked
+against the exact certificate:
+
+| instance | subset-row cuts | rank-1 | rank-1 managed |
+| --- | --- | --- | --- |
+| 16 markets, subset 0 | root, 3.9 s | root, 3.3 s | root, 2.6 s |
+| 16 markets, subset 1 | 35 nodes, 11.2 s | 7 nodes, 7.0 s | 7 nodes, 6.7 s |
+| 16 markets, subset 2 | 10 nodes, 4.1 s | 10 nodes, 5.4 s | 10 nodes, 4.9 s |
+| 20 markets, subset 0 | 346 nodes, 44.1 s | 104 nodes, 85.0 s (850 cuts) | 158 nodes, 44.7 s (largest pool 221) |
+| 20 markets, subset 1 | 20 nodes, 5.9 s | 5 nodes, 5.4 s | 5 nodes, 5.0 s |
+| 20 markets, subset 2 | 55 nodes, 12.1 s | 21 nodes, 13.5 s (395 cuts) | 21 nodes, 8.9 s (largest pool 184) |
+
+Managed rank-1 cuts are the fastest or level on every instance and keep most of
+the node reduction. On the hardest subset they give up part of it (158 nodes
+against 104) for nodes six times cheaper, and match subset-row cuts in time with
+under half their nodes.
+
+The managed property test found a defect in both searches: with integer sizes the
+root LP can be 0, so the cost rescale fired at a later node while the incumbent
+and the open bounds stayed in the old units (2/128 reported for an optimum of 2).
+The scale is now fixed after the root.
 
 ## Starting heuristics
 
