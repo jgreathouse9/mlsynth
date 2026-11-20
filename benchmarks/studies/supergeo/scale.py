@@ -26,8 +26,9 @@ def main(k, reps=5, limit=600.0):
             ref, how = test_bcp.brute(z), "brute force"
         else:
             ref, how = certify_exact.certify(z, verbose=False)["opt"], "exact certificate"
-        for name, solver in (("B&P", lambda: bnp.BnP(z, verbose=False)), ("BCP", lambda: bcp.BCP(z, verbose=False))):
-            out = solver().solve(time_limit=limit)
+        for name, run in (("B&P", lambda: bnp.BnP(z, verbose=False).solve(time_limit=limit)),
+                          ("BCP", lambda: bcp.BCP(z, verbose=False).solve(time_limit=limit, heuristic_seconds=2.0))):
+            out = run()
             ok = abs(out["opt"] - ref) <= 1e-9 * max(1.0, abs(ref))
             extra = f", group/pair branches {out['group_branches']}/{out['pair_branches']}, cuts {out['cuts']}" if name == "BCP" else ""
             print(f"K={k} subset {r} {name}: {out['status']}, nodes {out['nodes']}, {out['t']:.1f}s, root bound/opt "
