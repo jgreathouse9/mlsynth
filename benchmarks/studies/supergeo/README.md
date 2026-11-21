@@ -470,6 +470,28 @@ thresholds from 0 to 1.29 it holds 886,723 to 886,726 groups and takes 13.7 to
 last one's (the incumbent only improves), so each stage's survivors are a subset
 of the last stage's and can be screened from them instead of from a new window.
 
+### One window
+
+The first stage now screens the window and each later stage screens the last
+stage's rows (`_screen_rows`). On the 72-market run above the later stages'
+screens took 0.1 s and 0.0 s (42,927 to 2,444 rows, 2,444 to 1,443) in place of
+two window builds of 13.6 to 14.9 s each and their screens; the bound's window
+and the first stage's stay (the bound's is built before m is known, and a window
+at a lower threshold need not hold the first stage's survivors). The certificate
+end to end from the defaults (heuristic max(1, N / 24) s, exact stage on four
+threads), alone:
+
+| instance | before (keep 0.5, one thread) | now | stages: survivors of rows screened |
+| --- | --- | --- | --- |
+| 50-state | 8.7 s | 5.2 s | 4,202 of 4,202; 941 of 4,202; 549 of 941 |
+| 64 | 75.3 s | 28.1 s | 18,146 of 539,298; 1,586 of 18,146; 928 of 1,586 |
+| 72 | 266.6 s | 79.5 s | 42,927 of 886,726; 2,444 of 42,927; 1,443 of 2,444 |
+| 72, second run | | 78.6 s | 62,899 of 886,730; 3,079 of 62,899; 1,443 of 3,079; 1,219 of 1,443 |
+| 80 | 685.1 s | 128.5 s | 56,426 of 1,200,904; 6,109 of 56,426; 2,202 of 6,109; 1,588 of 2,202 |
+
+The same optima as before at every size. At 80 markets the exact stage is now
+76.4 s of the 128.5 s, and the two window builds most of the rest.
+
 ## 210 markets
 
 On the 210-market instance (`n210_duals.json`), from the best design found (the

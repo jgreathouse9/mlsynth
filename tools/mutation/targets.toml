@@ -18227,8 +18227,6 @@ timeout = 1500.0
   find = "    th = up(UB - S - (Fraction(n, lo) - 1) * m)\n    W2 = safe_window(z, pi, lo, hi, th + tau)\n    return W2["
   replace = "    th = up(UB - S)\n    W2 = safe_window(z, pi, lo, hi, th + tau)\n    return W2["
   models = "the elimination threshold without the (N/lo - 1) m term: columns a better design needs are eliminated when m < 0"
-  expected = "survived"
-  accepted-because = "equivalent in practice: the certificate runs column generation to convergence, so the exact minimum reduced cost m is 0 up to rounding (-6.7e-9 at 210 markets) and the term moves the threshold by under 1e-7 relative; no group of any test instance lies in that band. The term stays because the elimination is valid only with it."
 
   [[target.mutant]]
   id = "later-stages-keep-the-last-stages-rows"
