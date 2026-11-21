@@ -40,6 +40,10 @@ def test_stage_survivors_never_grow_and_the_last_stage_is_complete():
     out = ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200, 2_000))
     sizes = [s["survivors"] for s in out["stages"]]
     assert sizes == sorted(sizes, reverse=True)
+    for a, b in zip(out["stages"], out["stages"][1:]):
+        if a["improved"]:
+            assert b["survivors"] < a["survivors"], (a, b)       # a better incumbent eliminates more
+    assert any(s["improved"] for s in out["stages"][:-1])
     assert out["stages"][-1]["status"] == 0 or out["proof"].startswith("exact: optimum equals")
 
 

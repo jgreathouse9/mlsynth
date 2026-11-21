@@ -18173,3 +18173,33 @@ timeout = 900.0
   find = "            k = cut_key(cut); out.append(0.0 if k in seen else sig.get(k, 0.0)); seen.add(k)"
   replace = "            k = cut_key(cut); out.append(sig.get(k, 0.0)); seen.add(k)"
   models = "every copy of a cut in the pool given the row's dual: sum sigma rhs counts the row as often as it is listed, and the node bound is wrong"
+
+[[target]]
+name = "supergeo-certify-staged"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"not 50_state and not same_exact\""
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "survivors-fixed-at-the-first-incumbent"
+  find = "        cand, nwin = _survivors(z, pi, tau, lo, hi, S, m, UB)\n        have = set(cand)"
+  replace = "        if not stages: UB0 = UB\n        cand, nwin = _survivors(z, pi, tau, lo, hi, S, m, UB0)\n        have = set(cand)"
+  models = "the elimination run once at the starting design's cost: every stage searches the same survivors, 3,284 on the 50-state panel where 549 remain at the third stage's incumbent"
+
+  [[target.mutant]]
+  id = "a-capped-stage-claims-the-proof"
+  find = "        proved = status == 0 or UB == LB"
+  replace = "        proved = True"
+  models = "the first stage's cover reported as proved although its search stopped at the cap"
+
+  [[target.mutant]]
+  id = "a-stages-better-cover-is-dropped"
+  find = "        if better is not None:\n            design, UB = [tuple(c) for c in better], val"
+  replace = "        if False:\n            design, UB = [tuple(c) for c in better], val"
+  models = "each stage's best cover thrown away: the final stage completes and the certificate returns the starting design"
+
+  [[target.mutant]]
+  id = "elimination-without-the-reduced-cost-floor"
+  find = "    th = up(UB - S - (Fraction(n, lo) - 1) * m)"
+  replace = "    th = up(UB - S)"
+  models = "the elimination threshold without the (N/lo - 1) m term: columns a better design needs are eliminated when m < 0"
