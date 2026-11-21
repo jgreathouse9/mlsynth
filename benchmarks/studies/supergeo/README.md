@@ -372,6 +372,26 @@ fixes (29.8 ms on the 50-state panel, 64% of it in the master LP). The exact
 search's nodes cost about a microsecond with a weaker bound, and at 50 markets
 that wins.
 
+### Past 62 markets
+
+`verify_nb` holds the uncovered set and each group as words of 63 bits above 62
+markets (`_search_w`, the same tree as the one-word search). The staged
+certificate on lognormal instances (seed 2026, 1 s heuristic), alone:
+
+| markets | 3 capped stages | 6 capped stages | survivors by stage (6 stages) |
+| --- | --- | --- | --- |
+| 64 | 102 s | 119.6 s | 69,698, 2,107, 959, 917, 789 |
+| 72 | 413 s | 521.9 s | 947,976, 25,256, 1,859, 1,346, 1,205, 1,194 |
+| 80 | 566 s | 687.9 s | 138,889, 6,172, 1,883, 1,434, 1,408, 1,263, 1,104 |
+
+After about three stages the incumbent is near the optimum: further stages shrink
+the survivors little and each restarts the search, so they add time. What remains
+is the proof, whose node count the weak bound sets. About half of the 72-market
+time is outside the search: the exact costs (Fractions) of the first stage's
+947,976 survivors and the arrays built from them. So staging should stop when the
+survivors stop shrinking by more than about half, and the first stage's exact
+bookkeeping is the next cost to cut.
+
 ## 210 markets
 
 On the 210-market instance (`n210_duals.json`), from the best design found (the
