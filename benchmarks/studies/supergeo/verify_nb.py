@@ -477,11 +477,18 @@ def _search_from(n, B, W, lo, masks, cost, pisum, odd, gptr, gcols, m, tau, g2, 
 
 
 def _parallel(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit, cand_cap, bits, workers, split):
-    """verify on `workers` threads. The frontier starts at the root and expands its oldest node until it holds at
-    least `split` nodes or none is left to expand; complete covers met on the way are recorded as in the search.
-    The frontier is then searched in increasing order of node bound."""
-    import collections, threading
+    """verify on `workers` threads (:func:`_parallel_core`), its covers re-costed exactly."""
     p = _prepare(n, lo, cand, exact_cost, pi, m, tau, OPT, 63 if bits is None else bits)
+    status, total, rows = _parallel_core(p, n, node_limit, cand_cap, workers, split)
+    return status, total, *_best_of(cand, exact_cost, OPT, rows)
+
+
+def _parallel_core(p, n, node_limit, cand_cap, workers, split):
+    """The search on `workers` threads over the prepared arrays `p` (several words of B bits). The frontier starts at
+    the root and expands its oldest node until it holds at least `split` nodes or none is left to expand; complete
+    covers met on the way are recorded as in the search. The frontier is then searched in increasing order of node
+    bound. Returns (status, nodes, the recorded covers as sequences of column indices, -1 entries to be skipped)."""
+    import collections, threading
     args = p["args"]; W = p["W"]; g2 = p["g2"]; absA0 = p["absA0"]
     plen = n // 2 + 2
     shared = np.array([p["opt_up"]])
@@ -497,12 +504,12 @@ def _parallel(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit, cand_cap, bi
         k, cols, Us, Ps, Ss, Os, lbs, leaf = _children(*args, shared[0], U, P, S, O)
         nodes += k
         if nodes > node_limit:
-            return 1, nodes, *_best_of(cand, exact_cost, OPT, leaves)
+            return 1, nodes, leaves
         for q in range(len(cols)):
             path = pre + (int(cols[q]),)
             if leaf[q]:
                 if len(leaves) >= cand_cap:
-                    return 2, nodes, *_best_of(cand, exact_cost, OPT, leaves)
+                    return 2, nodes, leaves
                 leaves.append(path)
                 err = g2 * (Ps[q] + absA0)
                 if Ps[q] + err < shared[0]:
@@ -539,7 +546,7 @@ def _parallel(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit, cand_cap, bi
     total = nodes + int(counts[:, 0].sum())
     if not status[0] and total > node_limit and next(nxt, None) is not None:
         status[0] = 1                                 # stopped between subtrees with subtrees left
-    return status[0], total, *_best_of(cand, exact_cost, OPT, rows)
+    return status[0], total, rows
 
 
 @njit(cache=True)
@@ -558,14 +565,22 @@ def _row_masks(rows, n, B, W, wide):
     return m1, mw
 
 
-def verify_rows(n, lo, rows, cost, pi, m, tau, opt, node_limit=2_000_000_000, cand_cap=200_000):
+def verify_rows(n, lo, rows, cost, pi, m, tau, opt, node_limit=2_000_000_000, cand_cap=200_000, workers=None,
+                split="auto"):
     """The search of :func:`verify` on columns given as an index array (rows padded with -1) and double costs,
     set up with numpy: the capped stages of certify_exact.certify_staged. The margin assumes doubles within the
     rounding of exact costs; a stage on computed costs finds incumbents and proves nothing, and its covers are
-    re-costed exactly by the caller. Returns (status, nodes, the recorded covers as arrays of row indices)."""
+    re-costed exactly by the caller. workers and split as in :func:`verify` (at 120 markets the first capped stage,
+    563,453 rows and 300,000 nodes, took 21.0 s on this thread and 6.1 s on four). Returns (status, nodes, the
+    recorded covers as arrays of row indices)."""
+    if workers is not None:
+        if int(workers) < 1:
+            raise ValueError(f"workers must be a positive integer or None, not {workers}")
+        if split != "auto" and int(split) < 1:
+            raise ValueError(f"split must be a positive integer or 'auto', not {split}")
     rows = np.ascontiguousarray(rows, np.int64); C = rows.shape[0]
     cost = np.ascontiguousarray(cost, float); pi = np.asarray(pi, float)
-    wide = n > 62; B = 63; W = -(-n // B) if wide else 1
+    wide = n > 62 or workers is not None; B = 63; W = -(-n // B) if wide else 1
     m1, mw = _row_masks(rows, n, B, W, wide)
     k = (rows >= 0).sum(1)
     pisum = np.where(rows >= 0, pi[np.maximum(rows, 0)], 0.0).sum(1); odd = (k % 2 == 1)
@@ -576,6 +591,14 @@ def verify_rows(n, lo, rows, cost, pi, m, tau, opt, node_limit=2_000_000_000, ca
     absA0 = float(np.sum(np.abs(pi))) + (n / lo) * abs(float(m)) + abs(tau)
     g2 = 2.0 * gamma(2 * n + 8) + 4 * U
     opt_up = math.nextafter(float(opt), math.inf); opt_up = opt_up + g2 * (opt_up + absA0)
+    if workers is not None:
+        S0 = 0.0
+        for i in range(n): S0 += pi[i]
+        p = dict(B=B, W=W, g2=g2, absA0=absA0, opt_up=opt_up, S0=S0,
+                 args=(n, B, W, float(lo), mw, cost, pisum, odd, gptr, gcols, float(m), float(tau), g2, absA0))
+        status, nodes, found = _parallel_core(p, n, node_limit, cand_cap, int(workers),
+                                              64 * int(workers) if split == "auto" else int(split))
+        return status, int(nodes), [np.array([j for j in r if j >= 0], np.int64) for r in found]
     args = (cost, pisum, odd, gptr, gcols, pi, float(m), float(tau), opt_up, g2, absA0, node_limit, cand_cap, n // 2 + 2)
     if wide:
         status, nodes, best, cands = _search_w(n, B, W, float(lo), mw, *args)

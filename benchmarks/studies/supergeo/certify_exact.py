@@ -63,11 +63,12 @@ def _root(z0, lo, hi):
     return z, scale, pi, max(float(tau), 0.0)
 
 
-def _exact_bound(z, pi, tau, lo, hi):
+def _exact_bound(z, pi, tau, lo, hi, window=None):
     """Every column with rc < 0, exactly, their exact minimum m <= 0, S = sum pi + tau and the exact bound
-    LB = S + (N / lo) m. Returns (m, S, LB, the negative columns)."""
+    LB = S + (N / lo) m. window: a safe window built at a threshold >= 0 (plus tau), used in place of a new one.
+    Returns (m, S, LB, the negative columns)."""
     n = len(z)
-    W = safe_window(z, pi, lo, hi, 0.0 + tau)                          # superset of rc <= 0 (odd columns credited tau)
+    W = window if window is not None else safe_window(z, pi, lo, hi, 0.0 + tau)   # superset of rc <= 0
     neg = W[ex.members2(z, pi, W, 0.0, tau, True)]
     m = min([exact_rc_tau(z, pi, tau, tuple(int(v) for v in r if v >= 0)) for r in neg], default=Fraction(0))
     m = min(m, Fraction(0))
@@ -137,12 +138,30 @@ def certify(z0, lo=2, hi=4, incumbent=None, mip_limit=600, verbose=True):
     return out
 
 
-def _survivor_rows(z, pi, tau, lo, hi, S, m, UB):
-    """As _survivors, as the window's rows (indices padded with -1) that pass the exact test."""
+def _survivor_rows(z, pi, tau, lo, hi, S, m, UB, window=None):
+    """As _survivors, as the window's rows (indices padded with -1) that pass the exact test. window: (rows, thw),
+    a safe window built at thw + tau; used when thw is at or above this threshold (a window only grows with its
+    threshold), otherwise a new window is built."""
     n = len(z)
     th = up(UB - S - (Fraction(n, lo) - 1) * m)
-    W2 = safe_window(z, pi, lo, hi, th + tau)
+    if window is not None and th <= window[1]:
+        W2 = window[0]
+    else:
+        W2 = safe_window(z, pi, lo, hi, th + tau)
     return W2[ex.members2(z, pi, W2, th, tau, False)], len(W2)
+
+
+def _window_threshold(z, pi, tau, lo, hi, S, T):
+    """A threshold for one safe window that serves the bound and the first stage. The first stage keeps the groups
+    with rc <= T - S - (N / lo - 1) m, m the exact minimum reduced cost, which is known only after the bound's
+    window; this computes the threshold with m replaced by the floating-point minimum (sg._min_rc for each group
+    size, the parity dual credited to odd sizes) less a cushion. When the exact m is below the guess the first
+    stage builds its own window (:func:`_survivor_rows` checks), so the guess sets the time, never the result."""
+    n = len(z); pi = np.asarray(pi, float)
+    mf = min(float(sg._min_rc(z, pi, k, k)) - (tau if k % 2 else 0.0) for k in range(lo, hi + 1))
+    mg = min(0.0, mf)
+    mg -= 1e-6 * abs(mg) + 1e-12 * (1.0 + float(np.sum(np.abs(pi))))
+    return up(T - S - (Fraction(n, lo) - 1) * Fraction(mg))
 
 
 def _screen_rows(z, pi, tau, lo, S, m, UB, rows):
@@ -171,8 +190,8 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     half of the last (more capped stages past that point repeat the top of the tree: at 80 markets six of them
     took 688 s against 566 s for three). heuristic_seconds: the pairs-plus-repair budget, "auto" being
     max(1, N / 24) (at 72 markets a 3 s heuristic leaves 62,899 first-stage survivors, a 1 s one 947,976).
-    workers: threads for the exact stage's search (:func:`.verify_nb.verify`), None for this thread alone, "auto"
-    for min(4, CPU count).
+    workers: threads for every stage's search (:func:`.verify_nb.verify` and :func:`.verify_nb.verify_rows`), None
+    for this thread alone, "auto" for min(4, CPU count).
 
     gap: a relative optimality gap g in [0, 1). The certificate then proves that no design costs less than
     T = (1 - g) UB, UB the cost of the design returned, so the design is within a factor 1 / (1 - g) of the
@@ -243,7 +262,6 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     t0 = time.perf_counter()
     z, scale, pi, tau = _root(z0, lo, hi)
     t_cg = time.perf_counter() - t0
-    m, S, LB, neg = _exact_bound(z, pi, tau, lo, hi)
     if incumbent is None:
         o = [int(v) for v in np.argsort(z)]
         incumbent = ([tuple(o[i:i + 2]) for i in range(0, n - 3, 2)] + [tuple(o[-3:])]) if odd else [tuple(o[i:i + 2]) for i in range(0, n, 2)]
@@ -265,6 +283,12 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     else:                                           # above every design that meets the standard
         UB = Fraction(n // lo) * Fraction(tq) * (1 + Fraction(1, 2 ** 30)) + Fraction(1, 2 ** 30)
     D = Fraction(abs_gap) * Fraction(scale)        # in the rescaled units of the costs
+    # one window for the bound and the first stage, at a threshold >= 0 and at or above the first stage's
+    S0 = sum(Fraction(float(p)) for p in pi) + Fraction(tau)
+    T0 = UB - max(G * UB, D) if design is not None else UB
+    thw = max(_window_threshold(z, pi, tau, lo, hi, S0, T0), 0.0)
+    shared = (safe_window(z, pi, lo, hi, thw + tau), thw)
+    m, S, LB, neg = _exact_bound(z, pi, tau, lo, hi, window=shared[0])
     def allowed(ub):                                # the gap in cost units: the larger of g ub and the absolute gap
         return max(G * ub, D)
     def within(ub):                                 # the bound alone proves the gap
@@ -277,8 +301,9 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     while not proved:
         T = UB - allowed(UB) if design is not None else UB   # prove that no design costs less than T
         if prev is None:                            # the one window; later stages screen the last stage's rows
-            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, T)
+            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, T, window=shared)
             rows = standard(rows)
+            shared = None                           # the stages after screen the last stage's rows
         else:
             rows, nwin = _screen_rows(z, pi, tau, lo, S, m, T, prev), len(prev)
         have = {tuple(int(v) for v in r if v >= 0) for r in rows}
@@ -297,7 +322,8 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
         ts = time.perf_counter()
         if capped:
             sc = sg.scores(z, rows)
-            status, nodes, covers = vn.verify_rows(n, lo, rows, sc, pi, float(m), tau, float(UB), node_limit=cap)
+            status, nodes, covers = vn.verify_rows(n, lo, rows, sc, pi, float(m), tau, float(UB), node_limit=cap,
+                                                   workers=workers)
             better = None
             for r in covers:
                 d = [tuple(int(v) for v in rows[j] if v >= 0) for j in r]
@@ -306,8 +332,8 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
                     better = (c, d)
             if better is not None:
                 UB, design = better
-            stages.append(dict(cap=cap, exact=False, survivors=len(rows), window=nwin, nodes=nodes, status=status,
-                               improved=better is not None, t=time.perf_counter() - ts))
+            stages.append(dict(cap=cap, exact=False, workers=workers, survivors=len(rows), window=nwin, nodes=nodes,
+                               status=status, improved=better is not None, t=time.perf_counter() - ts))
             proved = within(UB)
         else:
             cand = [tuple(int(v) for v in r if v >= 0) for r in rows]

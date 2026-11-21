@@ -18224,8 +18224,8 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "elimination-without-the-reduced-cost-floor"
-  find = "    th = up(UB - S - (Fraction(n, lo) - 1) * m)\n    W2 = safe_window(z, pi, lo, hi, th + tau)\n    return W2["
-  replace = "    th = up(UB - S)\n    W2 = safe_window(z, pi, lo, hi, th + tau)\n    return W2["
+  find = "    th = up(UB - S - (Fraction(n, lo) - 1) * m)\n    if window is not None and th <= window[1]:"
+  replace = "    th = up(UB - S)\n    if window is not None and th <= window[1]:"
   models = "the elimination threshold without the (N/lo - 1) m term: columns a better design needs are eliminated when m < 0"
 
   [[target.mutant]]
@@ -18253,8 +18253,8 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "elimination-at-the-incumbent-not-the-target"
-  find = "            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, T)"
-  replace = "            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, UB)"
+  find = "            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, T, window=shared)"
+  replace = "            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, UB, window=shared)"
   models = "the first stage keeps every group of a design costing up to the incumbent, not up to (1 - g) times it"
 
   [[target.mutant]]
@@ -18320,6 +18320,23 @@ timeout = 1500.0
   find = "    D = Fraction(abs_gap) * Fraction(scale)        # in the rescaled units of the costs"
   replace = "    D = Fraction(abs_gap)"
   models = "the absolute gap compared with costs in the certificate's rescaled units: after a rescale it allows far less than asked"
+  [[target.mutant]]
+  id = "the-shared-window-used-below-its-threshold"
+  find = "    if window is not None and th <= window[1]:"
+  replace = "    if window is not None:"
+  models = "the shared window screened at a first-stage threshold above the one it was built for: groups the stage needs are missing"
+
+  [[target.mutant]]
+  id = "a-negative-window-guess-kept"
+  find = "    thw = max(_window_threshold(z, pi, tau, lo, hi, S0, T0), 0.0)"
+  replace = "    thw = _window_threshold(z, pi, tau, lo, hi, S0, T0)"
+  models = "a threshold guess below 0 used for the shared window, which then misses columns of negative reduced cost and makes the bound too high"
+
+  [[target.mutant]]
+  id = "the-window-guess-without-the-reduced-cost-term"
+  find = "    mg = min(0.0, mf)\n"
+  replace = "    mg = 0.0\n"
+  models = "the window threshold guessed with m = 0: below the first stage's whenever m < 0, so the window is built twice"
 [[target]]
 name = "supergeo-verify-rows"
 module-path = "benchmarks/studies/supergeo/verify_nb.py"
@@ -18371,7 +18388,7 @@ timeout = 900.0
 [[target]]
 name = "supergeo-verify-parallel"
 module-path = "benchmarks/studies/supergeo/verify_nb.py"
-test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k \"parallel or subtree or bounds_the_total\""
+test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k \"parallel or subtree or bounds_the_total or rows_search_on_threads or uses_the_threads\""
 timeout = 900.0
 
   [[target.mutant]]
@@ -18427,4 +18444,14 @@ timeout = 900.0
   find = "        if nodes & 1023 == 0:\n            counts[slot, 0] = base + nodes\n"
   replace = "        if nodes & 1023 == 0:\n"
   models = "a thread checks the sum without writing its own count first: the other threads see none of its nodes until its subtree ends"
+  [[target.mutant]]
+  id = "the-capped-search-ignores-its-workers"
+  find = "    if workers is not None:\n        S0 = 0.0"
+  replace = "    if False:\n        S0 = 0.0"
+  models = "verify_rows accepts workers and runs on one thread: the capped stages keep their 21 s at 120 markets"
 
+  [[target.mutant]]
+  id = "a-capped-cover-keeps-its-padding"
+  find = "        return status, int(nodes), [np.array([j for j in r if j >= 0], np.int64) for r in found]"
+  replace = "        return status, int(nodes), [np.array(r, np.int64) for r in found]"
+  models = "a recorded cover returned with its -1 padding, read by the caller as the last row"

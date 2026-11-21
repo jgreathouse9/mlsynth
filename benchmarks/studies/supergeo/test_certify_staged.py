@@ -156,15 +156,15 @@ def test_screening_the_last_survivors_equals_a_new_window(seed, n, kind, f):
 
 
 def test_the_window_is_built_once_for_the_stages(monkeypatch):
-    """One window for the bound and one for the first stage; later stages screen the last stage's rows, and record
-    how many they screened."""
+    """One window, at a threshold above both the bound's and the first stage's, serves both; later stages screen
+    the last stage's rows, and record how many they screened."""
     calls = []
     real = ce.safe_window
     monkeypatch.setattr(ce, "safe_window", lambda *a, **k: calls.append(a[4]) or real(*a, **k))
     z = list(test_bcp._subsets(16, 3))[1]
     out = ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200, 2_000))
     assert out["proved"] and len(out["stages"]) >= 3
-    assert len(calls) == 2
+    assert len(calls) == 1
     for a, b in zip(out["stages"], out["stages"][1:]):
         assert b["window"] == a["survivors"]
 
@@ -452,3 +452,80 @@ def test_a_large_gap_does_not_shrink_the_search_for_a_design_that_meets_the_stan
             assert want <= out["opt_exact"] and out["opt_exact"] * (1 - Fraction(g)) <= want
             seen += 1
     assert seen >= 3
+
+
+def test_the_capped_stages_run_on_the_threads(monkeypatch):
+    """The capped stages' searches go through the threaded search when workers is set, and record the count."""
+    from . import verify_nb as vn
+    calls = []
+    real = vn._parallel_core
+    monkeypatch.setattr(vn, "_parallel_core", lambda *a, **k: calls.append(1) or real(*a, **k))
+    z = list(test_bcp._subsets(16, 3))[1]
+    out = ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200, 2_000), workers=2)
+    capped = [s for s in out["stages"] if not s["exact"]]
+    assert out["proved"] and capped and all(s["workers"] == 2 for s in capped)
+    assert len(calls) >= len(capped)
+    none = ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200, 2_000), workers=None)
+    assert none["opt_exact"] == out["opt_exact"] and all(s["workers"] is None for s in none["stages"])
+
+
+# --- one window for the bound and the first stage ---------------------------------------------------------------------
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(5, 12), kind=st.integers(0, 3), f=st.floats(0.0, 1.0),
+       extra=st.floats(0.0, 2.0))
+def test_a_window_at_a_higher_threshold_screens_to_the_same_groups(seed, n, kind, f, extra):
+    """A window built at a threshold at or above the one asked for, screened exactly, keeps the same groups as a
+    window built for it: for the bound's negative columns and for a stage's survivors."""
+    z, pi, tau, S, m = _stage_inputs(test_bcp.gen(np.random.default_rng(seed), n, kind))
+    LB = S + Fraction(n, 2) * m
+    UB = Fraction(test_bcp.brute(z)) * 2 + 1
+    T = LB + (UB - LB) * Fraction(f)
+    th = ce.up(T - S - (Fraction(n, 2) - 1) * m)
+    thw = th + extra * (abs(th) + 1.0)                       # any threshold at or above the stage's, and above 0
+    thw = max(thw, 0.0)
+    W = ce.safe_window(z, pi, 2, 4, thw + tau)
+    rows_w, nw = ce._survivor_rows(z, pi, tau, 2, 4, S, m, T, window=(W, thw))
+    rows_f, nf = ce._survivor_rows(z, pi, tau, 2, 4, S, m, T)
+    assert _keys(rows_w) == _keys(rows_f) and nw == len(W)
+    m2, S2, LB2, neg2 = ce._exact_bound(z, pi, tau, 2, 4, window=W)
+    m1, S1, LB1, neg1 = ce._exact_bound(z, pi, tau, 2, 4)
+    assert (m2, S2, LB2) == (m1, S1, LB1) and _keys(neg2) == _keys(neg1)
+
+
+def test_a_window_below_the_stage_threshold_is_not_used():
+    z, pi, tau, S, m = _stage_inputs(list(test_bcp._subsets(16, 3))[1])
+    T = S + 50
+    th = ce.up(T - S - (Fraction(16, 2) - 1) * m)
+    W = ce.safe_window(z, pi, 2, 4, 0.0 + tau)                # built at 0, below th
+    rows_w, nw = ce._survivor_rows(z, pi, tau, 2, 4, S, m, T, window=(W, 0.0))
+    rows_f, nf = ce._survivor_rows(z, pi, tau, 2, 4, S, m, T)
+    assert th > 0 and _keys(rows_w) == _keys(rows_f) and nw == nf
+
+
+def test_a_guess_below_the_stage_threshold_builds_a_second_window(monkeypatch):
+    """With the threshold guess forced to 0 the shared window is below the first stage's threshold: the stage builds
+    its own window and the certificate is unchanged."""
+    z = list(test_bcp._subsets(16, 3))[1]
+    kw = dict(incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200, 2_000))
+    ref = ce.certify_staged(z, **kw)
+    calls = []
+    real = ce.safe_window
+    monkeypatch.setattr(ce, "safe_window", lambda *a, **k: calls.append(a[4]) or real(*a, **k))
+    monkeypatch.setattr(ce, "_window_threshold", lambda *a, **k: 0.0)
+    out = ce.certify_staged(z, **kw)
+    assert len(calls) == 2
+    assert out["opt_exact"] == ref["opt_exact"] and out["lb_exact"] == ref["lb_exact"]
+    assert out["stages"][0]["survivors"] == ref["stages"][0]["survivors"]
+
+
+def test_a_negative_guess_still_covers_the_bound(monkeypatch):
+    """A threshold guess below 0 is raised to 0, where the window holds every column with a negative reduced cost,
+    so the exact bound is unchanged."""
+    z = list(test_bcp._subsets(16, 3))[1]
+    kw = dict(incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200,))
+    ref = ce.certify_staged(z, **kw)
+    monkeypatch.setattr(ce, "_window_threshold", lambda *a, **k: -1e6)
+    out = ce.certify_staged(z, **kw)
+    assert out["lb_exact"] == ref["lb_exact"] and out["negative_columns"] == ref["negative_columns"]
+    assert out["opt_exact"] == ref["opt_exact"]

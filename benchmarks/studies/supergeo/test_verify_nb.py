@@ -422,3 +422,62 @@ def test_the_node_limit_bounds_the_total_over_the_threads():
     for workers, split in ((4, 64), (4, 4), (2, 1000)):
         st, nodes, val, d = vn.verify(n, 2, cand, cost, pi, m, tau, OPT, node_limit=lim, workers=workers, split=split)
         assert st == 1 and lim < nodes <= lim + 1024 * workers, (workers, split, nodes)
+
+
+# --- the capped stages' search on threads ------------------------------------------------------------------------------
+
+def _rows_of(cand):
+    rows = np.full((len(cand), 4), -1, np.int64)
+    for j, c in enumerate(cand): rows[j, :len(c)] = c
+    return rows
+
+
+@settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 2), dens=st.floats(0.3, 1.0),
+       workers=st.integers(1, 4), split=st.integers(1, 200))
+def test_rows_search_on_threads_finds_the_same_optimum(seed, n, kind, dens, workers, split):
+    """verify_rows on threads, run to completion: the exact best of the covers it records is verify's optimum, and
+    every recorded cover is an exact cover given as row indices."""
+    rng = np.random.default_rng(seed)
+    z, pi, tau, cand, cost, m = _case(rng, n, kind, dens, 3.0 if seed % 2 else 0.0)
+    cover = any_cover(n, cand, cost, rng)
+    if cover is None:
+        return
+    OPT = sum(cost[c] for c in cover)
+    want = vn.verify(n, 2, cand, cost, pi, m, tau, OPT)[2]
+    fc = np.array([float(cost[c]) for c in cand])
+    status, nodes, covers = vn.verify_rows(n, 2, _rows_of(cand), fc, pi, float(m), tau, float(OPT), workers=workers,
+                                           split=split)
+    assert status == 0
+    for r in covers:
+        assert sorted(g for j in r for g in cand[j]) == list(range(n))
+    assert min([sum(cost[cand[j]] for j in r) for r in covers] + [OPT]) == want
+
+
+def test_rows_search_on_threads_respects_the_node_limit():
+    n, pi, tau, cand, cost, m, OPT = _big_tree_case()
+    fc = np.array([float(cost[c]) for c in cand])
+    st, nodes, covers = vn.verify_rows(n, 2, _rows_of(cand), fc, pi, float(m), tau, float(OPT), node_limit=300_000,
+                                       workers=4)
+    assert st == 1 and 300_000 < nodes <= 300_000 + 4 * 1024
+
+
+def test_rows_search_rejects_bad_workers():
+    n, pi, tau, cand, cost, m, OPT = _hard_case()
+    fc = np.array([float(cost[c]) for c in cand])
+    import pytest
+    for w in (0, -2):
+        with pytest.raises(ValueError):
+            vn.verify_rows(n, 2, _rows_of(cand), fc, pi, float(m), tau, float(OPT), workers=w)
+
+
+def test_rows_search_with_workers_uses_the_threads(monkeypatch):
+    calls = []
+    real = vn._parallel_core
+    monkeypatch.setattr(vn, "_parallel_core", lambda *a, **k: calls.append(1) or real(*a, **k))
+    n, pi, tau, cand, cost, m, OPT = _hard_case()
+    fc = np.array([float(cost[c]) for c in cand])
+    vn.verify_rows(n, 2, _rows_of(cand), fc, pi, float(m), tau, float(OPT))
+    assert calls == []
+    vn.verify_rows(n, 2, _rows_of(cand), fc, pi, float(m), tau, float(OPT), workers=2)
+    assert calls == [1]
