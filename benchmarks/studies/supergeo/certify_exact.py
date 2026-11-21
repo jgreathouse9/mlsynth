@@ -40,9 +40,10 @@ def exact_rc_tau(z, pi, tau, g):
     return mx.exact_rc(z, pi, g) - (Fraction(tau) if len(g) % 2 else 0)
 
 
-def certify(z0, lo=2, hi=4, incumbent=None, mip_limit=600, verbose=True):
-    t0 = time.perf_counter(); n = len(z0); odd = n % 2 == 1
-    # 1. column generation (floating point; its duals only need to be doubles)
+def _root(z0, lo, hi):
+    """Column generation to convergence (floating point; its duals only need to be doubles).
+    Returns (z rescaled by a power of 4, the scale, pi, tau)."""
+    n = len(z0); odd = n % 2 == 1
     z = np.asarray(z0, float).copy(); scale = 1.0
     cols = sg.initial_pool(z, lo, hi); score = {c: dive._sc(z, c) for c in cols}
     while True:
@@ -59,15 +60,38 @@ def certify(z0, lo=2, hi=4, incumbent=None, mip_limit=600, verbose=True):
             c = tuple(int(v) for v in rows[t] if v >= 0)
             if c not in score: score[c] = float(s_[t]); cols.append(c); new += 1
         if new == 0: break
-    tau = max(float(tau), 0.0)
-    t_cg = time.perf_counter() - t0
-    # 2. exact bound: every column with rc < 0, exactly, and their exact minimum
+    return z, scale, pi, max(float(tau), 0.0)
+
+
+def _exact_bound(z, pi, tau, lo, hi):
+    """Every column with rc < 0, exactly, their exact minimum m <= 0, S = sum pi + tau and the exact bound
+    LB = S + (N / lo) m. Returns (m, S, LB, the negative columns)."""
+    n = len(z)
     W = safe_window(z, pi, lo, hi, 0.0 + tau)                          # superset of rc <= 0 (odd columns credited tau)
     neg = W[ex.members2(z, pi, W, 0.0, tau, True)]
     m = min([exact_rc_tau(z, pi, tau, tuple(int(v) for v in r if v >= 0)) for r in neg], default=Fraction(0))
     m = min(m, Fraction(0))
     S = sum(Fraction(float(p)) for p in pi) + Fraction(tau)
-    LB = S + Fraction(n, lo) * m
+    return m, S, S + Fraction(n, lo) * m, neg
+
+
+def _survivors(z, pi, tau, lo, hi, S, m, UB):
+    """Exact elimination: a column in a design costing <= UB has rc <= UB - S - (N/lo - 1) m. Returns the
+    columns that pass, exactly, and the size of the window searched for them."""
+    n = len(z)
+    th = up(UB - S - (Fraction(n, lo) - 1) * m)
+    W2 = safe_window(z, pi, lo, hi, th + tau)
+    keep = W2[ex.members2(z, pi, W2, th, tau, False)]
+    return [tuple(int(v) for v in r if v >= 0) for r in keep], len(W2)
+
+
+def certify(z0, lo=2, hi=4, incumbent=None, mip_limit=600, verbose=True):
+    t0 = time.perf_counter(); n = len(z0); odd = n % 2 == 1
+    # 1. column generation
+    z, scale, pi, tau = _root(z0, lo, hi)
+    t_cg = time.perf_counter() - t0
+    # 2. exact bound
+    m, S, LB, neg = _exact_bound(z, pi, tau, lo, hi)
     # 3. exact incumbent cost
     if incumbent is None:
         o = list(np.argsort(z))
@@ -77,12 +101,8 @@ def certify(z0, lo=2, hi=4, incumbent=None, mip_limit=600, verbose=True):
     def exact_cost(design):
         return sum(mx.exact_rc(z, np.zeros(n), g) for g in design)       # exact score: rc with zero duals
     UB = exact_cost(incumbent)
-    # 4. exact elimination: a column in a design costing <= UB has rc <= UB - S - (N/lo - 1) m
-    Theta = UB - S - (Fraction(n, lo) - 1) * m
-    th = up(Theta)
-    W2 = safe_window(z, pi, lo, hi, th + tau)
-    keep = W2[ex.members2(z, pi, W2, th, tau, False)]
-    cand = [tuple(int(v) for v in r if v >= 0) for r in keep]
+    # 4. exact elimination
+    cand, nwin = _survivors(z, pi, tau, lo, hi, S, m, UB)
     pos = {c: j for j, c in enumerate(cand)}
     for g in incumbent:
         if g not in pos: pos[g] = len(cand); cand.append(g)
@@ -104,7 +124,7 @@ def certify(z0, lo=2, hi=4, incumbent=None, mip_limit=600, verbose=True):
     exact_tight = OPT == LB
     S_ = Fraction(scale)                                           # Fraction / float would round to a float
     out = dict(n=n, scale=scale, lb=down(LB / S_), opt=float(OPT / S_), lb_exact=LB / S_, opt_exact=OPT / S_,
-               negative_columns=len(neg), window=len(W2), within=len(cand), mip_status=status,
+               negative_columns=len(neg), window=nwin, within=len(cand), mip_status=status,
                proof=("exact: optimum equals the exact bound" if exact_tight else
                       f"exact end to end ({nodes:,} search nodes, {t_v:.1f}s)" if proved else
                       f"exact search stopped (status {vstatus}) after {nodes:,} nodes"),
@@ -115,6 +135,68 @@ def certify(z0, lo=2, hi=4, incumbent=None, mip_limit=600, verbose=True):
         print(f"  bound {out['lb']:.10g}  optimum {out['opt']:.12g}  survivors {len(cand)}  HiGHS {status}, "
               f"{'exactly optimal' if out['highs_was_optimal'] else 'above the optimum by ' + format(out['highs_excess'], '.4g')}  -> {out['proof']}  [{out['t']:.0f}s]", flush=True)
     return out
+
+
+def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=1.0, caps=(300_000, 1_000_000, 3_000_000),
+                   verbose=False):
+    """The certificate with the elimination redone at every better incumbent and no MIP.
+
+    After the root and the exact bound, each stage runs the exact elimination at the incumbent's exact cost and
+    the exact-cover search of :mod:`.verify_nb` over the survivors, from the incumbent, stopping after the stage's
+    node cap; its best cover becomes the incumbent, so the next stage's survivors are fewer. A final stage has no
+    cap. A stage that completes proves its result optimal: the search covered every exact cover by columns that
+    can be in a design costing at most the incumbent it started from. On the 50-state panel, from a 1 s
+    heuristic 95 times the optimum, the survivors went 4,629, 941, 549 and the last stage completed after 1.6
+    million nodes; the single-threshold certificate searched 3,284 survivors from a 48.9-times design for 39
+    million nodes.
+
+    caps: increasing positive node caps for the stages before the final one. Returns the keys of
+    :func:`certify` that apply, with `proved`, `proof` and `stages` (one dict per stage)."""
+    n = len(z0); odd = n % 2 == 1
+    if n > 62:
+        raise ValueError(f"the exact search holds a group as a 64-bit mask: at most 62 markets, not {n}")
+    caps = tuple(int(c) for c in caps)
+    if any(c < 1 for c in caps) or any(b <= a for a, b in zip(caps, caps[1:])):
+        raise ValueError(f"caps must be increasing positive node counts, not {caps}")
+    t0 = time.perf_counter()
+    z, scale, pi, tau = _root(z0, lo, hi)
+    t_cg = time.perf_counter() - t0
+    m, S, LB, neg = _exact_bound(z, pi, tau, lo, hi)
+    if incumbent is None:
+        o = [int(v) for v in np.argsort(z)]
+        incumbent = ([tuple(o[i:i + 2]) for i in range(0, n - 3, 2)] + [tuple(o[-3:])]) if odd else [tuple(o[i:i + 2]) for i in range(0, n, 2)]
+        if heuristic_seconds > 0:
+            incumbent, _, _ = lns.lns_dp(z, incumbent, seconds=heuristic_seconds, verbose=False)
+    design = [tuple(sorted(int(v) for v in g)) for g in incumbent]
+    zeros = np.zeros(n)
+    UB = sum(mx.exact_rc(z, zeros, g) for g in design)
+    stages, proved, nodes_all = [], UB == LB, 0
+    for cap in caps + (None,):
+        if proved:
+            break
+        cand, nwin = _survivors(z, pi, tau, lo, hi, S, m, UB)
+        have = set(cand)
+        cand += [g for g in design if g not in have]
+        cost = {c: mx.exact_rc(z, zeros, c) for c in cand}
+        ts = time.perf_counter()
+        status, nodes, val, better = vn.verify(n, lo, cand, cost, pi, m, tau, UB,
+                                                node_limit=2_000_000_000 if cap is None else cap)
+        nodes_all += nodes
+        stages.append(dict(cap=cap, survivors=len(cand), window=nwin, nodes=nodes, status=status,
+                           improved=better is not None, t=time.perf_counter() - ts))
+        if better is not None:
+            design, UB = [tuple(c) for c in better], val
+        proved = status == 0 or UB == LB
+        if verbose:
+            print(f"  stage cap {cap}: {len(cand)} survivors, {nodes:,} nodes, status {status}, "
+                  f"incumbent {float(UB / Fraction(scale)):.10g}", flush=True)
+    S_ = Fraction(scale)
+    return dict(n=n, scale=scale, lb=down(LB / S_), opt=float(UB / S_), lb_exact=LB / S_, opt_exact=UB / S_,
+                negative_columns=len(neg), proved=proved, stages=stages, verify_nodes=nodes_all,
+                proof=("exact: optimum equals the exact bound" if UB == LB else
+                       f"exact end to end, staged ({len(stages)} stages, {nodes_all:,} search nodes)" if proved else
+                       f"exact search stopped (status {stages[-1]['status']}) after {nodes_all:,} nodes"),
+                t_cg=t_cg, t=time.perf_counter() - t0, design=design)
 
 
 def verify_over_survivors(z, pi, tau, lo, m, cand, OPT, node_limit=5_000_000):
