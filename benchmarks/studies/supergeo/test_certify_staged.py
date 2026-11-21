@@ -167,3 +167,92 @@ def test_the_window_is_built_once_for_the_stages(monkeypatch):
     assert len(calls) == 2
     for a, b in zip(out["stages"], out["stages"][1:]):
         assert b["window"] == a["survivors"]
+
+
+# --- a stated optimality gap ------------------------------------------------------------------------------------------
+
+def _exact_brute(z):
+    """The exact optimum (a Fraction) over every partition into groups of 2 to 4, by recursion on the lowest market."""
+    from itertools import combinations
+    from . import mitm_exact as mx
+    n = len(z); zeros = np.zeros(n); memo = {}
+    def best(U):
+        if not U:
+            return Fraction(0)
+        if U in memo:
+            return memo[U]
+        i = min(U); rest = sorted(U - {i}); out = None
+        for k in (1, 2, 3):
+            for others in combinations(rest, k):
+                g = (i,) + others
+                left = U - set(g)
+                if len(left) == 1:
+                    continue
+                v = mx.exact_rc(z, zeros, g) + best(frozenset(left))
+                if out is None or v < out:
+                    out = v
+        memo[U] = out
+        return out
+    return best(frozenset(range(n)))
+
+
+def _design_cost(z, design):
+    return sum(min((2 * sum(z[g] for t, g in enumerate(c) if mk >> t & 1) - sum(z[g] for g in c)) ** 2
+                   for mk in range(1, (1 << len(c)) - 1)) for c in design)
+
+
+@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 3),
+       gap=st.sampled_from([1e-6, 1e-3, 0.05, 0.3, 0.9]))
+def test_a_gap_certificate_against_brute_force(seed, n, kind, gap):
+    """With gap g the certificate proves that no design costs less than (1 - g) times the design it returns: the
+    brute-force optimum lies between the two, the proven gap is at most g, and the design is a partition costing
+    what it reports."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(seed), n, kind), float)
+    out = ce.certify_staged(z, gap=gap, heuristic_seconds=0.0)
+    want = _exact_brute(z)                        # exact: a gap claims an exact inequality
+    assert out["proved"], out["proof"]
+    assert want <= out["opt_exact"]
+    assert out["opt_exact"] * (1 - Fraction(gap)) <= want
+    assert 0 <= out["gap_proved"] <= gap
+    assert out["lb_proved_exact"] <= want
+    assert sorted(g for c in out["design"] for g in c) == list(range(n))
+    assert abs(_design_cost(z, out["design"]) - out["opt"]) <= 1e-9 * max(1.0, out["opt"])
+
+
+def test_an_exact_certificate_proves_a_zero_gap():
+    z = list(test_bcp._subsets(16, 3))[1]
+    out = ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0)
+    assert out["proved"] and out["gap"] == 0 and out["gap_proved"] == 0 and out["lb_proved_exact"] == out["opt_exact"]
+
+
+def test_a_gap_the_bound_proves_needs_no_exact_search():
+    """The 50-state panel's bound is 0.135 of its optimum. The 1 s heuristic's design costs more than ten times the
+    optimum, so a capped stage runs; once it has improved the design, the bound proves a gap of 0.95 and the exact
+    stage never runs."""
+    Y = pd.read_csv(HERE.parents[2] / "basedata" / "urate_cps.csv", header=None).to_numpy(float)
+    pre = Y[-7:-3].sum(0); z = pre / np.median(np.diff(np.sort(pre)))
+    out = ce.certify_staged(z, gap=0.95, heuristic_seconds=1.0)
+    assert out["proved"] and out["proof"].startswith("within the gap: the bound")
+    assert not any(s["exact"] for s in out["stages"])
+    assert out["gap_proved"] <= 0.95 and out["lb_proved_exact"] == out["lb_exact"]
+
+
+def test_a_gap_eliminates_more_and_searches_less():
+    """With a gap below the bound's own gap the stages still run, but the elimination is at (1 - g) times the
+    incumbent, so the first stage keeps fewer groups, and the proof searches no more nodes."""
+    z = list(test_bcp._subsets(16, 3))[1]
+    kw = dict(incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200,))
+    exact = ce.certify_staged(z, **kw)
+    g = float(0.5 * (exact["opt_exact"] - exact["lb_exact"]) / exact["opt_exact"])
+    loose = ce.certify_staged(z, gap=g, **kw)
+    assert loose["proved"] and loose["stages"]
+    assert loose["stages"][0]["survivors"] < exact["stages"][0]["survivors"]
+    assert loose["stages"][-1]["nodes"] <= exact["stages"][-1]["nodes"]
+    assert loose["gap_proved"] <= g
+
+
+def test_bad_gaps_are_rejected():
+    for g in (-0.1, 1.0, 1.5, "big", float("nan")):
+        with pytest.raises(ValueError):
+            ce.certify_staged(np.arange(1.0, 9.0), gap=g)

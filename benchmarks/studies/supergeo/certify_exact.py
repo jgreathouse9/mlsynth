@@ -155,7 +155,7 @@ def _screen_rows(z, pi, tau, lo, S, m, UB, rows):
 
 
 def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", caps="auto", keep=0.5, workers="auto",
-                   verbose=False):
+                   gap=0.0, verbose=False):
     """The certificate with the elimination redone at every better incumbent and no MIP.
 
     After the root and the exact bound, each stage runs the exact elimination at the incumbent's exact cost and the
@@ -173,7 +173,29 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     max(1, N / 24) (at 72 markets a 3 s heuristic leaves 62,899 first-stage survivors, a 1 s one 947,976).
     workers: threads for the exact stage's search (:func:`.verify_nb.verify`), None for this thread alone, "auto"
     for min(4, CPU count).
-    Returns the keys of :func:`certify` that apply, with `proved`, `proof` and `stages` (one dict per stage)."""
+
+    gap: a relative optimality gap g in [0, 1). The certificate then proves that no design costs less than
+    T = (1 - g) UB, UB the cost of the design returned, so the design is within a factor 1 / (1 - g) of the
+    optimum. The run stops once the exact bound LB has UB - LB <= g UB; until then the elimination keeps the groups
+    that can be in a design costing at most T, and the exact stage searches for designs cheaper than T. If it finds
+    one it finds the optimum, and the proven gap is 0; if not, the proven gap is g. g = 0 is the exact certificate.
+
+    Why a gap: the cost landscape of partitioning problems behaves like a random-cost problem, in which the
+    lowest costs of the M feasible solutions are spaced about 1 / (M p(E_1)) apart, p the density of costs at the
+    optimum, and no method that examines K << M solutions does better than random search among K (Mertens, "A
+    physicist's approach to number partitioning", Theoretical Computer Science 265 (2001) 79-108, section 4; the
+    phase transition behind it: Mertens, "Phase transition in the number partitioning problem", Phys. Rev. Lett. 81
+    (1998) 4281-4284, doi:10.1103/PhysRevLett.81.4281). A bound proves the exact optimum only once it is finer than
+    that spacing, and with M the number of partitions of N markets into groups of 2 to 4 the spacing is far below
+    what a bound from the duals resolves. Mallarapu and Sellke ("Strong low degree hardness for the number
+    partitioning problem", arXiv:2505.20607, 2025) give evidence that brute force is nearly unimprovable at
+    finding such solutions, and Krishnamoorthy, Webb and Moyer ("Lattice-based algorithms for number partitioning
+    in the hard phase", Discrete Optimization 9 (2012) 159-171) treat the regime of unique optima. Measured here on
+    lognormal panels: the bound is within 4e-8 to 8e-8 of the optimum at 64 to 80 markets, where the exact stage
+    takes 3.8 to 80 s on four threads, and within 1.1e-6 of the incumbent at 120 markets, where the exact stage's
+    tree is estimated at 7e21 nodes; with g = 1e-6 no search is needed.
+    Returns the keys of :func:`certify` that apply, with `proved`, `proof`, `stages` (one dict per stage), `gap`,
+    the proven gap `gap_proved` (rounded up) and the proven lower bound `lb_proved` (and `lb_proved_exact`)."""
     n = len(z0); odd = n % 2 == 1
     if workers == "auto":
         workers = min(4, os.cpu_count() or 1)
@@ -188,6 +210,9 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
             raise ValueError(f"caps must be increasing positive node counts, not {caps}")
     if heuristic_seconds == "auto":
         heuristic_seconds = max(1.0, n / 24)
+    if isinstance(gap, bool) or not isinstance(gap, (int, float, Fraction)) or not 0 <= gap < 1:
+        raise ValueError(f"gap must be a number in [0, 1), not {gap!r}")
+    G = Fraction(gap)
     t0 = time.perf_counter()
     z, scale, pi, tau = _root(z0, lo, hi)
     t_cg = time.perf_counter() - t0
@@ -202,13 +227,17 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     def exact_cost(d):
         return sum(mx.exact_rc(z, zeros, g) for g in d)
     UB = exact_cost(design)
-    stages, proved, nodes_all, k = [], UB == LB, 0, 0
+    def within(ub):                                 # the bound alone proves the gap
+        return ub - LB <= G * ub
+    stages, proved, nodes_all, k = [], within(UB), 0, 0
+    lb_proved = LB
     prev = None
     while not proved:
+        T = UB * (1 - G)                            # prove that no design costs less than T
         if prev is None:                            # the one window; later stages screen the last stage's rows
-            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, UB)
+            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, T)
         else:
-            rows, nwin = _screen_rows(z, pi, tau, lo, S, m, UB, prev), len(prev)
+            rows, nwin = _screen_rows(z, pi, tau, lo, S, m, T, prev), len(prev)
         have = {tuple(int(v) for v in r if v >= 0) for r in rows}
         extra = [g for g in design if g not in have]
         if extra:
@@ -236,16 +265,18 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
                 UB, design = better
             stages.append(dict(cap=cap, exact=False, survivors=len(rows), window=nwin, nodes=nodes, status=status,
                                improved=better is not None, t=time.perf_counter() - ts))
-            proved = UB == LB
+            proved = within(UB)
         else:
             cand = [tuple(int(v) for v in r if v >= 0) for r in rows]
             cost = {c: mx.exact_rc(z, zeros, c) for c in cand}
-            status, nodes, val, found = vn.verify(n, lo, cand, cost, pi, m, tau, UB, workers=workers)
+            status, nodes, val, found = vn.verify(n, lo, cand, cost, pi, m, tau, T, workers=workers)
             if found is not None:
                 design, UB = [tuple(c) for c in found], val
+            if status == 0:                         # every design cheaper than T searched: the best of them, or T
+                lb_proved = UB if found is not None else T
             stages.append(dict(cap=None, exact=True, workers=workers, survivors=len(rows), window=nwin, nodes=nodes, status=status,
                                improved=found is not None, t=time.perf_counter() - ts))
-            proved = status == 0 or UB == LB
+            proved = status == 0 or within(UB)
             nodes_all += nodes
             if verbose:
                 print(f"  exact stage: {len(rows)} survivors, {nodes:,} nodes, status {status}", flush=True)
@@ -255,11 +286,23 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
             print(f"  stage cap {cap}: {len(rows)} survivors, {nodes:,} nodes, status {status}, "
                   f"incumbent {float(UB / Fraction(scale)):.10g}", flush=True)
     S_ = Fraction(scale)
+    searched = bool(stages) and stages[-1]["exact"] and stages[-1]["status"] == 0
+    if UB == LB:
+        proof = "exact: optimum equals the exact bound"
+    elif proved and G and not searched:
+        proof = f"within the gap: the bound is within {float(G):g} of the design"
+    elif proved and G:
+        proof = f"within the gap {float(G):g}, staged ({len(stages)} stages, {nodes_all:,} search nodes)"
+    elif proved:
+        proof = f"exact end to end, staged ({len(stages)} stages, {nodes_all:,} search nodes)"
+    else:
+        proof = f"exact search stopped (status {stages[-1]['status']}) after {nodes_all:,} nodes"
+    if UB == LB:
+        lb_proved = LB
+    gp = (UB - lb_proved) / UB if UB > 0 else Fraction(0)
     return dict(n=n, scale=scale, lb=down(LB / S_), opt=float(UB / S_), lb_exact=LB / S_, opt_exact=UB / S_,
-                negative_columns=len(neg), proved=proved, stages=stages, verify_nodes=nodes_all,
-                proof=("exact: optimum equals the exact bound" if UB == LB else
-                       f"exact end to end, staged ({len(stages)} stages, {nodes_all:,} search nodes)" if proved else
-                       f"exact search stopped (status {stages[-1]['status']}) after {nodes_all:,} nodes"),
+                negative_columns=len(neg), proved=proved, stages=stages, verify_nodes=nodes_all, proof=proof,
+                gap=float(G), gap_proved=up(gp), lb_proved=down(lb_proved / S_), lb_proved_exact=lb_proved / S_,
                 t_cg=t_cg, t=time.perf_counter() - t0, design=design)
 
 

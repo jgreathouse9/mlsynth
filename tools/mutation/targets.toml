@@ -18245,6 +18245,35 @@ timeout = 1500.0
   find = "    th = up(UB - S - (Fraction(n, lo) - 1) * m)\n    return rows[ex.members2"
   replace = "    th = up(UB - S - Fraction(n, lo) * m)\n    return rows[ex.members2"
   models = "the later stages' threshold with N / lo copies of m in place of N / lo - 1: a different survivor set from the window's"
+  [[target.mutant]]
+  id = "the-gap-ignored-when-stopping"
+  find = "        return ub - LB <= G * ub"
+  replace = "        return ub == LB"
+  models = "a gap the bound already proves still sends the run to the exact search"
+
+  [[target.mutant]]
+  id = "elimination-at-the-incumbent-not-the-target"
+  find = "            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, T)"
+  replace = "            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, UB)"
+  models = "the first stage keeps every group of a design costing up to the incumbent, not up to (1 - g) times it"
+
+  [[target.mutant]]
+  id = "the-target-at-twice-the-gap"
+  find = "        T = UB * (1 - G)"
+  replace = "        T = UB * (1 - 2 * G)"
+  models = "the search rules out designs below (1 - 2g) UB while the result claims (1 - g) UB"
+
+  [[target.mutant]]
+  id = "the-proven-bound-stays-at-the-root"
+  find = "                lb_proved = UB if found is not None else T"
+  replace = "                lb_proved = LB"
+  models = "a completed exact stage reports the root bound as proven, so the proven gap overstates what remains"
+
+  [[target.mutant]]
+  id = "a-found-design-proves-only-the-target"
+  find = "                lb_proved = UB if found is not None else T"
+  replace = "                lb_proved = T"
+  models = "when the exact stage finds a design below T it has found the optimum, but the proven bound is left at T, above the optimum"
 [[target]]
 name = "supergeo-verify-rows"
 module-path = "benchmarks/studies/supergeo/verify_nb.py"
