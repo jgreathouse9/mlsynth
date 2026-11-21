@@ -145,7 +145,7 @@ def _survivor_rows(z, pi, tau, lo, hi, S, m, UB):
     return W2[ex.members2(z, pi, W2, th, tau, False)], len(W2)
 
 
-def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", caps="auto", verbose=False):
+def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", caps="auto", keep=0.5, verbose=False):
     """The certificate with the elimination redone at every better incumbent and no MIP.
 
     After the root and the exact bound, each stage runs the exact elimination at the incumbent's exact cost and the
@@ -196,7 +196,7 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
             rows = np.vstack([rows, pad])
         last = stages[-1] if stages else None
         if auto:
-            capped = last is None or (last["improved"] and len(rows) <= last["survivors"] / 2)
+            capped = last is None or (last["improved"] and len(rows) <= keep * last["survivors"])
             cap = 300_000 * 3 ** k
         else:
             capped = k < len(caps); cap = caps[k] if capped else None

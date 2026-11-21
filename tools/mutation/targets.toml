@@ -18218,7 +18218,7 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "auto-staging-ignores-the-halving-rule"
-  find = "            capped = last is None or (last[\"improved\"] and len(rows) <= last[\"survivors\"] / 2)"
+  find = "            capped = last is None or (last[\"improved\"] and len(rows) <= keep * last[\"survivors\"])"
   replace = "            capped = last is None or last[\"improved\"]"
   models = "automatic staging continued while the survivors barely shrink: at 80 markets six capped stages took 688 s against 566 s for three"
 
