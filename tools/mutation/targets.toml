@@ -18274,6 +18274,35 @@ timeout = 1500.0
   find = "                lb_proved = UB if found is not None else T"
   replace = "                lb_proved = T"
   models = "when the exact stage finds a design below T it has found the optimum, but the proven bound is left at T, above the optimum"
+  [[target.mutant]]
+  id = "the-standard-not-applied"
+  find = "        return rows if tq is None else rows[ex.members2(z, zeros, rows, tq, 0.0, False)]"
+  replace = "        return rows"
+  models = "groups above the threshold stay among the survivors, so the design can break the standard it reports"
+
+  [[target.mutant]]
+  id = "a-start-that-breaks-the-standard-is-kept"
+  find = "            design = None                           # the start breaks the standard"
+  replace = "            pass"
+  models = "a starting design with a group above the threshold kept as the incumbent and returned when nothing cheaper meets the standard"
+
+  [[target.mutant]]
+  id = "the-gap-shrinks-the-search-before-a-design"
+  find = "        T = UB * (1 - G) if design is not None else UB"
+  replace = "        T = UB * (1 - G)"
+  models = "with no design meeting the standard yet, the search stops short of (N // lo) t and can report infeasible when designs costing more than (1 - g) of it meet the standard"
+
+  [[target.mutant]]
+  id = "the-standard-in-the-rescaled-units"
+  find = "        tq = float(max_group_cost) * scale          # scale is a power of 4: exact"
+  replace = "        tq = float(max_group_cost)"
+  models = "the threshold compared with costs in the certificate's rescaled units: after a rescale the standard admits far fewer groups than asked"
+
+  [[target.mutant]]
+  id = "the-virtual-start-proves-the-gap"
+  find = "        return design is not None and ub - LB <= G * ub"
+  replace = "        return ub - LB <= G * ub"
+  models = "the bound compared with the start value (N // lo) t, which no design is known to reach, and taken as a proof"
 [[target]]
 name = "supergeo-verify-rows"
 module-path = "benchmarks/studies/supergeo/verify_nb.py"

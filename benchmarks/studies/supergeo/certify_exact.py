@@ -155,7 +155,7 @@ def _screen_rows(z, pi, tau, lo, S, m, UB, rows):
 
 
 def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", caps="auto", keep=0.5, workers="auto",
-                   gap=0.0, verbose=False):
+                   gap=0.0, max_group_cost=None, verbose=False):
     """The certificate with the elimination redone at every better incumbent and no MIP.
 
     After the root and the exact bound, each stage runs the exact elimination at the incumbent's exact cost and the
@@ -194,8 +194,20 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     lognormal panels: the bound is within 4e-8 to 8e-8 of the optimum at 64 to 80 markets, where the exact stage
     takes 3.8 to 80 s on four threads, and within 1.1e-6 of the incumbent at 120 markets, where the exact stage's
     tree is estimated at 7e21 nodes; with g = 1e-6 no search is needed.
+    max_group_cost: a balance standard t, in the units of the objective: only groups whose imbalance
+    (2 Z_A - Z_G)^2 is at most t may be used, so no group of the design is badly matched however good the total.
+    Groups above t leave the survivors by the same exact test as the elimination (:func:`.exactnb.members2` with
+    zero duals). The bound stays valid (fewer designs can only raise the optimum). A starting design that breaks
+    the standard is not used: the search starts from (N // lo) t, above the cost of any design that meets it (at
+    most N // lo groups, each at most t), and the gap applies only once a design that meets the standard is known.
+    When no partition meets it the certificate proves that and returns no design: balance checks can rule out
+    every option, as Chen, Longfils and Remy note of rerandomization ("Trimmed Match Design for randomized paired
+    geo experiments", arXiv:2105.07060, section 4.3: "too many balance checks may lead to very few or even no
+    options").
+
     Returns the keys of :func:`certify` that apply, with `proved`, `proof`, `stages` (one dict per stage), `gap`,
-    the proven gap `gap_proved` (rounded up) and the proven lower bound `lb_proved` (and `lb_proved_exact`)."""
+    the proven gap `gap_proved` (rounded up) and the proven lower bound `lb_proved` (and `lb_proved_exact`),
+    `feasible`, and `standard` (None, or the threshold, whether the design meets it and its largest group cost)."""
     n = len(z0); odd = n % 2 == 1
     if workers == "auto":
         workers = min(4, os.cpu_count() or 1)
@@ -213,6 +225,9 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     if isinstance(gap, bool) or not isinstance(gap, (int, float, Fraction)) or not 0 <= gap < 1:
         raise ValueError(f"gap must be a number in [0, 1), not {gap!r}")
     G = Fraction(gap)
+    if max_group_cost is not None and (isinstance(max_group_cost, bool) or not isinstance(max_group_cost, (int, float))
+                                       or not math.isfinite(max_group_cost) or max_group_cost < 0):
+        raise ValueError(f"max_group_cost must be a finite number >= 0 or None, not {max_group_cost!r}")
     t0 = time.perf_counter()
     z, scale, pi, tau = _root(z0, lo, hi)
     t_cg = time.perf_counter() - t0
@@ -226,20 +241,33 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     zeros = np.zeros(n)
     def exact_cost(d):
         return sum(mx.exact_rc(z, zeros, g) for g in d)
-    UB = exact_cost(design)
+    tq = None
+    if max_group_cost is not None:
+        tq = float(max_group_cost) * scale          # scale is a power of 4: exact
+        if Fraction(tq) != Fraction(max_group_cost) * Fraction(scale):  # pragma: no cover - overflow of a power of 4
+            raise ValueError(f"max_group_cost {max_group_cost!r} cannot be scaled exactly")
+        if any(mx.exact_rc(z, zeros, g) > Fraction(tq) for g in design):
+            design = None                           # the start breaks the standard
+    if design is not None:
+        UB = exact_cost(design)
+    else:                                           # above every design that meets the standard
+        UB = Fraction(n // lo) * Fraction(tq) * (1 + Fraction(1, 2 ** 30)) + Fraction(1, 2 ** 30)
     def within(ub):                                 # the bound alone proves the gap
-        return ub - LB <= G * ub
+        return design is not None and ub - LB <= G * ub
+    def standard(rows):
+        return rows if tq is None else rows[ex.members2(z, zeros, rows, tq, 0.0, False)]
     stages, proved, nodes_all, k = [], within(UB), 0, 0
     lb_proved = LB
     prev = None
     while not proved:
-        T = UB * (1 - G)                            # prove that no design costs less than T
+        T = UB * (1 - G) if design is not None else UB   # prove that no design costs less than T
         if prev is None:                            # the one window; later stages screen the last stage's rows
             rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, T)
+            rows = standard(rows)
         else:
             rows, nwin = _screen_rows(z, pi, tau, lo, S, m, T, prev), len(prev)
         have = {tuple(int(v) for v in r if v >= 0) for r in rows}
-        extra = [g for g in design if g not in have]
+        extra = [g for g in design if g not in have] if design is not None else []
         if extra:
             pad = np.full((len(extra), 4), -1, np.int64)
             for j, g in enumerate(extra): pad[j, :len(g)] = g
@@ -287,6 +315,14 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
                   f"incumbent {float(UB / Fraction(scale)):.10g}", flush=True)
     S_ = Fraction(scale)
     searched = bool(stages) and stages[-1]["exact"] and stages[-1]["status"] == 0
+    if design is None:                              # no design meets the standard: proved if the exact stage ended
+        return dict(n=n, scale=scale, lb=down(LB / S_), opt=None, lb_exact=LB / S_, opt_exact=None,
+                    negative_columns=len(neg), proved=searched, stages=stages, verify_nodes=nodes_all,
+                    proof=("no design meets the standard (exact search over the groups within it)" if searched else
+                           f"exact search stopped (status {stages[-1]['status']}) before a design met the standard"),
+                    gap=float(G), gap_proved=None, lb_proved=None, lb_proved_exact=None, feasible=False,
+                    standard=dict(max_group_cost=max_group_cost, met=False, max_group=None),
+                    t_cg=t_cg, t=time.perf_counter() - t0, design=None)
     if UB == LB:
         proof = "exact: optimum equals the exact bound"
     elif proved and G and not searched:
@@ -300,10 +336,14 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     if UB == LB:
         lb_proved = LB
     gp = (UB - lb_proved) / UB if UB > 0 else Fraction(0)
+    std = None
+    if tq is not None:
+        worst = max(mx.exact_rc(z, zeros, tuple(g)) for g in design)
+        std = dict(max_group_cost=max_group_cost, met=worst <= Fraction(tq), max_group=float(worst / S_))
     return dict(n=n, scale=scale, lb=down(LB / S_), opt=float(UB / S_), lb_exact=LB / S_, opt_exact=UB / S_,
                 negative_columns=len(neg), proved=proved, stages=stages, verify_nodes=nodes_all, proof=proof,
                 gap=float(G), gap_proved=up(gp), lb_proved=down(lb_proved / S_), lb_proved_exact=lb_proved / S_,
-                t_cg=t_cg, t=time.perf_counter() - t0, design=design)
+                feasible=True, standard=std, t_cg=t_cg, t=time.perf_counter() - t0, design=design)
 
 
 def verify_over_survivors(z, pi, tau, lo, m, cand, OPT, node_limit=5_000_000):

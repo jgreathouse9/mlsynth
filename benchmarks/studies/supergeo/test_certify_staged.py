@@ -171,8 +171,9 @@ def test_the_window_is_built_once_for_the_stages(monkeypatch):
 
 # --- a stated optimality gap ------------------------------------------------------------------------------------------
 
-def _exact_brute(z):
-    """The exact optimum (a Fraction) over every partition into groups of 2 to 4, by recursion on the lowest market."""
+def _exact_brute(z, t=None):
+    """The exact optimum (a Fraction) over every partition into groups of 2 to 4, by recursion on the lowest market;
+    with t, over partitions whose every group costs at most t (None when there is none)."""
     from itertools import combinations
     from . import mitm_exact as mx
     n = len(z); zeros = np.zeros(n); memo = {}
@@ -188,7 +189,13 @@ def _exact_brute(z):
                 left = U - set(g)
                 if len(left) == 1:
                     continue
-                v = mx.exact_rc(z, zeros, g) + best(frozenset(left))
+                c = mx.exact_rc(z, zeros, g)
+                if t is not None and c > Fraction(t):
+                    continue
+                r = best(frozenset(left))
+                if r is None:
+                    continue
+                v = c + r
                 if out is None or v < out:
                     out = v
         memo[U] = out
@@ -273,3 +280,84 @@ def test_a_design_the_exact_stage_finds_is_proved_optimal():
                 assert out["lb_proved_exact"] == out["opt_exact"] == _exact_brute(z)
                 assert out["gap_proved"] == 0
     assert seen >= 3
+
+
+# --- a balance standard: no group's imbalance above a stated value ---------------------------------------------------
+
+def _group_costs(z):
+    from itertools import combinations
+    from . import mitm_exact as mx
+    n = len(z); zeros = np.zeros(n)
+    return sorted(mx.exact_rc(z, zeros, g) for k in (2, 3, 4) for g in combinations(range(n), k))
+
+
+@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 10), kind=st.integers(0, 3),
+       q=st.sampled_from([0.01, 0.05, 0.2, 0.6]), gap=st.sampled_from([0.0, 1e-3, 0.3]))
+def test_a_balance_standard_against_brute_force(seed, n, kind, q, gap):
+    """With max_group_cost t only groups costing at most t are allowed. When no partition meets the standard the
+    certificate proves that and returns no design; otherwise its design meets the standard and is within the gap of
+    the best design that does (exact brute force over the allowed groups)."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(seed), n, kind), float)
+    costs = _group_costs(z)
+    t = float(costs[int(q * (len(costs) - 1))])               # a threshold some partitions may not meet
+    want = _exact_brute(z, t)
+    out = ce.certify_staged(z, max_group_cost=t, gap=gap, heuristic_seconds=0.0)
+    assert out["proved"], out["proof"]
+    if want is None:
+        assert out["feasible"] is False and out["design"] is None and out["opt"] is None
+        assert out["proof"].startswith("no design meets the standard")
+        return
+    assert out["feasible"] is True and out["standard"]["met"]
+    assert out["standard"]["max_group"] <= t
+    assert want <= out["opt_exact"] and out["opt_exact"] * (1 - Fraction(gap)) <= want
+    assert sorted(g for c in out["design"] for g in c) == list(range(n))
+
+
+def test_a_standard_every_design_meets_changes_nothing():
+    z = list(test_bcp._subsets(16, 3))[1]
+    kw = dict(incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0)
+    free = ce.certify_staged(z, **kw)
+    loose = ce.certify_staged(z, max_group_cost=float(max(_group_costs(np.asarray(z, float)))) * 2, **kw)
+    assert free["standard"] is None and loose["standard"]["met"]
+    assert loose["opt_exact"] == free["opt_exact"] and loose["proved"]
+
+
+def test_a_start_that_breaks_the_standard_is_not_the_incumbent():
+    """The sorted pairs put the two largest markets together; with a threshold below that pair's cost the start
+    breaks the standard, and the certificate searches for a design that meets it instead of returning the start."""
+    rng = np.random.default_rng(9)
+    for _ in range(20):
+        z = np.asarray(test_bcp.gen(rng, 8, 2), float)
+        start = test_bcp._sorted_pairs(z)
+        from . import mitm_exact as mx
+        worst = max(mx.exact_rc(z, np.zeros(8), tuple(sorted(g))) for g in start)
+        t = float(worst) * 0.5
+        want = _exact_brute(z, t)
+        if want is None:
+            continue
+        out = ce.certify_staged(z, incumbent=start, heuristic_seconds=0.0, max_group_cost=t)
+        assert out["proved"] and out["standard"]["met"] and out["opt_exact"] == want
+        return
+    raise AssertionError("no instance with a feasible standard the start breaks")
+
+
+def test_bad_standards_are_rejected():
+    for t in (-1.0, float("nan"), float("inf"), "tight", True):
+        with pytest.raises(ValueError):
+            ce.certify_staged(np.arange(1.0, 9.0), max_group_cost=t)
+
+
+@settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(5, 9), q=st.sampled_from([0.05, 0.2]))
+def test_the_standard_is_in_the_units_of_the_markets(seed, n, q):
+    """Markets times c = 2^-20 (small enough that the certificate rescales them internally) and the threshold times
+    c^2: the same feasibility and the optimum times c^2 exactly."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(seed), n, 2), float)
+    costs = _group_costs(z); t = float(costs[int(q * (len(costs) - 1))]); c = 2.0 ** -20
+    big = ce.certify_staged(z, max_group_cost=t, heuristic_seconds=0.0)
+    small = ce.certify_staged(z * c, max_group_cost=t * c * c, heuristic_seconds=0.0)
+    assert small["scale"] != 1.0
+    assert big["feasible"] == small["feasible"]
+    if big["feasible"]:
+        assert small["opt_exact"] == big["opt_exact"] * Fraction(c) ** 2
