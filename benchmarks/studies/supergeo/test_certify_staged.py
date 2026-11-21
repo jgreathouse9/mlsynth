@@ -361,3 +361,70 @@ def test_the_standard_is_in_the_units_of_the_markets(seed, n, q):
     assert big["feasible"] == small["feasible"]
     if big["feasible"]:
         assert small["opt_exact"] == big["opt_exact"] * Fraction(c) ** 2
+
+
+# --- an absolute gap -------------------------------------------------------------------------------------------------
+
+@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 3),
+       f=st.sampled_from([0.0, 0.01, 0.3, 2.0]), gap=st.sampled_from([0.0, 0.05]))
+def test_an_absolute_gap_against_brute_force(seed, n, kind, f, gap):
+    """With abs_gap d (and gap g) the design costs at most max(g UB, d) more than the optimum (exact brute force),
+    and the proven absolute gap is at most that allowance."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(seed), n, kind), float)
+    want = _exact_brute(z)
+    d = float(f * float(want)) if f < 1 else float(f * float(want) + 1.0)   # from none to more than the optimum
+    out = ce.certify_staged(z, abs_gap=d, gap=gap, heuristic_seconds=0.0)
+    assert out["proved"], out["proof"]
+    allow = max(Fraction(gap) * out["opt_exact"], Fraction(d))
+    assert want <= out["opt_exact"] <= want + allow
+    assert 0 <= out["abs_gap_proved"] and Fraction(out["abs_gap_proved"]) >= out["opt_exact"] - out["lb_proved_exact"]
+    assert out["opt_exact"] - out["lb_proved_exact"] <= allow
+
+
+def _similar(n, seed=2026):
+    pre = np.random.default_rng(seed).normal(100, 10, n)
+    return pre / np.median(np.diff(np.sort(pre)))
+
+
+def test_an_absolute_gap_on_similar_markets_needs_no_exact_search():
+    """Forty similar-sized markets: the bound is a small fraction of the design, so a relative gap of 0.5 needs
+    the exact stage; the absolute gap of the design's own cost is proved by the bound (which is at least 0) once
+    the capped stages are done, with no exact stage."""
+    z = _similar(40)
+    rel = ce.certify_staged(z, gap=0.5, heuristic_seconds=1.0)
+    assert rel["lb"] < 0.5 * rel["opt"]                          # the relative gap is not proved by the bound
+    out = ce.certify_staged(z, abs_gap=rel["opt"] * 1.5 + 1e-9, heuristic_seconds=1.0)
+    assert out["proved"] and out["proof"].startswith("within the gap: the bound")
+    assert not any(s["exact"] for s in out["stages"])
+    assert out["abs_gap_proved"] <= rel["opt"] * 1.5 + 1e-9
+
+
+def test_an_absolute_gap_eliminates_more():
+    z = list(test_bcp._subsets(16, 3))[1]
+    kw = dict(incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200,))
+    exact = ce.certify_staged(z, **kw)
+    d = float(0.5 * (exact["opt_exact"] - exact["lb_exact"]))
+    loose = ce.certify_staged(z, abs_gap=d, **kw)
+    assert loose["proved"] and loose["stages"]
+    assert loose["stages"][0]["survivors"] < exact["stages"][0]["survivors"]
+    assert loose["abs_gap_proved"] <= d * (1 + 1e-12)
+
+
+@settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(5, 9), f=st.sampled_from([0.01, 0.5]))
+def test_the_absolute_gap_is_in_the_units_of_the_markets(seed, n, f):
+    """Markets times c = 2^-20 (the certificate rescales them) and the gap times c^2: the optimum times c^2 and
+    the proven gap within the scaled allowance."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(seed), n, 2), float); c = 2.0 ** -20
+    d = float(f * float(_exact_brute(z)))
+    small = ce.certify_staged(z * c, abs_gap=d * c * c, heuristic_seconds=0.0)
+    assert small["scale"] != 1.0 and small["proved"]
+    want = _exact_brute(z) * Fraction(c) ** 2
+    assert want <= small["opt_exact"] <= want + Fraction(d) * Fraction(c) ** 2
+
+
+def test_bad_absolute_gaps_are_rejected():
+    for d in (-1.0, float("nan"), float("inf"), "small", True):
+        with pytest.raises(ValueError):
+            ce.certify_staged(np.arange(1.0, 9.0), abs_gap=d)
