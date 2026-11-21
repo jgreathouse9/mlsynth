@@ -256,3 +256,20 @@ def test_bad_gaps_are_rejected():
     for g in (-0.1, 1.0, 1.5, "big", float("nan")):
         with pytest.raises(ValueError):
             ce.certify_staged(np.arange(1.0, 9.0), gap=g)
+
+
+def test_a_design_the_exact_stage_finds_is_proved_optimal():
+    """From a poor start with a one-node capped stage the exact stage itself finds the better design. A design it
+    finds below the target is the optimum, so the proven bound is its cost and the proven gap 0, with or without a
+    gap asked for."""
+    rng = np.random.default_rng(4); seen = 0
+    for t in range(12):
+        z = np.asarray(test_bcp.gen(rng, int(rng.integers(6, 12)), t % 4), float)
+        for gap in (0.0, 1e-3):
+            out = ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(1,), gap=gap)
+            last = out["stages"][-1] if out["stages"] else None
+            if last is not None and last["exact"] and last["improved"]:
+                seen += 1
+                assert out["lb_proved_exact"] == out["opt_exact"] == _exact_brute(z)
+                assert out["gap_proved"] == 0
+    assert seen >= 3

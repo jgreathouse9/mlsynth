@@ -101,6 +101,22 @@ Small, shared, no change to the answer when HiGHS behaves. Lands first.
 - Acceptance: optima matching phase 2's MIP and brute force; time on the phase 0
   panels.
 
+### Note for phases 2 and 3: the trajectory cost through a Gram matrix
+
+A group's trajectory cost, the squared distance between its halves' mean paths
+after the best level shift, depends on the data only through inner products of
+the markets' demeaned paths. With the N x N Gram matrix of those paths computed
+once, a group's cost is a quadratic form in a weight vector over its 2 to 4
+markets and the matching block of the matrix: every group scores without
+touching the T periods (the profiled, batched evaluation of the slope-free TBR
+and FDID work). Profiling out a slope as well as the level balances trends and
+keeps the same form. The scalar window of the base problem then has a
+counterpart: project the paths on the Gram matrix's leading eigenvectors, run
+the window in that space, and fold the discarded eigenvalues into the safety
+margin so the elimination stays exact. Totals cannot see trend, seasonality or
+volatility (two markets with equal pretest totals can differ in all three), so
+this is the path from the base problem's machinery to PANGEO's objective.
+
 ### Phase 4: the fast design, certified
 
 - `fast=True` keeps its design as the incumbent; the staged search then improves
