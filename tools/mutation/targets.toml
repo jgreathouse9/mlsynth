@@ -17988,8 +17988,8 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "fixing-reads-a-nodes-duals"
-  find = "            bound, best, scan = self._root_last      # the root's duals: a node's hold only in its subtree"
-  replace = "            bound, best, scan = self._last"
+  find = "            bound, best, scan = self._root_last[:3]  # the root's duals: a node's hold only in its subtree"
+  replace = "            bound, best, scan = self._last[:3]"
   models = "reduced-cost fixing with the duals of whichever node solved last: when the first incumbent is a leaf deep in the tree, those duals price under that node's branching decisions, and a group a better design needs elsewhere is dropped"
 
   [[target.mutant]]
@@ -18045,6 +18045,30 @@ timeout = 1500.0
   find = "                if self.universe is not None:\n                    # a better design puts market i in one universe group"
   replace = "                if False:\n                    # a better design puts market i in one universe group"
   models = "the scan of every group holding the market kept after the universe is fixed: 92% of a 50-state node, and the absolute loss test that leaves an outlier instance to pair branching"
+
+  [[target.mutant]]
+  id = "exact-start-result-discarded"
+  find = "            if val < ub:\n                self.stats[\"start_improved\"] = 1"
+  replace = "            if False:\n                self.stats[\"start_improved\"] = 1"
+  models = "the exact search's cover thrown away: the tree starts from pairs plus repair, 48.9 times the 50-state optimum"
+
+  [[target.mutant]]
+  id = "no-refix-after-the-exact-start"
+  find = "                self._fix(val, found)\n                return val, found"
+  replace = "                return val, found"
+  models = "the exact start's incumbent not used to shrink the universe: the tree runs over the groups fixed at the heuristic's cost"
+
+  [[target.mutant]]
+  id = "exact-start-bound-without-the-minimum-reduced-cost"
+  find = "        m = min([certify_exact.exact_rc_tau(self.z, pi, tau, c) for c in cand] + [Fraction(0)])"
+  replace = "        m = Fraction(0)"
+  models = "the exact search's node bound without the (|U|/lo) m term: it overstates the bound and prunes covers cheaper than the start"
+
+  [[target.mutant]]
+  id = "exact-start-at-every-size"
+  find = "    return \"exact\" if n <= 62 else \"mip\""
+  replace = "    return \"exact\""
+  models = "the exact search dispatched above 62 markets, where its 64-bit masks cannot hold a group"
 
   [[target.mutant]]
   id = "no-refix-after-the-root-mip"

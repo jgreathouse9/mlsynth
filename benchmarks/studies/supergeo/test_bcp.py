@@ -217,7 +217,7 @@ def test_root_mip_improves_a_poor_start():
     and the universe is fixed again at the new incumbent."""
     z = list(_subsets(12, 5))[0]
     start = _sorted_pairs(z)
-    out = _bcp(z).solve(incumbent=start, node_limit=1, root_mip_seconds=30.0)
+    out = _bcp(z).solve(incumbent=start, node_limit=1, root_start="mip", root_mip_seconds=30.0)
     want = brute(z)
     assert abs(out["opt"] - want) <= 1e-9 * want
     assert abs(_valid(z, out["design"], len(z)) - want) <= 1e-9 * want
@@ -233,7 +233,7 @@ def test_root_mip_closes_a_gap_below_the_solver_default():
                   11.0, 9.0, 53.0, 17022.0])
     start = [(12, 15, 16), (0, 6, 17), (1, 2, 3, 9), (4, 7, 8, 19), (5, 10, 14), (11, 13, 18)]
     assert _valid(z, start, 20) == 281971266.0
-    out = _bcp(z).solve(incumbent=start, node_limit=0, root_mip_seconds=60.0)     # no node: only the root MIP
+    out = _bcp(z).solve(incumbent=start, node_limit=0, root_start="mip", root_mip_seconds=60.0)     # no node: only the root MIP
     assert out["opt"] == 281971264.0 == certify_exact.certify(z, verbose=False)["opt"]
 
 
@@ -245,7 +245,7 @@ def test_root_mip_returns_a_partition_no_dearer_than_the_start(seed, n, kind, ar
     2 to 4, costs what the search reports, and costs no more than the start."""
     z = np.asarray(gen(np.random.default_rng(seed), n, kind), float)
     start = _sorted_pairs(z)
-    out = _bcp(z, **_ARMS[arm]).solve(incumbent=start, node_limit=1, root_mip_seconds=budget)
+    out = _bcp(z, **_ARMS[arm]).solve(incumbent=start, node_limit=1, root_start="mip", root_mip_seconds=budget)
     c = _valid(z, out["design"], n)
     assert abs(c - out["opt"]) <= 1e-9 * max(1.0, c)
     assert c <= _valid(z, start, n) * (1 + 1e-12)
@@ -348,3 +348,43 @@ def test_a_master_that_presolve_cannot_solve_is_solved_without_it():
     cuts = [tuple(c) for c in fx["cuts"]]
     out = bcp._master(cols, costs, fx["n"], fx["odd"], cuts, big=float.fromhex(fx["big"]))
     assert abs(out[0] - 17969091942.9903) <= 1e-6 * out[0]
+
+
+# --- the exact search as the root start ----------------------------------------------------------------------------
+
+def test_exact_start_reaches_the_optimum_from_a_poor_start():
+    """12-market subset 0 from sorted pairs: the exact-cover search over the universe returns the optimum before
+    any node, and the universe is fixed again at its cost."""
+    z = list(_subsets(12, 5))[0]
+    out = _bcp(z).solve(incumbent=_sorted_pairs(z), node_limit=0, root_start="exact")
+    want = brute(z)
+    assert abs(out["opt"] - want) <= 1e-9 * want and abs(_valid(z, out["design"], 12) - want) <= 1e-9 * want
+    assert out["start_improved"] and out["universe"] < out["universe_at_fix"]
+
+
+def test_exact_start_closes_a_gap_the_default_mip_gap_does_not():
+    z = np.array([58.0, 50.0, 68.0, 22.0, 76.0, 22.0, 67.0, 77.0, 77.0, 3.0, 33.0, 60.0, 27.0, 7.0, 55.0, 39.0,
+                  11.0, 9.0, 53.0, 17022.0])
+    start = [(12, 15, 16), (0, 6, 17), (1, 2, 3, 9), (4, 7, 8, 19), (5, 10, 14), (11, 13, 18)]
+    out = _bcp(z).solve(incumbent=start, node_limit=0, root_start="exact")
+    assert out["opt"] == 281971264.0
+
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 9), kind=st.integers(0, 3), arm=st.integers(0, 2),
+       cap=st.sampled_from([1, 10**8]))
+def test_exact_start_returns_a_partition_no_dearer_than_the_start(seed, n, kind, arm, cap):
+    """With any node cap, even one too small to finish, the incumbent after the root is a partition into groups
+    of 2 to 4, costs what the search reports, and costs no more than the start."""
+    z = np.asarray(gen(np.random.default_rng(seed), n, kind), float)
+    start = _sorted_pairs(z)
+    out = _bcp(z, **_ARMS[arm]).solve(incumbent=start, node_limit=1, root_start="exact", exact_nodes=cap)
+    c = _valid(z, out["design"], n)
+    assert abs(c - out["opt"]) <= 1e-9 * max(1.0, c)
+    assert c <= _valid(z, start, n) * (1 + 1e-12)
+
+
+def test_the_root_start_follows_the_size_and_rejects_unknown_methods():
+    assert bcp.root_start_for(62) == "exact" and bcp.root_start_for(63) == "mip"
+    with pytest.raises(ValueError):
+        _bcp(np.arange(1.0, 7.0)).solve(root_start="heuristic")

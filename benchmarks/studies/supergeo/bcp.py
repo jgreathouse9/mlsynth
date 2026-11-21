@@ -44,7 +44,9 @@ stops, and the bound of a node is its LP over the universe. Each better incumben
 shrinks the universe again with the same root duals. Above `universe_limit` groups
 nothing is fixed and pricing continues.
 
-Incumbent. With the universe fixed, one set-partitioning MIP over it (HiGHS,
+Incumbent. With the universe fixed, the exact-cover search of :mod:`.verify_nb` over it (to 62 markets,
+`root_start_for`; 40.9 s from pairs plus repair on the 50-state panel, against 120 to 180 s for the MIP),
+or above 62 markets one set-partitioning MIP over it (HiGHS,
 relative and absolute gap 0, warm-started from the start design, at most
 `root_mip_seconds`) gives the incumbent the search begins from, and the universe is
 fixed again at its cost. A best-first search finds a design only where a node LP
@@ -54,10 +56,11 @@ the 50-state panel, unchanged after 30 minutes.
 Floating point throughout. Exactness is the job of :mod:`.certify_exact`, which
 can verify the design this search returns."""
 import heapq, math, time
+from fractions import Fraction
 import numpy as np
 from numba import njit
 import highspy
-from . import sg, dive, sr, bnp, lns, rank1, dsr
+from . import sg, dive, sr, bnp, lns, rank1, dsr, verify_nb, mitm_exact, certify_exact
 
 BIG = 1e7
 GROUP_LIMIT = 64
@@ -66,6 +69,12 @@ GROUP_LIMIT = 64
 #: after 2 LP solves with a zero dual, at most 250 cuts. On 20-market GeoLift subsets it
 #: took 3.2 times fewer nodes than subset-row cuts alone (tuning set) and 2.8 times fewer
 #: on held-out subsets, in 15% and 8% less time.
+def root_start_for(n):
+    """How the starting design is improved after the root: the exact-cover search of :mod:`.verify_nb` holds a
+    group as a 64-bit mask and runs to 62 markets; above that, the set-partitioning MIP."""
+    return "exact" if n <= 62 else "mip"
+
+
 def managed():
     return dict(families=rank1.FAMILIES, purge_after=2, deep_depth=None, max_active=250)
 
@@ -270,7 +279,8 @@ class BCP:
         self.stats.update(purged=0, max_pool=0)
         self.fix_columns, self.universe_limit = fix_columns, universe_limit
         self.universe = None; self._root = None; self._last = None
-        self.stats.update(universe=0, universe_at_fix=0, refixes=0, scans_after_fix=0, root_mip_improved=0, viable_scans=0)
+        self.stats.update(universe=0, universe_at_fix=0, refixes=0, scans_after_fix=0, root_mip_improved=0, viable_scans=0,
+                          start_improved=0, exact_start_nodes=0, exact_start_status=-1)
         self.last_group_branch = None; self._by_market = None
 
     def _QR(self, sigma):
@@ -306,7 +316,7 @@ class BCP:
                 scan = lambda th, cap: _scan_bcp(z_, pi, tau, Q, R, T, self.lo, self.hi, th, cap)
             if new == 0:
                 bound = float(np.sum(pi)) + tau + float(np.sum(sigma)) + (n / self.lo) * min(0.0, best)
-                self._last = (bound, best, scan)
+                self._last = (bound, best, scan, np.array(pi, float), float(tau))
                 return bound, lp, dict(zip(cols, x)), art
 
     def _cg_r1(self, T):
@@ -341,7 +351,7 @@ class BCP:
             if new == 0:
                 bound = (float(np.sum(pi)) + tau + float(sum(sg_ * c.rhs for sg_, c in zip(sigma, self.cuts)))
                          + (n / self.lo) * min(0.0, best))
-                self._last = (bound, best, scan)
+                self._last = (bound, best, scan, np.array(pi, float), float(tau))
                 return bound, lp, dict(zip(cols, x)), art
 
     def _purge(self):
@@ -366,7 +376,7 @@ class BCP:
         if not self.fix_columns or self._root is False:
             return
         if self._root is None:
-            bound, best, scan = self._root_last      # the root's duals: a node's hold only in its subtree
+            bound, best, scan = self._root_last[:3]  # the root's duals: a node's hold only in its subtree
             m_ = min(0.0, best)
             theta = ub - bound + m_ + 1e-9 * max(1.0, abs(ub))
             rows, s_, rc, cnt, _ = scan(theta, self.universe_limit + 1)
@@ -391,6 +401,27 @@ class BCP:
         for c in self.cols:
             for i in c: self._by_market[i].append(c)
         self.stats["universe"] = len(keep)
+
+    def _exact_start(self, ub, design, node_limit):
+        """The exact-cover search over the universe from `design` (:func:`.verify_nb.verify`): exact group costs, the
+        root's market duals, and the exact minimum reduced cost over the universe for its bound. Any cover it
+        returns is a design, so the result is a valid incumbent at any node cap; the tree still does the proof."""
+        _, _, _, pi, tau = self._root_last
+        n = self.n; cand = list(self.cols); zeros = np.zeros(n)
+        tau = tau if self.odd else 0.0
+        cost = {c: mitm_exact.exact_rc(self.z, zeros, c) for c in cand}
+        m = min([certify_exact.exact_rc_tau(self.z, pi, tau, c) for c in cand] + [Fraction(0)])
+        opt = sum(cost[tuple(sorted(int(v) for v in g))] for g in design)
+        status, nodes, _, found = verify_nb.verify(n, self.lo, cand, cost, pi, m, tau, opt, node_limit=node_limit)
+        self.stats["exact_start_nodes"] = nodes; self.stats["exact_start_status"] = status
+        if found is not None:
+            found = [tuple(int(v) for v in c) for c in found]
+            val = sum(dive._sc(self.z, c) for c in found)
+            if val < ub:
+                self.stats["start_improved"] = 1
+                self._fix(val, found)
+                return val, found
+        return ub, design
 
     def _root_mip(self, ub, design, seconds):
         """Set partitioning over the universe from `design`; returns the cheaper of the two and refixes."""
@@ -503,7 +534,13 @@ class BCP:
             kids.append((0.0, T2))
         return kids
 
-    def solve(self, incumbent=None, time_limit=600, node_limit=10**7, heuristic_seconds=0.0, root_mip_seconds=300.0):
+    def solve(self, incumbent=None, time_limit=600, node_limit=10**7, heuristic_seconds=0.0, root_mip_seconds=300.0,
+              root_start="auto", exact_nodes=500_000_000):
+        if root_start not in ("auto", "exact", "mip", "none"):
+            raise ValueError(f"root_start must be auto, exact, mip or none; got {root_start!r}")
+        method = root_start_for(self.n) if root_start == "auto" else root_start
+        if method == "exact" and self.n > 62:
+            raise ValueError(f"the exact search holds a group as a 64-bit mask: at most 62 markets, not {self.n}")
         n = self.n; t0 = time.perf_counter()
         T0 = np.zeros((n, n), np.int8)
         bound, x, art = self.node(T0, np.inf)
@@ -519,7 +556,9 @@ class BCP:
             best_design = [tuple(sorted(int(v) for v in g)) for g in incumbent]
             ub = sum(dive._sc(self.z, g) for g in best_design)
             self._fix(ub, best_design)
-            if self.universe is not None and root_mip_seconds > 0:
+            if self.universe is not None and method == "exact":
+                ub, best_design = self._exact_start(ub, best_design, exact_nodes)
+            elif self.universe is not None and method == "mip" and root_mip_seconds > 0:
                 ub, best_design = self._root_mip(ub, best_design, root_mip_seconds)
         heap = [(bound, 0, T0, (bound, x, art), 0)]; nid = 0; status = "optimal"; last = t0
         while heap:
