@@ -18223,3 +18223,33 @@ timeout = 1200.0
   models = "the elimination threshold without the (N/lo - 1) m term: columns a better design needs are eliminated when m < 0"
   expected = "survived"
   accepted-because = "equivalent in practice: the certificate runs column generation to convergence, so the exact minimum reduced cost m is 0 up to rounding (-6.7e-9 at 210 markets) and the term moves the threshold by under 1e-7 relative; no group of any test instance lies in that band. The term stays because the elimination is valid only with it."
+
+[[target]]
+name = "supergeo-verify-wide"
+module-path = "benchmarks/studies/supergeo/verify_nb.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k \"several_words or seventy\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-market-in-the-wrong-bit"
+  find = "            for g in c: masks[j, g // B] |= np.int64(1) << (g % B)"
+  replace = "            for g in c: masks[j, g // B] |= np.int64(1) << ((g + 1) % B)"
+  models = "markets mapped to the wrong bit of their word: two markets share a bit, and covers that overlap pass as exact"
+
+  [[target.mutant]]
+  id = "branching-scans-the-first-word-only"
+  find = "        bestc = 1 << 30; gb = -1\n        for w in range(W):\n            x = U1[w]"
+  replace = "        bestc = 1 << 30; gb = -1\n        for w in range(1):\n            x = U1[w]"
+  models = "the fewest-columns market chosen among the first word's markets alone: once those are covered no market is chosen and the branch is lost"
+
+  [[target.mutant]]
+  id = "the-bound-counts-the-first-word-only"
+  find = "            cnt += _popcount(U1[w])"
+  replace = "            cnt += _popcount(U1[w]) if w == 0 else 0"
+  models = "the node bound with |U| from the first word: (|U|/lo) m with m <= 0 is too small a correction, the bound too high, and nodes holding the optimum are pruned"
+
+  [[target.mutant]]
+  id = "a-cover-judged-by-the-first-word"
+  find = "            if U1[w] != 0: empty = False"
+  replace = "            if U1[w] != 0 and w == 0: empty = False"
+  models = "a partial cover recorded as complete once the first word's markets are covered"

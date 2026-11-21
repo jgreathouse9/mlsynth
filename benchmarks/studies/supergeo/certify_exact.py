@@ -153,8 +153,6 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=1.0, caps=(
     caps: increasing positive node caps for the stages before the final one. Returns the keys of
     :func:`certify` that apply, with `proved`, `proof` and `stages` (one dict per stage)."""
     n = len(z0); odd = n % 2 == 1
-    if n > 62:
-        raise ValueError(f"the exact search holds a group as a 64-bit mask: at most 62 markets, not {n}")
     caps = tuple(int(c) for c in caps)
     if any(c < 1 for c in caps) or any(b <= a for a, b in zip(caps, caps[1:])):
         raise ValueError(f"caps must be increasing positive node counts, not {caps}")

@@ -44,9 +44,9 @@ stops, and the bound of a node is its LP over the universe. Each better incumben
 shrinks the universe again with the same root duals. Above `universe_limit` groups
 nothing is fixed and pricing continues.
 
-Incumbent. With the universe fixed, the exact-cover search of :mod:`.verify_nb` over it (to 62 markets,
-`root_start_for`; 40.9 s from pairs plus repair on the 50-state panel, against 120 to 180 s for the MIP),
-or above 62 markets one set-partitioning MIP over it (HiGHS,
+Incumbent. With the universe fixed, the exact-cover search of :mod:`.verify_nb` over it (by default to 62
+markets, `root_start_for`; 40.9 s from pairs plus repair on the 50-state panel, against 120 to 180 s for the
+MIP), or by default above 62 markets one set-partitioning MIP over it (HiGHS,
 relative and absolute gap 0, warm-started from the start design, at most
 `root_mip_seconds`) gives the incumbent the search begins from, and the universe is
 fixed again at its cost. A best-first search finds a design only where a node LP
@@ -70,8 +70,10 @@ GROUP_LIMIT = 64
 #: took 3.2 times fewer nodes than subset-row cuts alone (tuning set) and 2.8 times fewer
 #: on held-out subsets, in 15% and 8% less time.
 def root_start_for(n):
-    """How the starting design is improved after the root: the exact-cover search of :mod:`.verify_nb` holds a
-    group as a 64-bit mask and runs to 62 markets; above that, the set-partitioning MIP."""
+    """How the starting design is improved after the root under root_start="auto": the exact-cover search of
+    :mod:`.verify_nb` to 62 markets, where it is measured (40.9 s on the 50-state panel against 120 to 180 s for
+    the MIP); above that the set-partitioning MIP, until the exact start is measured there. The search itself
+    runs at any size (several 63-bit words per group above 62 markets)."""
     return "exact" if n <= 62 else "mip"
 
 
@@ -570,8 +572,6 @@ class BCP:
         if root_start not in ("auto", "exact", "mip", "none"):
             raise ValueError(f"root_start must be auto, exact, mip or none; got {root_start!r}")
         method = root_start_for(self.n) if root_start == "auto" else root_start
-        if method == "exact" and self.n > 62:
-            raise ValueError(f"the exact search holds a group as a 64-bit mask: at most 62 markets, not {self.n}")
         n = self.n; t0 = time.perf_counter()
         T0 = np.zeros((n, n), np.int8)
         bound, x, art = self.node(T0, np.inf)

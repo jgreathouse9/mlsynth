@@ -128,17 +128,130 @@ def _search(n, lo, masks, cost, pisum, odd, gptr, gcols, pi, m, tau, opt_up, g2,
     return status, nodes, best, cands[:nc]
 
 
-def verify(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit=2_000_000_000, cand_cap=200_000):
+@njit(cache=True)
+def _fits(masks, col, U, W):
+    """Whether column col (W words) lies inside the uncovered set U."""
+    for w in range(W):
+        q = masks[col, w]
+        if q & U[w] != q:
+            return False
+    return True
+
+
+@njit(cache=True)
+def _search_w(n, B, W, lo, masks, cost, pisum, odd, gptr, gcols, pi, m, tau, opt_up, g2, absA0, node_limit, cand_cap,
+              plen_cap):
+    """_search with the uncovered set and every column held as W words of B bits (market i in word i // B, bit
+    i % B; B <= 63 keeps the sign bit clear). Markets are scanned in increasing order across the words and ties
+    break as in _search, so the two walk the same tree."""
+    maxd = n // 2 + 2
+    Ud = np.zeros((maxd, W), np.int64); Pd = np.zeros(maxd); Sd = np.zeros(maxd); Od = np.zeros(maxd, np.bool_)
+    Gd = np.zeros(maxd, np.int64); Kd = np.zeros(maxd, np.int64); path = np.zeros(maxd, np.int64)
+    cands = np.full((cand_cap, plen_cap), -1, np.int64); nc = 0
+    best = opt_up
+    S0 = 0.0
+    for i in range(n): S0 += pi[i]
+    nodes = 0; status = 0
+    for w in range(W):
+        Ud[0, w] = (np.int64(1) << min(B, n - w * B)) - 1
+    Pd[0] = 0.0; Sd[0] = S0; Od[0] = False
+    bestc = 1 << 30; g0 = -1
+    for i in range(n):
+        c = 0
+        for p in range(gptr[i], gptr[i + 1]):
+            if _fits(masks, gcols[p], Ud[0], W): c += 1
+        if c < bestc: bestc = c; g0 = i
+    if bestc == 0:
+        return status, nodes, best, cands[:0]
+    Gd[0] = g0; Kd[0] = gptr[g0]
+    depth = 0
+    U1 = np.zeros(W, np.int64)
+    while depth >= 0:
+        g = Gd[depth]
+        if Kd[depth] >= gptr[g + 1]:
+            depth -= 1
+            continue
+        col = gcols[Kd[depth]]; Kd[depth] += 1
+        if not _fits(masks, col, Ud[depth], W):
+            continue
+        nodes += 1
+        if nodes > node_limit:
+            status = 1; break
+        empty = True; cnt = 0
+        for w in range(W):
+            U1[w] = Ud[depth, w] & ~masks[col, w]
+            if U1[w] != 0: empty = False
+            cnt += _popcount(U1[w])
+        P1 = Pd[depth] + cost[col]
+        S1 = Sd[depth] - pisum[col]
+        O1 = Od[depth] or odd[col]
+        path[depth] = col
+        A = P1 + absA0
+        err = g2 * A
+        if empty:
+            if P1 - err < best:
+                if nc >= cand_cap:
+                    status = 2; break
+                for t in range(depth + 1):
+                    cands[nc, t] = path[t]
+                nc += 1
+                if P1 + err < best:
+                    best = P1 + err
+            continue
+        lb = P1 + S1 + (cnt / lo) * m
+        if (n % 2 == 1) and not O1:
+            lb += tau
+        if lb - err >= best:
+            continue
+        bestc = 1 << 30; gb = -1
+        for w in range(W):
+            x = U1[w]
+            while x:
+                low = x & -x
+                ib = 0
+                y = low
+                while y > 1:
+                    y >>= 1; ib += 1
+                x ^= low
+                i = w * B + ib
+                c = 0
+                for p in range(gptr[i], gptr[i + 1]):
+                    if _fits(masks, gcols[p], U1, W):
+                        c += 1
+                        if c >= bestc: break
+                if c < bestc:
+                    bestc = c; gb = i
+                    if c == 0: break
+            if bestc == 0: break
+        if bestc == 0:
+            continue
+        depth += 1
+        for w in range(W): Ud[depth, w] = U1[w]
+        Pd[depth] = P1; Sd[depth] = S1; Od[depth] = O1
+        Gd[depth] = gb; Kd[depth] = gptr[gb]
+    return status, nodes, best, cands[:nc]
+
+
+def verify(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit=2_000_000_000, cand_cap=200_000, bits=None):
     """Exact optimum over exact covers by the columns `cand` (tuples of geos).
     exact_cost: dict tuple -> Fraction. pi: doubles. m <= 0, OPT: Fractions; tau: double.
-    Returns (status, nodes, exact optimum, design)."""
-    assert n <= 62
+    Returns (status, nodes, exact optimum, design). Up to 62 markets a column is one 64-bit mask; above that, or
+    when `bits` is given (the tests force small words), it is ceil(n / bits) words of `bits` <= 63 markets."""
     C = len(cand)
-    masks = np.zeros(C, np.int64); cost = np.zeros(C); pisum = np.zeros(C); odd = np.zeros(C, np.bool_)
+    wide = n > 62 or bits is not None
+    B = 63 if bits is None else int(bits)
+    if wide and not 1 <= B <= 63:
+        raise ValueError(f"bits must be 1 to 63, not {bits}")
+    W = -(-n // B) if wide else 1
+    masks = np.zeros((C, W) if wide else C, np.int64); cost = np.zeros(C); pisum = np.zeros(C); odd = np.zeros(C, np.bool_)
     for j, c in enumerate(cand):
-        mk = 0
-        for g in c: mk |= 1 << g
-        masks[j] = mk; cost[j] = float(exact_cost[c]); pisum[j] = sum(float(pi[g]) for g in c); odd[j] = len(c) % 2 == 1
+        if wide:
+            for g in c: masks[j, g // B] |= np.int64(1) << (g % B)
+        else:
+            mk = 0
+            for g in c: mk |= 1 << g
+            masks[j] = mk
+        cost[j] = float(exact_cost[c]); pisum[j] = sum(float(pi[g]) for g in c); odd[j] = len(c) % 2 == 1
     lists = [[] for _ in range(n)]
     for j, c in enumerate(cand):
         for g in c: lists[g].append(j)
@@ -150,8 +263,13 @@ def verify(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit=2_000_000_000, c
     g2 = 2.0 * gamma(2 * n + 8) + 4 * U
     of = float(OPT); opt_up = of if Fraction(of) >= OPT else math.nextafter(of, math.inf)
     opt_up = opt_up + g2 * (opt_up + absA0)                 # the incumbent's value carries the same margin
-    status, nodes, best, cands = _search(n, float(lo), masks, cost, pisum, odd, gptr, gcols, np.asarray(pi, float),
-                                         float(m), float(tau), opt_up, g2, absA0, node_limit, cand_cap, n // 2 + 2)
+    if wide:
+        status, nodes, best, cands = _search_w(n, B, W, float(lo), masks, cost, pisum, odd, gptr, gcols,
+                                               np.asarray(pi, float), float(m), float(tau), opt_up, g2, absA0,
+                                               node_limit, cand_cap, n // 2 + 2)
+    else:
+        status, nodes, best, cands = _search(n, float(lo), masks, cost, pisum, odd, gptr, gcols, np.asarray(pi, float),
+                                             float(m), float(tau), opt_up, g2, absA0, node_limit, cand_cap, n // 2 + 2)
     best_val, best_design = OPT, None
     for row in cands:
         design = tuple(cand[j] for j in row if j >= 0)

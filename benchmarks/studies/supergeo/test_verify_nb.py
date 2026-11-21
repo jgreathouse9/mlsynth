@@ -146,3 +146,68 @@ def test_mutant_witness(name):
     m = min(min(cost[c] - sum(Fraction(float(pi[g])) for g in c) - (T_ if len(c) % 2 else 0) for c in cand), Fraction(0))
     status, nodes, val, design = vn.verify(n, 2, cand, cost, pi, m, tau, Fraction(w["incumbent"]))
     assert status == 0 and val == Fraction(w["truth"]) == brute(n, cand, cost)
+
+
+# --- more than 62 markets: the uncovered set across several words ---------------------------------------------------
+
+def _case(rng, n, kind, dens, pi_scale):
+    z = gen(rng, n, kind)
+    pi = rng.normal(0, pi_scale, n) if pi_scale else np.zeros(n)
+    tau = float(rng.uniform(0, 2)) if n % 2 else 0.0
+    cand = [c for k in (2, 3, 4) for c in itertools.combinations(range(n), k) if rng.random() < dens]
+    cost = {c: exact_score(z, c) for c in cand}
+    T = Fraction(tau)
+    m = min([cost[c] - sum(Fraction(float(pi[g])) for g in c) - (T if len(c) % 2 else 0) for c in cand] + [Fraction(0)])
+    return z, pi, tau, cand, cost, m
+
+
+@settings(max_examples=150, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 2), dens=st.floats(0.3, 1.0),
+       bits=st.integers(3, 5))
+def test_several_words_search_exactly_as_one(seed, n, kind, dens, bits):
+    """The multi-word search with `bits` markets per word walks the same tree as the one-word search: the same
+    status, node count and optimum, and the optimum is the brute-force one."""
+    rng = np.random.default_rng(seed)
+    z, pi, tau, cand, cost, m = _case(rng, n, kind, dens, 3.0 if seed % 2 else 0.0)
+    cover = any_cover(n, cand, cost, rng)
+    if cover is None:
+        return
+    OPT = sum(cost[c] for c in cover)
+    one = vn.verify(n, 2, cand, cost, pi, m, tau, OPT)
+    many = vn.verify(n, 2, cand, cost, pi, m, tau, OPT, bits=bits)
+    assert one[:3] == many[:3]
+    assert many[2] == brute(n, cand, cost)
+
+
+def _random_partition(rng, idx):
+    """A partition of idx into groups of 2 to 4 (sizes drawn until they add up)."""
+    idx = list(rng.permutation(idx)); out = []
+    while idx:
+        left = len(idx)
+        k = left if left <= 4 else int(rng.choice([s for s in (2, 3, 4) if left - s == 0 or left - s >= 2]))
+        out.append(tuple(sorted(int(v) for v in idx[:k]))); idx = idx[k:]
+    return out
+
+
+def test_seventy_markets_in_separate_blocks():
+    """70 markets whose candidate groups come from three random partitions of each block of 10, so an exact cover
+    is a cover of each block, each block has a handful of covers, and the optimum is the sum of the blocks'
+    brute-force optima. Markets 63 to 69 sit in the second word."""
+    rng = np.random.default_rng(7); n = 70
+    z = gen(rng, n, 2); pi = np.zeros(n)
+    cand = []
+    for b in range(7):
+        idx = list(range(10 * b, 10 * b + 10))
+        for _ in range(3):
+            cand += [g for g in _random_partition(rng, idx) if g not in cand]
+    cost = {c: exact_score(z, c) for c in cand}
+    want = Fraction(0)
+    for b in range(7):
+        idx = list(range(10 * b, 10 * b + 10)); sub = [c for c in cand if c[0] in idx]
+        sc = {tuple(g - 10 * b for g in c): cost[c] for c in sub}
+        want += brute(10, list(sc), sc)
+    cover = any_cover(n, cand, cost, rng)
+    status, nodes, val, design = vn.verify(n, 2, cand, cost, pi, Fraction(0), 0.0, sum(cost[c] for c in cover))
+    assert status == 0 and val == want
+    design = design if design is not None else cover          # None: the starting cover was already optimal
+    assert sorted(g for c in design for g in c) == list(range(n))

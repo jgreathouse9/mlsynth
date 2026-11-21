@@ -66,8 +66,6 @@ def test_the_50_state_optimum():
 
 def test_bad_input_is_rejected():
     with pytest.raises(ValueError):
-        ce.certify_staged(np.arange(1.0, 64.0))
-    with pytest.raises(ValueError):
         ce.certify_staged(np.arange(1.0, 9.0), caps=(1000, 10))
     with pytest.raises(ValueError):
         ce.certify_staged(np.arange(1.0, 9.0), caps=(0,))
