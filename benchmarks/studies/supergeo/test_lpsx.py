@@ -143,3 +143,12 @@ def test_artificials_priced_too_low_are_raised_until_a_feasible_master_drops_the
     cols = [(0, 1), (2, 3), (0, 2), (1, 3)]; costs = np.array([1e12, 1e12, 2e12, 2e12])
     r = lpsx.Master(cols, costs, 4, False, factor=1e-9).solve(np.ones(4, bool), [])
     assert r.art <= 1e-9 and abs(r.lp - 2e12) <= 1e-9 * 2e12
+
+
+def test_the_primal_step_stops_at_a_forbidden_basic_columns_bound():
+    """min -x2 s.t. x1 - x2 = 0 with x1 forbidden (u = 0) and basic at 0: x2 entering would raise x1, so the
+    ratio test blocks the step at 0 and x1 leaves at its bound. Without that bound the step looks unbounded."""
+    A = np.array([[1.0, -1.0]]); b = np.array([0.0]); c = np.array([0.0, -1.0])
+    allowed = np.array([False, True]); basis = np.array([0], np.int64); Binv = np.array([[1.0]])
+    status, piv = lpsx._primal(A, b, c, allowed, basis, Binv)
+    assert status == 0 and basis[0] == 1
