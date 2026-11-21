@@ -18247,8 +18247,8 @@ timeout = 1500.0
   models = "the later stages' threshold with N / lo copies of m in place of N / lo - 1: a different survivor set from the window's"
   [[target.mutant]]
   id = "the-gap-ignored-when-stopping"
-  find = "        return ub - LB <= G * ub"
-  replace = "        return ub == LB"
+  find = "        return design is not None and ub - LB <= G * ub"
+  replace = "        return design is not None and ub == LB"
   models = "a gap the bound already proves still sends the run to the exact search"
 
   [[target.mutant]]
