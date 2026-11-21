@@ -428,3 +428,27 @@ def test_bad_absolute_gaps_are_rejected():
     for d in (-1.0, float("nan"), float("inf"), "small", True):
         with pytest.raises(ValueError):
             ce.certify_staged(np.arange(1.0, 9.0), abs_gap=d)
+
+
+def test_a_large_gap_does_not_shrink_the_search_for_a_design_that_meets_the_standard():
+    """Until a design meets the standard the search starts from (N // lo) t with no gap applied. With g = 0.9 and
+    every allowed design costing more than (1 - g) (N // lo) t, a search shrunk by the gap finds none of them and
+    would report the standard infeasible."""
+    rng = np.random.default_rng(13); g = 0.9; seen = 0
+    from . import mitm_exact as mx
+    for _ in range(60):
+        n = int(rng.integers(6, 11)); z = np.asarray(test_bcp.gen(rng, n, 2), float)
+        start = test_bcp._sorted_pairs(z)
+        costs = _group_costs(z)
+        for q in (0.05, 0.1, 0.2):
+            t = float(costs[int(q * (len(costs) - 1))])
+            want = _exact_brute(z, t)
+            if want is None or want <= (1 - Fraction(g)) * (n // 2) * Fraction(t):
+                continue
+            if all(mx.exact_rc(z, np.zeros(n), tuple(sorted(c))) <= Fraction(t) for c in start):
+                continue                                  # the start meets the standard: not this case
+            out = ce.certify_staged(z, incumbent=start, heuristic_seconds=0.0, max_group_cost=t, gap=g)
+            assert out["proved"] and out["feasible"], out["proof"]
+            assert want <= out["opt_exact"] and out["opt_exact"] * (1 - Fraction(g)) <= want
+            seen += 1
+    assert seen >= 3
