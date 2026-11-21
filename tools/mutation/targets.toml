@@ -18200,14 +18200,14 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "survivors-fixed-at-the-first-incumbent"
-  find = "        rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, UB)"
-  replace = "        if not stages: UB0 = UB\n        rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, UB0)"
+  find = "        T = UB * (1 - G)"
+  replace = "        T = UB * (1 - G) if not stages else T"
   models = "the elimination run once at the starting design's cost: every stage searches the same survivors, 3,284 on the 50-state panel where 549 remain at the third stage's incumbent"
 
   [[target.mutant]]
   id = "a-float-stage-claims-the-proof"
-  find = "            proved = UB == LB\n        else:"
-  replace = "            proved = UB == LB or status == 0\n        else:"
+  find = "            proved = within(UB)\n        else:"
+  replace = "            proved = within(UB) or status == 0\n        else:"
   models = "a capped stage on floating-point scores that completes taken as the proof: its search ran on rounded costs with a margin built for exact inputs"
 
   [[target.mutant]]
