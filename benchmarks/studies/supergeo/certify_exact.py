@@ -137,25 +137,40 @@ def certify(z0, lo=2, hi=4, incumbent=None, mip_limit=600, verbose=True):
     return out
 
 
-def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=1.0, caps=(300_000, 1_000_000, 3_000_000),
-                   verbose=False):
+def _survivor_rows(z, pi, tau, lo, hi, S, m, UB):
+    """As _survivors, as the window's rows (indices padded with -1) that pass the exact test."""
+    n = len(z)
+    th = up(UB - S - (Fraction(n, lo) - 1) * m)
+    W2 = safe_window(z, pi, lo, hi, th + tau)
+    return W2[ex.members2(z, pi, W2, th, tau, False)], len(W2)
+
+
+def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", caps="auto", verbose=False):
     """The certificate with the elimination redone at every better incumbent and no MIP.
 
-    After the root and the exact bound, each stage runs the exact elimination at the incumbent's exact cost and
-    the exact-cover search of :mod:`.verify_nb` over the survivors, from the incumbent, stopping after the stage's
-    node cap; its best cover becomes the incumbent, so the next stage's survivors are fewer. A final stage has no
-    cap. A stage that completes proves its result optimal: the search covered every exact cover by columns that
-    can be in a design costing at most the incumbent it started from. On the 50-state panel, from a 1 s
-    heuristic 95 times the optimum, the survivors went 4,629, 941, 549 and the last stage completed after 1.6
-    million nodes; the single-threshold certificate searched 3,284 survivors from a 48.9-times design for 39
-    million nodes.
+    After the root and the exact bound, each stage runs the exact elimination at the incumbent's exact cost and the
+    exact-cover search over the survivors from the incumbent. A capped stage searches on floating-point scores
+    (:func:`.verify_nb.verify_rows`) up to its node cap and only supplies incumbents: its covers are re-costed
+    exactly and it proves nothing. The last stage searches on exact costs with no cap, and its completion is the
+    proof: it covered every exact cover by columns that can be in a design costing at most the incumbent it started
+    from.
 
-    caps: increasing positive node caps for the stages before the final one. Returns the keys of
-    :func:`certify` that apply, with `proved`, `proof` and `stages` (one dict per stage)."""
+    caps: increasing positive node caps for the capped stages, or "auto": caps of 300,000 times 3^k, and staging
+    stops, for the exact stage, once a stage does not improve the incumbent or the next survivors are more than
+    half of the last (more capped stages past that point repeat the top of the tree: at 80 markets six of them
+    took 688 s against 566 s for three). heuristic_seconds: the pairs-plus-repair budget, "auto" being
+    max(1, N / 24) (at 72 markets a 3 s heuristic leaves 62,899 first-stage survivors, a 1 s one 947,976).
+    Returns the keys of :func:`certify` that apply, with `proved`, `proof` and `stages` (one dict per stage)."""
     n = len(z0); odd = n % 2 == 1
-    caps = tuple(int(c) for c in caps)
-    if any(c < 1 for c in caps) or any(b <= a for a, b in zip(caps, caps[1:])):
-        raise ValueError(f"caps must be increasing positive node counts, not {caps}")
+    auto = isinstance(caps, str)
+    if auto and caps != "auto":
+        raise ValueError(f"caps must be a tuple of node counts or 'auto', not {caps!r}")
+    if not auto:
+        caps = tuple(int(c) for c in caps)
+        if any(c < 1 for c in caps) or any(b <= a for a, b in zip(caps, caps[1:])):
+            raise ValueError(f"caps must be increasing positive node counts, not {caps}")
+    if heuristic_seconds == "auto":
+        heuristic_seconds = max(1.0, n / 24)
     t0 = time.perf_counter()
     z, scale, pi, tau = _root(z0, lo, hi)
     t_cg = time.perf_counter() - t0
@@ -167,26 +182,55 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=1.0, caps=(
             incumbent, _, _ = lns.lns_dp(z, incumbent, seconds=heuristic_seconds, verbose=False)
     design = [tuple(sorted(int(v) for v in g)) for g in incumbent]
     zeros = np.zeros(n)
-    UB = sum(mx.exact_rc(z, zeros, g) for g in design)
-    stages, proved, nodes_all = [], UB == LB, 0
-    for cap in caps + (None,):
-        if proved:
-            break
-        cand, nwin = _survivors(z, pi, tau, lo, hi, S, m, UB)
-        have = set(cand)
-        cand += [g for g in design if g not in have]
-        cost = {c: mx.exact_rc(z, zeros, c) for c in cand}
+    def exact_cost(d):
+        return sum(mx.exact_rc(z, zeros, g) for g in d)
+    UB = exact_cost(design)
+    stages, proved, nodes_all, k = [], UB == LB, 0, 0
+    while not proved:
+        rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, UB)
+        have = {tuple(int(v) for v in r if v >= 0) for r in rows}
+        extra = [g for g in design if g not in have]
+        if extra:
+            pad = np.full((len(extra), 4), -1, np.int64)
+            for j, g in enumerate(extra): pad[j, :len(g)] = g
+            rows = np.vstack([rows, pad])
+        last = stages[-1] if stages else None
+        if auto:
+            capped = last is None or (last["improved"] and len(rows) <= last["survivors"] / 2)
+            cap = 300_000 * 3 ** k
+        else:
+            capped = k < len(caps); cap = caps[k] if capped else None
         ts = time.perf_counter()
-        status, nodes, val, better = vn.verify(n, lo, cand, cost, pi, m, tau, UB,
-                                                node_limit=2_000_000_000 if cap is None else cap)
-        nodes_all += nodes
-        stages.append(dict(cap=cap, survivors=len(cand), window=nwin, nodes=nodes, status=status,
-                           improved=better is not None, t=time.perf_counter() - ts))
-        if better is not None:
-            design, UB = [tuple(c) for c in better], val
-        proved = status == 0 or UB == LB
+        if capped:
+            sc = sg.scores(z, rows)
+            status, nodes, covers = vn.verify_rows(n, lo, rows, sc, pi, float(m), tau, float(UB), node_limit=cap)
+            better = None
+            for r in covers:
+                d = [tuple(int(v) for v in rows[j] if v >= 0) for j in r]
+                c = exact_cost(d)
+                if c < UB and (better is None or c < better[0]):
+                    better = (c, d)
+            if better is not None:
+                UB, design = better
+            stages.append(dict(cap=cap, exact=False, survivors=len(rows), window=nwin, nodes=nodes, status=status,
+                               improved=better is not None, t=time.perf_counter() - ts))
+            proved = UB == LB
+        else:
+            cand = [tuple(int(v) for v in r if v >= 0) for r in rows]
+            cost = {c: mx.exact_rc(z, zeros, c) for c in cand}
+            status, nodes, val, found = vn.verify(n, lo, cand, cost, pi, m, tau, UB)
+            if found is not None:
+                design, UB = [tuple(c) for c in found], val
+            stages.append(dict(cap=None, exact=True, survivors=len(rows), window=nwin, nodes=nodes, status=status,
+                               improved=found is not None, t=time.perf_counter() - ts))
+            proved = status == 0 or UB == LB
+            nodes_all += nodes
+            if verbose:
+                print(f"  exact stage: {len(rows)} survivors, {nodes:,} nodes, status {status}", flush=True)
+            break
+        nodes_all += nodes; k += 1
         if verbose:
-            print(f"  stage cap {cap}: {len(cand)} survivors, {nodes:,} nodes, status {status}, "
+            print(f"  stage cap {cap}: {len(rows)} survivors, {nodes:,} nodes, status {status}, "
                   f"incumbent {float(UB / Fraction(scale)):.10g}", flush=True)
     S_ = Fraction(scale)
     return dict(n=n, scale=scale, lb=down(LB / S_), opt=float(UB / S_), lb_exact=LB / S_, opt_exact=UB / S_,

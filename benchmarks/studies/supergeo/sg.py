@@ -269,3 +269,16 @@ def run_lp(h):
         h.setOptionValue("presolve", "off"); h.clearSolver(); h.run()
         st = h.modelStatusToString(h.getModelStatus())
     return st
+
+
+@njit(cache=True)
+def scores(z, rows):
+    """Each row's score (indices padded with -1) in floating point, as _score computes it."""
+    out = np.empty(rows.shape[0]); idx = np.empty(4, np.int64)
+    for t in range(rows.shape[0]):
+        k = 0
+        for q in range(4):
+            if rows[t, q] >= 0:
+                idx[k] = rows[t, q]; k += 1
+        out[t] = _score(z, idx, k)
+    return out

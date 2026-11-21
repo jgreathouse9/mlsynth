@@ -211,3 +211,24 @@ def test_seventy_markets_in_separate_blocks():
     assert status == 0 and val == want
     design = design if design is not None else cover          # None: the starting cover was already optimal
     assert sorted(g for c in design for g in c) == list(range(n))
+
+
+@settings(max_examples=80, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 2), dens=st.floats(0.3, 1.0))
+def test_rows_search_finds_the_same_optimum(seed, n, kind, dens):
+    """verify_rows takes the survivors as an index array and float costs (the capped stages' search) and returns
+    every cover it records, as row indices; run to completion the exact best of them is verify's optimum."""
+    rng = np.random.default_rng(seed)
+    z, pi, tau, cand, cost, m = _case(rng, n, kind, dens, 3.0 if seed % 2 else 0.0)
+    cover = any_cover(n, cand, cost, rng)
+    if cover is None:
+        return
+    OPT = sum(cost[c] for c in cover)
+    want = vn.verify(n, 2, cand, cost, pi, m, tau, OPT)[2]
+    rows = np.full((len(cand), 4), -1, np.int64)
+    for j, c in enumerate(cand): rows[j, :len(c)] = c
+    fc = np.array([float(cost[c]) for c in cand])
+    status, nodes, covers = vn.verify_rows(n, 2, rows, fc, pi, float(m), tau, float(OPT))
+    assert status == 0
+    got = min([sum(cost[cand[j]] for j in r) for r in covers] + [OPT])     # the exact best of the recorded covers
+    assert got == want

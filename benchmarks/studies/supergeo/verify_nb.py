@@ -277,3 +277,45 @@ def verify(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit=2_000_000_000, c
         if val < best_val:
             best_val, best_design = val, design
     return status, int(nodes), best_val, best_design
+
+
+@njit(cache=True)
+def _row_masks(rows, n, B, W, wide):
+    C = rows.shape[0]
+    m1 = np.zeros(C, np.int64); mw = np.zeros((C, W), np.int64)
+    for j in range(C):
+        for q in range(4):
+            g = rows[j, q]
+            if g < 0:
+                continue
+            if wide:
+                mw[j, g // B] |= np.int64(1) << (g % B)
+            else:
+                m1[j] |= np.int64(1) << g
+    return m1, mw
+
+
+def verify_rows(n, lo, rows, cost, pi, m, tau, opt, node_limit=2_000_000_000, cand_cap=200_000):
+    """The search of :func:`verify` on columns given as an index array (rows padded with -1) and double costs,
+    set up with numpy: the capped stages of certify_exact.certify_staged. The margin assumes doubles within the
+    rounding of exact costs; a stage on computed costs finds incumbents and proves nothing, and its covers are
+    re-costed exactly by the caller. Returns (status, nodes, the recorded covers as arrays of row indices)."""
+    rows = np.ascontiguousarray(rows, np.int64); C = rows.shape[0]
+    cost = np.ascontiguousarray(cost, float); pi = np.asarray(pi, float)
+    wide = n > 62; B = 63; W = -(-n // B) if wide else 1
+    m1, mw = _row_masks(rows, n, B, W, wide)
+    k = (rows >= 0).sum(1)
+    pisum = np.where(rows >= 0, pi[np.maximum(rows, 0)], 0.0).sum(1); odd = (k % 2 == 1)
+    mk = rows.ravel(); col = np.repeat(np.arange(C), 4); keep = mk >= 0; mk = mk[keep]; col = col[keep]
+    order = np.lexsort((cost[col], mk))                # by market, then by cost
+    gcols = col[order].astype(np.int64)
+    gptr = np.zeros(n + 1, np.int64); gptr[1:] = np.cumsum(np.bincount(mk, minlength=n))
+    absA0 = float(np.sum(np.abs(pi))) + (n / lo) * abs(float(m)) + abs(tau)
+    g2 = 2.0 * gamma(2 * n + 8) + 4 * U
+    opt_up = math.nextafter(float(opt), math.inf); opt_up = opt_up + g2 * (opt_up + absA0)
+    args = (cost, pisum, odd, gptr, gcols, pi, float(m), float(tau), opt_up, g2, absA0, node_limit, cand_cap, n // 2 + 2)
+    if wide:
+        status, nodes, best, cands = _search_w(n, B, W, float(lo), mw, *args)
+    else:
+        status, nodes, best, cands = _search(n, float(lo), m1, *args)
+    return status, int(nodes), [r[r >= 0] for r in cands]

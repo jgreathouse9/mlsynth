@@ -69,3 +69,33 @@ def test_bad_input_is_rejected():
         ce.certify_staged(np.arange(1.0, 9.0), caps=(1000, 10))
     with pytest.raises(ValueError):
         ce.certify_staged(np.arange(1.0, 9.0), caps=(0,))
+
+
+def test_the_proof_comes_from_an_exact_stage():
+    """Capped stages search on floating-point costs and only find incumbents; the proof is the last stage, run on
+    exact costs to completion."""
+    rng = np.random.default_rng(11)
+    for t in range(6):
+        z = np.asarray(test_bcp.gen(rng, int(rng.integers(6, 12)), t % 4), float)
+        out = ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(1, 10))
+        assert out["proved"]
+        if not out["proof"].startswith("exact: optimum equals"):
+            last = out["stages"][-1]
+            assert last["exact"] and last["status"] == 0
+            assert all(not s["exact"] for s in out["stages"][:-1])
+
+
+def test_automatic_stages_stop_when_the_survivors_stop_halving():
+    z = list(test_bcp._subsets(16, 3))[1]
+    out = ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps="auto")
+    assert out["proved"]
+    capped = [s for s in out["stages"] if not s["exact"]]
+    for a, b in zip(capped, capped[1:]):
+        assert a["improved"] and b["survivors"] <= a["survivors"] / 2
+    assert out["stages"][-1]["exact"]
+
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 3))
+def test_automatic_defaults_against_brute_force(seed, n, kind):
+    _check(test_bcp.gen(np.random.default_rng(seed), n, kind), caps="auto", heuristic_seconds="auto")

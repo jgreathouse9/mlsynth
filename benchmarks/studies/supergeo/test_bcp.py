@@ -431,3 +431,21 @@ def test_simplex_engine_reaches_highs_optimum_and_starts_children_warm():
 def test_an_unknown_lp_engine_is_rejected():
     with pytest.raises(ValueError):
         _bcp(np.arange(1.0, 7.0), lp_engine="cplex")
+
+
+@pytest.mark.parametrize("families", [None, "rank1"])
+def test_the_simplex_node_bound_is_the_lp_value(families):
+    """At a node the simplex solves with no artificial in use, the bound sum pi + tau + sum sigma rhs is the LP's
+    dual value, equal to its primal value: dropping the cut duals overstates it. On 12-market subset 0 the cuts
+    bind at the root, so some sigma is negative and the check has power."""
+    z = list(_subsets(12, 5))[0]
+    kw = {"lp_engine": "simplex"} if families is None else {"lp_engine": "simplex", "families": "rank1"}
+    b = _bcp(z, **kw)
+    b.solve(incumbent=_sorted_pairs(z), node_limit=0, root_start="none")
+    assert b._sx is not None
+    T = np.zeros((12, 12), np.int8)
+    b.node(T, np.inf)
+    bound, lp, x, art = (b._cg_r1 if families else b._cg)(T)
+    assert art <= 1e-9 and abs(bound - lp) <= 1e-7 * max(1.0, abs(lp))
+    r = b._sx.solve(np.array([bnp.compat_py(T, c) for c in b.cols]), b.cuts)
+    assert (r.sigma < -1e-9).any()

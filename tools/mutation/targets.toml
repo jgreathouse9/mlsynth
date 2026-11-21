@@ -18196,33 +18196,57 @@ timeout = 900.0
 name = "supergeo-certify-staged"
 module-path = "benchmarks/studies/supergeo/certify_exact.py"
 test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"not 50_state and not same_exact\""
-timeout = 1200.0
+timeout = 1500.0
 
   [[target.mutant]]
   id = "survivors-fixed-at-the-first-incumbent"
-  find = "        cand, nwin = _survivors(z, pi, tau, lo, hi, S, m, UB)\n        have = set(cand)"
-  replace = "        if not stages: UB0 = UB\n        cand, nwin = _survivors(z, pi, tau, lo, hi, S, m, UB0)\n        have = set(cand)"
+  find = "        rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, UB)"
+  replace = "        if not stages: UB0 = UB\n        rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, UB0)"
   models = "the elimination run once at the starting design's cost: every stage searches the same survivors, 3,284 on the 50-state panel where 549 remain at the third stage's incumbent"
 
   [[target.mutant]]
-  id = "a-capped-stage-claims-the-proof"
-  find = "        proved = status == 0 or UB == LB"
-  replace = "        proved = True"
-  models = "the first stage's cover reported as proved although its search stopped at the cap"
+  id = "a-float-stage-claims-the-proof"
+  find = "            proved = UB == LB\n        else:"
+  replace = "            proved = UB == LB or status == 0\n        else:"
+  models = "a capped stage on floating-point scores that completes taken as the proof: its search ran on rounded costs with a margin built for exact inputs"
 
   [[target.mutant]]
   id = "a-stages-better-cover-is-dropped"
-  find = "        if better is not None:\n            design, UB = [tuple(c) for c in better], val"
-  replace = "        if False:\n            design, UB = [tuple(c) for c in better], val"
-  models = "each stage's best cover thrown away: the final stage completes and the certificate returns the starting design"
+  find = "            if better is not None:\n                UB, design = better"
+  replace = "            if False:\n                UB, design = better"
+  models = "each capped stage's best cover thrown away: the final stage starts from the starting design and its survivors"
+
+  [[target.mutant]]
+  id = "auto-staging-ignores-the-halving-rule"
+  find = "            capped = last is None or (last[\"improved\"] and len(rows) <= last[\"survivors\"] / 2)"
+  replace = "            capped = last is None or last[\"improved\"]"
+  models = "automatic staging continued while the survivors barely shrink: at 80 markets six capped stages took 688 s against 566 s for three"
 
   [[target.mutant]]
   id = "elimination-without-the-reduced-cost-floor"
-  find = "    th = up(UB - S - (Fraction(n, lo) - 1) * m)"
-  replace = "    th = up(UB - S)"
+  find = "    th = up(UB - S - (Fraction(n, lo) - 1) * m)\n    W2 = safe_window(z, pi, lo, hi, th + tau)\n    return W2["
+  replace = "    th = up(UB - S)\n    W2 = safe_window(z, pi, lo, hi, th + tau)\n    return W2["
   models = "the elimination threshold without the (N/lo - 1) m term: columns a better design needs are eliminated when m < 0"
   expected = "survived"
   accepted-because = "equivalent in practice: the certificate runs column generation to convergence, so the exact minimum reduced cost m is 0 up to rounding (-6.7e-9 at 210 markets) and the term moves the threshold by under 1e-7 relative; no group of any test instance lies in that band. The term stays because the elimination is valid only with it."
+
+[[target]]
+name = "supergeo-verify-rows"
+module-path = "benchmarks/studies/supergeo/verify_nb.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k rows_search"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "rows-search-drops-a-member-dual"
+  find = "    pisum = np.where(rows >= 0, pi[np.maximum(rows, 0)], 0.0).sum(1); odd = (k % 2 == 1)"
+  replace = "    pisum = np.where(rows >= 0, pi[np.maximum(rows, 0)], 0.0)[:, :2].sum(1); odd = (k % 2 == 1)"
+  models = "a column's dual sum taken over its first two markets: the node bound is wrong for groups of 3 and 4, and covers are pruned that hold the optimum"
+
+  [[target.mutant]]
+  id = "rows-search-indexes-markets-by-count"
+  find = "    gptr = np.zeros(n + 1, np.int64); gptr[1:] = np.cumsum(np.bincount(mk, minlength=n))"
+  replace = "    gptr = np.zeros(n + 1, np.int64); gptr[1:] = np.cumsum(np.bincount(np.minimum(mk + 1, n - 1), minlength=n))"
+  models = "the per-market column lists offset by one market: the search branches on a market's neighbour's columns"
 
 [[target]]
 name = "supergeo-verify-wide"
