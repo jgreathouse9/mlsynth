@@ -18072,8 +18072,8 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "no-refix-after-the-root-mip"
-  find = "            self._fix(val, found)\n"
-  replace = "            pass\n"
+  find = "            self.stats[\"root_mip_improved\"] = 1\n            self._fix(val, found)\n"
+  replace = "            self.stats[\"root_mip_improved\"] = 1\n"
   models = "the root MIP's incumbent not used to shrink the universe: the tree runs over the set fixed at the heuristic's cost"
 
 [[target]]

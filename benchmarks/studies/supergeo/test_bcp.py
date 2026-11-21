@@ -299,16 +299,21 @@ def test_artificials_priced_too_low_are_raised_until_a_feasible_master_drops_the
 # --- group branching over the fixed universe ----------------------------------------------------------------------
 
 @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
-@given(seed=st.integers(0, 10**9), n=st.integers(5, 10), kind=st.integers(0, 3))
-def test_group_children_are_the_universe_groups_of_the_market(seed, n, kind):
+@given(seed=st.integers(0, 10**9), n=st.integers(5, 10), kind=st.integers(0, 3), apart=st.booleans())
+def test_group_children_are_the_universe_groups_of_the_market(seed, n, kind, apart):
     """With the universe fixed, a group branch on market i has one child per universe group that holds i, fits
-    the node, and costs less than the incumbent; and the full scan of every group is never run."""
+    the node, and costs less than the incumbent; and the full scan of every group is never run. With `apart`,
+    the node already keeps two markets apart, so a child holding both would leave the node's subtree."""
     z = np.asarray(gen(np.random.default_rng(seed), n, kind), float)
     b = _bcp(z)
-    out = b.solve(incumbent=_sorted_pairs(z), node_limit=1, root_mip_seconds=0.0)
+    out = b.solve(incumbent=_sorted_pairs(z), node_limit=1, root_mip_seconds=0.0, root_start="none")
     if b.universe is None:
         return
-    T = np.zeros((n, n), np.int8); ub = sum(b.score[tuple(sorted(g))] for g in out["design"]) * (1 + 1e-9) + 1e-12
+    T = np.zeros((n, n), np.int8)
+    if apart:
+        i0, j0 = sorted(np.random.default_rng(seed + 1).choice(n, 2, replace=False).tolist())
+        T[i0, j0] = T[j0, i0] = -1
+    ub = sum(b.score[tuple(sorted(g))] for g in out["design"]) * (1 + 1e-9) + 1e-12
     _, x, _ = b.node(T, ub)
     frac = {c: v for c, v in x.items() if v > 1e-9}
     if all(abs(v - 1) < 1e-9 for v in frac.values()):
