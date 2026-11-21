@@ -364,3 +364,38 @@ def test_a_subtree_reads_and_lowers_the_shared_incumbent():
     st2, nodes2, nc2 = vn._search_from(*p["args"], 10**9, U0, 0.0, p["S0"], False, np.zeros(0, np.int64),
                                        shared2, buf, 0)
     assert st2 == 0 and nodes2 < nodes1
+
+
+def _root_dual_case(seed):
+    """All groups of 2 to 4 of an odd number of markets, with the certificate's root duals (the market duals and
+    the parity dual tau), so the minimum reduced cost is near 0 and the node bound tight, and a poor start."""
+    from . import certify_exact as ce
+    rng = np.random.default_rng(seed); n = int(rng.choice([7, 9, 11]))
+    z, scale, pi, tau = ce._root(gen(rng, n, 2), 2, 4)
+    cand = [c for k in (2, 3, 4) for c in itertools.combinations(range(n), k)]
+    cost = {c: exact_score(z, c) for c in cand}
+    T = Fraction(tau)
+    m = min([cost[c] - sum(Fraction(float(pi[g])) for g in c) - (T if len(c) % 2 else 0) for c in cand] + [Fraction(0)])
+    o = [int(v) for v in np.argsort(z)[::-1]]
+    start = [tuple(sorted((o[i], o[n - 2 - i]))) for i in range((n - 3) // 2)] + [tuple(sorted(o[(n - 3) // 2:(n - 3) // 2 + 3]))]
+    return n, pi, tau, cand, cost, m, sum(cost[c] for c in start)
+
+
+def test_parallel_search_with_the_root_duals():
+    """With the root duals the bound below a frontier node must drop the parity dual once an odd column is on the
+    path and must drop the column's market duals: either left in prunes the optimum."""
+    for seed in range(12):
+        n, pi, tau, cand, cost, m, OPT = _root_dual_case(seed)
+        want = brute(n, cand, cost)
+        for split in (4, 40, 400):
+            par = vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=2, split=split)
+            assert par[0] == 0 and par[2] == want, (seed, split)
+
+
+def test_parallel_node_limit_counts_the_total():
+    """The node limit bounds the total over the subtrees, not each one: at half the nodes the full search needs
+    (one thread, so the walk is fixed) the search stops."""
+    n, pi, tau, cand, cost, m, OPT = _hard_case()
+    full = vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=1, split=64)
+    assert full[0] == 0
+    assert vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=1, split=64, node_limit=full[1] // 2)[0] == 1

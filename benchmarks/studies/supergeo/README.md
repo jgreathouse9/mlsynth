@@ -416,6 +416,60 @@ that. From 64 markets on, the final exact stage is most of the time (20 s, 160 s
 410 to 560 s), set by the 1,000 to 1,600 survivors it starts from and the weak
 bound. `keep` stays 0.5.
 
+### The exact stage on threads
+
+`verify(..., workers=k)` cuts the exact-cover tree at the top into at least 64 k
+subtrees, expanding the oldest node first and recording any complete cover met on
+the way, then searches them in increasing order of node bound on k threads. The
+subtree search is the serial one from a given node, compiled without the GIL, and
+prunes on one shared double holding the incumbent's upper value. Two threads can
+race on writing it and leave the larger of two values. Every value written is the
+upper value of a recorded cover, so the race costs pruning and never a cover.
+`certify_staged` runs its exact stage on min(4, CPU count) threads.
+
+The final stage's search alone, on the inputs captured from one run of the
+certificate at each size (lognormal instances, seed 2026; the 50-state panel),
+4 cores, nothing else running:
+
+| markets | survivors | this thread | 1 thread | 2 threads | 4 threads | nodes (serial, 4 threads) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 50-state | 549 | 1.51 s | 1.75 s | 0.68 s | 0.38 s | 1.6, 1.2 million |
+| 64 | 928 | 21.0 s | 16.0 s | 7.6 s | 3.75 s | 11.0, 10.9 million |
+| 72 | 1,219 | 140.3 s | 114.9 s | 58.5 s | 32.7 s | 70.2, 73.4 million |
+| 80 | 1,588 | 489.7 s | 422.2 s | 208.6 s | 79.7 s | 224, 159 million |
+
+Every run proved the same optimum. One thread beats the serial walk at 64 markets
+and above because the subtrees are searched in bound order. At 80 markets four
+threads take 5.3 times less than one: a thread finds the better incumbent sooner
+and the search visits 26% fewer nodes.
+
+### Where the time goes at 72 markets
+
+With the exact stage on four threads the 72-market certificate takes 113 to 129 s
+(the heuristic varies between runs). A profile of one run (128.1 s):
+
+| step | time |
+| --- | --- |
+| the safe window, five builds | 68.6 s |
+| exact screening of the window (`members2`) | 9.9 s |
+| exact stage's search | 33.2 s |
+| capped stages' searches | 9.8 s |
+| heuristic | 3.0 s |
+| exact costs in Fractions | 0.6 s |
+
+Exact rational arithmetic is no longer a cost: the capped stages search on
+floating-point scores, so exact costs are computed only for the final stage's
+survivors and the covers found. On 200,000 groups at 72 markets, exact costs as
+Python integers over one common power of two (2^54) took 1.29 s, gmpy2's `mpq`
+1.94 s and `Fraction` 10.73 s, with identical values; at 0.6 s a run, either
+saves under a second.
+
+The window is the cost. Its radius is set by the duals, not by the threshold: at
+thresholds from 0 to 1.29 it holds 886,723 to 886,726 groups and takes 13.7 to
+14.9 s to build, for 19 to 42,927 survivors. Each stage's threshold is at most the
+last one's (the incumbent only improves), so each stage's survivors are a subset
+of the last stage's and can be screened from them instead of from a new window.
+
 ## 210 markets
 
 On the 210-market instance (`n210_duals.json`), from the best design found (the
