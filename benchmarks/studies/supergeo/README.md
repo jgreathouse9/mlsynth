@@ -492,6 +492,45 @@ threads), alone:
 The same optima as before at every size. At 80 markets the exact stage is now
 76.4 s of the 128.5 s, and the two window builds most of the rest.
 
+### A stated gap, a balance standard, and 120 markets
+
+`certify_staged(..., gap=g)` proves that no design costs less than (1 - g) times
+the design it returns: it stops once the exact bound is within g, eliminates at
+(1 - g) times the incumbent, and the exact stage searches below that. The result
+reports `gap_proved` and `lb_proved`. `max_group_cost=t` allows only groups whose
+imbalance is at most t, proves infeasibility when no partition meets it, and
+reports the design's largest group cost. Both are exact; the docstrings give the
+reasons and the citations (Mertens 1998 and 2001 on the random-cost landscape of
+partitioning; Chen, Longfils and Remy on balance checks). The threaded search's
+node limit now bounds the total over the threads (four threads on a 4e8 limit had
+stopped at 1.6e9 nodes).
+
+The exact proof's tree, estimated by random probes (Knuth 1975) at the best known
+incumbent, and the gap the exact bound proves before the exact stage:
+
+| markets | gap the bound proves | exact tree (nodes) | gap 1e-6 |
+| --- | --- | --- | --- |
+| 64 | 7.4e-8 | 4.9 million | no search |
+| 80 | 8.2e-8 | 75 million | no search |
+| 96 | 3.1e-7 | 8e9 | no search |
+| 120 | 1.1e-6 | about 7e21 (at the start incumbent) | |
+
+On lognormal panels the bound is within 1e-7 of the optimum and the exact proof
+spends minutes (80 markets) to never (120) closing that sliver. At 120 markets
+the certificate with g = 1e-6 took 147.4 s and proved a gap of 8.6e-7 from three
+capped stages, with no exact search.
+
+Similar-sized markets are the opposite case (120 draws of N(100, 10), seed 2026).
+The bound is 1.8e-5 of the design, so no useful relative gap is provable (g =
+1e-2 did not finish in 25 minutes). The design is nonetheless close to perfect in
+absolute terms: its groups' halves differ by 0.12 median spacings between market
+sizes (rms over 32 groups; 0.27 at the worst group), against 4.8 on the
+lognormal panel. The optimum sits near zero, where near-perfect partitions are
+plentiful (the easy phase of Mertens 2001), and a relative gap divides by it. For
+such panels the certificate that means something is absolute: the design is
+within its own cost, here 0.47 squared spacings, of perfect balance, since the
+bound is at least 0.
+
 ## 210 markets
 
 On the 210-market instance (`n210_duals.json`), from the best design found (the
