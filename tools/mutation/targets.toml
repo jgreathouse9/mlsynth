@@ -18195,7 +18195,7 @@ timeout = 900.0
 [[target]]
 name = "supergeo-certify-staged"
 module-path = "benchmarks/studies/supergeo/certify_exact.py"
-test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"not 50_state and not same_exact\""
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"not same_exact\""
 timeout = 1500.0
 
   [[target.mutant]]
@@ -18233,7 +18233,7 @@ timeout = 1500.0
 [[target]]
 name = "supergeo-verify-rows"
 module-path = "benchmarks/studies/supergeo/verify_nb.py"
-test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k rows_search"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k \"rows_search\""
 timeout = 900.0
 
   [[target.mutant]]

@@ -62,6 +62,9 @@ def test_the_50_state_optimum():
     out = ce.certify_staged(z, heuristic_seconds=1.0)
     ref = json.loads((HERE / "fifty_optima.json").read_text())["urate"]["opt"]
     assert out["proved"] and abs(out["opt"] - ref) <= 1e-12 * ref
+    capped = [s for s in out["stages"] if not s["exact"]]   # here the halving rule ends the staging (941 then 549)
+    for a, b in zip(capped, capped[1:]):
+        assert b["survivors"] <= a["survivors"] / 2
 
 
 def test_bad_input_is_rejected():

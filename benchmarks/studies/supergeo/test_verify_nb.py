@@ -232,3 +232,26 @@ def test_rows_search_finds_the_same_optimum(seed, n, kind, dens):
     assert status == 0
     got = min([sum(cost[cand[j]] for j in r) for r in covers] + [OPT])     # the exact best of the recorded covers
     assert got == want
+
+
+def test_rows_search_with_the_lp_duals_from_a_poor_start():
+    """The root LP's duals (so the minimum reduced cost is near 0 and the node bound tight) and the start a poor
+    cover: the bound rests on each column's full dual sum, so a sum short of a market's dual overstates it and
+    prunes the optimum (seed 36: optimum 17 against 25 for the start)."""
+    rng = np.random.default_rng(36); n = int(rng.integers(8, 11)) // 2 * 2
+    z = gen(rng, n, int(rng.integers(0, 3)))
+    cand = [c for k in (2, 3, 4) for c in itertools.combinations(range(n), k)]
+    from . import sg
+    _, pi, _ = sg.master_lp(cand, np.array([float(exact_score(z, c)) for c in cand]), n)
+    pi = np.asarray(pi, float)
+    cost = {c: exact_score(z, c) for c in cand}
+    m = min([cost[c] - sum(Fraction(float(pi[g])) for g in c) for c in cand] + [Fraction(0)])
+    order = list(np.argsort(z)); start = [tuple(sorted(int(v) for v in order[i:i + 2])) for i in range(0, n, 2)]
+    OPT = sum(cost[c] for c in start)
+    want = brute(n, cand, cost)
+    assert want < OPT
+    rows = np.full((len(cand), 4), -1, np.int64)
+    for j, c in enumerate(cand): rows[j, :len(c)] = c
+    status, nodes, covers = vn.verify_rows(n, 2, rows, np.array([float(cost[c]) for c in cand]), pi, float(m), 0.0, float(OPT))
+    assert status == 0
+    assert min([sum(cost[cand[j]] for j in r) for r in covers] + [OPT]) == want
