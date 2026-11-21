@@ -531,6 +531,22 @@ such panels the certificate that means something is absolute: the design is
 within its own cost, here 0.47 squared spacings, of perfect balance, since the
 bound is at least 0.
 
+`certify_staged(..., abs_gap=d)` proves the design within max(g UB, d) of the
+optimum, d in the objective's units. Independent noise of standard deviation
+sigma in each market's total adds N sigma^2 to any design's expected cost, which
+sets the scale for d. On the similar-sized 120-market panel, from the defaults:
+
+| d (squared median spacings) | time | design's cost | stages |
+| --- | --- | --- | --- |
+| 1.0 | 10.9 s | 0.471 | none (the heuristic's design is within d of 0) |
+| 0.1 | 25.6 s | 0.0125 | one capped stage, 140,228 survivors |
+| 0.01 | 35.2 s | 0.00298 | two capped stages, 156,339 and 14,593 survivors |
+
+A tighter d sends the capped stages after a better design: at d = 0.01 the
+design costs 160 times less than the heuristic's, its groups' halves differing
+by 0.0097 median spacings (rms over 32 groups), and the bound (at least 0)
+proves it within d with no exact stage.
+
 ## 210 markets
 
 On the 210-market instance (`n210_duals.json`), from the best design found (the
