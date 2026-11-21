@@ -392,6 +392,30 @@ time is outside the search: the exact costs (Fractions) of the first stage's
 survivors stop shrinking by more than about half, and the first stage's exact
 bookkeeping is the next cost to cut.
 
+### Float stages, automatic staging and heuristic time
+
+At 72 markets the first stage's steps took: exact bound 24.0 s, window and exact
+screening 22.8 s, exact costs in Fractions 102.6 s, search setup and 300,000 nodes
+14.1 s. Capped stages now search on floating-point scores and only supply
+incumbents; the final stage runs on exact costs and is the proof. Caps grow 3
+times per stage, staging stops once the next survivors exceed `keep` times the
+last stage's, and the heuristic gets max(1, N/24) s (at 72 markets 3 s leaves
+62,899 first-stage survivors, 1 s 947,976). Alone, from the defaults:
+
+| instance | before | keep 0.5 | keep 0.8 |
+| --- | --- | --- | --- |
+| 50-state | 8.0 s | 8.7 s | |
+| lognormal 50 | 20.3 s | 21.8 s | |
+| 64 | 102 s | 75.3 s | 89.4 s |
+| 72 | 413 s | 266.6 s | 268.0 s |
+| 80 | 566 s | 685.1 s | 590.6 s |
+
+The heuristic runs for a time, so its design and the first stage's survivors vary
+between runs (62,899 and 42,927 at 72 markets); differences of 15% are within
+that. From 64 markets on, the final exact stage is most of the time (20 s, 160 s,
+410 to 560 s), set by the 1,000 to 1,600 survivors it starts from and the weak
+bound. `keep` stays 0.5.
+
 ## 210 markets
 
 On the 210-market instance (`n210_duals.json`), from the best design found (the
