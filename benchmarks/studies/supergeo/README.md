@@ -348,6 +348,58 @@ Mutants (`tools/mutation/targets.toml`, targets `supergeo-bcp`, `supergeo-bnp`,
 recorded as equivalent: under the cap a second rescale cannot lift the costs past
 1e10, so no test can see it.
 
+## The staged certificate
+
+`certify_exact.certify_staged` keeps the certificate's exact root bound and exact
+elimination and drops the MIP. Each stage eliminates at the incumbent's exact cost
+and runs the exact-cover search over the survivors, capped at 0.3, 1 and 3
+million nodes; its best cover is the next incumbent, so the next stage has fewer
+survivors. A final stage has no cap, and a stage that completes proves its
+result. Alone on the machine, from a 1 s pairs-plus-repair start:
+
+| instance | total | survivors by stage | search nodes | branch, cut and price | certificate with the MIP |
+| --- | --- | --- | --- | --- | --- |
+| 50-state | 8.0 s | 4,202, 941, 549 | 2.9 million | 260 s | 293 s |
+| lognormal | 20.3 s | 4,308, 877, 509 | 1.5 million | 139.5 s | 24 s |
+
+The search takes 3.4 s and 1.5 s of those totals. On lognormal most of the rest is
+the exact elimination: one market of 1,182 against a median of 24.5 widens the
+safe window to 188,825 groups at every stage.
+
+Branch, cut and price needs about 8,000 LP nodes on these instances, set by the
+root bound (0.135 of the 50-state optimum); a node costs about 30 ms after the
+fixes (29.8 ms on the 50-state panel, 64% of it in the master LP). The exact
+search's nodes cost about a microsecond with a weaker bound, and at 50 markets
+that wins.
+
+## 210 markets
+
+On the 210-market instance (`n210_duals.json`), from the best design found (the
+steered repair, 221,075 in its units), the root bound is 7.3e-4 of the design and
+85,547 groups survive the elimination with the market prices alone: 60,500 at
+half the design's cost, 27,336 at a tenth, 8,291 at a hundredth. Subset-row cuts
+raise the root bound from 160.92 to 161.99 before separation finds no more
+violated cuts, so their duals cannot shrink the survivors by orders of
+magnitude. The surviving groups have no band in size order (on the 50-state
+panel their markets span a median of 26 of 49 rank positions): a group cancels a
+large market with small ones. A proof at 210 is out of reach on these routes;
+what moves there is the incumbent and the gap to the bound.
+
+## Optimized Supergeo Design
+
+Shaw (arXiv 2506.20499) generates candidate supergeos by PCA and hierarchical
+clustering of covariates and chooses among them with a 30 s MILP that assigns
+whole supergeos to treatment or control to minimise standardised mean
+differences. It answers a different problem: no supergeo is split, and the
+objective is arm-level balance across several covariates. Its guarantee is
+qualitative (constants left unspecified). Two parts carry over: balancing effect
+modifiers as well as the baseline, which here is a vector score per group
+(min over splits of sum_k lambda_k (2 Z_A^k - Z_G^k)^2) and leaves the pricing,
+fixing, exact search and certificate unchanged; and judging designs by the RMSE
+of the effect estimate over simulated heterogeneous effects, since the pretest
+optimum overfits. Similarity clustering does not carry over: the base problem's
+good groups mix sizes.
+
 ## Tests
 
 `python -m pytest benchmarks/studies/supergeo -q`. Brute force over every
