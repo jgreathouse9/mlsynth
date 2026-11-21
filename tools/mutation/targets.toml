@@ -18071,6 +18071,24 @@ timeout = 1500.0
   models = "the exact search dispatched above 62 markets, where its 64-bit masks cannot hold a group"
 
   [[target.mutant]]
+  id = "children-start-cold"
+  find = "                heapq.heappush(heap, (max(bnd, prio), nid, T2, None, depth + 1, warm))"
+  replace = "                heapq.heappush(heap, (max(bnd, prio), nid, T2, None, depth + 1, None))"
+  models = "the parent's basis not handed to its children: every node's simplex starts cold from the artificial basis"
+
+  [[target.mutant]]
+  id = "simplex-bound-without-the-cut-duals"
+  find = "            bound = float(np.sum(pi)) + tau + float(np.sum(sigma))     # every universe group is in the master"
+  replace = "            bound = float(np.sum(pi)) + tau"
+  models = "the simplex node bound without sum sigma rhs (sigma <= 0): it overstates the LP value and prunes nodes that hold a better design"
+
+  [[target.mutant]]
+  id = "simplex-rank1-bound-without-the-cut-duals"
+  find = "            bound = float(np.sum(pi)) + tau + float(sum(sg_ * c.rhs for sg_, c in zip(sigma, self.cuts)))\n            self._last"
+  replace = "            bound = float(np.sum(pi)) + tau\n            self._last"
+  models = "the rank-1 simplex bound without its cut duals, as above for the rank-1 families"
+
+  [[target.mutant]]
   id = "no-refix-after-the-root-mip"
   find = "            self.stats[\"root_mip_improved\"] = 1\n            self._fix(val, found)\n"
   replace = "            self.stats[\"root_mip_improved\"] = 1\n"

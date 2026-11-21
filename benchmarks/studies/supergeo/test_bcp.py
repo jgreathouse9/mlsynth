@@ -393,3 +393,41 @@ def test_the_root_start_follows_the_size_and_rejects_unknown_methods():
     assert bcp.root_start_for(62) == "exact" and bcp.root_start_for(63) == "mip"
     with pytest.raises(ValueError):
         _bcp(np.arange(1.0, 7.0)).solve(root_start="heuristic")
+
+
+# --- the warm-started simplex as the node LP ------------------------------------------------------------------------
+
+@pytest.mark.parametrize("kw", [{"lp_engine": "simplex"}, {"lp_engine": "simplex", "families": "rank1"},
+                                {"lp_engine": "simplex", "families": "rank1", "purge_after": 1, "deep_depth": 0,
+                                 "max_active": 15}])
+def test_simplex_engine_against_brute_force(kw):
+    rng = np.random.default_rng(6)
+    for t in range(16):
+        check(gen(rng, int(rng.integers(4, 12)), t % 4), **kw)
+
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 3), arm=st.integers(0, 2))
+def test_simplex_engine_property_against_brute_force(seed, n, kind, arm):
+    check(gen(np.random.default_rng(seed), n, kind), lp_engine="simplex", **_ARMS[arm])
+
+
+def test_simplex_engine_reaches_highs_optimum_and_starts_children_warm():
+    """16-market GeoLift subsets from sorted pairs with no root start, so the tree branches: the same optimum as
+    the HiGHS engine, and after the fix the node LPs start from their parent's basis."""
+    branched = 0
+    for z in list(_subsets(16, 3)):
+        start = _sorted_pairs(z)
+        a = _bcp(z).solve(incumbent=start, root_start="none", time_limit=300)
+        b = _bcp(z, lp_engine="simplex").solve(incumbent=start, root_start="none", time_limit=300)
+        assert a["status"] == b["status"] == "optimal" and abs(a["opt"] - b["opt"]) <= 1e-9 * max(1.0, a["opt"])
+        if b["nodes"] > 1:
+            assert b["simplex_warm"] >= 1 and b["simplex_lps"] >= b["simplex_warm"]
+            assert b["simplex_from_parent"] >= 1              # a child solved from its parent's basis
+            branched += 1
+    assert branched >= 1
+
+
+def test_an_unknown_lp_engine_is_rejected():
+    with pytest.raises(ValueError):
+        _bcp(np.arange(1.0, 7.0), lp_engine="cplex")

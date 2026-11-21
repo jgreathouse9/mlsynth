@@ -60,7 +60,7 @@ from fractions import Fraction
 import numpy as np
 from numba import njit
 import highspy
-from . import sg, dive, sr, bnp, lns, rank1, dsr, verify_nb, mitm_exact, certify_exact
+from . import sg, dive, sr, bnp, lns, rank1, dsr, verify_nb, mitm_exact, certify_exact, lpsx
 
 BIG = 1e7
 GROUP_LIMIT = 64
@@ -263,7 +263,10 @@ class BCP:
     def __init__(self, z0, lo=2, hi=4, add=2000, cuts=True, group_branching=True,
                  cuts_per_round=50, max_cuts=2000, cut_rounds=20, verbose=True, families=None,
                  purge_after=None, deep_depth=None, max_active=None, shallow_families=((3, (1, 1, 1), 2),),
-                 fix_columns=True, universe_limit=200_000):
+                 fix_columns=True, universe_limit=200_000, lp_engine="highs"):
+        if lp_engine not in ("highs", "simplex"):
+            raise ValueError(f"lp_engine must be highs or simplex, not {lp_engine!r}")
+        self.lp_engine = lp_engine; self._sx = None; self._warm_in = None
         self.n = n = len(z0); self.lo, self.hi, self.add = lo, hi, add; self.odd = n % 2 == 1
         self.z = np.asarray(z0, float).copy(); self.scale = 1.0; self.rescaled = False
         self.cols = list(sg.initial_pool(self.z, lo, hi)); self.score = {c: dive._sc(self.z, c) for c in self.cols}
@@ -280,16 +283,31 @@ class BCP:
         self.fix_columns, self.universe_limit = fix_columns, universe_limit
         self.universe = None; self._root = None; self._last = None
         self.stats.update(universe=0, universe_at_fix=0, refixes=0, scans_after_fix=0, root_mip_improved=0, viable_scans=0,
-                          start_improved=0, exact_start_nodes=0, exact_start_status=-1)
+                          start_improved=0, exact_start_nodes=0, exact_start_status=-1,
+                          simplex_lps=0, simplex_warm=0, simplex_from_parent=0)
         self.last_group_branch = None; self._by_market = None
 
     def _QR(self, sigma):
         return sr.duals_to_QR(self.n, self.cuts, sigma) if len(self.cuts) else (np.zeros((self.n, self.n)), np.zeros((1, 1, 1)))
 
+    def _simplex_lp(self, T):
+        """The node LP by lpsx over the fixed universe, warm from the last basis this node or its parent left."""
+        allowed = np.array([bnp.compat_py(T, c) for c in self.cols], bool)
+        r = self._sx.solve(allowed, self.cuts, warm=self._warm_in)
+        self.stats["lps"] += 1; self.stats["simplex_lps"] += 1; self.stats["simplex_warm"] += self._warm_in is not None
+        self._warm_in = r.warm
+        x = {c: float(v) for c, v, a in zip(self.cols, r.x, allowed) if a}
+        return r.lp, r.pi, r.tau, r.sigma, x, r.art
+
     def _cg(self, T):
         if self.families is not None:
             return self._cg_r1(T)
         n = self.n
+        if self._sx is not None:
+            lp, pi, tau, sigma, x, art = self._simplex_lp(T)
+            bound = float(np.sum(pi)) + tau + float(np.sum(sigma))     # every universe group is in the master
+            self._last = (bound, 0.0, None, np.array(pi, float), float(tau))
+            return bound, lp, x, art
         while True:
             cols = [c for c in self.cols if bnp.compat_py(T, c)]
             lp, pi, tau, sigma, x, art = bnp.solve_feasible(_master, cols, [self.score[c] for c in cols], n, self.odd, self.cuts)
@@ -321,6 +339,13 @@ class BCP:
 
     def _cg_r1(self, T):
         n = self.n
+        if self._sx is not None:
+            lp, pi, tau, sigma, x, art = self._simplex_lp(T)
+            for sg_, c in zip(sigma, self.cuts):
+                k_ = c.key(); self.age[k_] = 0 if sg_ < -1e-12 else self.age.get(k_, 0) + 1
+            bound = float(np.sum(pi)) + tau + float(sum(sg_ * c.rhs for sg_, c in zip(sigma, self.cuts)))
+            self._last = (bound, 0.0, None, np.array(pi, float), float(tau))
+            return bound, lp, x, art
         while True:
             cols = [c for c in self.cols if bnp.compat_py(T, c)]
             lp, pi, tau, sigma, x, art = bnp.solve_feasible(_master_r1, cols, [self.score[c] for c in cols], n, self.odd, self.cuts)
@@ -397,6 +422,9 @@ class BCP:
             if c not in self.score: self.score[c] = dive._sc(self.z, c)
         self.universe = keep
         self.cols = sorted(keep)
+        if self.lp_engine == "simplex":      # a new universe: a new master, and the old bases no longer apply
+            self._sx = lpsx.Master(self.cols, [self.score[c] for c in self.cols], self.n, self.odd)
+            self._warm_in = None
         self._by_market = {i: [] for i in range(self.n)}
         for c in self.cols:
             for i in c: self._by_market[i].append(c)
@@ -440,8 +468,11 @@ class BCP:
             return val, found
         return ub, design
 
-    def node(self, T, ub, depth=0):
-        """Column generation with cut separation. Returns (bound, x, art)."""
+    def node(self, T, ub, depth=0, warm=None):
+        """Column generation with cut separation. Returns (bound, x, art). `warm` is the parent's last basis
+        for the simplex engine; the node's own last basis is left in self._warm_in for its children."""
+        self._warm_in = warm
+        self.stats["simplex_from_parent"] += warm is not None and self._sx is not None and warm[0] is self._sx
         P = np.zeros((self.n, self.n)); Tt = np.zeros((self.n, self.n, self.n))
         fams = self.families if (self.deep_depth is None or depth <= self.deep_depth) else self.shallow_families
         self._purge()
@@ -560,15 +591,16 @@ class BCP:
                 ub, best_design = self._exact_start(ub, best_design, exact_nodes)
             elif self.universe is not None and method == "mip" and root_mip_seconds > 0:
                 ub, best_design = self._root_mip(ub, best_design, root_mip_seconds)
-        heap = [(bound, 0, T0, (bound, x, art), 0)]; nid = 0; status = "optimal"; last = t0
+        heap = [(bound, 0, T0, (bound, x, art), 0, None)]; nid = 0; status = "optimal"; last = t0
         while heap:
             if time.perf_counter() - t0 > time_limit: status = "time limit"; break
             if self.stats["nodes"] >= node_limit: status = "node limit"; break
-            bnd, _, T, cached, depth = heapq.heappop(heap)
+            bnd, _, T, cached, depth, warm = heapq.heappop(heap)
             if bnd >= ub * (1 - 1e-9): continue
             self.stats["nodes"] += 1
             if cached is None:
-                bnd, x, art = self.node(T, ub, depth)
+                bnd, x, art = self.node(T, ub, depth, warm)
+                warm = self._warm_in
             else:
                 bnd, x, art = cached
             if art > 1e-6 or bnd >= ub * (1 - 1e-9): continue
@@ -581,7 +613,7 @@ class BCP:
                 continue
             for prio, T2 in self._branch(T, x, ub):
                 nid += 1
-                heapq.heappush(heap, (max(bnd, prio), nid, T2, None, depth + 1))
+                heapq.heappush(heap, (max(bnd, prio), nid, T2, None, depth + 1, warm))
             now = time.perf_counter()
             if self.verbose and now - last > 30:
                 glb = min([h[0] for h in heap], default=ub)
