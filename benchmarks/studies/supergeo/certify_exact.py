@@ -7,7 +7,7 @@ minimum (Fraction), the bound sum(pi) + tau + (N/lo) min(0, min rc), the incumbe
 cost, the elimination threshold, and membership in the eliminated set.
 The only claim resting on floating point is HiGHS's optimality over the surviving
 columns, and it is not needed when the MIP's exact value equals the exact bound."""
-import math, time
+import math, os, time
 from fractions import Fraction
 import numpy as np
 from . import sg, dive, lns, dsr, parity, mitm, mitm_exact as mx, exactnb as ex, verify_nb as vn
@@ -145,7 +145,8 @@ def _survivor_rows(z, pi, tau, lo, hi, S, m, UB):
     return W2[ex.members2(z, pi, W2, th, tau, False)], len(W2)
 
 
-def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", caps="auto", keep=0.5, verbose=False):
+def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", caps="auto", keep=0.5, workers="auto",
+                   verbose=False):
     """The certificate with the elimination redone at every better incumbent and no MIP.
 
     After the root and the exact bound, each stage runs the exact elimination at the incumbent's exact cost and the
@@ -160,8 +161,14 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     half of the last (more capped stages past that point repeat the top of the tree: at 80 markets six of them
     took 688 s against 566 s for three). heuristic_seconds: the pairs-plus-repair budget, "auto" being
     max(1, N / 24) (at 72 markets a 3 s heuristic leaves 62,899 first-stage survivors, a 1 s one 947,976).
+    workers: threads for the exact stage's search (:func:`.verify_nb.verify`), None for this thread alone, "auto"
+    for min(4, CPU count).
     Returns the keys of :func:`certify` that apply, with `proved`, `proof` and `stages` (one dict per stage)."""
     n = len(z0); odd = n % 2 == 1
+    if workers == "auto":
+        workers = min(4, os.cpu_count() or 1)
+    elif workers is not None and (not isinstance(workers, int) or workers < 1):
+        raise ValueError(f"workers must be a positive integer, None or 'auto', not {workers!r}")
     auto = isinstance(caps, str)
     if auto and caps != "auto":
         raise ValueError(f"caps must be a tuple of node counts or 'auto', not {caps!r}")
@@ -218,10 +225,10 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
         else:
             cand = [tuple(int(v) for v in r if v >= 0) for r in rows]
             cost = {c: mx.exact_rc(z, zeros, c) for c in cand}
-            status, nodes, val, found = vn.verify(n, lo, cand, cost, pi, m, tau, UB)
+            status, nodes, val, found = vn.verify(n, lo, cand, cost, pi, m, tau, UB, workers=workers)
             if found is not None:
                 design, UB = [tuple(c) for c in found], val
-            stages.append(dict(cap=None, exact=True, survivors=len(rows), window=nwin, nodes=nodes, status=status,
+            stages.append(dict(cap=None, exact=True, workers=workers, survivors=len(rows), window=nwin, nodes=nodes, status=status,
                                improved=found is not None, t=time.perf_counter() - ts))
             proved = status == 0 or UB == LB
             nodes_all += nodes

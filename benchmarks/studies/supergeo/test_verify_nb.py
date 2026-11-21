@@ -255,3 +255,112 @@ def test_rows_search_with_the_lp_duals_from_a_poor_start():
     status, nodes, covers = vn.verify_rows(n, 2, rows, np.array([float(cost[c]) for c in cand]), pi, float(m), 0.0, float(OPT))
     assert status == 0
     assert min([sum(cost[cand[j]] for j in r) for r in covers] + [OPT]) == want
+
+
+# --- the search on several threads -----------------------------------------------------------------------------------
+
+@settings(max_examples=150, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 2), dens=st.floats(0.3, 1.0),
+       workers=st.integers(2, 4), split=st.integers(1, 200), bits=st.sampled_from([None, 3, 5]))
+def test_parallel_search_finds_the_serial_optimum(seed, n, kind, dens, workers, split, bits):
+    """The tree cut into at least `split` subtrees (or fewer, when it ends first) and searched by `workers` threads
+    sharing the incumbent: the same status and exact optimum as the serial search and as brute force, and the
+    design returned is an exact cover costing that optimum."""
+    rng = np.random.default_rng(seed)
+    z, pi, tau, cand, cost, m = _case(rng, n, kind, dens, 3.0 if seed % 2 else 0.0)
+    cover = any_cover(n, cand, cost, rng)
+    if cover is None:
+        return
+    OPT = sum(cost[c] for c in cover)
+    one = vn.verify(n, 2, cand, cost, pi, m, tau, OPT)
+    par = vn.verify(n, 2, cand, cost, pi, m, tau, OPT, bits=bits, workers=workers, split=split)
+    assert par[0] == one[0] == 0
+    assert par[2] == one[2] == brute(n, cand, cost)
+    if par[3] is not None:
+        assert sorted(g for c in par[3] for g in c) == list(range(n))
+        assert sum(cost[c] for c in par[3]) == par[2] < OPT
+
+
+@settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 2), dens=st.floats(0.3, 1.0),
+       workers=st.integers(1, 4), bits=st.sampled_from([None, 4]))
+def test_one_subtree_walks_the_serial_tree(seed, n, kind, dens, workers, bits):
+    """With split=1 the whole tree is one task: the subtree search walks the serial tree node for node."""
+    rng = np.random.default_rng(seed)
+    z, pi, tau, cand, cost, m = _case(rng, n, kind, dens, 3.0 if seed % 2 else 0.0)
+    cover = any_cover(n, cand, cost, rng)
+    if cover is None:
+        return
+    OPT = sum(cost[c] for c in cover)
+    one = vn.verify(n, 2, cand, cost, pi, m, tau, OPT)
+    par = vn.verify(n, 2, cand, cost, pi, m, tau, OPT, bits=bits, workers=workers, split=1)
+    assert par[:3] == one[:3]
+
+
+def test_parallel_search_on_seventy_markets_in_separate_blocks():
+    rng = np.random.default_rng(7); n = 70
+    z = gen(rng, n, 2); pi = np.zeros(n)
+    cand = []
+    for b in range(7):
+        idx = list(range(10 * b, 10 * b + 10))
+        for _ in range(3):
+            cand += [g for g in _random_partition(rng, idx) if g not in cand]
+    cost = {c: exact_score(z, c) for c in cand}
+    cover = any_cover(n, cand, cost, rng); OPT = sum(cost[c] for c in cover)
+    one = vn.verify(n, 2, cand, cost, pi, Fraction(0), 0.0, OPT)
+    for split in (1, 8, 500):
+        par = vn.verify(n, 2, cand, cost, pi, Fraction(0), 0.0, OPT, workers=4, split=split)
+        assert par[0] == 0 and par[2] == one[2]
+
+
+def _hard_case():
+    rng = np.random.default_rng(3); n = 12
+    z, pi, tau, cand, cost, m = _case(rng, n, 2, 1.0, 0.0)
+    o = np.argsort(z)[::-1]                                   # pairs of the largest and smallest: a poor start
+    start = [tuple(sorted((int(o[i]), int(o[n - 1 - i])))) for i in range(n // 2)]
+    return n, pi, tau, cand, cost, m, sum(cost[c] for c in start)
+
+
+def test_parallel_node_limit_and_candidate_cap_are_reported():
+    n, pi, tau, cand, cost, m, OPT = _hard_case()
+    full = vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=4, split=16)
+    assert full[0] == 0 and full[1] > 200
+    assert vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=4, split=16, node_limit=50)[0] == 1
+    assert vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=4, split=1, node_limit=50)[0] == 1
+    assert vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=2, split=1, cand_cap=0)[0] == 2
+
+
+def test_bad_parallel_arguments_are_rejected():
+    n, pi, tau, cand, cost, m, OPT = _hard_case()
+    import pytest
+    with pytest.raises(ValueError):
+        vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=0)
+    with pytest.raises(ValueError):
+        vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=2, split=0)
+
+
+def _root_task(n, cand, cost, pi, m, tau, OPT):
+    """The setup of the parallel search for one task holding the whole tree."""
+    p = vn._prepare(n, 2, cand, cost, pi, m, tau, OPT, bits=63)
+    U0 = np.zeros(p["W"], np.int64)
+    for w in range(p["W"]):
+        U0[w] = (1 << min(63, n - w * 63)) - 1
+    return p, U0
+
+
+def test_a_subtree_reads_and_lowers_the_shared_incumbent():
+    """A task prunes on the incumbent other threads have written, and writes every better one it finds: started
+    from the poor cover it lowers the shared value, and started from the optimum's value it walks fewer nodes."""
+    n, pi, tau, cand, cost, m, OPT = _hard_case()
+    p, U0 = _root_task(n, cand, cost, pi, m, tau, OPT)
+    buf = np.empty((1000, n // 2 + 2), np.int64)
+    shared = np.array([p["opt_up"]])
+    st1, nodes1, nc1 = vn._search_from(*p["args"], 10**9, U0, 0.0, p["S0"], False, np.zeros(0, np.int64),
+                                       shared, buf, 0)
+    assert st1 == 0 and nc1 >= 1 and shared[0] < p["opt_up"]
+    best = vn.verify(n, 2, cand, cost, pi, m, tau, OPT)[2]
+    p2, _ = _root_task(n, cand, cost, pi, m, tau, best)
+    shared2 = np.array([p2["opt_up"]])
+    st2, nodes2, nc2 = vn._search_from(*p["args"], 10**9, U0, 0.0, p["S0"], False, np.zeros(0, np.int64),
+                                       shared2, buf, 0)
+    assert st2 == 0 and nodes2 < nodes1

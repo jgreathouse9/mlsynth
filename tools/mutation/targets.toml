@@ -18268,12 +18268,67 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-bound-counts-the-first-word-only"
-  find = "            cnt += _popcount(U1[w])"
-  replace = "            cnt += _popcount(U1[w]) if w == 0 else 0"
+  find = "            cnt += _popcount(U1[w])\n        P1 = Pd[depth] + cost[col]\n        S1 = Sd[depth] - pisum[col]\n        O1 = Od[depth] or odd[col]\n        path[depth] = col"
+  replace = "            cnt += _popcount(U1[w]) if w == 0 else 0\n        P1 = Pd[depth] + cost[col]\n        S1 = Sd[depth] - pisum[col]\n        O1 = Od[depth] or odd[col]\n        path[depth] = col"
   models = "the node bound with |U| from the first word: (|U|/lo) m with m <= 0 is too small a correction, the bound too high, and nodes holding the optimum are pruned"
 
   [[target.mutant]]
   id = "a-cover-judged-by-the-first-word"
-  find = "            if U1[w] != 0: empty = False"
-  replace = "            if U1[w] != 0 and w == 0: empty = False"
+  find = "            if U1[w] != 0: empty = False\n            cnt += _popcount(U1[w])\n        P1 = Pd[depth] + cost[col]\n        S1 = Sd[depth] - pisum[col]\n        O1 = Od[depth] or odd[col]\n        path[depth] = col"
+  replace = "            if U1[w] != 0 and w == 0: empty = False\n            cnt += _popcount(U1[w])\n        P1 = Pd[depth] + cost[col]\n        S1 = Sd[depth] - pisum[col]\n        O1 = Od[depth] or odd[col]\n        path[depth] = col"
   models = "a partial cover recorded as complete once the first word's markets are covered"
+
+[[target]]
+name = "supergeo-verify-parallel"
+module-path = "benchmarks/studies/supergeo/verify_nb.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k \"parallel or subtree\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-subtree-prunes-on-its-starting-incumbent"
+  find = "        if lb - err >= shared[0]:\n            continue\n        bestc, gb = _branch_geo"
+  replace = "        if lb - err >= 1e300:\n            continue\n        bestc, gb = _branch_geo"
+  models = "a task that never reads the incumbent other threads have written (here, any incumbent): correct and as slow as no pruning"
+
+  [[target.mutant]]
+  id = "a-subtree-keeps-its-incumbent-to-itself"
+  find = "                if P1 + err < shared[0]:\n                    shared[0] = P1 + err\n            continue\n        lb = P1 + S1"
+  replace = "                if P1 + err < shared[0]:\n                    pass\n            continue\n        lb = P1 + S1"
+  models = "a better cover recorded but its upper value never written to the shared incumbent, so no thread prunes on it"
+
+  [[target.mutant]]
+  id = "a-subtree-records-covers-without-its-prefix"
+  find = "    for t in range(d0): path[t] = prefix[t]"
+  replace = "    pass"
+  models = "a task's recorded covers missing the columns above its root: partial designs, re-costed as cheaper than any cover"
+
+  [[target.mutant]]
+  id = "frontier-leaves-dropped"
+  find = "                leaves.append(path)"
+  replace = "                pass"
+  models = "complete covers met while the frontier is cut neither recorded nor searched: an optimum at the top of the tree is lost"
+
+  [[target.mutant]]
+  id = "frontier-children-forget-an-odd-column"
+  find = "        P1 = P + cost[col]; S1 = S - pisum[col]; O1 = O or odd[col]"
+  replace = "        P1 = P + cost[col]; S1 = S - pisum[col]; O1 = O"
+  models = "a frontier node below an odd column still charged the parity dual tau, so its bound is too high and the optimum pruned"
+
+  [[target.mutant]]
+  id = "frontier-children-keep-the-column-duals"
+  find = "        P1 = P + cost[col]; S1 = S - pisum[col]; O1 = O or odd[col]"
+  replace = "        P1 = P + cost[col]; S1 = S; O1 = O or odd[col]"
+  models = "a frontier node's dual sum still holding the duals of the markets its column covered: the bound counts them twice"
+
+  [[target.mutant]]
+  id = "threads-search-only-the-first-task"
+  find = "            if i is None:\n                break"
+  replace = "            if i is None or i > 0:\n                break"
+  models = "tasks after the first never searched: the parallel search proves on part of the tree"
+
+  [[target.mutant]]
+  id = "each-task-gets-the-whole-node-limit"
+  find = "                i = next(nxt, None); left = node_limit - total[0]"
+  replace = "                i = next(nxt, None); left = node_limit"
+  models = "the node limit applied per task, so the total runs past it and a search that should stop reports completion"
+

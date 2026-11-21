@@ -1,5 +1,5 @@
 """The staged certificate: exact elimination redone at each better incumbent, the exact search between."""
-import json, pathlib
+import json, os, pathlib
 from fractions import Fraction
 import numpy as np
 import pandas as pd
@@ -102,3 +102,28 @@ def test_automatic_stages_stop_when_the_survivors_stop_halving():
 @given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 3))
 def test_automatic_defaults_against_brute_force(seed, n, kind):
     _check(test_bcp.gen(np.random.default_rng(seed), n, kind), caps="auto", heuristic_seconds="auto")
+
+
+def test_the_exact_stage_on_threads_proves_the_same_optimum():
+    """The final stage searched on 1 and 4 threads and on this thread: the same proved optimum, and the stage
+    records its thread count."""
+    z = list(test_bcp._subsets(16, 3))[1]
+    outs = {w: ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200,),
+                                 workers=w) for w in (None, 1, 4)}
+    for w, out in outs.items():
+        assert out["proved"] and out["opt_exact"] == outs[None]["opt_exact"]
+        assert out["stages"][-1]["workers"] == w
+    auto = ce.certify_staged(z, heuristic_seconds=0.0)
+    assert auto["stages"][-1]["workers"] == min(4, os.cpu_count() or 1)
+
+
+@settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 3))
+def test_the_exact_stage_on_four_threads_against_brute_force(seed, n, kind):
+    _check(test_bcp.gen(np.random.default_rng(seed), n, kind), heuristic_seconds=0.0, workers=4)
+
+
+def test_bad_workers_are_rejected():
+    for w in (0, -1, "many"):
+        with pytest.raises(ValueError):
+            ce.certify_staged(np.arange(1.0, 9.0), workers=w)
