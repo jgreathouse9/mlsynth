@@ -355,13 +355,13 @@ def test_a_subtree_reads_and_lowers_the_shared_incumbent():
     p, U0 = _root_task(n, cand, cost, pi, m, tau, OPT)
     buf = np.empty((1000, n // 2 + 2), np.int64)
     shared = np.array([p["opt_up"]])
-    st1, nodes1, nc1 = vn._search_from(*p["args"], 10**9, U0, 0.0, p["S0"], False, np.zeros(0, np.int64),
+    st1, nodes1, nc1 = vn._search_from(*p["args"], 10**9, np.zeros((1, 8), np.int64), 0, U0, 0.0, p["S0"], False, np.zeros(0, np.int64),
                                        shared, buf, 0)
     assert st1 == 0 and nc1 >= 1 and shared[0] < p["opt_up"]
     best = vn.verify(n, 2, cand, cost, pi, m, tau, OPT)[2]
     p2, _ = _root_task(n, cand, cost, pi, m, tau, best)
     shared2 = np.array([p2["opt_up"]])
-    st2, nodes2, nc2 = vn._search_from(*p["args"], 10**9, U0, 0.0, p["S0"], False, np.zeros(0, np.int64),
+    st2, nodes2, nc2 = vn._search_from(*p["args"], 10**9, np.zeros((1, 8), np.int64), 0, U0, 0.0, p["S0"], False, np.zeros(0, np.int64),
                                        shared2, buf, 0)
     assert st2 == 0 and nodes2 < nodes1
 
@@ -399,3 +399,26 @@ def test_parallel_node_limit_counts_the_total():
     full = vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=1, split=64)
     assert full[0] == 0
     assert vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=1, split=64, node_limit=full[1] // 2)[0] == 1
+
+
+def _big_tree_case():
+    """Twenty-two lognormal markets, every group of 2 to 4, no duals and a poor start: a tree of 716,236 nodes. (With
+    integer markets the tree is a few thousand nodes: many groups balance exactly, the easy phase of Mertens 2001.)"""
+    rng = np.random.default_rng(5); n = 22
+    z = gen(rng, n, 2)
+    cand = [c for k in (2, 3, 4) for c in itertools.combinations(range(n), k)]
+    cost = {c: exact_score(z, c) for c in cand}
+    o = [int(v) for v in np.argsort(z)[::-1]]
+    start = [tuple(sorted((o[i], o[n - 1 - i]))) for i in range(n // 2)]
+    return n, np.zeros(n), 0.0, cand, cost, Fraction(0), sum(cost[c] for c in start)
+
+
+def test_the_node_limit_bounds_the_total_over_the_threads():
+    """Each thread adds its nodes to its own slot and checks the sum every 1,024 nodes, so the reported total stays
+    within 1,024 nodes per thread of the limit, and a search the limit stops reports status 1."""
+    n, pi, tau, cand, cost, m, OPT = _big_tree_case()
+    lim = 300_000
+    assert vn.verify(n, 2, cand, cost, pi, m, tau, OPT, node_limit=lim)[0] == 1     # the tree is bigger than the limit
+    for workers, split in ((4, 64), (4, 4), (2, 1000)):
+        st, nodes, val, d = vn.verify(n, 2, cand, cost, pi, m, tau, OPT, node_limit=lim, workers=workers, split=split)
+        assert st == 1 and lim < nodes <= lim + 1024 * workers, (workers, split, nodes)

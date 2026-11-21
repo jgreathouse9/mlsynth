@@ -392,11 +392,18 @@ def _children(n, B, W, lo, masks, cost, pisum, odd, gptr, gcols, m, tau, g2, abs
 
 
 @njit(cache=True, nogil=True)
-def _search_from(n, B, W, lo, masks, cost, pisum, odd, gptr, gcols, m, tau, g2, absA0, node_limit, U0, P0, S0, O0,
-                 prefix, shared, cands, nc):
+def _search_from(n, B, W, lo, masks, cost, pisum, odd, gptr, gcols, m, tau, g2, absA0, node_limit, counts, slot,
+                 U0, P0, S0, O0, prefix, shared, cands, nc):
     """_search_w on the subtree below one node (uncovered set U0, partial cost P0, dual sum S0, parity O0, the
     columns `prefix` on its path), pruning on and lowering the shared incumbent shared[0]. A recorded cover is the
-    prefix and the path, written to row nc of `cands` (the rest of the row -1). Returns (status, nodes, nc)."""
+    prefix and the path, written to row nc of `cands` (the rest of the row -1).
+
+    Node limit: counts[r, 0] holds thread r's nodes so far and counts[r, 1] its stop flag (rows a cache line apart,
+    so the threads do not share one). Every 1,024 nodes this thread writes its count and stops when the sum over the
+    threads passes node_limit (status 1) or another thread has stopped (status 3); it sets its flag when it stops
+    for either limit. Each thread writes only its own row, so no update is lost and the total passes the limit by
+    at most 1,024 nodes a thread. Returns (status, nodes, nc)."""
+    base = counts[slot, 0]
     d0 = prefix.shape[0]
     maxd = n // 2 + 2
     plen = cands.shape[1]
@@ -421,8 +428,16 @@ def _search_from(n, B, W, lo, masks, cost, pisum, odd, gptr, gcols, m, tau, g2, 
         if not _fits(masks, col, Ud[depth], W):
             continue
         nodes += 1
-        if nodes > node_limit:
-            status = 1; break
+        if nodes & 1023 == 0:
+            counts[slot, 0] = base + nodes
+            tot = 0; stop = False
+            for r in range(counts.shape[0]):
+                tot += counts[r, 0]
+                if counts[r, 1] != 0: stop = True
+            if tot > node_limit:
+                status = 1; break
+            if stop:
+                status = 3; break
         empty = True; cnt = 0
         for w in range(W):
             U1[w] = Ud[depth, w] & ~masks[col, w]
@@ -455,6 +470,9 @@ def _search_from(n, B, W, lo, masks, cost, pisum, odd, gptr, gcols, m, tau, g2, 
         for w in range(W): Ud[depth, w] = U1[w]
         Pd[depth] = P1; Sd[depth] = S1; Od[depth] = O1
         Gd[depth] = gb; Kd[depth] = gptr[gb]
+    counts[slot, 0] = base + nodes
+    if status == 1 or status == 2:
+        counts[slot, 1] = 1
     return status, nodes, nc
 
 
@@ -493,30 +511,35 @@ def _parallel(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit, cand_cap, bi
                 queue.append((Us[q].copy(), float(Ps[q]), float(Ss[q]), bool(Os[q]), path, float(lbs[q])))
     tasks = sorted(queue, key=lambda t: t[5])
     nxt = iter(range(len(tasks))); lock = threading.Lock()
-    total = [nodes]; status = [0]; bufs = [None] * workers
+    status = [0]; bufs = [None] * workers
+    counts = np.zeros((workers, 8), np.int64)        # row r: thread r's nodes, its stop flag; 64 bytes a row
+    left = node_limit - nodes                         # the frontier's nodes count against the limit
 
     def work(r):
         buf = np.empty((cand_cap, plen), np.int64); nc = 0
         while True:
             with lock:
-                if status[0]:
+                if status[0] or counts[:, 0].sum() > left or counts[:, 1].any():
                     break
-                i = next(nxt, None); left = node_limit - total[0]
+                i = next(nxt, None)
             if i is None:
                 break
             U, P, S, O, pre, lb = tasks[i]
-            st, k, nc = _search_from(*args, left, U, P, S, O, np.array(pre, np.int64), shared, buf, nc)
-            with lock:
-                total[0] += k
-                if st and not status[0]:
-                    status[0] = st
+            st, k, nc = _search_from(*args, left, counts, r, U, P, S, O, np.array(pre, np.int64), shared, buf, nc)
+            if st in (1, 2):
+                with lock:
+                    if not status[0]:
+                        status[0] = st
         bufs[r] = buf[:nc]
 
     threads = [threading.Thread(target=work, args=(r,)) for r in range(min(workers, max(1, len(tasks))))]
     for t in threads: t.start()
     for t in threads: t.join()
     rows = list(leaves) + [r for b in bufs if b is not None for r in b]
-    return status[0], int(total[0]), *_best_of(cand, exact_cost, OPT, rows)
+    total = nodes + int(counts[:, 0].sum())
+    if not status[0] and total > node_limit and next(nxt, None) is not None:
+        status[0] = 1                                 # stopped between subtrees with subtrees left
+    return status[0], total, *_best_of(cand, exact_cost, OPT, rows)
 
 
 @njit(cache=True)

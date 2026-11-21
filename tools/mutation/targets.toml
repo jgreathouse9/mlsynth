@@ -18296,7 +18296,7 @@ timeout = 900.0
 [[target]]
 name = "supergeo-verify-parallel"
 module-path = "benchmarks/studies/supergeo/verify_nb.py"
-test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k \"parallel or subtree\""
+test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k \"parallel or subtree or bounds_the_total\""
 timeout = 900.0
 
   [[target.mutant]]
@@ -18342,8 +18342,14 @@ timeout = 900.0
   models = "tasks after the first never searched: the parallel search proves on part of the tree"
 
   [[target.mutant]]
-  id = "each-task-gets-the-whole-node-limit"
-  find = "                i = next(nxt, None); left = node_limit - total[0]"
-  replace = "                i = next(nxt, None); left = node_limit"
-  models = "the node limit applied per task, so the total runs past it and a search that should stop reports completion"
+  id = "a-thread-checks-only-its-own-count"
+  find = "            for r in range(counts.shape[0]):\n                tot += counts[r, 0]"
+  replace = "            for r in range(slot, slot + 1):\n                tot += counts[r, 0]"
+  models = "each thread stops on its own nodes alone, so four threads run to four times the limit"
+
+  [[target.mutant]]
+  id = "a-threads-count-is-never-published"
+  find = "        if nodes & 1023 == 0:\n            counts[slot, 0] = base + nodes\n"
+  replace = "        if nodes & 1023 == 0:\n"
+  models = "a thread checks the sum without writing its own count first: the other threads see none of its nodes until its subtree ends"
 
