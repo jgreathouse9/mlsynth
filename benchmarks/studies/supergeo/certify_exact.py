@@ -145,12 +145,22 @@ def _survivor_rows(z, pi, tau, lo, hi, S, m, UB):
     return W2[ex.members2(z, pi, W2, th, tau, False)], len(W2)
 
 
+def _screen_rows(z, pi, tau, lo, S, m, UB, rows):
+    """The rows of an earlier stage's survivors that pass the exact test at the incumbent UB. A survivor is a group
+    with exact rc <= th(UB) = UB - S - (N / lo - 1) m, which grows with UB, so at an incumbent no dearer than the
+    one the rows were screened at, the survivors are a subset of the rows and the window need not be rebuilt."""
+    n = len(z)
+    th = up(UB - S - (Fraction(n, lo) - 1) * m)
+    return rows[ex.members2(z, pi, rows, th, tau, False)]
+
+
 def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", caps="auto", keep=0.5, workers="auto",
                    verbose=False):
     """The certificate with the elimination redone at every better incumbent and no MIP.
 
     After the root and the exact bound, each stage runs the exact elimination at the incumbent's exact cost and the
-    exact-cover search over the survivors from the incumbent. A capped stage searches on floating-point scores
+    exact-cover search over the survivors from the incumbent. The first stage screens the safe window; each later
+    one screens the last stage's rows (:func:`_screen_rows`), and its `window` is their number. A capped stage searches on floating-point scores
     (:func:`.verify_nb.verify_rows`) up to its node cap and only supplies incumbents: its covers are re-costed
     exactly and it proves nothing. The last stage searches on exact costs with no cap, and its completion is the
     proof: it covered every exact cover by columns that can be in a design costing at most the incumbent it started
@@ -193,14 +203,19 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
         return sum(mx.exact_rc(z, zeros, g) for g in d)
     UB = exact_cost(design)
     stages, proved, nodes_all, k = [], UB == LB, 0, 0
+    prev = None
     while not proved:
-        rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, UB)
+        if prev is None:                            # the one window; later stages screen the last stage's rows
+            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, UB)
+        else:
+            rows, nwin = _screen_rows(z, pi, tau, lo, S, m, UB, prev), len(prev)
         have = {tuple(int(v) for v in r if v >= 0) for r in rows}
         extra = [g for g in design if g not in have]
         if extra:
             pad = np.full((len(extra), 4), -1, np.int64)
             for j, g in enumerate(extra): pad[j, :len(g)] = g
             rows = np.vstack([rows, pad])
+        prev = rows
         last = stages[-1] if stages else None
         if auto:
             capped = last is None or (last["improved"] and len(rows) <= keep * last["survivors"])

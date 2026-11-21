@@ -127,3 +127,43 @@ def test_bad_workers_are_rejected():
     for w in (0, -1, "many"):
         with pytest.raises(ValueError):
             ce.certify_staged(np.arange(1.0, 9.0), workers=w)
+
+
+def _stage_inputs(z):
+    z, scale, pi, tau = ce._root(np.asarray(z, float), 2, 4)
+    m, S, LB, neg = ce._exact_bound(z, pi, tau, 2, 4)
+    return z, pi, tau, S, m
+
+
+def _keys(rows):
+    return {tuple(int(v) for v in r if v >= 0) for r in rows}
+
+
+@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(5, 12), kind=st.integers(0, 3), f=st.floats(0.0, 1.0))
+def test_screening_the_last_survivors_equals_a_new_window(seed, n, kind, f):
+    """At an incumbent no dearer than the last one, the exact screen of the last stage's survivors keeps exactly the
+    groups a new window and screen keep: survivors at a lower threshold are a subset of those at a higher one."""
+    z, pi, tau, S, m = _stage_inputs(test_bcp.gen(np.random.default_rng(seed), n, kind))
+    LB = S + Fraction(n, 2) * m
+    UB1 = Fraction(test_bcp.brute(z)) * 3 + 1                       # above the optimum
+    UB2 = LB + (UB1 - LB) * Fraction(f)                              # anywhere from the bound up to UB1
+    rows1, _ = ce._survivor_rows(z, pi, tau, 2, 4, S, m, UB1)
+    again = ce._screen_rows(z, pi, tau, 2, S, m, UB2, rows1)
+    fresh, _ = ce._survivor_rows(z, pi, tau, 2, 4, S, m, UB2)
+    assert _keys(again) == _keys(fresh)
+    assert len(again) == len(_keys(again))                           # no duplicates
+
+
+def test_the_window_is_built_once_for_the_stages(monkeypatch):
+    """One window for the bound and one for the first stage; later stages screen the last stage's rows, and record
+    how many they screened."""
+    calls = []
+    real = ce.safe_window
+    monkeypatch.setattr(ce, "safe_window", lambda *a, **k: calls.append(a[4]) or real(*a, **k))
+    z = list(test_bcp._subsets(16, 3))[1]
+    out = ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200, 2_000))
+    assert out["proved"] and len(out["stages"]) >= 3
+    assert len(calls) == 2
+    for a, b in zip(out["stages"], out["stages"][1:]):
+        assert b["window"] == a["survivors"]

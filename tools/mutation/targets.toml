@@ -18230,6 +18230,23 @@ timeout = 1500.0
   expected = "survived"
   accepted-because = "equivalent in practice: the certificate runs column generation to convergence, so the exact minimum reduced cost m is 0 up to rounding (-6.7e-9 at 210 markets) and the term moves the threshold by under 1e-7 relative; no group of any test instance lies in that band. The term stays because the elimination is valid only with it."
 
+  [[target.mutant]]
+  id = "later-stages-keep-the-last-stages-rows"
+  find = "    return rows[ex.members2(z, pi, rows, th, tau, False)]"
+  replace = "    return rows"
+  models = "a later stage handed the last stage's rows unscreened: a better incumbent eliminates nothing"
+
+  [[target.mutant]]
+  id = "the-screen-without-the-parity-dual"
+  find = "    return rows[ex.members2(z, pi, rows, th, tau, False)]"
+  replace = "    return rows[ex.members2(z, pi, rows, th, 0.0, False)]"
+  models = "the later stages' exact test without the parity dual tau: odd groups lose their credit and can be eliminated"
+
+  [[target.mutant]]
+  id = "the-screen-at-the-full-reduced-cost-floor"
+  find = "    th = up(UB - S - (Fraction(n, lo) - 1) * m)\n    return rows[ex.members2"
+  replace = "    th = up(UB - S - Fraction(n, lo) * m)\n    return rows[ex.members2"
+  models = "the later stages' threshold with N / lo copies of m in place of N / lo - 1: a different survivor set from the window's"
 [[target]]
 name = "supergeo-verify-rows"
 module-path = "benchmarks/studies/supergeo/verify_nb.py"
