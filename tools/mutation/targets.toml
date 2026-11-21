@@ -18131,3 +18131,45 @@ timeout = 600.0
   find = "    if st != \"Optimal\":\n        h.setOptionValue(\"presolve\", \"off\")"
   replace = "    if False:\n        h.setOptionValue(\"presolve\", \"off\")"
   models = "a master HiGHS's presolve cannot solve reported as a failure: the 14-market node that raised 'Solve error'"
+
+[[target]]
+name = "supergeo-lpsx"
+module-path = "benchmarks/studies/supergeo/lpsx.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_lpsx.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-removed-basic-column-is-not-a-violation"
+  find = "            elif xB[i] > TOL_P and not allowed[basis[i]]:\n                rho = -xB[i]                         # above its upper bound 0: u - x < 0"
+  replace = "            elif False:\n                rho = -xB[i]"
+  models = "the dual simplex blind to a column the node forbids that is still basic above 0: the child keeps it, and the LP is the parent's"
+
+  [[target.mutant]]
+  id = "the-primal-step-ignores-a-removed-columns-zero-bound"
+  find = "            elif col[i] < -TOL_PIV and not allowed[basis[i]]:\n                t = (max(-xB[i], 0.0) + HARRIS) / (-col[i])"
+  replace = "            elif False:\n                t = (max(-xB[i], 0.0) + HARRIS) / (-col[i])"
+  models = "the primal ratio test without the upper bound 0 of a forbidden basic column: the step raises it, and a forbidden group enters the solution"
+
+  [[target.mutant]]
+  id = "the-inverse-update-leaves-the-pivot-row"
+  find = "    for k in range(m):\n        Binv[r, k] /= piv"
+  replace = "    for k in range(m):\n        Binv[r, k] /= 1.0"
+  models = "Pan (3.21) applied without dividing the pivot row by the pivot: the inverse is of a different basis after the first pivot"
+
+  [[target.mutant]]
+  id = "violated-cuts-are-never-activated"
+  find = "            viol = [(float(v[t]), pool_keys[t]) for t in np.flatnonzero(v > TOL_P) if pool_keys[t] not in act]"
+  replace = "            viol = []"
+  models = "row activation off: the LP ignores every pool cut, its value is the cut-free relaxation, and its point violates the cuts"
+
+  [[target.mutant]]
+  id = "a-feasible-node-keeps-its-artificial"
+  find = "            big *= 1e3; warm = None"
+  replace = "            return r"
+  models = "the phase-1 LP finds the node feasible and its artificial use is returned anyway: the search prunes a feasible node"
+
+  [[target.mutant]]
+  id = "a-duplicate-cut-takes-the-dual-again"
+  find = "            k = cut_key(cut); out.append(0.0 if k in seen else sig.get(k, 0.0)); seen.add(k)"
+  replace = "            k = cut_key(cut); out.append(sig.get(k, 0.0)); seen.add(k)"
+  models = "every copy of a cut in the pool given the row's dual: sum sigma rhs counts the row as often as it is listed, and the node bound is wrong"
