@@ -163,7 +163,7 @@ def master(cols, costs, n, odd, cuts):
         start[j + 1] = start[j] + len(ent)
     lp.a_matrix_.format_ = highspy.MatrixFormat.kColwise; lp.a_matrix_.start_ = start
     lp.a_matrix_.index_ = np.array(idx, np.int32); lp.a_matrix_.value_ = np.array(val)
-    h.passModel(lp); h.run()
+    h.passModel(lp); sg.run_lp(h)
     st = h.modelStatusToString(h.getModelStatus())
     if st != "Optimal":
         raise RuntimeError(f"master not solved: {st}")

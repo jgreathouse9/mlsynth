@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from hypothesis import example, given, settings, strategies as st, HealthCheck
-from . import bcp, certify_exact, dive, rank1
+from . import bcp, bnp, certify_exact, dive, rank1
 
 GEOLIFT = pathlib.Path(__file__).resolve().parents[3] / "basedata" / "geolift_test_data.csv"
 
@@ -294,3 +294,57 @@ def test_artificials_priced_too_low_are_raised_until_a_feasible_master_drops_the
     fn, rest = {"bnp": (bnp.master, ()), "bcp": (bcp._master, ([],)), "bcp_r1": (bcp._master_r1, ([],))}[which]
     out = bnp.solve_feasible(fn, cols, costs, n, False, *rest, factor=1e-9)
     assert out[-1] <= 1e-9 and abs(out[0] - 2e12) <= 1e-9 * 2e12
+
+
+# --- group branching over the fixed universe ----------------------------------------------------------------------
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(5, 10), kind=st.integers(0, 3))
+def test_group_children_are_the_universe_groups_of_the_market(seed, n, kind):
+    """With the universe fixed, a group branch on market i has one child per universe group that holds i, fits
+    the node, and costs less than the incumbent; and the full scan of every group is never run."""
+    z = np.asarray(gen(np.random.default_rng(seed), n, kind), float)
+    b = _bcp(z)
+    out = b.solve(incumbent=_sorted_pairs(z), node_limit=1, root_mip_seconds=0.0)
+    if b.universe is None:
+        return
+    T = np.zeros((n, n), np.int8); ub = sum(b.score[tuple(sorted(g))] for g in out["design"]) * (1 + 1e-9) + 1e-12
+    _, x, _ = b.node(T, ub)
+    frac = {c: v for c, v in x.items() if v > 1e-9}
+    if all(abs(v - 1) < 1e-9 for v in frac.values()):
+        return
+    calls = b.stats["viable_scans"]
+    kids = b._branch(T, x, ub)
+    assert b.stats["viable_scans"] == calls
+    if b.last_group_branch is None:
+        return
+    i, groups = b.last_group_branch
+    assert len(kids) == len(groups)
+    assert set(groups) == {c for c in b.universe if i in c and bnp.compat_py(T, c) and b.score[c] < ub}
+
+
+def test_universe_groups_open_group_branching_on_an_outlier_instance():
+    """16 markets, one of about 3,000 to 9,000 against lognormal sizes near 30, from sorted pairs with no root MIP.
+    The absolute loss test admits every group of a market next to the outlier's cost, so no market qualifies
+    for group branching and every branch is on a pair; over the universe some markets have at most 64 groups.
+    Same optimum, fewer pair branches."""
+    rng = np.random.default_rng(8605)
+    z = np.r_[rng.lognormal(0, 1, 15) * 30, rng.uniform(3000, 9000)]
+    o = [int(v) for v in np.argsort(z)]; start = [tuple(sorted(o[i:i + 2])) for i in range(0, 16, 2)]
+    new = _bcp(z).solve(incumbent=start, time_limit=300, root_mip_seconds=0.0)
+    old = _bcp(z, fix_columns=False).solve(incumbent=start, time_limit=300, root_mip_seconds=0.0)
+    assert new["status"] == old["status"] == "optimal" and abs(new["opt"] - old["opt"]) <= 1e-9 * old["opt"]
+    assert old["group_branches"] == 0 < new["group_branches"] and new["pair_branches"] < old["pair_branches"]
+    assert new["viable_scans"] == 0
+
+
+def test_a_master_that_presolve_cannot_solve_is_solved_without_it():
+    """A 14-market node master (17 columns, 31 subset-row cuts, costs from 1.1e-3 to 5.4e7, artificials at
+    5.37e10): HiGHS's presolve returns 'Solve error' on it every time; without presolve the simplex solves it.
+    Every master retries once with presolve off before it reports a failure."""
+    import json
+    fx = json.loads((pathlib.Path(__file__).with_name("presolve_failure_master.json")).read_text())
+    cols = [tuple(c) for c in fx["cols"]]; costs = [float.fromhex(c) for c in fx["costs"]]
+    cuts = [tuple(c) for c in fx["cuts"]]
+    out = bcp._master(cols, costs, fx["n"], fx["odd"], cuts, big=float.fromhex(fx["big"]))
+    assert abs(out[0] - 17969091942.9903) <= 1e-6 * out[0]

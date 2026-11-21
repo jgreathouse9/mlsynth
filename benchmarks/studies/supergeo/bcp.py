@@ -24,7 +24,9 @@ the minimum taken over compatible columns.
 
 Branching. On a fractional node, a market is fractional when more than one
 column covering it is positive. Among fractional markets, take the one with the
-fewest viable groups (compatible, loss below the incumbent). If that number is at
+fewest viable groups (compatible, loss below the incumbent; once the universe is
+fixed, only its groups, which is also what keeps an outlier market from making
+every group viable). If that number is at
 most GROUP_LIMIT, branch on the market's group: one child per viable group,
 fixing it (together within the group, apart from every other market). A design
 in the node puts the market in exactly one group, and a group whose loss reaches
@@ -204,7 +206,7 @@ def _master(cols, costs, n, odd, cuts, big=BIG):
         idx.extend(rows); start[C + i + 1] = start[C + i] + len(rows)
     lp.a_matrix_.format_ = highspy.MatrixFormat.kColwise; lp.a_matrix_.start_ = start
     lp.a_matrix_.index_ = np.array(idx, np.int32); lp.a_matrix_.value_ = np.ones(len(idx))
-    h.passModel(lp); h.run()
+    h.passModel(lp); sg.run_lp(h)
     st = h.modelStatusToString(h.getModelStatus())
     if st != "Optimal":
         raise RuntimeError(f"node master not solved: {st}")
@@ -239,7 +241,7 @@ def _master_r1(cols, costs, n, odd, cuts, big=BIG):
         start[C + i + 1] = start[C + i] + len(ent)
     lp.a_matrix_.format_ = highspy.MatrixFormat.kColwise; lp.a_matrix_.start_ = start
     lp.a_matrix_.index_ = np.array(idx, np.int32); lp.a_matrix_.value_ = np.array(val)
-    h.passModel(lp); h.run()
+    h.passModel(lp); sg.run_lp(h)
     st = h.modelStatusToString(h.getModelStatus())
     if st != "Optimal":
         raise RuntimeError(f"node master not solved: {st}")
@@ -268,7 +270,8 @@ class BCP:
         self.stats.update(purged=0, max_pool=0)
         self.fix_columns, self.universe_limit = fix_columns, universe_limit
         self.universe = None; self._root = None; self._last = None
-        self.stats.update(universe=0, universe_at_fix=0, refixes=0, scans_after_fix=0, root_mip_improved=0)
+        self.stats.update(universe=0, universe_at_fix=0, refixes=0, scans_after_fix=0, root_mip_improved=0, viable_scans=0)
+        self.last_group_branch = None; self._by_market = None
 
     def _QR(self, sigma):
         return sr.duals_to_QR(self.n, self.cuts, sigma) if len(self.cuts) else (np.zeros((self.n, self.n)), np.zeros((1, 1, 1)))
@@ -384,6 +387,9 @@ class BCP:
             if c not in self.score: self.score[c] = dive._sc(self.z, c)
         self.universe = keep
         self.cols = sorted(keep)
+        self._by_market = {i: [] for i in range(self.n)}
+        for c in self.cols:
+            for i in c: self._by_market[i].append(c)
         self.stats["universe"] = len(keep)
 
     def _root_mip(self, ub, design, seconds):
@@ -439,18 +445,27 @@ class BCP:
         for c, v in frac.items():
             for i in c: cover.setdefault(i, []).append(v)
         fractional = [i for i, vs in cover.items() if len(vs) > 1 or abs(vs[0] - 1) > 1e-9]
+        self.last_group_branch = None
         if self.group_branching and fractional:
             best = None
             for i in fractional:
-                g, los, m = _viable(self.z, T, i, self.lo, self.hi, ub, GROUP_LIMIT)
+                if self.universe is not None:
+                    # a better design puts market i in one universe group: the children are those groups alone
+                    g = [c for c in self._by_market[i] if bnp.compat_py(T, c) and self.score[c] < ub]
+                    los = [self.score[c] for c in g]; m = len(g)
+                else:
+                    self.stats["viable_scans"] += 1
+                    rows, los, m = _viable(self.z, T, i, self.lo, self.hi, ub, GROUP_LIMIT)
+                    g = [tuple(int(v) for v in r if v >= 0) for r in rows]; los = list(los)
                 if m <= GROUP_LIMIT and (best is None or m < best[0]):
-                    best = (m, i, g.copy(), los.copy())
+                    best = (m, i, g, los)
             if best is not None:
                 m, i, groups, losses = best
                 self.stats["group_branches"] += 1
+                self.last_group_branch = (i, list(groups))
                 kids = []
                 for g, lo_g in zip(groups, losses):
-                    g = [int(v) for v in g if v >= 0]
+                    g = list(g)
                     T2 = T.copy()
                     for a in g:
                         for b in range(n):

@@ -18029,6 +18029,24 @@ timeout = 1500.0
   models = "the root MIP solved and its design thrown away: the search starts from the heuristic, 48.9 times the optimum on the 50-state panel"
 
   [[target.mutant]]
+  id = "a-universe-group-dropped-from-the-children"
+  find = "                    g = [c for c in self._by_market[i] if bnp.compat_py(T, c) and self.score[c] < ub]"
+  replace = "                    g = [c for c in self._by_market[i] if bnp.compat_py(T, c) and self.score[c] < ub][1:]"
+  models = "a group branch over the universe that leaves one of the market's groups out: the children no longer cover every better design"
+
+  [[target.mutant]]
+  id = "universe-children-ignore-the-node"
+  find = "                    g = [c for c in self._by_market[i] if bnp.compat_py(T, c) and self.score[c] < ub]"
+  replace = "                    g = [c for c in self._by_market[i] if self.score[c] < ub]"
+  models = "group children drawn from the universe without the node's pair decisions: a child can fix a group the node already forbids"
+
+  [[target.mutant]]
+  id = "group-branching-scans-every-group-after-fixing"
+  find = "                if self.universe is not None:\n                    # a better design puts market i in one universe group"
+  replace = "                if False:\n                    # a better design puts market i in one universe group"
+  models = "the scan of every group holding the market kept after the universe is fixed: 92% of a 50-state node, and the absolute loss test that leaves an outlier instance to pair branching"
+
+  [[target.mutant]]
   id = "no-refix-after-the-root-mip"
   find = "            self._fix(val, found)\n"
   replace = "            pass\n"
@@ -18077,3 +18095,15 @@ timeout = 1500.0
   find = "        if fn(cols, np.zeros(len(costs)), n, odd, *rest, big=1.0)[-1] > 1e-9:"
   replace = "        if True:"
   models = "any artificial in use read as infeasibility without the phase-1 check"
+
+[[target]]
+name = "supergeo-sg"
+module-path = "benchmarks/studies/supergeo/sg.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_bcp.py -q -p no:cacheprovider -x -k presolve"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "presolve-failure-not-retried"
+  find = "    if st != \"Optimal\":\n        h.setOptionValue(\"presolve\", \"off\")"
+  replace = "    if False:\n        h.setOptionValue(\"presolve\", \"off\")"
+  models = "a master HiGHS's presolve cannot solve reported as a failure: the 14-market node that raised 'Solve error'"

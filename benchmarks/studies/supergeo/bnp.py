@@ -117,7 +117,7 @@ def master(cols, costs, n, odd, big=BIG):
         idx.extend(rows); val.extend([1.0] * len(rows)); start[len(cols) + i + 1] = start[len(cols) + i] + len(rows)
     lp.a_matrix_.format_ = highspy.MatrixFormat.kColwise; lp.a_matrix_.start_ = start
     lp.a_matrix_.index_ = np.array(idx, np.int32); lp.a_matrix_.value_ = np.array(val)
-    h.passModel(lp); h.run()
+    h.passModel(lp); sg.run_lp(h)
     status = h.modelStatusToString(h.getModelStatus())
     if status != "Optimal":
         raise RuntimeError(f"node master not solved: {status}")

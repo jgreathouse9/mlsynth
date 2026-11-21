@@ -256,3 +256,16 @@ def certify2(z, lo=2, hi=4, add=2000, verbose=True, mip_limit=1200, max_cols=20_
     r2 = master_mip(cand, s_, n, mip_limit)
     return dict(n=n, lb=best_lb / scale, ub_pool=ub / scale, opt=r2.fun / scale, status=r2.status,
                 rounds=rounds, pool=len(cols), within=m, t_lp=t_lp, t_ub=t_ub, t=time.perf_counter() - t0)
+
+
+def run_lp(h):
+    """Run a HiGHS model; when the status is not Optimal, run it once more with presolve off.
+
+    A 14-market node master (costs from 1.1e-3 to 5.4e7, artificials at 5.37e10) returns 'Solve error'
+    from presolve every time and solves without it (presolve_failure_master.json). Returns the status."""
+    h.run()
+    st = h.modelStatusToString(h.getModelStatus())
+    if st != "Optimal":
+        h.setOptionValue("presolve", "off"); h.clearSolver(); h.run()
+        st = h.modelStatusToString(h.getModelStatus())
+    return st
