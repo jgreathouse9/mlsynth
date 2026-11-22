@@ -767,6 +767,82 @@ of the effect estimate over simulated heterogeneous effects, since the pretest
 optimum overfits. Similarity clustering does not carry over: the base problem's
 good groups mix sizes.
 
+## Pairs by Edmonds' blossom algorithm
+
+A design of pairs costs the sum of its pairs' costs, so the best pairing of n
+markets is a minimum-weight perfect matching on the complete graph of markets
+(Edmonds 1965). `matching.py` is the primal-dual blossom algorithm in its
+O(n^3) form, in Numba, written from Lawler (1976, chapter 6) and Galil (1986,
+section 3). It is a clean-room implementation: Blossom VI (Kolmogorov 2009) and
+networkx served only as reference solvers to compare answers against, and no
+code was taken from either.
+
+With an odd count, a dummy market joined to every market at cost 0 makes the
+count even, and the market matched to it is the one left out. The rest is the
+least-cost set of (n - 1) / 2 pairs, by the cardinality optimality of Edmonds'
+intermediate matchings (Kaibel and Walter 2017).
+
+`min_weight_matching(W)` returns the pairs, the market left out, the cost, and
+the duals the algorithm ends with: one per market and one per odd set (a
+blossom). The duals prove the pairing optimal by linear programming duality on
+Edmonds' matching polytope. They are feasible, and their objective equals the
+cost, so no pairing costs less. The call checks this in exact arithmetic
+before it returns, and raises if the check fails. Integer costs whose sums are
+exact in floating point get an exact certificate. Other costs get one exact to
+rounding, with the tolerance stated on the result.
+
+### The certificate check
+
+The first check evaluated every pair in Python rationals and added each odd
+set's dual into every pair inside it. With the scalar cost (z_a - z_b)^2 the
+algorithm ends with about n / 2 nested odd sets, so that check ran in time
+near n^3, and at 1000 markets it took 20 s against a 1.4 s solve.
+
+The odd sets of Edmonds' algorithm are laminar: any two are nested or
+disjoint. One vertex order lays each set out as an interval (Korte and Vygen
+2018, section 2.2), so the dual sum over the sets holding a pair is a
+two-dimensional cumulative sum. A floating pass, with a rounding bound that
+counts the terms of each sum (Higham 2002, section 4.2), clears every pair
+whose slack is plainly positive. Only the rest, close to n of them, are settled
+in rationals, a floating-point filter in front of an exact test (Shewchuk
+1997). The result equals the direct rational check, a property test compares
+the two exactly, and a crossing family falls back to the direct check.
+
+### Timings
+
+One quiet session, one thread, best and worst of 3 to 5 runs. "Solve" is the
+Numba solver alone; "check" is the exact certificate; Blossom VI is its
+solver's own timer, on integer weights (the random costs as drawn; the 174 geos' costs capped at a greedy
+matching's cost and rounded to a scale of 2^28, which keeps the optimum).
+
+| instance | Numba solve | check before | check now | Blossom VI | networkx |
+| --- | --- | --- | --- | --- | --- |
+| Trimmed Match's 174 geos, pairs | 6.3-6.9 ms | 43-47 ms | 2.4-2.7 ms | 0.21-0.33 ms | 1.6 s |
+| 174 markets, integer costs | 8.3-9.5 ms | 35-37 ms | 2.8-2.9 ms | 1.5-1.7 ms | 1.8 s |
+| 400 markets, integer costs | 81-119 ms | 0.25-0.27 s | 12 ms | 14-19 ms | 24.5 s |
+| 400 markets, scalar cost | 91-119 ms | 2.7-3.0 s | 39-44 ms | | |
+| 1000 markets, integer costs | 1.20-1.23 s | 2.8-3.1 s | 76-79 ms | 0.15 s | |
+| 1000 markets, scalar cost | 1.38-1.57 s | 19-20 s | 0.14-0.17 s | | |
+
+Every cost equals the reference: the sorted pairing for the scalar cost, and
+Blossom VI and networkx for integer costs. On the 174 geos the whole call,
+certificate included, takes 9 to 11 ms against 0.72 to 0.83 s for PANGEO's
+cvxpy MIP and 2.0 to 2.2 s for the staged certificate (after the stop rules).
+
+The Numba solver is 5 to 26 times slower than Blossom VI's. Blossom VI starts
+from a greedy fractional matching and keeps each blossom's edges in priority
+queues (Kolmogorov 2009), while this solver is the dense O(n^3) form, which
+scans every slack in each dual step. It is 200 to 300 times faster than
+networkx, the pure-Python form of the same algorithm.
+
+References: Edmonds, "Paths, trees, and flowers", Canad. J. Math. 17 (1965)
+449-467; Lawler, "Combinatorial Optimization: Networks and Matroids", 1976;
+Galil, ACM Computing Surveys 18 (1986) 23-38; Kolmogorov, "Blossom V", Math.
+Prog. Comp. 1 (2009) 43-67; Kaibel and Walter, arXiv:1703.09505 (2017); Korte
+and Vygen, "Combinatorial Optimization", 6th ed., 2018; Higham, "Accuracy and
+Stability of Numerical Algorithms", 2nd ed., 2002; Shewchuk, Discrete Comput.
+Geom. 18 (1997) 305-363.
+
 ## Tests
 
 `python -m pytest benchmarks/studies/supergeo -q`. Brute force over every
@@ -784,6 +860,13 @@ the numba exact kernel's six are killed except one equivalent (zero elimination
 skipped); the pricing window's six are killed except "split check removed"
 (equivalent: membership is decided exactly) and "no rounding margin" (not shown
 observable in 8,900 targeted cases; the proof needs the margin).
+
+The matcher (`test_matching.py`) is checked against brute force over every
+matching for up to 11 markets with an exact certificate, the sorted pairing
+for the scalar cost, and networkx where it is installed; the fast certificate
+check against the direct rational check on solved and tampered certificates.
+Its targets `supergeo-matching` (15 mutants) and `supergeo-matching-check`
+(10) are killed in full.
 
 ## Running a script and the tests in one tree
 
