@@ -20,6 +20,10 @@ from pydantic import Field
 from ...config_models import DesignResult
 
 
+class PangeoExcludedUnitWarning(UserWarning):
+    """A market left out of the design (an odd arm's pairs on the exact path)."""
+
+
 @dataclass(frozen=True)
 class SupergeoPair:
     """One supergeo pair within an arm.
@@ -89,6 +93,10 @@ class ArmDesign:
         All units assigned to treatment in the arm.
     control_units : list
         All units assigned to control in the arm.
+    excluded_units : list
+        Units left out of the design: with pairs on the exact path, the one
+        market an odd arm leaves out so that the rest pair at the least cost
+        (``pairs.solve_pairs``). Empty otherwise.
     """
 
     arm: Any
@@ -98,6 +106,7 @@ class ArmDesign:
     mean_parallelism_r2: float
     treatment_units: List[Any]
     control_units: List[Any]
+    excluded_units: List[Any] = field(default_factory=list)
 
 
 class PangeoResults(DesignResult):
@@ -138,6 +147,9 @@ class PangeoResults(DesignResult):
         control. A run with the same seed on the same pre-period panel labels
         the pairs the same way, which is how an analysis run (``post_col``)
         reads the assignment the experiment ran.
+    excluded_units : list
+        Every arm's ``ArmDesign.excluded_units``, in arm order: the markets in
+        no pair, absent from ``assignment``.
     """
 
     arm_designs: Dict[Any, ArmDesign] = Field(default_factory=dict)
@@ -145,6 +157,7 @@ class PangeoResults(DesignResult):
     time_labels: Optional[np.ndarray] = None
     effects: Optional[Any] = None  # PangeoEffects when post-period data given
     assignment_seed: Optional[int] = None
+    excluded_units: List[Any] = Field(default_factory=list)
 
     class Config:
         arbitrary_types_allowed = True
