@@ -85,7 +85,50 @@ def _survivors(z, pi, tau, lo, hi, S, m, UB):
     return [tuple(int(v) for v in r if v >= 0) for r in keep], len(W2)
 
 
+def _check_limits(lo, hi):
+    """The group-size limits the solvers support: the pricing scan forms groups of 2, 3 and 4 markets only and the
+    exact-cover search stores a group in four slots, so a limit outside 2 <= lo <= hi <= 4 would leave groups
+    unpriced and the bound unproved."""
+    ok = all(isinstance(v, (int, np.integer)) and not isinstance(v, bool) for v in (lo, hi))
+    if not ok or not 2 <= lo <= hi <= 4:
+        raise ValueError(f"lo and hi must be integers with 2 <= lo <= hi <= 4, not lo={lo!r}, hi={hi!r}")
+
+
+def _partition_exists(n, lo, hi):
+    """Whether n markets split into groups of lo to hi: some number k of groups has k lo <= n <= k hi."""
+    return any(k * lo <= n <= k * hi for k in range(1, n // lo + 1))
+
+
+def _start(z, lo, hi):
+    """The starting design: neighbours in sorted order. Pairs, with a triple at the top when n is odd, wherever
+    those fit the limits (the design every earlier run started from); otherwise the sorted markets cut into the
+    fewest blocks whose sizes, as equal as possible, lie in lo to hi."""
+    n = len(z); o = [int(v) for v in np.argsort(z)]
+    if lo == 2 and (n % 2 == 0 or hi >= 3):
+        return ([tuple(o[i:i + 2]) for i in range(0, n - 3, 2)] + [tuple(o[-3:])]) if n % 2 else \
+            [tuple(o[i:i + 2]) for i in range(0, n, 2)]
+    k = next(k for k in range(1, n // lo + 1) if k * lo <= n <= k * hi)
+    sizes = [n // k + (1 if i < n % k else 0) for i in range(k)]
+    out, at = [], 0
+    for size in sizes:
+        out.append(tuple(o[at:at + size])); at += size
+    return out
+
+
+def _check_result(design, n, lo, hi, lb_proved, ub):
+    """The certificate's own invariants, checked before it returns: every market in exactly one group, every group
+    within the limits, and a proven lower bound no larger than the design's cost. A failure is a defect in the
+    certificate, never a property of the data."""
+    if sorted(v for g in design for v in g) != list(range(n)) or not all(lo <= len(g) <= hi for g in design):
+        raise RuntimeError(f"certificate invariant violated: group sizes {sorted(len(g) for g in design)} "
+                           f"or cover outside lo={lo}, hi={hi} over {n} markets")
+    if lb_proved > ub:
+        raise RuntimeError(f"certificate invariant violated: proven lower bound {float(lb_proved):.6g} above the "
+                           f"design's cost {float(ub):.6g}")
+
+
 def certify(z0, lo=2, hi=4, incumbent=None, mip_limit=600, verbose=True):
+    _check_limits(lo, hi)
     t0 = time.perf_counter(); n = len(z0); odd = n % 2 == 1
     # 1. column generation
     z, scale, pi, tau = _root(z0, lo, hi)
@@ -94,9 +137,8 @@ def certify(z0, lo=2, hi=4, incumbent=None, mip_limit=600, verbose=True):
     m, S, LB, neg = _exact_bound(z, pi, tau, lo, hi)
     # 3. exact incumbent cost
     if incumbent is None:
-        o = list(np.argsort(z))
-        incumbent = ([tuple(o[i:i + 2]) for i in range(0, n - 3, 2)] + [tuple(o[-3:])]) if odd else [tuple(o[i:i + 2]) for i in range(0, n, 2)]
-        incumbent, _, _ = lns.lns_dp(z, incumbent, seconds=30, verbose=False)
+        incumbent = _start(z, lo, hi)
+        incumbent, _, _ = lns.lns_dp(z, incumbent, lo=lo, hi=hi, seconds=30, verbose=False)
     incumbent = [tuple(sorted(int(v) for v in g)) for g in incumbent]
     def exact_cost(design):
         return sum(mx.exact_rc(z, np.zeros(n), g) for g in design)       # exact score: rc with zero duals
@@ -261,6 +303,7 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
     `feasible`, `standard` (None, or the threshold, whether the design meets it and its largest group cost),
     `heuristic_steps`, `seed` and `deterministic`."""
     n = len(z0); odd = n % 2 == 1
+    _check_limits(lo, hi)
     if not isinstance(deterministic, bool):
         raise ValueError(f"deterministic must be True or False, not {deterministic!r}")
     if region is not None:
@@ -303,18 +346,30 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
                                        or not math.isfinite(max_group_cost) or max_group_cost < 0):
         raise ValueError(f"max_group_cost must be a finite number >= 0 or None, not {max_group_cost!r}")
     t0 = time.perf_counter()
+    if not _partition_exists(n, lo, hi):            # no design at all: proved by counting, before any LP
+        return dict(n=n, scale=None, lb=None, opt=None, lb_exact=None, opt_exact=None, negative_columns=None,
+                    proved=True, stages=[], verify_nodes=0,
+                    proof=f"no design: {n} markets cannot be split into groups of {lo} to {hi}",
+                    gap=float(G), gap_proved=None, abs_gap=abs_gap, abs_gap_proved=None, lb_proved=None,
+                    lb_proved_exact=None, feasible=False, heuristic_steps=0, seed=seed, deterministic=deterministic,
+                    standard=None if max_group_cost is None else dict(max_group_cost=max_group_cost, met=False,
+                                                                     max_group=None),
+                    t_cg=0.0, t=time.perf_counter() - t0, design=None)
+    if incumbent is not None and any(not lo <= len(g) <= hi for g in incumbent):
+        raise ValueError(f"the incumbent has a group outside lo={lo}, hi={hi}")
     z, scale, pi, tau = _root(z0, lo, hi)
     t_cg = time.perf_counter() - t0
     steps_run = 0
     if incumbent is None:
-        o = [int(v) for v in np.argsort(z)]
-        incumbent = ([tuple(o[i:i + 2]) for i in range(0, n - 3, 2)] + [tuple(o[-3:])]) if odd else [tuple(o[i:i + 2]) for i in range(0, n, 2)]
+        incumbent = _start(z, lo, hi)
         if heuristic_seconds is not None:
             if heuristic_seconds > 0:                # a time budget: the number of steps is the machine's
-                incumbent, _, trace = lns.lns_dp(z, incumbent, seconds=heuristic_seconds, seed=seed, verbose=False)
+                incumbent, _, trace = lns.lns_dp(z, incumbent, lo=lo, hi=hi, seconds=heuristic_seconds, seed=seed,
+                                                 verbose=False)
                 steps_run = len(trace) - 1
         elif heuristic_steps > 0:
-            incumbent, _, trace = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed, verbose=False)
+            incumbent, _, trace = lns.lns_dp(z, incumbent, lo=lo, hi=hi, steps=int(heuristic_steps), seed=seed,
+                                             verbose=False)
             steps_run = len(trace) - 1              # the steps that ran, read from the search's own trace
     design = [tuple(sorted(int(v) for v in g)) for g in incumbent]
     zeros = np.zeros(n)
@@ -429,6 +484,7 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
     if UB == LB:
         lb_proved = LB
     gp = (UB - lb_proved) / UB if UB > 0 else Fraction(0)
+    _check_result(design, n, lo, hi, lb_proved, UB)
     std = None
     if tq is not None:
         worst = max(mx.exact_rc(z, zeros, tuple(g)) for g in design)
