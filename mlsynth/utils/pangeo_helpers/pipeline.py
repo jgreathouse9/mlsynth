@@ -9,6 +9,7 @@ halves.
 
 from __future__ import annotations
 
+import warnings
 from typing import Dict, Optional, Sequence
 
 import numpy as np
@@ -24,7 +25,8 @@ from .parallelism import (
 )
 from .power import compute_pangeo_power
 from .setup import PangeoInputs
-from .structures import ArmDesign, PangeoResults, SupergeoPair
+from .structures import (ArmDesign, PangeoExcludedUnitWarning, PangeoResults,
+                         SupergeoPair)
 
 # Upper bound on Q for automatic selection (bounds the candidate-pair
 # enumeration when no Q is supplied; pass Q explicitly for large arms).
@@ -50,6 +52,15 @@ def _holdout_resid(yT, yC, e_idx, b_idx, augment, trend):
     # and an ATT reported there rest on the same fit.
     beta = np.linalg.lstsq(XE, y[e_idx], rcond=None)[0]
     return y[b_idx] - X[b_idx] @ beta
+
+
+def _warn_excluded(arm, n_units: int, excluded) -> None:
+    """Name each market left out of an arm's design, as a PangeoExcludedUnitWarning."""
+    for unit in excluded:
+        warnings.warn(
+            f"PANGEO: arm {arm!r} has an odd number of units ({n_units}); {unit!r} is left out of "
+            "the design so the rest pair at the least cost (results.excluded_units).",
+            PangeoExcludedUnitWarning, stacklevel=3)
 
 
 def _coin_flips(sizes: Sequence[int], seed: int):
@@ -326,6 +337,9 @@ def run_pangeo(
                 assignment[u] = "control"
 
         r2s = [p.parallelism_r2 for p in pairs if np.isfinite(p.parallelism_r2)]
+        excluded = [unit_names[i] for i in
+                    solver_diagnostics[arm].get("excluded_units", [])]
+        _warn_excluded(arm, int(idx.size), excluded)
         arm_designs[arm] = ArmDesign(
             arm=arm,
             pairs=pairs,
@@ -334,6 +348,7 @@ def run_pangeo(
             mean_parallelism_r2=float(np.mean(r2s)) if r2s else np.nan,
             treatment_units=treatment_units,
             control_units=control_units,
+            excluded_units=excluded,
         )
 
     metadata = {
@@ -390,6 +405,7 @@ def run_pangeo(
         metadata=metadata,
         power=power,
         assignment_seed=assignment_seed,
+        excluded_units=[u for d in arm_designs.values() for u in d.excluded_units],
     )
 
 
@@ -474,10 +490,14 @@ def _sweep_designs(inputs: PangeoInputs, *, q_upper: int, run_kwargs: dict):
     results = {}
     for q in range(1, q_upper + 1):
         try:
-            cand = run_pangeo(
-                inputs, max_supergeo_size=q, compute_power=True,
-                compute_q_sweep=False, **run_kwargs,
-            )
+            # The sweep's designs are candidates; only the one returned names its
+            # excluded markets (_auto_select_q re-warns for it).
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", PangeoExcludedUnitWarning)
+                cand = run_pangeo(
+                    inputs, max_supergeo_size=q, compute_power=True,
+                    compute_q_sweep=False, **run_kwargs,
+                )
         except MlsynthEstimationError:
             sweep.append({"q": q, "feasible": False, "n_program_pairs": 0,
                           "mean_program_mde_pct": None, "mde_se": None,
@@ -551,6 +571,8 @@ def _auto_select_q(
             "max_supergeo_size explicitly."
         )
     best = results[q_selected]
+    for arm, design in best.arm_designs.items():
+        _warn_excluded(arm, design.n_units, design.excluded_units)
     metadata = {**best.metadata, "q_auto_selected": True,
                 "q_selected": q_selected, "q_selection": q_selection,
                 "q_sweep": sweep}

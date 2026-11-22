@@ -257,3 +257,31 @@ def test_the_mip_and_the_fast_path_still_raise_on_an_odd_arm(kw):
     """Failure: an explicit MIP backend and the fast path have no leave-one-out; an odd arm still raises."""
     with pytest.raises(MlsynthEstimationError):
         _design(_panel(7, 5), objective="ss_res", **kw)
+
+
+# --- the sweep's candidates and automatic Q -----------------------------------------------------------------------
+
+def _excluded_warnings(caught):
+    from mlsynth.utils.pangeo_helpers.structures import PangeoExcludedUnitWarning
+    return [w for w in caught if issubclass(w.category, PangeoExcludedUnitWarning)]
+
+
+def test_the_sweeps_candidates_do_not_warn():
+    """Unit: a fixed Q = 2 design with the diagnostic Q sweep on an odd arm leaves nothing out, and the sweep's
+    Q = 1 candidate, which does leave one out, warns nothing: only the design returned names its markets."""
+    _, res, caught = _design(_panel(8, 9, T=16), objective="ss_res", max_supergeo_size=2,
+                             compute_power=True, compute_q_sweep=True)
+    assert any(r["q"] == 1 and r["feasible"] for r in res.metadata["q_sweep"])
+    assert res.excluded_units == [] and _excluded_warnings(caught) == []
+
+
+def test_automatic_q_names_the_market_its_design_leaves_out(monkeypatch):
+    """Unit: when automatic Q returns the pairs design of an odd arm, it warns once for the market that design
+    leaves out, and the result records it; the sweep's other candidates add no warning."""
+    from mlsynth.utils.pangeo_helpers import pipeline
+    monkeypatch.setattr(pipeline, "_select_q", lambda sweep, **kw: 1)
+    _, res, caught = _design(_panel(9, 9, T=16), objective="ss_res", max_supergeo_size=None,
+                             compute_power=True)
+    assert res.max_supergeo_size == 1 and len(res.excluded_units) == 1
+    named = _excluded_warnings(caught)
+    assert len(named) == 1 and res.excluded_units[0] in str(named[0].message)
