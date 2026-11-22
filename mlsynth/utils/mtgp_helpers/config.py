@@ -47,7 +47,8 @@ class MTGPConfig(BaseEstimatorConfig):
     n_warmup : int
         NUTS warm-up (adaptation) iterations per chain.
     n_samples : int
-        Retained NUTS samples per chain (total, across chains).
+        Retained NUTS samples per chain; a fit holds ``n_samples * n_chains``
+        draws, as a Stan run with ``iter = n_warmup + n_samples`` per chain does.
     n_chains : int
         Number of NUTS chains.
     target_accept : float
