@@ -18499,10 +18499,10 @@ test-command = "python -m pytest benchmarks/studies/supergeo/test_mitm_exact.py 
 timeout = 900.0
 
   [[target.mutant]]
-  id = "the-last-half-not-counted"
+  id = "the-first-half-not-counted"
   find = "    for L in prange(m):\n        cnt[L] = _window_half("
-  replace = "    for L in prange(m - 1):\n        cnt[L] = _window_half("
-  models = "the count pass skips the last left half, so its rows are never filled"
+  replace = "    for L in prange(1, m):\n        cnt[L] = _window_half("
+  models = "the count pass skips the first left half (market 0, positive), so its rows are never filled. (Skipping the last half instead is equivalent: it is the pair of the two last markets with a negative first sign, which the window skips anyway.)"
 
   [[target.mutant]]
   id = "a-half-filled-at-the-next-offset"

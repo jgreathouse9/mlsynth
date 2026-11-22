@@ -98,10 +98,12 @@ def test_n210_against_exact_reference(theta):
 # --- the safe window on threads ---------------------------------------------------------------------------------------
 
 @settings(max_examples=150, deadline=None, suppress_health_check=[HealthCheck.too_slow])
-@given(seed=st.integers(0, 10**9), n=st.integers(4, 16), th=st.floats(-5.0, 500.0), dual=st.floats(0.0, 3.0))
-def test_the_parallel_window_emits_the_serial_rows(seed, n, th, dual):
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 16), th=st.floats(-5.0, 500.0), dual=st.floats(0.0, 3.0),
+       sizes=st.sampled_from([(2, 4), (2, 3), (3, 4), (2, 2), (4, 4)]))
+def test_the_parallel_window_emits_the_serial_rows(seed, n, th, dual, sizes):
     """The window counted and filled in parallel (offsets from the per-half counts) emits the serial window's
-    rows: the same number, and the same rows once sorted."""
+    rows: the same number, and the same rows once sorted, for every range of group sizes."""
+    lo, hi = sizes
     from . import mitm
     rng = np.random.default_rng(seed)
     z = rng.lognormal(0, 1, n) * 10; pi = rng.normal(0, dual, n)
@@ -109,7 +111,7 @@ def test_the_parallel_window_emits_the_serial_rows(seed, n, th, dual):
     M = float(np.max(np.abs(z))); P = float(np.max(np.abs(pi)))
     wmax = float(max(pi.max(), 0.0) + max(np.sort(pi)[-2:].sum(), pi.max(), 0.0))
     slack_r2 = 8 * mx.U * (abs(th) + 6 * P) + 2 * mx.U * abs(wmax); slack_v = 16 * mx.U * 4 * M
-    args = (hv, ha, hb, hsa, hsb, hw, order, 2, 4, float(th), wmax, slack_r2, slack_v)
+    args = (hv, ha, hb, hsa, hsb, hw, order, lo, hi, float(th), wmax, slack_r2, slack_v)
     _, k = mx._window_safe(*args, 0)
     serial, _ = mx._window_safe(*args, k)
     par = mx._window_safe_par(*args)
