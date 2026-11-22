@@ -26,14 +26,63 @@ and the first plausible story is the one that hides the rest.
 
 ## Steps
 
-1. **State the incident in facts.** What was observed, on what input, against
-   what expectation. No hypothesis yet. Get both numbers, their ratio and their
-   difference. Name the estimand the reference number refers to: an average over
-   a stated window is not a total, and a placebo is not an effect. Do not start
-   from the docstring or the commit message -- read the executed path.
+1. **State the incident in facts, the way a good Statalist post does.** A
+   diagnosis is only as good as the report it starts from, and a vague report
+   sends the first hour down the wrong branch. Before any hypothesis, write:
 
-2. **Reproduce it minimally and deterministically.** Smallest panel, fixed seed,
-   fewest estimators. If it will not reproduce, that is the first finding.
+   - **The exact call.** The function or estimator and every argument that was
+     passed, and the defaults that matter for the question (`gap=0` is the
+     default and decides whether a proof is exact). Not "I ran the
+     certificate"; `certify_staged(z, lo=2, hi=2)` with `z` the 174 pretest
+     totals.
+   - **Exactly what happened, in the words of the program.** "Raised
+     `MlsynthEstimationError: no admissible pairs`", "returned `proved=True`
+     with `gap_proved=-9.64`", "ran 30 minutes and was killed by `timeout`
+     (exit 124) with no output". Say "crashed" only for a crash. Say "hung"
+     only when you know it was not progressing; a long search is not a hang.
+   - **Numbers, not adjectives.** Not "slow": 9.0 s. Not "many groups":
+     1,012,347 surviving groups. Not "a big panel": 174 markets, 364 days.
+     Both numbers being compared, their ratio and their difference.
+   - **How the observation was made.** The command line, whether output went
+     through a pipe (`| grep` and `| tail` buffer until the process ends, so
+     "no output" may mean "not finished yet", not "nothing done"), what ran
+     beside it on the machine, and the thread counts.
+   - **Versions.** The commit SHA, the Python version, the versions of the
+     libraries on the path (numpy, scipy, cvxpy, highspy, numba), and the CPU
+     count. A report without them cannot be rerun.
+   - **The data, shown.** Its shape and a summary (n, T, min, median, max, the
+     ratio of the largest unit to the median), and a way to rebuild it: a seed
+     and generator, a public file and the rows used, or a short extract. A
+     private panel is never named or attached; it is described by its
+     statistics and replaced by a synthetic one (step 2).
+   - **The expectation and where it comes from.** The paper's table, a
+     reference implementation's output, a brute-force oracle, or a property of
+     the problem (no pairing beats the sorted pairing). Name the estimand each
+     number refers to: an average over a stated window is not a total, and a
+     placebo is not an effect.
+
+   Do not start from the docstring or the commit message -- read the executed
+   path. Correct the report as soon as a measurement contradicts it, and keep
+   the correction in the write-up: a misreading that was undone is an
+   eliminated hypothesis, and the next person will make it too.
+
+2. **Reproduce it synthetically, small, against the current code, before
+   anything else.** Build the smallest instance whose answer is known in
+   advance and that shows the failure: ten units, not a hundred and seventy; a
+   brute-force optimum, a planted effect, a closed-form answer, or a reference
+   implementation's output on a public dataset. Put the suspected property in
+   as a dial (a unit eight times the median; a group-size limit other than the
+   default; the heuristic on and off) and turn it until the failure appears.
+
+   - Commit the reproduction as a test on the fix branch, before the fix, and
+     show it failing for the stated reason on the current code. It becomes the
+     regression test the fix turns green. A reproduction that lives only in a
+     scratch directory is lost with the container.
+   - If it will not reproduce small, that is the first finding: the cause needs
+     size, or the report is wrong. Say which, and grow the instance one knob at
+     a time.
+   - The large instance stays as the incident report; the descent happens on
+     the small one, where each run takes seconds.
 
 3. **Write the dependency chain.** Before descending, state what the reported
    number is a function of, in order, each stage depending only on the ones to
