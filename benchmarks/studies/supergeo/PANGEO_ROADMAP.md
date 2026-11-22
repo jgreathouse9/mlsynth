@@ -223,6 +223,57 @@ analysis of a finished experiment.
   pairs it trimmed, and phase 5 measures the bias on simulated heterogeneous
   effects.
 
+### Phase 6b: an aggregate effect from regional designs
+
+With `region=` the design keeps every supergeo inside one region (study README).
+The analysis then owes one national number and one number per region, from the
+same supergeos.
+
+- Every supergeo is still a randomized unit. A coin picks which half of supergeo
+  k is treated, so with X_k and Y_k the treated-minus-control spend and response,
+  e_k(theta) = Y_k - theta X_k is symmetric about 0 at the true iROAS under no
+  interference beyond spend and a common iROAS (Chen and Au, "Robust causal
+  inference for incremental return on ad spend with randomized paired geo
+  experiments", Ann. Appl. Stat. 16 (2022) 1-20, doi:10.1214/21-AOAS1493,
+  Assumptions 0 and 1, Proposition 2). The region constraint limits which
+  supergeos form and leaves the coin alone: the design is a stratified paired
+  design.
+- The estimand adds up. The iROAS is total incremental response over total
+  incremental spend (Chen and Au, eq. 1.2), and the empirical estimator
+  (eq. 3.3) splits exactly: theta_hat = sum_r Y_r / sum_r X_r = sum_r w_r
+  theta_hat_r, with Y_r and X_r region r's sums, theta_hat_r = Y_r / X_r and
+  w_r = X_r / sum_s X_s. The national iROAS is the spend-weighted average of the
+  regional ones.
+- The design objective is the aggregate's variance. Var(theta_hat) =
+  sum_k D_k^2 / B^2 (phase 5) splits by region into sum_r cost_r / B^2, so the
+  regional certificates minimize the national estimate's variance under the
+  constraint, and (cost with regions - cost without) / B^2 is the variance the
+  constraint costs. Report it with every regional design.
+- Three estimators, by what is assumed:
+  - one iROAS everywhere: pool every region's supergeos into one Trimmed Match
+    fit (Chen and Au, eq. 5.4) with its interval (eqs. 5.6 and 5.7);
+  - an iROAS per region (theta_g = theta_r): Trimmed Match within each region,
+    combined with the weights w_r; a pooled fit would trim regions unevenly and
+    shift their weights, the trimming bias of Chen et al. (2023, section 4);
+  - which of the two: the signed-rank test on the residuals e_k(theta_hat) that
+    Chen and Au use to check Assumption 1 (section 8), run within each region at
+    the pooled estimate.
+- The combined interval cannot come from inverting one theta. Var = sum_r w_r^2
+  Var(theta_hat_r) holds when the spend differences are fixed (go-dark, or spend
+  prespecified per geo: the cases of Chen and Au's Assumption 0); otherwise a
+  bootstrap stratified by region.
+- Lift in percent fits the same frame. If treatment multiplies the response by
+  phi = 1 + lift, then e_k(phi) = R_T,k - phi R_C,k = phi (Z_1 - Z_2) A_k is
+  symmetric about 0, so Trimmed Match applies with the control half's response
+  in the place of spend; the empirical lift is sum_r R_T,r / sum_r R_C,r - 1,
+  the regional lifts weighted by their control-side response.
+- Build: a study function taking a regional design and post-period responses
+  (and spend, when there is any) and returning the regional and pooled
+  estimates (empirical and Trimmed Match, iROAS or lift), the spend-weighted
+  aggregate and its interval, the per-region symmetry check and the variance
+  the constraint costs. Test-first, against simulations with planted regional
+  effects, equal and unequal across regions. Own branch, after phase 6.
+
 ### Phase 7: benchmarks and docs (separate workstream)
 
 - `benchmarks/cases/trimmed_match.py`, cross-validation against the reference
@@ -261,7 +312,7 @@ analysis of a finished experiment.
 
 Phase 0, then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5's
 closed form and backtest can start after phase 1 and run beside 2 to 4; its
-Trimmed Match simulations follow phase 6. The Trimmed Match benchmark (phase 7)
+Trimmed Match simulations follow phase 6, and phase 6b follows phase 6. The Trimmed Match benchmark (phase 7)
 lands with phase 6. The rest of phase 7 after each phase lands.
 
 ## Risks
