@@ -19,6 +19,7 @@ at k = 0 and k = n // 2, an instance where they differ, and the failures.
 from itertools import combinations
 
 import numpy as np
+import pandas as pd
 import pytest
 from hypothesis import given, settings, strategies as st
 
@@ -102,13 +103,25 @@ def test_the_sorted_program_is_the_brute_force_optimum_at_every_k(z):
 @settings(max_examples=150, deadline=None)
 @given(seed=st.integers(0, 10 ** 6), n=st.integers(0, 9), data=st.data())
 def test_the_matcher_with_dummies_is_the_brute_force_optimum(seed, n, data):
-    """Property, over general non-negative costs on up to 9 markets and every k: the matcher with n - 2k dummies
-    returns a k-matching of the least cost over every k-matching."""
-    W = _sym(np.random.default_rng(seed), n)
+    """Property, over general costs on up to 9 markets, non-negative or signed, and every k: the matcher with
+    n - 2k dummies returns exactly k pairs, of the least cost over every k-matching. Signed costs are where a
+    dummy-dummy pair would pay, by freeing two markets to form another pair of negative cost."""
+    lo = data.draw(st.sampled_from([0.0, -100.0]))
+    W = _sym(np.random.default_rng(seed), n, lo=lo)
     k = data.draw(st.integers(0, n // 2))
     pairs, cost = exclusion.matched_k_pairs(W, k)
     assert _is_k_matching(pairs, n, k)
     assert cost == pytest.approx(_cost(W, pairs)) and cost == pytest.approx(_brute_k(W, k), rel=1e-9, abs=1e-9)
+
+
+def test_the_matcher_keeps_k_pairs_when_pairs_cost_nothing():
+    """Edge: six markets of equal totals, every pair at cost 0; k = 1 and k = 2 keep exactly that many pairs, as
+    does the sorted program."""
+    W = np.zeros((6, 6))
+    for k in (0, 1, 2, 3):
+        pairs, cost = exclusion.matched_k_pairs(W, k)
+        assert _is_k_matching(pairs, 6, k) and cost == 0.0
+        assert _is_k_matching(exclusion.sorted_k_pairs(np.ones(6))[1][k], 6, k)
 
 
 @settings(max_examples=60, deadline=None)
@@ -354,3 +367,56 @@ def test_nonfinite_inputs_and_pairs_outside_the_matrix_are_rejected():
     for bad in ([(0, 4)], [(-1, 2)]):
         with pytest.raises(ValueError, match="matching of the 4 markets"):
             exclusion.nested_trim(_sym(np.random.default_rng(1), 4), bad)
+
+
+# --- the comparison script ----------------------------------------------------------------------------------------
+
+def _simulated_frame(n=12, seed=0):
+    """A simulated daily panel over 2020 of n geos, lognormal levels with noise, in the example data's columns."""
+    rng = np.random.default_rng(seed)
+    dates = pd.date_range("2020-01-01", "2020-12-29")
+    level = rng.lognormal(3, 1, n)
+    rows = [(g, d, level[g] * (1 + 0.1 * rng.standard_normal())) for g in range(n) for d in dates]
+    return pd.DataFrame(rows, columns=["geo", "date", "response"])
+
+
+def test_the_comparison_tables_on_a_simulated_panel():
+    """Smoke and unit: on 12 simulated geos the in-sample table has a row per drop with nested never cheaper than
+    re-paired under either objective, both equal with nothing dropped; the rolling table has one value per window,
+    every one with the full pairing at 1 and finite."""
+    from . import exclusion_tm as tm
+    P = tm.panel(_simulated_frame())
+    a = tm.in_sample(P)
+    assert [r["drop"] for r in a["rows"]] == list(range(6))
+    for r in a["rows"]:
+        assert r["tot_nested"] >= r["tot_opt"] * (1 - 1e-12) and r["ss_nested"] >= r["ss_opt"] * (1 - 1e-9)
+    assert a["rows"][0]["tot_new"] == a["rows"][0]["ss_new"] == 0
+    assert a["rows"][0]["tot_nested"] == pytest.approx(a["rows"][0]["tot_opt"])
+    assert a["rows"][0]["ss_nested"] == pytest.approx(a["rows"][0]["ss_opt"])
+    out = tm.rolling(P, drops=(1, 2))
+    for r in out.values():
+        assert all(len(v) == len(tm.WINDOW_STARTS) for v in r.values())
+        assert all(np.isfinite(v).all() and (np.asarray(v) >= 0).all() for v in r.values())
+
+
+def test_the_ss_res_matrix_is_pangeos_pair_cost():
+    """Unit: every entry of the ss_res matrix equals PANGEO's split_cost of the two markets' trajectories."""
+    from mlsynth.utils.pangeo_helpers.parallelism import split_cost
+    from . import exclusion_tm as tm
+    Y = np.random.default_rng(4).lognormal(2, 1, (6, 30))
+    W = tm.ss_res_costs(Y)
+    for a, b in combinations(range(6), 2):
+        assert W[a, b] == pytest.approx(split_cost(Y[a], Y[b]), rel=1e-9)
+    assert np.array_equal(W, W.T) and np.all(np.diag(W) == 0)
+
+
+def test_the_design_window_ends_before_the_evaluation_window():
+    """Unit: with every geo's response equal to its day number, the design totals sum the days before the window
+    and the evaluation totals the window's 28 days, so no day is in both."""
+    from . import exclusion_tm as tm
+    dates = pd.date_range("2020-01-01", "2020-12-29")
+    df = pd.DataFrame([(g, d, float(i)) for g in range(2) for i, d in enumerate(dates)],
+                      columns=["geo", "date", "response"])
+    z, zt = tm.window_totals(tm.panel(df), "2020-02-01")
+    assert list(z) == [float(sum(range(31)))] * 2
+    assert list(zt) == [float(sum(range(31, 59)))] * 2

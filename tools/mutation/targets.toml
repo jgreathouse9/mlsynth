@@ -19638,3 +19638,33 @@ timeout = 600.0
   find = "                excluded_units=[i for i in range(n) if i not in used], excluded_by_hand=sorted(by_hand),"
   replace = "                excluded_units=sorted(by_hand), excluded_by_hand=sorted(by_hand),"
   models = "the markets left out by the drop missing from excluded_units"
+
+[[target]]
+name = "supergeo-exclusion-tm"
+module-path = "benchmarks/studies/supergeo/exclusion_tm.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_exclusion.py -q -p no:cacheprovider -x -k \"comparison or ss_res_matrix or design_window\""
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "ss-res-not-demeaned"
+  find = "    C = Y - Y.mean(1, keepdims=True)"
+  replace = "    C = Y"
+  models = "the trajectory cost taken without removing each market's level, unlike PANGEO's ss_res"
+
+  [[target.mutant]]
+  id = "the-design-window-reads-the-evaluation-window"
+  find = "    z = P.loc[:, (cols >= DESIGN_START) & (cols < s)].to_numpy(float).sum(1)"
+  replace = "    z = P.loc[:, (cols >= DESIGN_START) & (cols <= e)].to_numpy(float).sum(1)"
+  models = "the rolling check designing on the days it evaluates on, so held-out costs are in-sample"
+
+  [[target.mutant]]
+  id = "the-evaluation-window-a-day-long"
+  find = "    e = s + pd.Timedelta(days=days - 1)"
+  replace = "    e = s + pd.Timedelta(days=days)"
+  models = "an evaluation window of days + 1 days"
+
+  [[target.mutant]]
+  id = "nested-ss-res-trims-a-sorted-pairing"
+  find = "    nest_ss = exclusion.nested_trim(Wss, full_ss)[0]"
+  replace = "    nest_ss = exclusion.nested_trim(Wss, pairs_tot[m])[0]"
+  models = "nested trimming under ss_res started from the supergeo_total pairing, not the ss_res optimum"
