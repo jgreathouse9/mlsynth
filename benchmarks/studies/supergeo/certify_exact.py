@@ -174,7 +174,7 @@ def _screen_rows(z, pi, tau, lo, S, m, UB, rows):
 
 def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps="auto", keep=0.5, workers="auto",
                    gap=0.0, abs_gap=0.0, max_group_cost=None, heuristic_steps="auto", seed=0, region=None,
-                   verbose=False):
+                   deterministic=True, verbose=False):
     """The certificate with the elimination redone at every better incumbent and no MIP.
 
     After the root and the exact bound, each stage runs the exact elimination at the incumbent's exact cost and the
@@ -196,11 +196,17 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
     inputs and the seed. heuristic_seconds, when given, replaces the step budget with a time budget ("auto" being
     max(1, N / 24), the earlier default); the design then depends on the machine's speed and load (three runs at
     180 markets gave three different designs). 0 for either skips the heuristic. The result's heuristic_steps
-    is the number of steps that ran. With search stages on several
-    threads the incumbent each stage finds depends on thread timing, so a run that needs stages is reproducible
-    with workers=None.
+    is the number of steps that ran.
     workers: threads for every stage's search (:func:`.verify_nb.verify` and :func:`.verify_nb.verify_rows`), None
     for this thread alone, "auto" for min(4, CPU count).
+    deterministic: the schedule of those threads. True (the default): the subtrees are searched in rounds, each
+    pruning on the incumbent known when its round began, and the results merge in subtree order
+    (:func:`.verify_nb._rounds`), so a run on threads gives the same stages and design on every run, as with
+    workers=None. False (dynamic): each thread takes the next subtree when it is free and prunes on the best design
+    any thread has found so far, so the incumbent a capped stage hands on, the later stages and the node counts
+    depend on thread timing (the cost proved does not). Rounds cost time; on four threads, in one session, the
+    captured 80-market exact stage took 106.9 s against 86.4 s, and the 120-market capped stage 8.0 to 8.9 s against
+    5.0 to 7.6 s.
 
     gap: a relative optimality gap g in [0, 1). The certificate then proves that no design costs less than
     T = (1 - g) UB, UB the cost of the design returned, so the design is within a factor 1 / (1 - g) of the
@@ -252,8 +258,11 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
     Returns the keys of :func:`certify` that apply, with `proved`, `proof`, `stages` (one dict per stage), `gap`,
     the proven gap `gap_proved` (rounded up), `abs_gap` and the proven absolute gap `abs_gap_proved` (rounded
     up), the proven lower bound `lb_proved` (and `lb_proved_exact`),
-    `feasible`, and `standard` (None, or the threshold, whether the design meets it and its largest group cost)."""
+    `feasible`, `standard` (None, or the threshold, whether the design meets it and its largest group cost),
+    `heuristic_steps`, `seed` and `deterministic`."""
     n = len(z0); odd = n % 2 == 1
+    if not isinstance(deterministic, bool):
+        raise ValueError(f"deterministic must be True or False, not {deterministic!r}")
     if region is not None:
         labels = np.asarray(region, dtype=object)
         if labels.ndim != 1 or len(labels) != n or any(v is None for v in labels):
@@ -263,7 +272,7 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
         return _by_region(z0, lo, hi, labels, incumbent, abs_gap, max_group_cost,
                           dict(heuristic_seconds=heuristic_seconds, caps=caps, keep=keep, workers=workers, gap=gap,
                                max_group_cost=max_group_cost, heuristic_steps=heuristic_steps, seed=seed,
-                               verbose=verbose))
+                               deterministic=deterministic, verbose=verbose))
     if workers == "auto":
         workers = min(4, os.cpu_count() or 1)
     elif workers is not None and (not isinstance(workers, int) or workers < 1):
@@ -363,7 +372,7 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
         if capped:
             sc = sg.scores(z, rows)
             status, nodes, covers = vn.verify_rows(n, lo, rows, sc, pi, float(m), tau, float(UB), node_limit=cap,
-                                                   workers=workers)
+                                                   workers=workers, deterministic=deterministic)
             better = None
             for r in covers:
                 d = [tuple(int(v) for v in rows[j] if v >= 0) for j in r]
@@ -372,18 +381,19 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
                     better = (c, d)
             if better is not None:
                 UB, design = better
-            stages.append(dict(cap=cap, exact=False, workers=workers, survivors=len(rows), window=nwin, nodes=nodes,
+            stages.append(dict(cap=cap, exact=False, workers=workers, deterministic=deterministic, survivors=len(rows), window=nwin, nodes=nodes,
                                status=status, improved=better is not None, t=time.perf_counter() - ts))
             proved = within(UB)
         else:
             cand = [tuple(int(v) for v in r if v >= 0) for r in rows]
             cost = {c: mx.exact_rc(z, zeros, c) for c in cand}
-            status, nodes, val, found = vn.verify(n, lo, cand, cost, pi, m, tau, T, workers=workers)
+            status, nodes, val, found = vn.verify(n, lo, cand, cost, pi, m, tau, T, workers=workers,
+                                                 deterministic=deterministic)
             if found is not None:
                 design, UB = [tuple(c) for c in found], val
             if status == 0:                         # every design cheaper than T searched: the best of them, or T
                 lb_proved = UB if found is not None else T
-            stages.append(dict(cap=None, exact=True, workers=workers, survivors=len(rows), window=nwin, nodes=nodes, status=status,
+            stages.append(dict(cap=None, exact=True, workers=workers, deterministic=deterministic, survivors=len(rows), window=nwin, nodes=nodes, status=status,
                                improved=found is not None, t=time.perf_counter() - ts))
             proved = status == 0 or within(UB)
             nodes_all += nodes
@@ -403,7 +413,7 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
                            f"exact search stopped (status {stages[-1]['status']}) before a design met the standard"),
                     gap=float(G), gap_proved=None, abs_gap=abs_gap, abs_gap_proved=None, lb_proved=None,
                     lb_proved_exact=None, feasible=False, heuristic_steps=steps_run, seed=seed,
-                    standard=dict(max_group_cost=max_group_cost, met=False, max_group=None),
+                    deterministic=deterministic, standard=dict(max_group_cost=max_group_cost, met=False, max_group=None),
                     t_cg=t_cg, t=time.perf_counter() - t0, design=None)
     if UB == LB:
         proof = "exact: optimum equals the exact bound"
@@ -427,7 +437,7 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
                 negative_columns=len(neg), proved=proved, stages=stages, verify_nodes=nodes_all, proof=proof,
                 gap=float(G), gap_proved=up(gp), abs_gap=abs_gap, abs_gap_proved=up((UB - lb_proved) / S_),
                 lb_proved=down(lb_proved / S_), lb_proved_exact=lb_proved / S_,
-                feasible=True, standard=std, heuristic_steps=steps_run, seed=seed, t_cg=t_cg,
+                feasible=True, standard=std, heuristic_steps=steps_run, seed=seed, deterministic=deterministic, t_cg=t_cg,
                 t=time.perf_counter() - t0, design=design)
 
 
@@ -448,7 +458,8 @@ def _by_region(z0, lo, hi, labels, incumbent, abs_gap, max_group_cost, kw):
                     abs_gap=abs_gap, abs_gap_proved=None, lb_proved=None, lb_proved_exact=None, feasible=False,
                     standard=None if max_group_cost is None else dict(max_group_cost=max_group_cost, met=False,
                                                                      max_group=None),
-                    heuristic_steps=None, seed=kw["seed"], t_cg=0.0, t=time.perf_counter() - t0, design=None,
+                    heuristic_steps=None, seed=kw["seed"],
+                    deterministic=kw["deterministic"], t_cg=0.0, t=time.perf_counter() - t0, design=None,
                     regions=regions)
     regions, design = [], []
     for lab in order:
@@ -484,6 +495,7 @@ def _by_region(z0, lo, hi, labels, incumbent, abs_gap, max_group_cost, kw):
                 gap=float(kw["gap"]), gap_proved=up((UB - LBp) / UB) if UB > 0 else 0.0, abs_gap=abs_gap,
                 abs_gap_proved=up(UB - LBp), lb_proved=down(LBp), lb_proved_exact=LBp, feasible=True, standard=std,
                 heuristic_steps=None if any(v is None for v in steps) else sum(steps), seed=kw["seed"],
+                deterministic=kw["deterministic"],
                 t_cg=sum(r["t_cg"] for r in regions), t=time.perf_counter() - t0, design=design, regions=regions)
 
 

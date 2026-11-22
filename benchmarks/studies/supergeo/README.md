@@ -659,9 +659,41 @@ table above, was across sessions: the root column generation, with identical
 code and work (13 pricing scans, 16 LP solves), took 9.7 s in the earlier session
 and 13.6 to 18.0 s in the later one (the old commit's root just as slow), and
 the 120-market root moved from 2.3 to 2.6 s to 3.5 to 3.9 s, a slower host by
-about 1.5 times. Timings in this README compare arms within one session. A run that needs search
-stages on several threads still depends on thread timing (workers=None makes it
-reproducible).
+about 1.5 times. Timings in this README compare arms within one session.
+
+### Reproducible threads
+
+A run that needs search stages on several threads depended on thread timing as
+well: each thread took the next subtree when free and pruned on the best design
+any thread had found, so the incumbent a capped stage handed on, and the design
+it led to, could differ from run to run. The stages now search their subtrees
+in rounds by default (`deterministic=True`; `verify_nb._rounds`): within a
+round each subtree prunes on the incumbent known when the round began and gets
+its share of the node limit left, and the results merge in subtree order. The
+search is then a function of its inputs, idle or under load.
+
+A subtree cannot use a design found during its own round, and a round waits for
+its slowest subtree, so rounds want many small subtrees. On the captured
+80-market exact stage, four threads, in one session:
+
+| schedule | subtrees a thread | subtrees a round, a thread | time | nodes |
+| --- | --- | --- | --- | --- |
+| dynamic | 64 | | 86.4 s | 157 million |
+| dynamic | 1,024 | | 81.5 s | 138 million |
+| rounds | 1,024 | 1 | 155.9 s | 147 million |
+| rounds | 1,024 | 2 | 117.7 s | 156 million |
+| rounds | 1,024 | 4 | 132.5 s | 184 million |
+| rounds | 4,096 | 1 | 157.9 s | 132 million |
+| rounds | 4,096 | 2 | 121.0 s | 137 million |
+| rounds | 4,096 | 4 | 106.9 s | 153 million |
+| rounds | 4,096 | 8 | 115.6 s | 175 million |
+
+The default for rounds is the fastest of these, 4,096 subtrees a thread in
+rounds of 4 a thread, 1.24 times the dynamic schedule. (In an earlier session,
+rounds of 1 and of 4 over 64 subtrees a thread took 236 to 249 s and 376 s.) The
+120-market capped stage (300,000 nodes) took 8.0 to 8.9 s in rounds at every
+split tried against 5.0 to 7.6 s dynamic. `deterministic=False` gives the
+dynamic schedule; the timings in the sections above were taken on it.
 
 A deterministic replacement was measured and rejected: the best partition into
 runs of consecutive markets by size (a one-pass dynamic program) costs 70 to

@@ -289,7 +289,7 @@ def verify(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit=2_000_000_000, c
     when `bits` is given (the tests force small words), it is ceil(n / bits) words of `bits` <= 63 markets.
 
     workers: None searches on this thread; an integer k >= 1 cuts the tree into at least `split` subtrees ("auto":
-    64 k) and searches them on k threads (:func:`_parallel`). node_limit then bounds the total over the threads,
+    :func:`_split`) and searches them on k threads (:func:`_parallel`). node_limit then bounds the total over the threads,
     checked between subtrees and inside each one against what is left. deterministic: search the subtrees in
     rounds (:func:`_rounds`), so the result is the same on every run."""
     if workers is not None:
@@ -298,7 +298,7 @@ def verify(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit=2_000_000_000, c
         if split != "auto" and int(split) < 1:
             raise ValueError(f"split must be a positive integer or 'auto', not {split}")
         return _parallel(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit, cand_cap, bits, int(workers),
-                         64 * int(workers) if split == "auto" else int(split), bool(deterministic))
+                         _split(workers, split, deterministic), bool(deterministic))
     p = _prepare(n, lo, cand, exact_cost, pi, m, tau, OPT, bits)
     masks, cost, pisum, odd, gptr, gcols = p["masks"], p["cost"], p["pisum"], p["odd"], p["gptr"], p["gcols"]
     if p["wide"]:
@@ -570,7 +570,19 @@ def _row_masks(rows, n, B, W, wide):
     return m1, mw
 
 
-ROUND_TASKS_PER_WORKER = 1        # subtrees per thread in a round of the deterministic schedule
+ROUND_TASKS_PER_WORKER = 4        # subtrees per thread in a round of the deterministic schedule
+
+
+def _split(workers, split, deterministic):
+    """The number of subtrees for split="auto": 64 a thread for the dynamic schedule, 4,096 a thread for rounds.
+    Rounds want many small subtrees: a round waits for its slowest subtree, and a subtree prunes only on the
+    incumbent known when its round began. On the captured 80-market exact stage, four threads, in one session: the
+    dynamic schedule 86.4 s (157 million nodes); rounds of 4 subtrees a thread (ROUND_TASKS_PER_WORKER) 132.5 s
+    over 1,024 subtrees a thread and 106.9 s over 4,096 (153 million nodes); over 4,096, rounds of 1, 2 and 8 a
+    thread 157.9, 121.0 and 115.6 s. In an earlier session rounds of 4 over 64 subtrees a thread took 376 s."""
+    if split != "auto":
+        return int(split)
+    return (4096 if deterministic else 64) * int(workers)
 
 
 def _rounds(args, plen, tasks, best, left, cand_cap, workers):
@@ -641,8 +653,7 @@ def verify_rows(n, lo, rows, cost, pi, m, tau, opt, node_limit=2_000_000_000, ca
         p = dict(B=B, W=W, g2=g2, absA0=absA0, opt_up=opt_up, S0=S0,
                  args=(n, B, W, float(lo), mw, cost, pisum, odd, gptr, gcols, float(m), float(tau), g2, absA0))
         status, nodes, found = _parallel_core(p, n, node_limit, cand_cap, int(workers),
-                                              64 * int(workers) if split == "auto" else int(split),
-                                              bool(deterministic))
+                                              _split(workers, split, deterministic), bool(deterministic))
         return status, int(nodes), [np.array([j for j in r if j >= 0], np.int64) for r in found]
     args = (cost, pisum, odd, gptr, gcols, pi, float(m), float(tau), opt_up, g2, absA0, node_limit, cand_cap, n // 2 + 2)
     if wide:

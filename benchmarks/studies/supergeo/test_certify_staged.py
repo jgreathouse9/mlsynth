@@ -662,3 +662,63 @@ def test_the_absolute_gap_is_shared_between_regions():
     out = ce.certify_staged(z, heuristic_seconds=0.0, region=region, abs_gap=d)
     assert out["proved"]
     assert out["opt_exact"] - 2 * O <= Fraction(d)
+
+
+# --- reproducible threaded stages ----------------------------------------------------------------------------------
+
+def test_deterministic_stages_give_the_same_run_on_the_threads():
+    """With deterministic=True the stages search their subtrees in rounds: on four threads the same inputs give
+    the same stages (nodes, status, improvement), the same design and cost, idle and under load, and the stages
+    record the schedule."""
+    from .test_lns import _Load
+    z = list(test_bcp._subsets(16, 3))[1]
+    kw = dict(incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200, 2_000), workers=4,
+              deterministic=True)
+    a = ce.certify_staged(z, **kw)
+    with _Load():
+        b = ce.certify_staged(z, **kw)
+    key = lambda out: [(s["nodes"], s["status"], s["improved"], s["survivors"]) for s in out["stages"]]
+    assert a["proved"] and any(not s["exact"] for s in a["stages"])
+    assert key(a) == key(b) and sorted(a["design"]) == sorted(b["design"]) and a["opt_exact"] == b["opt_exact"]
+    assert all(s["deterministic"] for s in a["stages"]) and a["deterministic"] is True
+
+
+def test_the_schedule_reaches_every_stage_search(monkeypatch):
+    """Both searches, the capped stages' and the exact stage's, receive the schedule asked for."""
+    from . import verify_nb as vn
+    got = []
+    for name in ("verify", "verify_rows"):
+        real = getattr(vn, name)
+        monkeypatch.setattr(vn, name, (lambda real, name: lambda *a, **k: got.append((name, k.get("deterministic")))
+                                       or real(*a, **k))(real, name))
+    z = list(test_bcp._subsets(16, 3))[1]
+    for det in (True, False):
+        got.clear()
+        out = ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200, 2_000),
+                                workers=2, deterministic=det)
+        assert {n for n, _ in got} == {"verify", "verify_rows"}, got
+        assert all(d is det for _, d in got) and out["deterministic"] is det
+
+
+def test_the_schedule_reaches_the_regions(monkeypatch):
+    from . import verify_nb as vn
+    got = []
+    real = vn.verify
+    monkeypatch.setattr(vn, "verify", lambda *a, **k: got.append(k.get("deterministic")) or real(*a, **k))
+    z = np.concatenate([list(test_bcp._subsets(16, 3))[1][:8], list(test_bcp._subsets(16, 3))[1][8:]])
+    out = ce.certify_staged(z, region=[0] * 8 + [1] * 8, heuristic_seconds=0.0, workers=2, deterministic=True)
+    assert got and all(d is True for d in got) and out["deterministic"] is True
+
+
+def test_a_bad_schedule_is_rejected():
+    for det in ("yes", 1, None):
+        with pytest.raises(ValueError):
+            ce.certify_staged(np.arange(1.0, 9.0), deterministic=det)
+
+
+def test_the_certificate_runs_its_threads_in_rounds_by_default():
+    """The default schedule is the reproducible one: a run on threads gives the same design every time unless
+    deterministic=False asks for the faster dynamic schedule."""
+    z = list(test_bcp._subsets(16, 3))[1]
+    out = ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200,), workers=2)
+    assert out["deterministic"] is True and out["stages"] and all(s["deterministic"] for s in out["stages"])

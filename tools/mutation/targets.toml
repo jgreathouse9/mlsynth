@@ -18594,3 +18594,81 @@ timeout = 900.0
   replace = "    LBp = max(r[\"lb_proved_exact\"] for r in regions)"
   models = "the proven lower bound taken from one region instead of the sum, so the proven gap overstates what remains"
 
+
+[[target]]
+name = "supergeo-verify-rounds"
+module-path = "benchmarks/studies/supergeo/verify_nb.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k \"round or automatic_split\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-round-budget-not-split"
+  find = "            per = max(1, (left - total) // len(batch))"
+  replace = "            per = max(1, left - total)"
+  models = "every subtree in a round given the whole node limit left, so a round can pass the limit by the round's size times it"
+
+  [[target.mutant]]
+  id = "the-incumbent-not-carried-between-rounds"
+  find = "                best = min(best, b)"
+  replace = "                best = best"
+  models = "every round pruning on the starting incumbent: still the same on every run, but the designs found in earlier rounds never prune later ones"
+
+  [[target.mutant]]
+  id = "one-incumbent-shared-within-a-round"
+  find = "            start = best\n            def run(task):\n                U, P, S, O, pre, lb = task\n                sh = np.array([start]); counts"
+  replace = "            start = best; common = np.array([best])\n            def run(task):\n                U, P, S, O, pre, lb = task\n                sh = common; counts"
+  models = "the subtrees of a round reading each other's finds, so pruning, nodes and covers depend on thread timing again"
+
+  [[target.mutant]]
+  id = "a-stopped-subtree-not-reported"
+  find = "                if st in (1, 2) and not status:"
+  replace = "                if st == 2 and not status:"
+  models = "a subtree stopped by its share of the node limit reported as finished, so a cut-off search reads as complete"
+
+  [[target.mutant]]
+  id = "rounds-cut-as-few-subtrees-as-dynamic"
+  find = "    return (4096 if deterministic else 64) * int(workers)"
+  replace = "    return 64 * int(workers)"
+  models = "rounds over the dynamic schedule's 64 subtrees a thread: at 80 markets 376 s against 106.9 s"
+
+  [[target.mutant]]
+  id = "rounds-of-one-subtree-a-thread"
+  find = "ROUND_TASKS_PER_WORKER = 4 "
+  replace = "ROUND_TASKS_PER_WORKER = 1 "
+  models = "a round of one subtree a thread, which waits on its slowest subtree four times as often: 157.9 s against 106.9 s"
+
+[[target]]
+name = "supergeo-certify-schedule"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"schedule or deterministic_stages or rounds_by_default\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-schedule-not-given-to-the-capped-stages"
+  find = "                                                   workers=workers, deterministic=deterministic)"
+  replace = "                                                   workers=workers)"
+  models = "the capped stages searched on the dynamic schedule whatever was asked, so their incumbents depend on thread timing"
+
+  [[target.mutant]]
+  id = "the-schedule-not-given-to-the-exact-stage"
+  find = "                                                 deterministic=deterministic)"
+  replace = "                                                 deterministic=False)"
+  models = "the exact stage searched on the dynamic schedule whatever was asked"
+
+  [[target.mutant]]
+  id = "the-schedule-not-given-to-the-regions"
+  find = "                               deterministic=deterministic, verbose=verbose))"
+  replace = "                               deterministic=False, verbose=verbose))"
+  models = "each region's certificate run on the dynamic schedule whatever was asked"
+
+  [[target.mutant]]
+  id = "a-bad-schedule-accepted"
+  find = "    if not isinstance(deterministic, bool):"
+  replace = "    if False:"
+  models = "a schedule that is not True or False accepted and read as truthy or falsy"
+
+  [[target.mutant]]
+  id = "the-dynamic-schedule-by-default"
+  find = "                   deterministic=True, verbose=False):"
+  replace = "                   deterministic=False, verbose=False):"
+  models = "the certificate's threads on the dynamic schedule unless asked, so a default run's design depends on thread timing"

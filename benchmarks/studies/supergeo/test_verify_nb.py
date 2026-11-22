@@ -528,3 +528,49 @@ def test_rounds_share_the_node_limit():
         st, nodes, covers = _rows_run(n, pi, tau, cand, cost, m, OPT, node_limit=300_000, workers=workers,
                                       deterministic=True)
         assert st == 1 and nodes <= 300_000 + 1024 * workers, (workers, nodes)
+
+
+def test_each_round_starts_from_the_best_of_the_rounds_before(monkeypatch):
+    """A subtree in round b starts from the starting incumbent lowered by every design found in rounds before b,
+    and by nothing found in its own round: the rule that makes the schedule reproducible and still lets the
+    incumbent improve from round to round."""
+    import threading
+    n, pi, tau, cand, cost, m, OPT = _big_tree_case()
+    real, lock, ins, outs = vn._search_from, threading.Lock(), [], []
+    def spy(*a):
+        with lock:
+            ins.append(float(a[-3][0]))
+        out = real(*a)
+        with lock:
+            outs.append(float(a[-3][0]))
+        return out
+    monkeypatch.setattr(vn, "_search_from", spy)
+    monkeypatch.setattr(vn, "ROUND_TASKS_PER_WORKER", 1)       # small rounds, so that several run within the limit
+    workers = 2; size = vn.ROUND_TASKS_PER_WORKER * workers
+    fc = np.array([float(cost[c]) for c in cand])
+    vn.verify_rows(n, 2, _rows_of(cand), fc, pi, float(m), tau, float(OPT) * 1.5, node_limit=400_000,
+                   workers=workers, split=16, deterministic=True)
+    assert len(ins) >= 2 * size and len(outs) == len(ins)
+    start = ins[0]
+    for k, s in enumerate(ins):
+        b = k // size
+        assert s == min([start] + outs[:b * size]), (k, s)
+    assert min(outs) < start                                    # the incumbent did improve
+
+
+def test_the_automatic_split_follows_the_schedule(monkeypatch):
+    """split="auto" cuts 64 subtrees a thread for the dynamic schedule and 4,096 for rounds (with rounds of
+    ROUND_TASKS_PER_WORKER = 4 subtrees a thread): the captured 80-market exact stage took 86.4 s dynamic, and in
+    rounds 106.9 s at 4,096 subtrees a thread against 376 s at 64 (an earlier session)."""
+    seen = []
+    real = vn._parallel_core
+    monkeypatch.setattr(vn, "_parallel_core", lambda p, n, lim, cap, w, split, det=False: seen.append((w, split, det))
+                        or real(p, n, lim, cap, w, split, det))
+    n, pi, tau, cand, cost, m, OPT = _big_tree_case()
+    fc = np.array([float(cost[c]) for c in cand])
+    for w, det in ((2, False), (3, True)):
+        vn.verify_rows(n, 2, _rows_of(cand), fc, pi, float(m), tau, float(OPT), node_limit=20_000, workers=w,
+                       deterministic=det)
+        vn.verify(n, 2, cand, cost, pi, m, tau, OPT, node_limit=20_000, workers=w, deterministic=det)
+    assert seen == [(2, 128, False), (2, 128, False), (3, 12_288, True), (3, 12_288, True)], seen
+    assert vn.ROUND_TASKS_PER_WORKER == 4
