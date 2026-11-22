@@ -570,11 +570,16 @@ def test_the_certificate_is_reproducible_by_default():
 
 
 def test_the_seed_reaches_the_heuristic():
+    """With an absolute gap of 0.5 the sorted start (cost 233) is far from the target and the heuristic works to
+    reach it: seed 0 gets there at step 4, seed 1 at step 7, each stops there and the bound proves its design, so
+    the design is the heuristic's and the two seeds give two designs. (A gap of 1e6, the earlier fixture, puts the
+    start itself within the gap, and the heuristic then takes no step.)"""
     from .test_lns import _similar
     z = _similar(40)
-    a = ce.certify_staged(z, workers=None, abs_gap=1e6, seed=0)       # proved by the bound: the design is the heuristic's
-    b = ce.certify_staged(z, workers=None, abs_gap=1e6, seed=1)
+    a = ce.certify_staged(z, workers=None, abs_gap=0.5, seed=0)
+    b = ce.certify_staged(z, workers=None, abs_gap=0.5, seed=1)
     assert a["stages"] == [] and b["stages"] == []
+    assert a["heuristic_stop"] == b["heuristic_stop"] == "bound" and a["heuristic_steps"] != b["heuristic_steps"]
     assert sorted(a["design"]) != sorted(b["design"]) and b["seed"] == 1
 
 
