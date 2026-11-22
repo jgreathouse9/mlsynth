@@ -547,3 +547,34 @@ def test_the_window_guess_is_at_or_above_the_stage_threshold(seed, n, kind, shif
     T = LB2 + (abs(LB2) + 1) * Fraction(f)
     th = ce.up(T - S2 - (Fraction(n, 2) - 1) * m2)
     assert ce._window_threshold(z, pi2, tau, 2, 4, S2, T) >= th
+
+
+# --- a reproducible heuristic ------------------------------------------------------------------------------------------
+
+def test_the_certificate_is_reproducible_by_default():
+    """The default heuristic runs a fixed number of steps, max(10, N // 2), from a seed: with the search on this
+    thread the same inputs give the same design, with the machine idle and under load; the result records the
+    steps and the seed."""
+    from .test_lns import _similar, _Load
+    z = _similar(40)
+    a = ce.certify_staged(z, workers=None, abs_gap=0.05)
+    with _Load():
+        b = ce.certify_staged(z, workers=None, abs_gap=0.05)
+    assert sorted(a["design"]) == sorted(b["design"]) and a["opt_exact"] == b["opt_exact"]
+    assert a["heuristic_steps"] == 20 and a["seed"] == 0
+
+
+def test_the_seed_reaches_the_heuristic():
+    from .test_lns import _similar
+    z = _similar(40)
+    a = ce.certify_staged(z, workers=None, abs_gap=1e6, seed=0)       # proved by the bound: the design is the heuristic's
+    b = ce.certify_staged(z, workers=None, abs_gap=1e6, seed=1)
+    assert a["stages"] == [] and b["stages"] == []
+    assert sorted(a["design"]) != sorted(b["design"]) and b["seed"] == 1
+
+
+def test_bad_heuristic_budgets_are_rejected():
+    for kw in (dict(heuristic_steps=-1), dict(heuristic_steps=2.5), dict(heuristic_steps="lots"),
+               dict(seed=-1), dict(seed=1.5)):
+        with pytest.raises(ValueError):
+            ce.certify_staged(np.arange(1.0, 9.0), **kw)

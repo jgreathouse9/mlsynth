@@ -18516,3 +18516,51 @@ timeout = 900.0
   replace = "        size = nl + nr\n        if c <= a or (d >= 0 and d <= a):\n            continue\n        if c == b or (d >= 0 and d == b):\n            continue\n        if not ((b >= 0 and hsb[L] == -1) or hsa[R] == -1 or (d >= 0 and hsb[R] == -1)):\n            continue\n        if fill:"
   models = "the parallel window without the group-size test: it emits groups of the wrong size that the serial window does not"
 
+[[target]]
+name = "supergeo-lns-steps"
+module-path = "benchmarks/studies/supergeo/lns.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_lns.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "one-step-too-many"
+  find = "    while (it < steps) if steps is not None else (time.perf_counter() - t0 < seconds):"
+  replace = "    while (it <= steps) if steps is not None else (time.perf_counter() - t0 < seconds):"
+  models = "the step budget run one step past what was asked"
+
+  [[target.mutant]]
+  id = "the-search-unseeded"
+  find = "        raise ValueError(f\"steps must be a non-negative integer or None, not {steps!r}\")\n    rng = np.random.default_rng(seed)"
+  replace = "        raise ValueError(f\"steps must be a non-negative integer or None, not {steps!r}\")\n    rng = np.random.default_rng()"
+  models = "the seed accepted and ignored: the same inputs give a different design each run"
+
+  [[target.mutant]]
+  id = "the-step-budget-unchecked"
+  find = "    if steps is not None and (isinstance(steps, bool) or not isinstance(steps, (int, np.integer)) or steps < 0):\n        raise ValueError"
+  replace = "    if False:\n        raise ValueError"
+  models = "a negative, fractional or non-numeric step budget accepted: the search runs a number of steps nobody asked for, or fails with an unrelated error"
+
+[[target]]
+name = "supergeo-certify-heuristic"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"reproducible or seed or budgets\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-certificate-seed-not-passed"
+  find = "            incumbent, _, _ = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed, verbose=False)"
+  replace = "            incumbent, _, _ = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), verbose=False)"
+  models = "the certificate's seed recorded on the result but never given to the heuristic"
+
+  [[target.mutant]]
+  id = "auto-steps-not-the-documented-budget"
+  find = "        heuristic_steps = max(10, n // 2)"
+  replace = "        heuristic_steps = max(10, n)"
+  models = "the automatic step budget twice the documented max(10, N // 2), doubling the heuristic's time"
+
+  [[target.mutant]]
+  id = "the-default-heuristic-on-the-clock"
+  find = "            incumbent, _, _ = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed, verbose=False)"
+  replace = "            incumbent, _, _ = lns.lns_dp(z, incumbent, seconds=max(1.0, n / 24), seed=seed, verbose=False)"
+  models = "the default heuristic stopped by the clock again: the design depends on the machine's load"
+

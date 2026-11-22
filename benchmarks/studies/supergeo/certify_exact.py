@@ -172,8 +172,8 @@ def _screen_rows(z, pi, tau, lo, S, m, UB, rows):
     return rows[ex.members2(z, pi, rows, th, tau, False)]
 
 
-def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", caps="auto", keep=0.5, workers="auto",
-                   gap=0.0, abs_gap=0.0, max_group_cost=None, verbose=False):
+def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps="auto", keep=0.5, workers="auto",
+                   gap=0.0, abs_gap=0.0, max_group_cost=None, heuristic_steps="auto", seed=0, verbose=False):
     """The certificate with the elimination redone at every better incumbent and no MIP.
 
     After the root and the exact bound, each stage runs the exact elimination at the incumbent's exact cost and the
@@ -187,8 +187,16 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     caps: increasing positive node caps for the capped stages, or "auto": caps of 300,000 times 3^k, and staging
     stops, for the exact stage, once a stage does not improve the incumbent or the next survivors are more than
     half of the last (more capped stages past that point repeat the top of the tree: at 80 markets six of them
-    took 688 s against 566 s for three). heuristic_seconds: the pairs-plus-repair budget, "auto" being
-    max(1, N / 24) (at 72 markets a 3 s heuristic leaves 62,899 first-stage survivors, a 1 s one 947,976).
+    took 688 s against 566 s for three).
+
+    The starting design (when `incumbent` is None) is the sorted pairs improved by :func:`.lns.lns_dp`.
+    heuristic_steps: its number of steps, "auto" being max(10, N // 2) (about 10 steps a second at 50 to 180
+    markets, so about N / 20 s), with `seed` its random seed. A step budget makes the design a function of the
+    inputs and the seed. heuristic_seconds, when given, replaces the step budget with a time budget ("auto" being
+    max(1, N / 24), the earlier default); the design then depends on the machine's speed and load (three runs at
+    180 markets gave three different designs). 0 for either skips the heuristic. With search stages on several
+    threads the incumbent each stage finds depends on thread timing, so a run that needs stages is reproducible
+    with workers=None.
     workers: threads for every stage's search (:func:`.verify_nb.verify` and :func:`.verify_nb.verify_rows`), None
     for this thread alone, "auto" for min(4, CPU count).
 
@@ -250,6 +258,14 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
             raise ValueError(f"caps must be increasing positive node counts, not {caps}")
     if heuristic_seconds == "auto":
         heuristic_seconds = max(1.0, n / 24)
+    if isinstance(seed, bool) or not isinstance(seed, (int, np.integer)) or seed < 0:
+        raise ValueError(f"seed must be a non-negative integer, not {seed!r}")
+    if heuristic_steps == "auto":
+        heuristic_steps = max(10, n // 2)
+    elif isinstance(heuristic_steps, bool) or not isinstance(heuristic_steps, (int, np.integer)) or heuristic_steps < 0:
+        raise ValueError(f"heuristic_steps must be a non-negative integer or 'auto', not {heuristic_steps!r}")
+    if heuristic_seconds == "auto":
+        heuristic_seconds = max(1.0, n / 24)
     if isinstance(gap, bool) or not isinstance(gap, (int, float, Fraction)) or not 0 <= gap < 1:
         raise ValueError(f"gap must be a number in [0, 1), not {gap!r}")
     G = Fraction(gap)
@@ -261,11 +277,17 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
     t0 = time.perf_counter()
     z, scale, pi, tau = _root(z0, lo, hi)
     t_cg = time.perf_counter() - t0
+    steps_run = 0
     if incumbent is None:
         o = [int(v) for v in np.argsort(z)]
         incumbent = ([tuple(o[i:i + 2]) for i in range(0, n - 3, 2)] + [tuple(o[-3:])]) if odd else [tuple(o[i:i + 2]) for i in range(0, n, 2)]
-        if heuristic_seconds > 0:
-            incumbent, _, _ = lns.lns_dp(z, incumbent, seconds=heuristic_seconds, verbose=False)
+        if heuristic_seconds is not None:
+            if heuristic_seconds > 0:
+                incumbent, _, _ = lns.lns_dp(z, incumbent, seconds=heuristic_seconds, seed=seed, verbose=False)
+            steps_run = None                        # a time budget: the number of steps is the machine's
+        elif heuristic_steps > 0:
+            incumbent, _, _ = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed, verbose=False)
+            steps_run = int(heuristic_steps)
     design = [tuple(sorted(int(v) for v in g)) for g in incumbent]
     zeros = np.zeros(n)
     def exact_cost(d):
@@ -361,7 +383,7 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
                     proof=("no design meets the standard (exact search over the groups within it)" if searched else
                            f"exact search stopped (status {stages[-1]['status']}) before a design met the standard"),
                     gap=float(G), gap_proved=None, abs_gap=abs_gap, abs_gap_proved=None, lb_proved=None,
-                    lb_proved_exact=None, feasible=False,
+                    lb_proved_exact=None, feasible=False, heuristic_steps=steps_run, seed=seed,
                     standard=dict(max_group_cost=max_group_cost, met=False, max_group=None),
                     t_cg=t_cg, t=time.perf_counter() - t0, design=None)
     if UB == LB:
@@ -386,7 +408,8 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds="auto", cap
                 negative_columns=len(neg), proved=proved, stages=stages, verify_nodes=nodes_all, proof=proof,
                 gap=float(G), gap_proved=up(gp), abs_gap=abs_gap, abs_gap_proved=up((UB - lb_proved) / S_),
                 lb_proved=down(lb_proved / S_), lb_proved_exact=lb_proved / S_,
-                feasible=True, standard=std, t_cg=t_cg, t=time.perf_counter() - t0, design=design)
+                feasible=True, standard=std, heuristic_steps=steps_run, seed=seed, t_cg=t_cg,
+                t=time.perf_counter() - t0, design=design)
 
 
 def verify_over_survivors(z, pi, tau, lo, m, cand, OPT, node_limit=5_000_000):

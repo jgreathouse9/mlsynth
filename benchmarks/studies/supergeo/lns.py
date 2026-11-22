@@ -120,7 +120,16 @@ def repair_dp(z, free, lo, hi):
     return groups, float(best)
 
 
-def lns_dp(z, design, lo=2, hi=4, max_free=18, seconds=600, seed=0, verbose=True, log_every=30):
+def lns_dp(z, design, lo=2, hi=4, max_free=18, seconds=600, seed=0, verbose=True, log_every=30, steps=None):
+    """Large-neighbourhood search from `design`: each step frees the groups near a chosen one (at most max_free
+    markets) and re-partitions them exactly (repair_dp), keeping the result when it lowers their loss.
+
+    steps: the number of steps. When given, the search runs exactly that many and never reads the clock, so the
+    same inputs and seed give the same design on any machine at any load. When None, it stops after `seconds`,
+    and the design then depends on how many steps the machine completed in that time. Returns (design, loss,
+    trace of (seconds elapsed, loss) after each step)."""
+    if steps is not None and (isinstance(steps, bool) or not isinstance(steps, (int, np.integer)) or steps < 0):
+        raise ValueError(f"steps must be a non-negative integer or None, not {steps!r}")
     rng = np.random.default_rng(seed)
     z = np.asarray(z, float)
     rank = np.empty(len(z), int); rank[np.argsort(z)] = np.arange(len(z))
@@ -128,7 +137,7 @@ def lns_dp(z, design, lo=2, hi=4, max_free=18, seconds=600, seed=0, verbose=True
     loss = [group_loss(z, g) for g in design]
     t0 = time.perf_counter(); last = t0; trace = [(0.0, sum(loss))]
     it = acc = 0
-    while time.perf_counter() - t0 < seconds:
+    while (it < steps) if steps is not None else (time.perf_counter() - t0 < seconds):
         it += 1
         a = int(np.argmax(loss)) if rng.random() < 0.3 else int(rng.integers(len(design)))
         centre = np.mean([rank[g] for g in design[a]])
