@@ -481,3 +481,50 @@ def test_rows_search_with_workers_uses_the_threads(monkeypatch):
     assert calls == []
     vn.verify_rows(n, 2, _rows_of(cand), fc, pi, float(m), tau, float(OPT), workers=2)
     assert calls == [1]
+
+
+# --- the threaded search in rounds: reproducible -----------------------------------------------------------------------
+
+@settings(max_examples=80, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 2), dens=st.floats(0.3, 1.0),
+       workers=st.integers(1, 4), split=st.integers(1, 200))
+def test_rounds_find_the_serial_optimum(seed, n, kind, dens, workers, split):
+    rng = np.random.default_rng(seed)
+    z, pi, tau, cand, cost, m = _case(rng, n, kind, dens, 3.0 if seed % 2 else 0.0)
+    cover = any_cover(n, cand, cost, rng)
+    if cover is None:
+        return
+    OPT = sum(cost[c] for c in cover)
+    par = vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=workers, split=split, deterministic=True)
+    assert par[0] == 0 and par[2] == brute(n, cand, cost)
+
+
+def _rows_run(n, pi, tau, cand, cost, m, OPT, **kw):
+    fc = np.array([float(cost[c]) for c in cand])
+    st, nodes, covers = vn.verify_rows(n, 2, _rows_of(cand), fc, pi, float(m), tau, float(OPT), **kw)
+    return st, nodes, [tuple(int(j) for j in r) for r in covers]
+
+
+def test_rounds_give_the_same_search_every_run():
+    """In rounds the subtrees prune on the incumbent known when their round began and merge in task order, so the
+    status, the node count and the covers recorded are the same on every run, idle or under load."""
+    from .test_lns import _Load
+    n, pi, tau, cand, cost, m, OPT = _big_tree_case()
+    kw = dict(node_limit=150_000, workers=4, deterministic=True)
+    a = _rows_run(n, pi, tau, cand, cost, m, OPT, **kw)
+    b = _rows_run(n, pi, tau, cand, cost, m, OPT, **kw)
+    with _Load():
+        c = _rows_run(n, pi, tau, cand, cost, m, OPT, **kw)
+    assert a == b == c and a[0] == 1
+    full = [vn.verify(n, 2, cand, cost, pi, m, tau, OPT, workers=4, deterministic=True) for _ in range(2)]
+    assert full[0][:3] == full[1][:3] and sorted(full[0][3]) == sorted(full[1][3]) and full[0][0] == 0
+
+
+def test_rounds_share_the_node_limit():
+    """The limit left at each round is split among its subtrees, so the total passes it by at most a check
+    interval (1,024 nodes) a subtree."""
+    n, pi, tau, cand, cost, m, OPT = _big_tree_case()
+    for workers in (2, 4):
+        st, nodes, covers = _rows_run(n, pi, tau, cand, cost, m, OPT, node_limit=300_000, workers=workers,
+                                      deterministic=True)
+        assert st == 1 and nodes <= 300_000 + 1024 * workers, (workers, nodes)

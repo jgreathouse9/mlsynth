@@ -282,7 +282,7 @@ def _best_of(cand, exact_cost, OPT, rows):
 
 
 def verify(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit=2_000_000_000, cand_cap=200_000, bits=None,
-           workers=None, split="auto"):
+           workers=None, split="auto", deterministic=False):
     """Exact optimum over exact covers by the columns `cand` (tuples of geos).
     exact_cost: dict tuple -> Fraction. pi: doubles. m <= 0, OPT: Fractions; tau: double.
     Returns (status, nodes, exact optimum, design). Up to 62 markets a column is one 64-bit mask; above that, or
@@ -290,14 +290,15 @@ def verify(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit=2_000_000_000, c
 
     workers: None searches on this thread; an integer k >= 1 cuts the tree into at least `split` subtrees ("auto":
     64 k) and searches them on k threads (:func:`_parallel`). node_limit then bounds the total over the threads,
-    checked between subtrees and inside each one against what is left."""
+    checked between subtrees and inside each one against what is left. deterministic: search the subtrees in
+    rounds (:func:`_rounds`), so the result is the same on every run."""
     if workers is not None:
         if int(workers) < 1:
             raise ValueError(f"workers must be a positive integer or None, not {workers}")
         if split != "auto" and int(split) < 1:
             raise ValueError(f"split must be a positive integer or 'auto', not {split}")
         return _parallel(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit, cand_cap, bits, int(workers),
-                         64 * int(workers) if split == "auto" else int(split))
+                         64 * int(workers) if split == "auto" else int(split), bool(deterministic))
     p = _prepare(n, lo, cand, exact_cost, pi, m, tau, OPT, bits)
     masks, cost, pisum, odd, gptr, gcols = p["masks"], p["cost"], p["pisum"], p["odd"], p["gptr"], p["gcols"]
     if p["wide"]:
@@ -476,14 +477,15 @@ def _search_from(n, B, W, lo, masks, cost, pisum, odd, gptr, gcols, m, tau, g2, 
     return status, nodes, nc
 
 
-def _parallel(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit, cand_cap, bits, workers, split):
+def _parallel(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit, cand_cap, bits, workers, split,
+              deterministic=False):
     """verify on `workers` threads (:func:`_parallel_core`), its covers re-costed exactly."""
     p = _prepare(n, lo, cand, exact_cost, pi, m, tau, OPT, 63 if bits is None else bits)
-    status, total, rows = _parallel_core(p, n, node_limit, cand_cap, workers, split)
+    status, total, rows = _parallel_core(p, n, node_limit, cand_cap, workers, split, deterministic)
     return status, total, *_best_of(cand, exact_cost, OPT, rows)
 
 
-def _parallel_core(p, n, node_limit, cand_cap, workers, split):
+def _parallel_core(p, n, node_limit, cand_cap, workers, split, deterministic=False):
     """The search on `workers` threads over the prepared arrays `p` (several words of B bits). The frontier starts at
     the root and expands its oldest node until it holds at least `split` nodes or none is left to expand; complete
     covers met on the way are recorded as in the search. The frontier is then searched in increasing order of node
@@ -517,6 +519,9 @@ def _parallel_core(p, n, node_limit, cand_cap, workers, split):
             else:
                 queue.append((Us[q].copy(), float(Ps[q]), float(Ss[q]), bool(Os[q]), path, float(lbs[q])))
     tasks = sorted(queue, key=lambda t: t[5])
+    if deterministic:
+        status, total, rows = _rounds(args, plen, tasks, float(shared[0]), node_limit - nodes, cand_cap, workers)
+        return status, nodes + total, leaves + rows
     nxt = iter(range(len(tasks))); lock = threading.Lock()
     status = [0]; bufs = [None] * workers
     counts = np.zeros((workers, 8), np.int64)        # row r: thread r's nodes, its stop flag; 64 bytes a row
@@ -565,8 +570,47 @@ def _row_masks(rows, n, B, W, wide):
     return m1, mw
 
 
+ROUND_TASKS_PER_WORKER = 1        # subtrees per thread in a round of the deterministic schedule
+
+
+def _rounds(args, plen, tasks, best, left, cand_cap, workers):
+    """The subtrees in rounds of `workers`, for a result that is the same on every run. In a round each subtree is
+    searched by _search_from on its own copy of the incumbent known when the round began (lowered by what it finds
+    itself, read by no other subtree) and its own share of the node limit left (left // subtrees in the round,
+    checked every 1,024 nodes); after the round the covers are merged in task order and the incumbent becomes the
+    best of the round's. Each subtree's search is then a function of its inputs alone. The cost against the
+    dynamic schedule is pruning: a subtree cannot use an incumbent found during its round.
+    Returns (status, nodes, recorded covers)."""
+    from concurrent.futures import ThreadPoolExecutor
+    rows, total, status = [], 0, 0
+    size = max(1, ROUND_TASKS_PER_WORKER * workers)
+    with ThreadPoolExecutor(workers) as pool:
+        for i in range(0, len(tasks), size):
+            batch = tasks[i:i + size]
+            if left - total <= 0:
+                status = 1
+                break
+            per = max(1, (left - total) // len(batch))
+            start = best
+            def run(task):
+                U, P, S, O, pre, lb = task
+                sh = np.array([start]); counts = np.zeros((1, 8), np.int64)
+                buf = np.empty((cand_cap, plen), np.int64)
+                st, k, nc = _search_from(*args, per, counts, 0, U, P, S, O, np.array(pre, np.int64), sh, buf, 0)
+                return st, k, buf[:nc], float(sh[0])
+            for st, k, found, b in pool.map(run, batch):          # results in task order
+                total += k
+                rows.extend(found)
+                best = min(best, b)
+                if st in (1, 2) and not status:
+                    status = st
+            if status:
+                break
+    return status, total, rows
+
+
 def verify_rows(n, lo, rows, cost, pi, m, tau, opt, node_limit=2_000_000_000, cand_cap=200_000, workers=None,
-                split="auto"):
+                split="auto", deterministic=False):
     """The search of :func:`verify` on columns given as an index array (rows padded with -1) and double costs,
     set up with numpy: the capped stages of certify_exact.certify_staged. The margin assumes doubles within the
     rounding of exact costs; a stage on computed costs finds incumbents and proves nothing, and its covers are
@@ -597,7 +641,8 @@ def verify_rows(n, lo, rows, cost, pi, m, tau, opt, node_limit=2_000_000_000, ca
         p = dict(B=B, W=W, g2=g2, absA0=absA0, opt_up=opt_up, S0=S0,
                  args=(n, B, W, float(lo), mw, cost, pisum, odd, gptr, gcols, float(m), float(tau), g2, absA0))
         status, nodes, found = _parallel_core(p, n, node_limit, cand_cap, int(workers),
-                                              64 * int(workers) if split == "auto" else int(split))
+                                              64 * int(workers) if split == "auto" else int(split),
+                                              bool(deterministic))
         return status, int(nodes), [np.array([j for j in r if j >= 0], np.int64) for r in found]
     args = (cost, pisum, odd, gptr, gcols, pi, float(m), float(tau), opt_up, g2, absA0, node_limit, cand_cap, n // 2 + 2)
     if wide:
