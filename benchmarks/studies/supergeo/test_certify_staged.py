@@ -55,11 +55,12 @@ def test_the_same_exact_optimum_as_the_certificate():
 
 
 def test_the_50_state_optimum():
-    """The 50-state panel of the SYNDES benchmark (months 34 to 37): the staged certificate from a 1 s heuristic
-    reaches the optimum the single-threshold certificate proved (fifty_optima.json)."""
+    """The 50-state panel of the SYNDES benchmark (months 34 to 37): the staged certificate from an 11-step
+    heuristic on four threads reaches the optimum the single-threshold certificate proved (fifty_optima.json). Step
+    budget and threads are fixed: a time budget makes the stages depend on the machine's speed."""
     Y = pd.read_csv(HERE.parents[2] / "basedata" / "urate_cps.csv", header=None).to_numpy(float)
     pre = Y[-7:-3].sum(0); z = pre / np.median(np.diff(np.sort(pre)))
-    out = ce.certify_staged(z, heuristic_seconds=1.0)
+    out = ce.certify_staged(z, heuristic_steps=11, workers=4)
     ref = json.loads((HERE / "fifty_optima.json").read_text())["urate"]["opt"]
     assert out["proved"] and abs(out["opt"] - ref) <= 1e-12 * ref
     capped = [s for s in out["stages"] if not s["exact"]]   # here the halving rule ends the staging (941 then 549)
@@ -236,12 +237,14 @@ def test_an_exact_certificate_proves_a_zero_gap():
 
 
 def test_a_gap_the_bound_proves_needs_no_exact_search():
-    """The 50-state panel's bound is 0.135 of its optimum. The 1 s heuristic's design costs more than ten times the
-    optimum, so a capped stage runs; once it has improved the design, the bound proves a gap of 0.95 and the exact
-    stage never runs."""
+    """The 50-state panel's bound is 0.135 of its optimum. The 11-step heuristic's design costs more than ten times
+    the optimum, so a capped stage runs; once it has improved the design, the bound proves a gap of 0.95 and the
+    exact stage never runs. The path depends on the heuristic's design: from 5 to 8 steps on four threads the second
+    capped stage finds nothing better and the exact stage runs (the certificate still proves the gap), so the test
+    fixes the steps and the threads; a 1 s time budget took that path on a slower CI runner (8 steps)."""
     Y = pd.read_csv(HERE.parents[2] / "basedata" / "urate_cps.csv", header=None).to_numpy(float)
     pre = Y[-7:-3].sum(0); z = pre / np.median(np.diff(np.sort(pre)))
-    out = ce.certify_staged(z, gap=0.95, heuristic_seconds=1.0)
+    out = ce.certify_staged(z, gap=0.95, heuristic_steps=11, workers=4)
     assert out["proved"] and out["proof"].startswith("within the gap: the bound")
     assert not any(s["exact"] for s in out["stages"])
     assert out["gap_proved"] <= 0.95 and out["lb_proved_exact"] == out["lb_exact"]
@@ -394,9 +397,9 @@ def test_an_absolute_gap_on_similar_markets_needs_no_exact_search():
     the exact stage; the absolute gap of the design's own cost is proved by the bound (which is at least 0) once
     the capped stages are done, with no exact stage."""
     z = _similar(40)
-    rel = ce.certify_staged(z, gap=0.5, heuristic_seconds=1.0)
+    rel = ce.certify_staged(z, gap=0.5, workers=4)              # default step budget: the same design on any machine
     assert rel["lb"] < 0.5 * rel["opt"]                          # the relative gap is not proved by the bound
-    out = ce.certify_staged(z, abs_gap=rel["opt"] * 1.5 + 1e-9, heuristic_seconds=1.0)
+    out = ce.certify_staged(z, abs_gap=rel["opt"] * 1.5 + 1e-9, workers=4)
     assert out["proved"] and out["proof"].startswith("within the gap: the bound")
     assert not any(s["exact"] for s in out["stages"])
     assert out["abs_gap_proved"] <= rel["opt"] * 1.5 + 1e-9
