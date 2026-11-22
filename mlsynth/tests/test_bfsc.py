@@ -125,3 +125,124 @@ def test_missing_numpyro_raises(monkeypatch):
     with pytest.raises(MlsynthEstimationError):
         BFSC({"df": _factor_panel(), "outcome": "y", "treat": "treat",
               "unitid": "unit", "time": "t", **_FAST}).fit()
+
+
+# --------------------------------------------------------------------------- #
+# the draw-count contract: n_samples is per chain
+# --------------------------------------------------------------------------- #
+# The config documents n_samples as "retained NUTS samples per chain", and the
+# replication page compares 4 chains x 500 draws with the author's Stan. The
+# sampler asked NumPyro for ceil(n_samples / n_chains) draws per chain, a
+# quarter of that at the defaults: 125 per chain. Split R-hat on 125
+# autocorrelated draws exceeds 1.1 from noise alone, which is how bfsc_germany
+# came to fail its R-hat band on some CI runners and pass on others. A fake
+# backend records what the sampler is asked for, so these tests need no NumPyro.
+from hypothesis import HealthCheck, given, settings, strategies as st  # noqa: E402
+
+
+class _FakeBackend:
+    """Stands in for (jax, jnp, numpyro, dist, MCMC, NUTS, diagnostics): records the
+    arguments the sampler receives and returns constant draws of the shape asked for.
+    Its split R-hat asserts at least 4 draws per chain, as NumPyro's does."""
+
+    def __init__(self, draws_override=None):
+        self.calls = {}
+        self.draws_override = draws_override
+        outer = self
+
+        class _Key:
+            @staticmethod
+            def PRNGKey(seed):
+                outer.calls["seed"] = seed
+                return seed
+
+        class _Jax:
+            random = _Key
+
+        class _NUTS:
+            def __init__(self, model, target_accept_prob):
+                outer.calls["target_accept"] = target_accept_prob
+
+        class _MCMC:
+            def __init__(self, kernel, num_warmup, num_samples, num_chains, progress_bar):
+                outer.calls.update(num_warmup=num_warmup, num_samples=num_samples, num_chains=num_chains)
+
+            def run(self, key, extra_fields=()):
+                pass
+
+            def get_samples(self, group_by_chain=True):
+                c, s = outer.calls["num_chains"], outer.calls["num_samples"]
+                if outer.draws_override is not None:
+                    s = outer.draws_override
+                return {"cf": np.zeros((c, s, outer.T)), "sigma": np.ones((c, s))}
+
+            def get_extra_fields(self):
+                return {"accept_prob": np.full(3, 0.9), "diverging": np.zeros(3, bool)}
+
+        class _Diagnostics:
+            @staticmethod
+            def split_gelman_rubin(x):
+                x = np.asarray(x)
+                assert x.ndim >= 2 and x.shape[1] >= 4
+                return np.ones(x.shape[2:])
+
+        self.modules = (_Jax, np, None, None, _MCMC, _NUTS, _Diagnostics)
+
+    def __call__(self):
+        return self.modules
+
+
+def _run(monkeypatch, n_samples, n_chains, n_warmup=7, seed=3, target_accept=0.9, draws_override=None, T=12):
+    from mlsynth.utils.bfsc_helpers import model as bfsc_model
+    fake = _FakeBackend(draws_override)
+    fake.T = T
+    monkeypatch.setattr(bfsc_model, "_import_backend", fake)
+    Y = np.random.default_rng(0).normal(size=(5, T))
+    out = bfsc_model.run_bfsc(Y, 8, n_factors=2, n_warmup=n_warmup, n_samples=n_samples, n_chains=n_chains,
+                              target_accept=target_accept, seed=seed)
+    return fake.calls, out
+
+
+def test_the_reproduction_four_chains_of_500_draws_each(monkeypatch):
+    """bfsc_germany's settings (500 warm-up, 500 samples, 4 chains): the sampler is asked
+    for 500 draws per chain and returns 2,000 counterfactual draws, not 125 per chain."""
+    calls, out = _run(monkeypatch, n_samples=500, n_chains=4, n_warmup=500)
+    assert calls["num_samples"] == 500 and calls["num_chains"] == 4
+    assert out["counterfactual"].shape == (2000, 12)
+
+
+@pytest.mark.parametrize("n_samples, n_chains", [(1, 2), (2, 2), (3, 4), (1, 7)])
+def test_too_few_draws_per_chain_for_r_hat_report_nan(monkeypatch, n_samples, n_chains):
+    """Edge: split R-hat needs at least 4 draws per chain. With fewer the draws are still
+    returned (n_samples per chain) and max_rhat is NaN, not a crash."""
+    calls, out = _run(monkeypatch, n_samples=n_samples, n_chains=n_chains)
+    assert calls["num_samples"] == n_samples
+    assert out["counterfactual"].shape[0] == n_samples * n_chains and np.isnan(out["max_rhat"])
+
+
+def test_one_chain_has_no_r_hat(monkeypatch):
+    calls, out = _run(monkeypatch, n_samples=10, n_chains=1)
+    assert out["counterfactual"].shape[0] == 10 and np.isnan(out["max_rhat"])
+
+
+@settings(max_examples=80, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(n_samples=st.integers(1, 60), n_chains=st.integers(1, 6), n_warmup=st.integers(1, 50),
+       seed=st.integers(0, 2**31 - 1), target_accept=st.floats(0.05, 0.99))
+def test_every_setting_reaches_the_sampler(monkeypatch, n_samples, n_chains, n_warmup, seed, target_accept):
+    """Property, over every sampler argument: NumPyro receives n_samples draws per chain,
+    n_chains chains, n_warmup warm-up steps, the seed and the target acceptance as given;
+    the result holds n_samples * n_chains draws; R-hat is reported exactly when it is
+    defined (two or more chains of four or more draws)."""
+    calls, out = _run(monkeypatch, n_samples=n_samples, n_chains=n_chains, n_warmup=n_warmup, seed=seed,
+                      target_accept=target_accept)
+    assert calls == dict(seed=seed, target_accept=target_accept, num_warmup=n_warmup,
+                         num_samples=n_samples, num_chains=n_chains)
+    assert out["counterfactual"].shape[0] == n_samples * n_chains == out["sigma"].shape[0]
+    assert np.isnan(out["max_rhat"]) == (n_chains < 2 or n_samples < 4)
+
+
+def test_a_short_draw_from_the_sampler_is_reported(monkeypatch):
+    """Failure: the result checks its own draw count. A backend that returns fewer draws
+    per chain than asked raises a translated MlsynthEstimationError."""
+    with pytest.raises(MlsynthEstimationError, match="draws"):
+        _run(monkeypatch, n_samples=20, n_chains=2, draws_override=19)
