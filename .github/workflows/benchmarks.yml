@@ -437,6 +437,39 @@ jobs:
         run: |
           python -u benchmarks/run_benchmarks.py --case spsydid_state_mc
 
+  # google/trimmed_match runs in its own environment: it was tested on Python 3.7
+  # with a Bazel-built C++ core, so install.sh clones it at the pinned commit, makes
+  # a Python 3.11 venv with versions of its era, compiles the core with the system
+  # compiler and runs the package's own tests there. The case then calls the
+  # package's pairing through run.sh. A failed build leaves the case skipping.
+  trimmed-match-ref:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install mlsynth
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Build the trimmed_match reference environment
+        run: |
+          bash benchmarks/reference/trimmed_match/install.sh python3.11 \
+            || echo "::warning::the trimmed_match reference failed to build (its cross-check will skip)"
+
+      - name: Run the Trimmed Match pairing cross-check
+        run: |
+          python -u benchmarks/run_benchmarks.py --case pangeo_trimmed_match_pairs
+
   # ---------------------------------------------------------------------------
   # Validation dashboard: create a per-case comparison.csv for every comparison()
   # case that does not yet have one, regenerate the public docs/validation.rst

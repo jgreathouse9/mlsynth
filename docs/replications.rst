@@ -119,6 +119,7 @@ below; the catalogue entries link to a dedicated page where one exists.
    replications/drosc
    replications/rolldid
    replications/ppscm
+   replications/pangeo_trimmed_match
    replications/stackedsc
    replications/cscm
    replications/snn
@@ -908,6 +909,10 @@ Experimental design
   matching RMSE :math:`\approx 6` at :math:`\tau = 4` (a
   :math:`30\times` improvement); pre-period parallelism
   :math:`R^2 \in [0.90, 0.98]` (durable: ``pangeo_supergeo_mc``).
+  Cross-validation: with ``objective="supergeo_total"`` and pairs,
+  the same 87 pairs as google/trimmed_match's own pairing, run live
+  on its example data (durable: ``pangeo_trimmed_match_pairs``;
+  :doc:`dedicated page <replications/pangeo_trimmed_match>`).
 * :doc:`spcd` -- Synthetic Principal Component Design.
   Path B: Lu-Li-Ying-Blanchet linear-factor model with
   :math:`\tau = 1`, :math:`\sigma = 1` -- SPCD mean

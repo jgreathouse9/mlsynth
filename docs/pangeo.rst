@@ -798,6 +798,18 @@ live in ``mlsynth/tests/test_pangeo.py`` (``TestADIDInference``).
          f"[{pe.ci_lower_pct:.1f}, {pe.ci_upper_pct:.1f}], "
          f"p={pe.p_value:.3f}, scale delta_2={pe.scale:.2f}")
 
+Verification
+------------
+
+Two benchmark cases pin PANGEO. ``pangeo_supergeo_mc``
+(`source <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pangeo_supergeo_mc.py>`__)
+reproduces the trajectory-matching simulation below. ``pangeo_trimmed_match_pairs``
+(`source <https://github.com/jgreathouse9/mlsynth/blob/main/benchmarks/cases/pangeo_trimmed_match_pairs.py>`__)
+cross-validates the pairs design under ``objective="supergeo_total"`` against
+google/trimmed_match's own pairing, run live in its own environment on the
+package's example data: the same 87 pairs. See
+:doc:`replications/pangeo_trimmed_match`.
+
 Core API
 --------
 

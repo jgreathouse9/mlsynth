@@ -199,6 +199,7 @@ CASES = {
     "fma_coverage_mc": "benchmarks.cases.fma_coverage_mc",      # Path B: FMA asymptotic-CI coverage robust to variance (Li-Sonnier)
     "fma_percentile_t_mc": "benchmarks.cases.fma_percentile_t_mc",  # Path B: FMA percentile-t bootstrap coverage at short pre-periods (Wang-Racine-Wang)
     "pangeo_supergeo_mc": "benchmarks.cases.pangeo_supergeo_mc",  # Path B: PANGEO trajectory match vs scalar (Chen et al.)
+    "pangeo_trimmed_match_pairs": "benchmarks.cases.pangeo_trimmed_match_pairs",  # cross-val vs google/trimmed_match's create_geo_pairs run LIVE in its own env (C++ core built without Bazel): PANGEO supergeo_total pairs (cvxpy MIP) == sorted pairing, 87/87 pairs; skips if the env is not built
     "shc_recovery_mc": "benchmarks.cases.shc_recovery_mc",      # Path B: SHC latent-confounder recovery (Chen-Yang-Yang Sec 3.1)
     "dscar_beijing": "benchmarks.cases.dscar_beijing",      # Path A: DSCAR Beijing PM2.5 alerts (Zheng-Chen)
     "msqrt_sim": "benchmarks.cases.msqrt_sim",                # Path B: MSQRT unbiasedness + RMSE noise-floor (Shen-Song-Abadie Sec 6)
@@ -448,6 +449,7 @@ _RAW: dict[str, tuple[str, str]] = {
     "orthsc_size_power":              ("B", "simulated"),
     "pang_liu_xu_sims":               ("BX", "simulated"),
     "pangeo_supergeo_mc":             ("B", "simulated"),
+    "pangeo_trimmed_match_pairs":     ("X", "empirical"),
     "pcr_rsc_ref":                    ("X", "empirical"),
     "pcr_shen_estimator_coverage":    ("C", "both"),
     "pda_brexit":                     ("A", "empirical"),
