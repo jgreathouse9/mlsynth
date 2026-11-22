@@ -18774,3 +18774,69 @@ timeout = 600.0
   find = "            if self.compute_q_sweep:"
   replace = "            if False:"
   models = "supergeo_total accepted with a Q sweep, which designs Q > 1"
+
+[[target]]
+name = "supergeo-certify-limits"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"group_size or every_group_size or in_sequence or admit_no_partition or bad_group_size or receives_the_limits or older_certificate or outside_the_limits or bound_above\""
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-step-budget-heuristic-drops-the-limits"
+  find = "incumbent, _, trace = lns.lns_dp(z, incumbent, lo=lo, hi=hi, steps=int(heuristic_steps), seed=seed,"
+  replace = "incumbent, _, trace = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed,"
+  models = "the defect of the RCA: the default heuristic builds groups of 2 to 4 whatever lo and hi ask"
+
+  [[target.mutant]]
+  id = "the-time-budget-heuristic-drops-the-limits"
+  find = "incumbent, _, trace = lns.lns_dp(z, incumbent, lo=lo, hi=hi, seconds=heuristic_seconds, seed=seed,"
+  replace = "incumbent, _, trace = lns.lns_dp(z, incumbent, seconds=heuristic_seconds, seed=seed,"
+  models = "the same defect under a time budget"
+
+  [[target.mutant]]
+  id = "the-older-certificate-drops-the-limits"
+  find = "incumbent, _, _ = lns.lns_dp(z, incumbent, lo=lo, hi=hi, seconds=30, verbose=False)"
+  replace = "incumbent, _, _ = lns.lns_dp(z, incumbent, seconds=30, verbose=False)"
+  models = "the same defect in certify, the MIP certificate"
+
+  [[target.mutant]]
+  id = "a-design-outside-the-limits-returned"
+  find = "    if sorted(v for g in design for v in g) != list(range(n)) or not all(lo <= len(g) <= hi for g in design):"
+  replace = "    if False:"
+  models = "the certificate returning a design that breaks the limits or the cover without noticing"
+
+  [[target.mutant]]
+  id = "a-bound-above-the-design-read-as-proof"
+  find = "    if lb_proved > ub:"
+  replace = "    if False:"
+  models = "a lower bound above the design's cost, a contradiction, read as a proved gap"
+
+  [[target.mutant]]
+  id = "groups-of-five-accepted"
+  find = "    if not ok or not 2 <= lo <= hi <= 4:"
+  replace = "    if not ok or not 2 <= lo <= hi:"
+  models = "hi above 4 accepted though the pricing never forms a group of five, leaving the bound unproved"
+
+  [[target.mutant]]
+  id = "singletons-accepted"
+  find = "    if not ok or not 2 <= lo <= hi <= 4:"
+  replace = "    if not ok or not 1 <= lo <= hi <= 4:"
+  models = "lo of 1 accepted though a single market has no split and the pricing never forms one"
+
+  [[target.mutant]]
+  id = "infeasible-sizes-sent-to-the-lp"
+  find = "    if not _partition_exists(n, lo, hi):"
+  replace = "    if False:"
+  models = "sizes that admit no partition sent to the root LP, which fails as infeasible instead of a proved no-design"
+
+  [[target.mutant]]
+  id = "the-start-ignores-the-limits"
+  find = "    if lo == 2 and (n % 2 == 0 or hi >= 3):"
+  replace = "    if True:"
+  models = "the sorted-pairs start used whatever the limits, a design the heuristic may leave partly unrepaired"
+
+  [[target.mutant]]
+  id = "the-largest-group-count-not-tried"
+  find = "    return any(k * lo <= n <= k * hi for k in range(1, n // lo + 1))"
+  replace = "    return any(k * lo <= n <= k * hi for k in range(1, n // lo))"
+  models = "the partition count stopping one short, so n = k lo exactly (all groups of the smallest size) reads as infeasible"

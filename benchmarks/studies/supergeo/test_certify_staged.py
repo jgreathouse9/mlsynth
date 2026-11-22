@@ -771,10 +771,14 @@ def _check_sizes(out, n, lo, hi):
 @pytest.mark.parametrize("lo, hi", [(2, 2), (2, 3), (3, 4), (3, 3), (4, 4), (2, 4)])
 def test_the_group_size_limits_hold_with_the_heuristic_on(lo, hi):
     """The reproduction: ten markets, one eight times the median, the default heuristic on. The design keeps every
-    group within lo to hi, is the brute-force optimum over such partitions, and the bound lies below it."""
+    group within lo to hi, is the brute-force optimum over such partitions, and the bound lies below it; ten
+    markets admit no partition into groups of exactly three or exactly four, and the certificate proves that."""
     z = _ten_markets()
     want = _brute_sizes(z, lo, hi)
     out = ce.certify_staged(z, lo=lo, hi=hi)
+    if want is None:
+        assert out["design"] is None and not out["feasible"] and out["proved"]
+        return
     _check_sizes(out, 10, lo, hi)
     assert out["proved"] and out["opt_exact"] == want
     assert out["lb_exact"] <= want and out["gap_proved"] >= 0
