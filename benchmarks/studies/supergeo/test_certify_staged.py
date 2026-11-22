@@ -570,11 +570,16 @@ def test_the_certificate_is_reproducible_by_default():
 
 
 def test_the_seed_reaches_the_heuristic():
+    """With an absolute gap of 0.5 the sorted start (cost 233) is far from the target and the heuristic works to
+    reach it: seed 0 gets there at step 4, seed 1 at step 7, each stops there and the bound proves its design, so
+    the design is the heuristic's and the two seeds give two designs. (A gap of 1e6, the earlier fixture, puts the
+    start itself within the gap, and the heuristic then takes no step.)"""
     from .test_lns import _similar
     z = _similar(40)
-    a = ce.certify_staged(z, workers=None, abs_gap=1e6, seed=0)       # proved by the bound: the design is the heuristic's
-    b = ce.certify_staged(z, workers=None, abs_gap=1e6, seed=1)
+    a = ce.certify_staged(z, workers=None, abs_gap=0.5, seed=0)
+    b = ce.certify_staged(z, workers=None, abs_gap=0.5, seed=1)
     assert a["stages"] == [] and b["stages"] == []
+    assert a["heuristic_stop"] == b["heuristic_stop"] == "bound" and a["heuristic_steps"] != b["heuristic_steps"]
     assert sorted(a["design"]) != sorted(b["design"]) and b["seed"] == 1
 
 
@@ -921,3 +926,177 @@ def test_the_start_fits_the_limits_when_pairs_would_be_cheaper():
     out = ce.certify_staged(z, lo=3, hi=3, heuristic_seconds=0.0)
     _check_sizes(out, 6, 3, 3)
     assert out["proved"] and out["opt_exact"] == _brute_sizes(z, 3, 3) > 0
+
+
+# --- the heuristic stops when it stops paying -------------------------------------------------------------------------
+# The default heuristic ran a fixed max(10, N // 2) steps. On the 174 Trimmed Match geos in pairs the sorted start is
+# already optimal and the 87 steps were 5.4 of the 5.9 s; on integer panels the heuristic reaches a design of cost 0,
+# the root bound, and kept stepping. Two rules now end it early, both counted in steps (the design stays a function
+# of the inputs and the seed): heuristic_patience steps in a row without a new lowest cost ("stall"), or a design
+# within the requested gap of the root LP bound ("bound"). The result records which ended it.
+
+def _pairs_cost(z):
+    from . import mitm_exact as mx
+    s = np.argsort(z)
+    return sum(mx.exact_rc(np.asarray(z, float), np.zeros(len(z)), (int(s[i]), int(s[i + 1])))
+               for i in range(0, len(z) - 1, 2))
+
+
+def test_a_search_that_cannot_improve_stops_on_a_stall():
+    """Smoke: 70 similar-sized markets in pairs. The sorted pairs are optimal, so no step improves them; the default
+    patience (30) ends the heuristic at step 30 of its budget of 35, and the certificate proves the sorted pairing."""
+    from .test_lns import _similar
+    z = _similar(70)
+    out = ce.certify_staged(z, lo=2, hi=2)
+    assert out["heuristic_steps"] == 30 and out["heuristic_stop"] == "stall"
+    assert out["proved"] and out["opt_exact"] == _pairs_cost(z)
+
+
+def test_a_design_at_the_bound_stops_the_heuristic():
+    """Unit: 32 markets in eight quadruples a, a+1, a+2, a+3 (:func:`.test_lns._quadruples`), groups of 2 to 4. The
+    root bound is 0 and the heuristic reaches a design of cost 0 before its budget of 16 steps; it stops there,
+    and the certificate proves 0."""
+    from .test_lns import _quadruples
+    z = _quadruples()
+    out = ce.certify_staged(z)
+    assert out["heuristic_stop"] == "bound" and out["heuristic_steps"] < 16
+    assert out["proved"] and out["opt_exact"] == 0
+
+
+def test_a_search_that_keeps_improving_runs_its_budget():
+    """Unit: 40 lognormal markets improve inside the budget of 20 steps, so neither rule fires before it."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(3), 40, 2), float)
+    out = ce.certify_staged(z, gap=0.5)
+    assert out["heuristic_stop"] == "budget" and out["heuristic_steps"] == 20
+
+
+def test_the_time_budget_stops_on_a_stall_too():
+    """The time budget takes the same rules: pairs on 70 similar-sized markets with 60 s stop after 30 steps."""
+    from .test_lns import _similar
+    z = _similar(70)
+    out = ce.certify_staged(z, lo=2, hi=2, heuristic_seconds=60.0)
+    assert out["heuristic_steps"] == 30 and out["heuristic_stop"] == "stall" and out["t"] < 40
+
+
+def test_no_heuristic_no_stop():
+    """Edge: with the heuristic off, a starting design given, or no design possible, nothing stopped a heuristic."""
+    z = _ten_markets()
+    assert ce.certify_staged(z, heuristic_steps=0)["heuristic_stop"] is None
+    assert ce.certify_staged(z, heuristic_seconds=0.0)["heuristic_stop"] is None
+    assert ce.certify_staged(z, incumbent=[(0, 1), (2, 3), (4, 5), (6, 7), (8, 9)])["heuristic_stop"] is None
+    assert ce.certify_staged(np.arange(1.0, 6.0), lo=2, hi=2)["heuristic_stop"] is None
+
+
+def test_each_region_reports_its_stop():
+    out = ce.certify_staged(_ten_markets(), region=np.array([0] * 6 + [1] * 4))
+    assert [r["heuristic_stop"] for r in out["regions"]] == [
+        ce.certify_staged(_ten_markets()[:6])["heuristic_stop"], ce.certify_staged(_ten_markets()[6:])["heuristic_stop"]]
+    assert out["heuristic_stop"] is None
+
+
+@pytest.mark.parametrize("p", [0, -1, 2.5, True, "lots", "AUTO", np.float64(2.0), float("nan")])
+def test_bad_patience_is_rejected(p):
+    """Failure: heuristic_patience is "auto", None (no stall rule) or an integer >= 1."""
+    with pytest.raises(ValueError, match="heuristic_patience"):
+        ce.certify_staged(np.arange(1.0, 9.0), heuristic_patience=p)
+
+
+def _spy(monkeypatch):
+    from . import lns
+    seen = []
+    real = lns.lns_dp
+    monkeypatch.setattr(lns, "lns_dp", lambda *a, **k: seen.append(k) or real(*a, **k))
+    return seen
+
+
+@pytest.mark.parametrize("budget", [dict(heuristic_steps=3), dict(heuristic_seconds=0.05)])
+@pytest.mark.parametrize("p, want", [("auto", 30), (7, 7), (None, None)])
+def test_the_heuristic_receives_the_patience(monkeypatch, budget, p, want):
+    """Both budgets forward the patience, "auto" being 30."""
+    seen = _spy(monkeypatch)
+    ce.certify_staged(_ten_markets(), heuristic_patience=p, **budget)
+    assert [k.get("patience", "missing") for k in seen] == [want]
+
+
+def test_the_regions_forward_the_patience(monkeypatch):
+    seen = _spy(monkeypatch)
+    ce.certify_staged(_ten_markets(), region=np.array([0] * 6 + [1] * 4), heuristic_patience=4)
+    assert [k.get("patience") for k in seen] == [4, 4]
+
+
+@pytest.mark.parametrize("budget", [dict(heuristic_steps=3), dict(heuristic_seconds=0.05)])
+@pytest.mark.parametrize("gap, d, size", [(0.0, 0.0, 1.0), (0.1, 0.0, 1.0), (0.0, 2.0, 1.0), (0.3, 5.0, 1.0),
+                                          (0.0, 2e-6, 1e-3), (0.2, 5e-6, 1e-3)])
+def test_the_heuristic_receives_the_gap_as_a_target(monkeypatch, budget, gap, d, size):
+    """Both budgets forward the target: the cost at which the design is within the requested gap of the root LP
+    bound b (clipped at 0), in the rescaled units, max(b / (1 - g), b + d * scale). At a thousandth of the size the
+    root rescales the totals (scale 2^20), so the absolute gap must be scaled with them."""
+    z = _ten_markets() * size
+    zs, scale, pi, tau = ce._root(z, 2, 4)
+    assert (scale == 1.0) == (size == 1.0)
+    b = max(float(sum(pi)) + tau, 0.0)
+    want = max(b / (1 - gap), b + d * scale)
+    seen = _spy(monkeypatch)
+    ce.certify_staged(z, gap=gap, abs_gap=d, **budget)
+    assert len(seen) == 1 and seen[0]["target"] == pytest.approx(want, rel=1e-12, abs=1e-300)
+
+
+@settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 3),
+       sizes=st.sampled_from([(2, 2), (2, 3), (2, 4), (3, 4)]),
+       patience=st.sampled_from(["auto", None, 1, 2, 5]), steps=st.sampled_from(["auto", 0, 1, 8, 40]),
+       gap=st.sampled_from([0.0, 0.05, 0.5]))
+def test_the_stop_rules_change_when_the_heuristic_ends_and_nothing_else(seed, n, kind, sizes, patience, steps, gap):
+    """Property, over the data, the limits, the patience, the budget and the gap. The certificate stays correct (its
+    design keeps the limits and is within the gap of the brute-force optimum, its bound below it); the steps that
+    ran are within the budget, and the stop it reports agrees with them; and a run given exactly those steps with
+    no stall rule holds the same incumbent, so it returns the same design and cost."""
+    lo, hi = sizes
+    z = np.asarray(test_bcp.gen(np.random.default_rng(seed), n, kind), float)
+    want = _brute_sizes(z, lo, hi)
+    out = ce.certify_staged(z, lo=lo, hi=hi, gap=gap, heuristic_patience=patience, heuristic_steps=steps)
+    if want is None:
+        assert out["design"] is None and out["heuristic_stop"] is None
+        return
+    _check_sizes(out, n, lo, hi)
+    assert out["proved"] and out["lb_proved_exact"] <= want <= out["opt_exact"]
+    assert out["opt_exact"] * (1 - Fraction(gap)) <= want
+    budget = max(10, n // 2) if steps == "auto" else steps
+    ran, stop = out["heuristic_steps"], out["heuristic_stop"]
+    assert 0 <= ran <= budget
+    if budget == 0:
+        assert stop is None
+    else:
+        assert stop in ("budget", "stall", "bound")
+        if stop == "budget":
+            assert ran == budget
+        if stop == "stall":
+            p = 30 if patience == "auto" else patience
+            assert p is not None and ran >= p
+    again = ce.certify_staged(z, lo=lo, hi=hi, gap=gap, heuristic_patience=None, heuristic_steps=ran)
+    assert sorted(again["design"]) == sorted(out["design"]) and again["opt_exact"] == out["opt_exact"]
+
+
+def test_a_root_bound_a_rounding_error_below_zero_still_stops_at_a_perfect_design(monkeypatch):
+    """Edge: the root LP's value, summed in floating point, can fall a rounding error below 0 on a panel whose
+    optimum is 0. The bound is clipped at 0, so the target is 0 and the quadruples' design of cost 0 still meets it
+    and stops the heuristic (at step 4). The duals are shifted here to put the bound 1e-12 below 0; the run is
+    stopped after the heuristic, since with those duals the proof is a long search unrelated to this rule."""
+    from . import lns
+    from .test_lns import _quadruples
+    real_root, real_lns, seen = ce._root, lns.lns_dp, {}
+    def shifted(*a, **k):
+        z, scale, pi, tau = real_root(*a, **k)
+        pi = np.array(pi, float); pi[0] -= 1e-12 + float(sum(pi)) + tau
+        return z, scale, pi, tau
+    class Done(Exception):
+        pass
+    def spy(*a, **k):
+        seen["target"] = k["target"]; seen["out"] = real_lns(*a, **k)
+        raise Done
+    monkeypatch.setattr(ce, "_root", shifted)
+    monkeypatch.setattr(lns, "lns_dp", spy)
+    with pytest.raises(Done):
+        ce.certify_staged(_quadruples())
+    design, loss, trace = seen["out"]
+    assert seen["target"] == 0.0 and loss == 0.0 and len(trace) - 1 < 16

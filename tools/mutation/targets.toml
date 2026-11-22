@@ -18530,8 +18530,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-search-unseeded"
-  find = "        raise ValueError(f\"steps must be a non-negative integer or None, not {steps!r}\")\n    rng = np.random.default_rng(seed)"
-  replace = "        raise ValueError(f\"steps must be a non-negative integer or None, not {steps!r}\")\n    rng = np.random.default_rng()"
+  find = "        raise ValueError(f\"target must be a finite number or None, not {target!r}\")\n    rng = np.random.default_rng(seed)"
+  replace = "        raise ValueError(f\"target must be a finite number or None, not {target!r}\")\n    rng = np.random.default_rng()"
   models = "the seed accepted and ignored: the same inputs give a different design each run"
 
   [[target.mutant]]
@@ -18675,8 +18675,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-schedule-not-given-to-the-regions"
-  find = "                               deterministic=deterministic, verbose=verbose))"
-  replace = "                               deterministic=False, verbose=verbose))"
+  find = "                               deterministic=deterministic, verbose=verbose, heuristic_patience=heuristic_patience))"
+  replace = "                               deterministic=False, verbose=verbose, heuristic_patience=heuristic_patience))"
   models = "each region's certificate run on the dynamic schedule whatever was asked"
 
   [[target.mutant]]
@@ -18687,8 +18687,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-dynamic-schedule-by-default"
-  find = "                   deterministic=True, verbose=False):"
-  replace = "                   deterministic=False, verbose=False):"
+  find = "                   deterministic=True, verbose=False, heuristic_patience=\"auto\"):"
+  replace = "                   deterministic=False, verbose=False, heuristic_patience=\"auto\"):"
   models = "the certificate's threads on the dynamic schedule unless asked, so a default run's design depends on thread timing"
 
 [[target]]
@@ -18852,6 +18852,138 @@ timeout = 1200.0
   find = "    return any(k * lo <= n <= k * hi for k in range(1, n // lo + 1))"
   replace = "    return any(k * lo <= n <= k * hi for k in range(1, n // lo))"
   models = "the partition count stopping one short, so n = k lo exactly (all groups of the smallest size) reads as infeasible"
+
+[[target]]
+name = "supergeo-lns-stop"
+module-path = "benchmarks/studies/supergeo/lns.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_lns.py -q -p no:cacheprovider -x -k \"patience or target or rules or stopping or perfect or cannot_improve\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-stall-count-not-reset-on-progress"
+  find = "            best, since = trace[-1][1], 0"
+  replace = "            best, since = trace[-1][1], since"
+  models = "a new lowest loss that does not restart the count, so the search stops p steps after the start whatever it found"
+
+  [[target.mutant]]
+  id = "the-patience-one-step-late"
+  find = "        if patience is not None and since >= patience:"
+  replace = "        if patience is not None and since > patience:"
+  models = "the search stopping after p + 1 idle steps, not p"
+
+  [[target.mutant]]
+  id = "a-tie-counted-as-progress"
+  find = "        if trace[-1][1] < best:"
+  replace = "        if trace[-1][1] <= best:"
+  models = "a step that leaves the loss unchanged counted as progress, so a search that cannot improve never stalls"
+
+  [[target.mutant]]
+  id = "a-target-met-exactly-not-a-stop"
+  find = "        if target is not None and trace[-1][1] <= target:"
+  replace = "        if target is not None and trace[-1][1] < target:"
+  models = "a design at exactly the target (a cost of 0 at a bound of 0) not ending the search"
+
+  [[target.mutant]]
+  id = "the-start-not-checked-against-the-target"
+  find = "        if target is not None and trace[-1][1] <= target:"
+  replace = "        if target is not None and it > 0 and trace[-1][1] <= target:"
+  models = "a start already at the target taking a step before the rule is read"
+
+  [[target.mutant]]
+  id = "a-zero-patience-accepted"
+  find = "                                 or patience < 1):"
+  replace = "                                 or patience < 0):"
+  models = "patience 0 accepted, which ends every search before its first step"
+
+  [[target.mutant]]
+  id = "a-non-finite-target-accepted"
+  find = "                               or not np.isfinite(target)):"
+  replace = "                               ):"
+  models = "a NaN or infinite target accepted: NaN never stops the search, +inf stops it at once"
+
+[[target]]
+name = "supergeo-certify-stop"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"stall or at_the_bound or keeps_improving or no_heuristic or region_reports or patience or as_a_target or stop_rules or rounding_error_below\""
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "the-patience-not-forwarded-on-the-step-budget"
+  find = "steps=int(heuristic_steps), seed=seed,\n                                             verbose=False, patience=heuristic_patience, target=target)"
+  replace = "steps=int(heuristic_steps), seed=seed,\n                                             verbose=False, target=target)"
+  models = "the default heuristic never given the patience, so it runs its whole budget from an optimal start"
+
+  [[target.mutant]]
+  id = "the-patience-not-forwarded-on-the-time-budget"
+  find = "seconds=heuristic_seconds, seed=seed,\n                                                 verbose=False, patience=heuristic_patience, target=target)"
+  replace = "seconds=heuristic_seconds, seed=seed,\n                                                 verbose=False, target=target)"
+  models = "the time-budgeted heuristic never given the patience"
+
+  [[target.mutant]]
+  id = "the-target-not-forwarded-on-the-step-budget"
+  find = "steps=int(heuristic_steps), seed=seed,\n                                             verbose=False, patience=heuristic_patience, target=target)"
+  replace = "steps=int(heuristic_steps), seed=seed,\n                                             verbose=False, patience=heuristic_patience)"
+  models = "the default heuristic never told the cost at which the gap is proved, so it keeps stepping at the bound"
+
+  [[target.mutant]]
+  id = "the-target-not-forwarded-on-the-time-budget"
+  find = "seconds=heuristic_seconds, seed=seed,\n                                                 verbose=False, patience=heuristic_patience, target=target)"
+  replace = "seconds=heuristic_seconds, seed=seed,\n                                                 verbose=False, patience=heuristic_patience)"
+  models = "the time-budgeted heuristic never told the target"
+
+  [[target.mutant]]
+  id = "the-regions-drop-the-patience"
+  find = "deterministic=deterministic, verbose=verbose, heuristic_patience=heuristic_patience))"
+  replace = "deterministic=deterministic, verbose=verbose))"
+  models = "a patience given with regions replaced by the default in every region"
+
+  [[target.mutant]]
+  id = "auto-patience-not-the-documented-30"
+  find = "        heuristic_patience = 30"
+  replace = "        heuristic_patience = None"
+  models = "the automatic patience turned off, the default heuristic back to its fixed budget"
+
+  [[target.mutant]]
+  id = "the-target-ignores-the-gap"
+  find = "    target = max(b / (1 - float(G)), b + abs_gap * scale)"
+  replace = "    target = b"
+  models = "the heuristic stopped only at the bound itself, never when its design is within the requested gap"
+
+  [[target.mutant]]
+  id = "the-absolute-gap-in-the-wrong-units"
+  find = "    target = max(b / (1 - float(G)), b + abs_gap * scale)"
+  replace = "    target = max(b / (1 - float(G)), b + abs_gap)"
+  models = "the absolute gap added unscaled to a bound in the rescaled units"
+
+  [[target.mutant]]
+  id = "the-root-bound-not-clipped-at-zero"
+  find = "    b = max(float(sum(pi)) + tau, 0.0)              # the root LP bound, in the rescaled units"
+  replace = "    b = float(sum(pi)) + tau                        # the root LP bound, in the rescaled units"
+  models = "a root bound a rounding error below 0 making a design of cost 0 miss the target"
+
+  [[target.mutant]]
+  id = "a-stall-reported-as-the-budget"
+  find = "    return \"stall\" if patience is not None and since >= patience else \"budget\""
+  replace = "    return \"budget\""
+  models = "the result saying the budget ended a heuristic the patience ended"
+
+  [[target.mutant]]
+  id = "a-design-at-the-target-not-reported-as-the-bound"
+  find = "    if vals[-1] <= target:"
+  replace = "    if vals[-1] < target:"
+  models = "a heuristic ended by a design at exactly the target reported as ended by its budget"
+
+  [[target.mutant]]
+  id = "no-stop-recorded-on-the-time-budget"
+  find = "steps_run = len(trace) - 1; stop = _stop_reason(trace, heuristic_patience, target)"
+  replace = "steps_run = len(trace) - 1"
+  models = "the time-budgeted heuristic's stop never recorded on the result"
+
+  [[target.mutant]]
+  id = "a-zero-patience-accepted-by-the-certificate"
+  find = "                                             or heuristic_patience < 1):"
+  replace = "                                             or heuristic_patience < 0):"
+  models = "heuristic_patience 0 accepted"
 
 [[target]]
 name = "bfsc-draws"

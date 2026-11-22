@@ -661,6 +661,47 @@ and 13.6 to 18.0 s in the later one (the old commit's root just as slow), and
 the 120-market root moved from 2.3 to 2.6 s to 3.5 to 3.9 s, a slower host by
 about 1.5 times. Timings in this README compare arms within one session.
 
+### The heuristic stops when it stops paying
+
+The fixed budget ran its N // 2 steps whatever they brought. On google/trimmed_match's
+174 example geos in pairs (totals over 2020-01-01 to 2020-12-01), whose sorted
+start is already optimal, the 87 steps were 5.4 of the certificate's 5.9 s.
+Two rules now end the heuristic early, both counted in steps so the design stays
+a function of the inputs and the seed (`lns.lns_dp`'s `patience` and `target`):
+
+- a stall: `heuristic_patience` steps in a row without a cheaper design (30 by
+  default);
+- the bound: a design within the requested gap of the root LP bound b, at a cost
+  at most max(b / (1 - g), b + d).
+
+The result's `heuristic_stop` says which ended it ("budget", "stall", "bound").
+
+The patience comes from per-step trajectories at four times the default budget,
+seeds 0 and 1, on nine panels: the 50-state and 50-lognormal panels, two
+120-market lognormal panels, two 120-market integer panels, the 174 geos in pairs
+and in groups of 2 to 4, and the 180-market simulated panel. Inside the default
+budget the longest run of steps without a cheaper design was 19 (the 180-market
+panel, seed 0), so a patience of 30 leaves every one of those runs as it was; a
+patience of 10 would have stopped that run at step 53 of 90 with a design 3.16
+times as costly. Where the search keeps improving it improves to the end of a
+budget four times the default (last improvement at step 596 to 706 of 696 to
+720 on the 174 and 180-market panels), so the rules shorten easy runs and leave
+the hard ones alone. The integer panels reach a design of cost 0, the root
+bound, at step 12 to 22 of 60, and the bound rule stops them there.
+
+End to end, one session, alone, the default against the rules (two runs each,
+the same design and cost in every pair):
+
+| panel | default | with the rules |
+| --- | --- | --- |
+| 174 geos in pairs, gap 0 | 5.15, 5.29 s (87 steps) | 2.05, 1.97 s (30 steps, stall) |
+| 120 integer markets, gap 0 | 17.9, 16.9 s (60 steps) | 13.3, 15.5 s (22 steps, bound) |
+
+On pairs the remaining 2.0 s are the root (about 0.2 s), 30 steps that cannot
+improve, and the proof; the odd-set cuts of the roadmap's phase 0c step 2 would
+make the bound equal the optimum at the root, and the bound rule would then stop
+the heuristic before its first step.
+
 ### Reproducible threads
 
 A run that needs search stages on several threads depended on thread timing as

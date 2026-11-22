@@ -120,16 +120,34 @@ def repair_dp(z, free, lo, hi):
     return groups, float(best)
 
 
-def lns_dp(z, design, lo=2, hi=4, max_free=18, seconds=600, seed=0, verbose=True, log_every=30, steps=None):
+def lns_dp(z, design, lo=2, hi=4, max_free=18, seconds=600, seed=0, verbose=True, log_every=30, steps=None,
+           patience=None, target=None):
     """Large-neighbourhood search from `design`: each step frees the groups near a chosen one (at most max_free
-    markets) and re-partitions them exactly (repair_dp), keeping the result when it lowers their loss.
+    markets) and re-partitions them exactly (repair_dp), keeping the result when it lowers their loss. The scheme,
+    destroy part of the incumbent and repair it, is large neighbourhood search (Shaw, "Using constraint programming
+    and local search methods to solve vehicle routing problems", CP-98, LNCS 1520 (1998) 417-431; Pisinger and
+    Ropke, "Large neighborhood search", Handbook of Metaheuristics, 2nd ed., Springer (2010) 399-419), with an exact
+    repair.
 
-    steps: the number of steps. When given, the search runs exactly that many and never reads the clock, so the
+    steps: the number of steps. When given, the search runs at most that many and never reads the clock, so the
     same inputs and seed give the same design on any machine at any load. When None, it stops after `seconds`,
-    and the design then depends on how many steps the machine completed in that time. Returns (design, loss,
-    trace of (seconds elapsed, loss) after each step)."""
+    and the design then depends on how many steps the machine completed in that time.
+
+    Two rules end the search before its budget, both counted in steps, so with a step budget the design stays a
+    function of the inputs and the seed. patience p (None, or an integer >= 1): stop once p steps in a row have not
+    taken the loss below the lowest value seen so far. target t (None, or a finite number): stop as soon as the loss
+    is at most t, the start included, so a start already at t takes no step. Neither rule draws from the random
+    generator: a run with them is the run without them cut short, its trace a prefix of the other's.
+
+    Returns (design, loss, trace of (seconds elapsed, loss), the start first and then one entry per step)."""
     if steps is not None and (isinstance(steps, bool) or not isinstance(steps, (int, np.integer)) or steps < 0):
         raise ValueError(f"steps must be a non-negative integer or None, not {steps!r}")
+    if patience is not None and (isinstance(patience, bool) or not isinstance(patience, (int, np.integer))
+                                 or patience < 1):
+        raise ValueError(f"patience must be an integer >= 1 or None, not {patience!r}")
+    if target is not None and (isinstance(target, bool) or not isinstance(target, (int, float, np.integer, np.floating))
+                               or not np.isfinite(target)):
+        raise ValueError(f"target must be a finite number or None, not {target!r}")
     rng = np.random.default_rng(seed)
     z = np.asarray(z, float)
     rank = np.empty(len(z), int); rank[np.argsort(z)] = np.arange(len(z))
@@ -137,7 +155,12 @@ def lns_dp(z, design, lo=2, hi=4, max_free=18, seconds=600, seed=0, verbose=True
     loss = [group_loss(z, g) for g in design]
     t0 = time.perf_counter(); last = t0; trace = [(0.0, sum(loss))]
     it = acc = 0
+    best, since = trace[0][1], 0                    # the lowest loss so far, and the steps since it was set
     while (it < steps) if steps is not None else (time.perf_counter() - t0 < seconds):
+        if target is not None and trace[-1][1] <= target:
+            break
+        if patience is not None and since >= patience:
+            break
         it += 1
         a = int(np.argmax(loss)) if rng.random() < 0.3 else int(rng.integers(len(design)))
         centre = np.mean([rank[g] for g in design[a]])
@@ -157,6 +180,10 @@ def lns_dp(z, design, lo=2, hi=4, max_free=18, seconds=600, seed=0, verbose=True
             loss = [loss[i] for i in keep] + [group_loss(z, g) for g in groups]
         now = time.perf_counter()
         trace.append((now - t0, sum(loss)))
+        if trace[-1][1] < best:
+            best, since = trace[-1][1], 0
+        else:
+            since += 1
         if verbose and now - last > log_every:
             print(f"    [{now - t0:.0f}s] iter {it} accepted {acc} loss {sum(loss):.6g}", flush=True)
             last = now
