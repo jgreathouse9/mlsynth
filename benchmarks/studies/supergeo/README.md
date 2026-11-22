@@ -701,6 +701,36 @@ runs of consecutive markets by size (a one-pass dynamic program) costs 70 to
 against 0.22; similar-sized 120: 691 against 0.47), because good supergeos join
 large and small markets against medium ones.
 
+### Groups within regions
+
+`certify_staged(..., region=labels)` allows only groups whose markets share a
+label, so a supergeo stays under common local conditions (seasons, weather).
+The problem separates: one certificate per region on its own markets, the
+design's cost and proven lower bound the sums over regions (the exact optimum
+under the constraint), a relative gap holding for the sum when it holds in every
+region, and the absolute gap shared in proportion to the regions' sizes. A
+region with fewer than `lo` markets has no design, and the result proves it.
+
+On the 180-market simulated panel, whose two regions (126 and 54 markets) differ
+in seasonal amplitude and phase, with the absolute gap 0.001 N sigma^2 and four
+threads, in one session:
+
+| design | time | cost | supergeos | across regions | held-out sum of D_k^2, median (95th percentile) |
+| --- | --- | --- | --- | --- | --- |
+| national | 23.4 s | 0.83 | 47 | 29 | 277,600 (719,500) |
+| by region | 13.3 s | 7.63 | 46 | 0 | 210,500 (494,200) |
+
+D_k is the difference between supergeo k's halves (split as on the design
+window) in a held-out four-week total, over the 27 windows from week 244, in
+squared index points; the sum is the numerator of the iROAS estimate's variance
+(PANGEO_ROADMAP.md, phase 5). The by-region design costs 9.2 times as much on
+the design window, both far below the noise scale N sigma^2 = 51,030, and its
+held-out variance is 24% lower (median of the per-window ratios 0.73), a minimum
+detectable effect 13% lower: 29 of the national design's 47 supergeos join
+markets whose seasons differ, and their halves drift apart after the design
+window. The panel was simulated with region-specific seasons, so this measures
+the case the constraint is for, on one panel.
+
 ## 210 markets
 
 On the 210-market instance (`n210_duals.json`), from the best design found (the
