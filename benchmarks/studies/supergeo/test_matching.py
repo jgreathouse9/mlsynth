@@ -370,3 +370,64 @@ def test_only_the_near_tight_pairs_are_settled_exactly():
     order, lo, hi = matching._interval_order([mem for mem, _ in out["blossoms"]], 400)
     ii, jj = matching._near_tight(Wf, np.asarray(out["p"], float), [q for _, q in out["blossoms"]], order, lo, hi)
     assert len(out["blossoms"]) > 100 and 200 <= len(ii) < 4 * 400
+
+
+def _exact_slacks(Wf, p, family, qs):
+    """Every pair's dual slack W_ij - p_i - p_j + sum of q over the sets holding both, in rationals."""
+    m = len(p)
+    F = Fraction
+    out = {}
+    for i in range(m):
+        for j in range(i + 1, m):
+            cross = sum((F(q) for mem, q in zip(family, qs) if i in mem and j in mem), F(0))
+            out[i, j] = F(float(Wf[i, j])) - F(float(p[i])) - F(float(p[j])) + cross
+    return out
+
+
+def test_a_sum_of_many_duals_that_rounds_up_is_screened_in():
+    """Unit: the pair (0, 1) lies in 21 nested odd sets, the largest with q = 1 and twenty with q = 3 * 2^-54 (three
+    quarters of an ulp of 1). The screen adds them largest first, and each small one rounds the running sum up by a
+    quarter ulp: the computed sum is 1 + 20 ulp against an exact 1 + 15 ulp. With W_01 = -(1 + 16 ulp) the computed
+    slack is +4 ulp, more than the rounding bound of one operation, while the exact slack is -1 ulp. The pair must
+    reach exact arithmetic, so the screen's bound counts the terms of the sum."""
+    ulp = 2.0 ** -52
+    m = 44
+    family = [tuple(range(s)) for s in range(43, 2, -2)]
+    qs = [1.0] + [3 * 2.0 ** -54] * 20
+    p = np.zeros(m)
+    Wf = np.ones((m, m)); np.fill_diagonal(Wf, 0.0)
+    Wf[0, 1] = Wf[1, 0] = -(1 + 16 * ulp)
+    order, lo, hi = matching._interval_order(family, m)
+    pos = np.empty(m, np.int64); pos[order] = np.arange(m)
+    G = np.zeros((m, m)); np.add.at(G, (lo, hi - 1), np.array(qs))
+    C = np.cumsum(np.cumsum(G, axis=0)[:, ::-1], axis=1)[:, ::-1]
+    a, b = sorted((pos[0], pos[1]))
+    assert C[a, b] == 1 + 20 * ulp and Wf[0, 1] + C[a, b] > 2 * 2.0 ** -53 * 3   # the computed slack, past one-op bound
+    assert _exact_slacks(Wf, p, family, qs)[0, 1] == -Fraction(ulp)
+    ii, jj = matching._near_tight(Wf, p, qs, order, lo, hi)
+    assert (0, 1) in {tuple(sorted(e)) for e in zip(ii.tolist(), jj.tolist())}
+
+
+@settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), m=st.integers(2, 24), k=st.integers(0, 10),
+       scale=st.sampled_from([1.0, 2.0 ** 40, 2.0 ** -40]))
+def test_the_screen_returns_every_pair_without_positive_exact_slack(seed, m, k, scale):
+    """Property, over laminar families whose duals mix 1 with values near an ulp of 1 (where floating sums round),
+    duals p of mixed sign, and costs set to the floating value that makes each pair tight, moved by a few ulps either
+    way: every pair whose exact slack is not positive is among the pairs the screen returns."""
+    rng = np.random.default_rng(seed)
+    family = _laminar(rng, m, k)
+    qs = [float(rng.choice([1.0, 3 * 2.0 ** -54, 2.0 ** -53, 0.1, 5 * 2.0 ** -55])) * scale for _ in family]
+    p = rng.choice([-1.0, 0.5, 1.0, 1 + 2.0 ** -52, 3 * 2.0 ** -54], m) * scale
+    Wf = np.zeros((m, m))
+    for i in range(m):
+        for j in range(i + 1, m):
+            cross = sum(q for mem, q in zip(family, qs) if i in mem and j in mem)
+            w = p[i] + p[j] - cross
+            for _ in range(int(rng.integers(-3, 4))):
+                w = np.nextafter(w, np.inf if rng.random() < 0.5 else -np.inf)
+            Wf[i, j] = Wf[j, i] = w
+    order, lo, hi = matching._interval_order(family, m)
+    ii, jj = matching._near_tight(Wf, p, qs, order, lo, hi)
+    got = {tuple(sorted(e)) for e in zip(ii.tolist(), jj.tolist())}
+    assert all(e in got for e, s in _exact_slacks(Wf, p, family, qs).items() if s <= 0)

@@ -18952,7 +18952,7 @@ timeout = 900.0
 [[target]]
 name = "supergeo-matching-check"
 module-path = "benchmarks/studies/supergeo/matching.py"
-test-command = "python -m pytest benchmarks/studies/supergeo/test_matching.py -q -p no:cacheprovider -x -k \"certificate or oracle or laminar or crossing or rounding or not_sets or near_tight or brute or wrong or expanded or equal or negative\""
+test-command = "python -m pytest benchmarks/studies/supergeo/test_matching.py -q -p no:cacheprovider -x -k \"certificate or oracle or laminar or crossing or rounding or not_sets or near_tight or brute or wrong or expanded or equal or negative or screen or duals\""
 timeout = 900.0
 
   [[target.mutant]]
