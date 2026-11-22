@@ -51,12 +51,50 @@ def _holdout_resid(yT, yC, e_idx, b_idx, augment, trend):
     return y[b_idx] - X[b_idx] @ beta
 
 
+def _coin_flips(sizes: Sequence[int], seed: int):
+    """One fair coin per supergeo pair, per arm: for arm sizes ``sizes`` (pairs
+    per arm, in the panel's arm order), a list of boolean arrays, the k-th entry
+    of the a-th array True when the k-th pair of arm a treats the half holding
+    its first unit.
+
+    The supergeo design randomizes within each pair, independently across
+    pairs (Chen, Doudchenko, Jiang, Stein and Ying, "Supergeo design:
+    generalized matching for geographic experiments", arXiv:2301.12044,
+    section 3); that draw is the randomization the sign-flip test in
+    ``effects.py`` inverts. One generator, seeded once, deals every arm's coins
+    in turn, so two arms are not dealt the same sequence.
+    """
+    rng = np.random.default_rng(seed)
+    return [rng.integers(0, 2, size=int(k)).astype(bool) for k in sizes]
+
+
+def _check_seed(seed) -> int:
+    """The coins' seed, an integer (not a bool) from 0 to 2^63 - 1, or raise."""
+    if isinstance(seed, bool) or not isinstance(seed, (int, np.integer)) or not 0 <= int(seed) < 2 ** 63:
+        from ...exceptions import MlsynthConfigError
+        raise MlsynthConfigError(
+            f"assignment_seed must be an integer from 0 to 2^63 - 1, not {seed!r}.")
+    return int(seed)
+
+
+def _orient(pair: dict, first_half_treated: bool) -> dict:
+    """The pair with ``side_a`` the treated half: the half holding the pair's
+    first unit (its lowest index) when ``first_half_treated``, the other half
+    otherwise. The score is a function of the unordered split and is kept."""
+    a, b = np.asarray(pair["side_a"]), np.asarray(pair["side_b"])
+    first_in_a = a.min() < b.min()
+    if first_in_a != bool(first_half_treated):
+        a, b = b, a
+    return {**pair, "side_a": a, "side_b": b}
+
+
 def _build_pair(
     pair: dict, Y: np.ndarray, unit_names, T0: int,
     cov: Optional[np.ndarray] = None, cov_scales: Optional[np.ndarray] = None,
     cov_names=None, unit_weights: Optional[np.ndarray] = None,
     e_idx: Optional[np.ndarray] = None, b_idx: Optional[np.ndarray] = None,
     att_augment: bool = True, att_trend: bool = True,
+    first_half_treated: bool = True,
 ) -> SupergeoPair:
     side_a, side_b = pair["side_a"], pair["side_b"]
     mean_a = _wavg(Y[:, :T0], side_a, unit_weights)   # full pre (for plotting)
@@ -91,6 +129,7 @@ def _build_pair(
         covariate_smd=covariate_smd,
         gap_level=gap_level,
         holdout_resid=holdout_resid,
+        first_half_treated=bool(first_half_treated),
     )
 
 
@@ -115,6 +154,7 @@ def run_pangeo(
     q_min_pairs: int = 1,
     compute_q_sweep: bool = False,
     mip_backend: str = "auto",
+    assignment_seed: int = 0,
 ) -> PangeoResults:
     """Design parallel supergeo pairs within each arm.
 
@@ -139,6 +179,10 @@ def run_pangeo(
     mip_backend : {"auto", "highspy", "cvxpy"}
         Backend of the exact-cover MIP (see
         :func:`mlsynth.utils.pangeo_helpers.mip.solve_partition`).
+    assignment_seed : int
+        Seed of the fair coin drawn in each pair, after the pairs are chosen,
+        to decide which half is treated (:func:`_coin_flips`). The pairs do
+        not depend on it; the labels, and everything computed from them, do.
     recency_decay : float
         Geometric recency-weight decay for ``objective="weighted"``:
         period ``t`` gets weight ``recency_decay**(T0-1-t)`` (recent
@@ -164,6 +208,7 @@ def run_pangeo(
     power_post_periods : sequence of int, optional
         Post-period horizons to evaluate (default ``range(2, 13)`` = 2..12).
     """
+    assignment_seed = _check_seed(assignment_seed)
     if objective == "supergeo_total" and (fast or max_supergeo_size != 1):
         from ...exceptions import MlsynthConfigError
         raise MlsynthConfigError(
@@ -179,7 +224,7 @@ def run_pangeo(
             power_alpha=power_alpha, power_post_periods=power_post_periods,
             att_augment=att_augment, att_trend=att_trend,
             q_selection=q_selection, q_min_pairs=q_min_pairs,
-            mip_backend=mip_backend,
+            mip_backend=mip_backend, assignment_seed=assignment_seed,
         )
     if max_supergeo_size < 1:
         from ...exceptions import MlsynthConfigError
@@ -216,6 +261,7 @@ def run_pangeo(
     arm_designs = {}
     assignment = {}
     solver_diagnostics = {}
+    chosen_by_arm = {}
     for arm, idx in inputs.arm_units.items():
         if fast:
             # OSD-style heuristic: cluster into size-bounded groups + split,
@@ -237,10 +283,19 @@ def run_pangeo(
             chosen, solver_diagnostics[arm] = solve_partition(
                 candidates, idx, min_pairs=min_pairs, return_diagnostics=True,
                 backend=mip_backend)
-        pairs = [_build_pair(p, Y, unit_names, T0, cov, cov_scales, cov_names,
+        # Pairs in a canonical order (by first unit) so the k-th coin goes to
+        # the same pair whatever order the solver returned them in.
+        chosen_by_arm[arm] = sorted(chosen, key=lambda c: int(np.min(c["members"])))
+
+    coins = dict(zip(chosen_by_arm, _coin_flips(
+        [len(c) for c in chosen_by_arm.values()], assignment_seed)))
+    for arm, idx in inputs.arm_units.items():
+        pairs = [_build_pair(_orient(p, coin), Y, unit_names, T0, cov,
+                             cov_scales, cov_names,
                              e_idx=e_idx, b_idx=b_idx, unit_weights=uw,
-                             att_augment=att_augment, att_trend=att_trend)
-                 for p in chosen]
+                             att_augment=att_augment, att_trend=att_trend,
+                             first_half_treated=bool(coin))
+                 for p, coin in zip(chosen_by_arm[arm], coins[arm])]
         # Sort pairs by quality (most parallel first) for readability.
         pairs.sort(key=lambda p: p.gap_variance)
 
@@ -301,7 +356,7 @@ def run_pangeo(
             covariate_weights=covariate_weights, power_target=power_target,
             power_alpha=power_alpha, power_post_periods=power_post_periods,
             att_augment=att_augment, att_trend=att_trend,
-            mip_backend=mip_backend,
+            mip_backend=mip_backend, assignment_seed=assignment_seed,
         )
         metadata["q_sweep"], _ = _sweep_designs(
             inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)
@@ -315,6 +370,7 @@ def run_pangeo(
         time_labels=inputs.time_labels,
         metadata=metadata,
         power=power,
+        assignment_seed=assignment_seed,
     )
 
 
@@ -443,6 +499,7 @@ def _auto_select_q(
     q_selection: str = "mde_min",
     q_min_pairs: int = 1,
     mip_backend: str = "auto",
+    assignment_seed: int = 0,
 ) -> PangeoResults:
     """Choose Q automatically from a sweep over feasible sizes.
 
@@ -463,7 +520,7 @@ def _auto_select_q(
         covariate_weights=covariate_weights, power_target=power_target,
         power_alpha=power_alpha, power_post_periods=power_post_periods,
         att_augment=att_augment, att_trend=att_trend,
-        mip_backend=mip_backend,
+        mip_backend=mip_backend, assignment_seed=assignment_seed,
     )
     sweep, results = _sweep_designs(
         inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)

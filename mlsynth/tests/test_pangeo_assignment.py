@@ -241,3 +241,29 @@ def test_the_config_default_is_zero():
     without it."""
     cfg = PANGEOConfig(df=_long(_panel(0, 4)), outcome="sales", arm="arm", unitid="unit", time="time")
     assert cfg.assignment_seed == 0
+
+
+def test_the_estimator_passes_its_seed_to_the_design():
+    """Unit: PANGEO with assignment_seed s labels the pairs as run_pangeo with s, for a seed whose labels differ
+    from the default's."""
+    Y = _panel(9, 12)
+    base = {"df": _long(Y), "outcome": "sales", "arm": "arm", "unitid": "unit", "time": "time",
+            "max_supergeo_size": 1, "fast": False, "display_graphs": False, "compute_power": False}
+    _, want = _design(Y, seed=17)
+    _, default = _design(Y, seed=0)
+    assert _labels(want) != _labels(default)
+    got = PANGEO(dict(base, assignment_seed=17)).fit()
+    assert _labels(got) == _labels(want) and got.assignment_seed == 17
+
+
+def test_the_q_sweep_designs_use_the_seed():
+    """Unit: the diagnostic Q sweep of a fixed-Q fit (compute_q_sweep) designs each Q with the fit's seed, so its
+    row for the fitted Q reports the fitted design's own mean program MDE (the MDE depends on the labels through
+    the augmented DiD fit of treated on control)."""
+    from mlsynth.utils.pangeo_helpers.pipeline import _mean_program_mde
+    Y = _panel(10, 12, T=16)
+    _, res = _design(Y, seed=29, compute_power=True, compute_q_sweep=True)
+    row = next(r for r in res.metadata["q_sweep"] if r["q"] == 1)
+    assert row["mean_program_mde_pct"] == pytest.approx(_mean_program_mde(res), rel=1e-12)
+    _, other = _design(Y, seed=0, compute_power=True)
+    assert _mean_program_mde(other) != pytest.approx(_mean_program_mde(res), rel=1e-12)
