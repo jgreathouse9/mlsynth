@@ -577,6 +577,34 @@ halves: count, then fill) and its exact screen (two passes over the same rows,
 the bound's test and the stage's) are 69% of the run; on the similar-sized
 panel the fixed heuristic budget (N / 24 s) is 46%.
 
+### The window and the screen
+
+The exact screen (`exactnb.members2`) now decides each row by a floating-point
+evaluation of rc - theta with a proven error bound, 16 u (A^2 + P + |tau| +
+|theta|) (Higham's summation bounds; the filter in front of an exact predicate of
+Shewchuk 1997), and sends only the rows within the bound to the exact test. On
+the 120-market window (3,768,084 rows) it decided every row at the first stage's
+threshold and all but 120 at theta = 0 (the LP's own columns, rc near 0), in
+0.04 s against 6.0 to 7.8 s, every decision matching the exact test. The window
+is counted and filled in parallel (`mitm_exact._window_safe_par`): 3.8 s
+against 14.5 s for the serial count and fill of its 24,088,508 rows (3,768,084
+distinct; a group is emitted once per split that passes).
+
+| 120 markets, alone | before | after |
+| --- | --- | --- |
+| lognormal, gap 1e-6: total | 60.2 s | 24.0 s |
+| safe window | 27.7 s | 6.4 s |
+| exact screen | 13.8 s | 0.1 s |
+| capped searches | 10.3 s | 9.4 s |
+| heuristic | 5.0 s | 5.0 s |
+| root column generation | 2.5 s | 2.3 s |
+| similar-sized, absolute gap 0.01: total | 10.8 s | 9.6 s |
+
+From 117.6 s before the threaded capped stages to 24.0 s on the lognormal panel. What remains there
+is the capped searches (39%), the window (27%, of which the de-duplication of the
+24 million emitted rows is 2.2 s) and the fixed heuristic budget (21%); on the
+similar-sized panel the heuristic is 53%.
+
 ## 210 markets
 
 On the 210-market instance (`n210_duals.json`), from the best design found (the
