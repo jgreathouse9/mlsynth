@@ -879,3 +879,13 @@ def test_a_bound_above_the_design_is_caught(monkeypatch):
     monkeypatch.setattr(ce, "_exact_bound", inflated)
     with pytest.raises(RuntimeError, match="lower bound"):
         ce.certify_staged(_ten_markets(), lo=2, hi=4)
+
+
+def test_the_start_fits_the_limits_when_pairs_would_be_cheaper():
+    """Six markets in three identical pairs: sorted pairs cost 0, and every partition into triples costs more. With
+    lo = hi = 3 and the heuristic off, a pairs start would be the cheapest design the search ever holds, so nothing
+    would replace it; the start must itself be two triples, and the result is the brute-force optimum over triples."""
+    z = np.array([1.0, 1.0, 5.0, 5.0, 20.0, 20.0])
+    out = ce.certify_staged(z, lo=3, hi=3, heuristic_seconds=0.0)
+    _check_sizes(out, 6, 3, 3)
+    assert out["proved"] and out["opt_exact"] == _brute_sizes(z, 3, 3) > 0

@@ -18778,7 +18778,7 @@ timeout = 600.0
 [[target]]
 name = "supergeo-certify-limits"
 module-path = "benchmarks/studies/supergeo/certify_exact.py"
-test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"group_size or every_group_size or in_sequence or admit_no_partition or bad_group_size or receives_the_limits or older_certificate or outside_the_limits or bound_above\""
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"group_size or every_group_size or in_sequence or admit_no_partition or bad_group_size or receives_the_limits or older_certificate or outside_the_limits or bound_above or pairs_would_be_cheaper\""
 timeout = 1200.0
 
   [[target.mutant]]
