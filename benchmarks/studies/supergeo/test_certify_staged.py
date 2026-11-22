@@ -916,11 +916,13 @@ def test_a_search_that_cannot_improve_stops_on_a_stall():
 
 
 def test_a_design_at_the_bound_stops_the_heuristic():
-    """Unit: 30 markets in ten identical triples, groups of 2 to 4. The root bound is 0 and the heuristic reaches a
-    design of cost 0 before its budget of 15 steps; it stops there, and the certificate proves 0."""
-    z = np.repeat(np.arange(1.0, 11.0), 3)
+    """Unit: 32 markets in eight quadruples a, a+1, a+2, a+3 (:func:`.test_lns._quadruples`), groups of 2 to 4. The
+    root bound is 0 and the heuristic reaches a design of cost 0 before its budget of 16 steps; it stops there,
+    and the certificate proves 0."""
+    from .test_lns import _quadruples
+    z = _quadruples()
     out = ce.certify_staged(z)
-    assert out["heuristic_stop"] == "bound" and out["heuristic_steps"] < 15
+    assert out["heuristic_stop"] == "bound" and out["heuristic_steps"] < 16
     assert out["proved"] and out["opt_exact"] == 0
 
 

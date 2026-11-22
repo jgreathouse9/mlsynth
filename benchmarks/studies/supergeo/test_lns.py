@@ -122,11 +122,17 @@ def test_a_target_already_met_takes_no_step():
         assert len(trace) == 1 and loss == start_loss
 
 
+def _quadruples(k=8):
+    """k quadruples a, a+1, a+2, a+3 spaced 10 apart: each splits evenly ({a, a+3} against {a+1, a+2}), so the
+    optimum with groups of 2 to 4 costs 0, while the sorted pairs (a, a+1), (a+2, a+3) cost 1 each."""
+    return np.concatenate([10.0 * j + np.arange(4.0) for j in range(k)])
+
+
 def test_a_target_of_zero_stops_on_a_perfect_design():
-    """Unit: markets in identical triples, groups of 2 to 4. The sorted pairs cost more than 0, the triples cost 0;
-    with target 0 the search stops at the first step whose design costs 0, and the plain run with the same seed
-    holds the same design from that step on."""
-    z = np.repeat(np.arange(1.0, 11.0), 3)
+    """Unit: on the quadruples, with groups of 2 to 4, the sorted pairs cost 16 and the optimum 0; with target 0
+    the search stops at the first step whose design costs 0, which the plain run with the same seed reaches at the
+    same step."""
+    z = _quadruples()
     plain = lns.lns_dp(z, _pairs(z), steps=60, seed=4, verbose=False)
     assert plain[1] == 0.0
     s = _oracle_stop(_losses(plain[2]), target=0.0)
