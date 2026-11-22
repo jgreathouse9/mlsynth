@@ -99,6 +99,24 @@ def split_cost(
     return ss_res                        # "ss_res"
 
 
+def supergeo_total(Ypre: np.ndarray, side_a, side_b) -> float:
+    """The split cost of Chen, Doudchenko, Jiang, Stein and Ying, "Supergeo
+    design: generalized matching for geographic experiments"
+    (arXiv:2301.12044, eq. 3): the squared difference between the halves'
+    totals over the window ``Ypre`` covers,
+
+    .. math::
+
+       \\Big(\\sum_{i \\in A} \\sum_t Y_{it} - \\sum_{i \\in B} \\sum_t Y_{it}\\Big)^2 .
+
+    Sums over markets, not means (the paper's variance under a fixed budget
+    is a sum over supergeos of this squared difference), and no level shift:
+    the level is what the objective balances. Unit weights do not enter.
+    """
+    d = float(Ypre[side_a].sum()) - float(Ypre[side_b].sum())
+    return d * d
+
+
 def covariate_imbalance(
     cov_a: np.ndarray, cov_b: np.ndarray, scales: np.ndarray,
     weights: Optional[np.ndarray] = None,
@@ -178,9 +196,13 @@ def best_split(
             side_a = [first] + list(combo)
             set_a = set(side_a)
             side_b = [u for u in members if u not in set_a]
-            mean_a = _wavg(Ypre, side_a, unit_weights)
-            mean_b = _wavg(Ypre, side_b, unit_weights)
-            s = split_cost(mean_a, mean_b, objective=objective, weights=weights)
+            if objective == "supergeo_total":
+                s = supergeo_total(Ypre, side_a, side_b)
+            else:
+                mean_a = _wavg(Ypre, side_a, unit_weights)
+                mean_b = _wavg(Ypre, side_b, unit_weights)
+                s = split_cost(mean_a, mean_b, objective=objective,
+                               weights=weights)
             if cov is not None:
                 s += covariate_imbalance(
                     _wavg(cov, side_a, unit_weights),

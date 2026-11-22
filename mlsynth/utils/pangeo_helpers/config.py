@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Literal, Optional, Union
 import pandas as pd
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class PANGEOConfig(BaseModel):
@@ -121,11 +121,25 @@ class PANGEOConfig(BaseModel):
                     "(varying linkage / a small embedding perturbation, as in "
                     "OSD); the lowest-total-cost grouping is kept. Only used "
                     "when fast=True.")
-    objective: Literal["ss_res", "r2", "weighted"] = Field(
+    objective: Literal["ss_res", "r2", "weighted", "supergeo_total"] = Field(
         default="ss_res",
         description="Per-pair parallelism cost: 'ss_res' (absolute DiD "
                     "residual SS; scale-dependent), 'r2' (1-R^2; scale-free), "
-                    "or 'weighted' (recency-weighted residual SS).")
+                    "'weighted' (recency-weighted residual SS), or "
+                    "'supergeo_total', the objective of Chen et al. (2023, "
+                    "arXiv:2301.12044): the squared difference of the halves' "
+                    "totals over the estimation window, with no level shift "
+                    "and no trajectory. 'supergeo_total' is available for "
+                    "pairs (max_supergeo_size=1) with fast=False, solved by "
+                    "the exact-cover MIP; reach for it to compare designs on "
+                    "the paper's objective.")
+    mip_backend: Literal["auto", "highspy", "cvxpy"] = Field(
+        default="auto",
+        description="Backend for the exact-cover MIP (fast=False): 'auto' "
+                    "uses highspy when it is installed and cvxpy otherwise; "
+                    "'highspy' requires it; 'cvxpy' solves through cvxpy with "
+                    "its first installed MILP solver (HiGHS by preference). "
+                    "Both state the same program.")
     recency_decay: float = Field(
         default=0.97, gt=0.0, le=1.0,
         description="Geometric recency-weight decay for objective='weighted' "
@@ -184,3 +198,21 @@ class PANGEOConfig(BaseModel):
         description="Plot treatment vs control aggregate trajectories per arm.")
     save: Union[bool, str] = Field(
         default=False, description="Save the plot (True or a filename base).")
+
+    @model_validator(mode="after")
+    def _supergeo_total_scope(self) -> "PANGEOConfig":
+        """The paper's objective is wired for pairs on the exact path only:
+        PANGEO's Q caps each half, while the paper caps the group at four
+        with any split, and the fast path clusters similar trajectories,
+        which this objective does not reward."""
+        if self.objective == "supergeo_total":
+            if self.fast:
+                raise ValueError("objective='supergeo_total' needs fast=False "
+                                 "(the exact-cover MIP).")
+            if self.max_supergeo_size != 1:
+                raise ValueError("objective='supergeo_total' supports pairs "
+                                 "only: set max_supergeo_size=1.")
+            if self.compute_q_sweep:
+                raise ValueError("objective='supergeo_total' supports pairs "
+                                 "only, so it has no Q sweep.")
+        return self

@@ -114,6 +114,7 @@ def run_pangeo(
     q_selection: str = "mde_min",
     q_min_pairs: int = 1,
     compute_q_sweep: bool = False,
+    mip_backend: str = "auto",
 ) -> PangeoResults:
     """Design parallel supergeo pairs within each arm.
 
@@ -130,9 +131,14 @@ def run_pangeo(
         ``results.metadata["q_sweep"]``.
     min_pairs : int
         Minimum number of supergeo pairs per arm.
-    objective : {"ss_res", "r2", "weighted"}
-        Per-pair parallelism cost minimised by the MIP (see
-        :func:`mlsynth.utils.pangeo_helpers.parallelism.split_cost`).
+    objective : {"ss_res", "r2", "weighted", "supergeo_total"}
+        Per-pair cost minimised by the MIP (see
+        :func:`mlsynth.utils.pangeo_helpers.parallelism.split_cost`, and
+        :func:`mlsynth.utils.pangeo_helpers.parallelism.supergeo_total` for
+        the paper's objective, available for pairs on the exact path).
+    mip_backend : {"auto", "highspy", "cvxpy"}
+        Backend of the exact-cover MIP (see
+        :func:`mlsynth.utils.pangeo_helpers.mip.solve_partition`).
     recency_decay : float
         Geometric recency-weight decay for ``objective="weighted"``:
         period ``t`` gets weight ``recency_decay**(T0-1-t)`` (recent
@@ -158,6 +164,11 @@ def run_pangeo(
     power_post_periods : sequence of int, optional
         Post-period horizons to evaluate (default ``range(2, 13)`` = 2..12).
     """
+    if objective == "supergeo_total" and (fast or max_supergeo_size != 1):
+        from ...exceptions import MlsynthConfigError
+        raise MlsynthConfigError(
+            "objective='supergeo_total' supports pairs (max_supergeo_size=1) "
+            "on the exact path (fast=False) only.")
     if max_supergeo_size is None:
         return _auto_select_q(
             inputs, min_pairs=min_pairs, fast=fast,
@@ -168,6 +179,7 @@ def run_pangeo(
             power_alpha=power_alpha, power_post_periods=power_post_periods,
             att_augment=att_augment, att_trend=att_trend,
             q_selection=q_selection, q_min_pairs=q_min_pairs,
+            mip_backend=mip_backend,
         )
     if max_supergeo_size < 1:
         from ...exceptions import MlsynthConfigError
@@ -223,7 +235,8 @@ def run_pangeo(
                 unit_weights=uw,
             )
             chosen, solver_diagnostics[arm] = solve_partition(
-                candidates, idx, min_pairs=min_pairs, return_diagnostics=True)
+                candidates, idx, min_pairs=min_pairs, return_diagnostics=True,
+                backend=mip_backend)
         pairs = [_build_pair(p, Y, unit_names, T0, cov, cov_scales, cov_names,
                              e_idx=e_idx, b_idx=b_idx, unit_weights=uw,
                              att_augment=att_augment, att_trend=att_trend)
@@ -261,6 +274,7 @@ def run_pangeo(
         "fast_candidates": fast_candidates if fast else None,
         "solver_diagnostics": solver_diagnostics,
         "objective": objective,
+        "mip_backend": mip_backend,
         "recency_decay": recency_decay if objective == "weighted" else None,
         "covariates": list(cov_names) if cov is not None else None,
         "frac_E": frac_E,
@@ -287,6 +301,7 @@ def run_pangeo(
             covariate_weights=covariate_weights, power_target=power_target,
             power_alpha=power_alpha, power_post_periods=power_post_periods,
             att_augment=att_augment, att_trend=att_trend,
+            mip_backend=mip_backend,
         )
         metadata["q_sweep"], _ = _sweep_designs(
             inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)
@@ -427,6 +442,7 @@ def _auto_select_q(
     att_trend: bool = True,
     q_selection: str = "mde_min",
     q_min_pairs: int = 1,
+    mip_backend: str = "auto",
 ) -> PangeoResults:
     """Choose Q automatically from a sweep over feasible sizes.
 
@@ -447,6 +463,7 @@ def _auto_select_q(
         covariate_weights=covariate_weights, power_target=power_target,
         power_alpha=power_alpha, power_post_periods=power_post_periods,
         att_augment=att_augment, att_trend=att_trend,
+        mip_backend=mip_backend,
     )
     sweep, results = _sweep_designs(
         inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)

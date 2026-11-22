@@ -27,7 +27,7 @@ from typing import List
 import cvxpy as cp
 import numpy as np
 
-from ...exceptions import MlsynthEstimationError
+from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 
 
 # MILP-capable cvxpy solvers, in preference order. The partition is a boolean
@@ -136,19 +136,32 @@ def solve_partition(
     unit_indices: np.ndarray,
     min_pairs: int = 1,
     return_diagnostics: bool = False,
+    backend: str = "auto",
 ):
     """Select the exact-cover set of supergeo pairs of minimum total score.
 
-    Dispatches to the standalone ``highspy`` HiGHS backend when available
-    (dropping the cvxpy middleman for the MIP), otherwise falls back to the
-    cvxpy MIP. Both solve the identical exact-cover program and return the same
-    optimum; see :func:`_solve_partition_highspy` / :func:`_solve_partition_cvxpy`.
+    ``backend="auto"`` dispatches to the standalone ``highspy`` HiGHS backend
+    when available (dropping the cvxpy middleman for the MIP), otherwise to the
+    cvxpy MIP; ``"highspy"`` and ``"cvxpy"`` ask for one. Both solve the
+    identical exact-cover program and return the same optimum within the
+    solver's tolerances; see :func:`_solve_partition_highspy` /
+    :func:`_solve_partition_cvxpy`. The diagnostics record the backend used.
     """
-    if _highspy_available():
-        return _solve_partition_highspy(
-            candidate_pairs, unit_indices, min_pairs, return_diagnostics)
-    return _solve_partition_cvxpy(
-        candidate_pairs, unit_indices, min_pairs, return_diagnostics)
+    if backend not in ("auto", "highspy", "cvxpy"):
+        raise MlsynthConfigError(
+            f"mip_backend must be 'auto', 'highspy' or 'cvxpy', not {backend!r}.")
+    if backend == "highspy" and not _highspy_available():
+        raise MlsynthConfigError(
+            "mip_backend='highspy' needs the highspy package, which is not "
+            "installed; use 'cvxpy' or 'auto'.")
+    use = "highspy" if backend == "highspy" or (
+        backend == "auto" and _highspy_available()) else "cvxpy"
+    solve = _solve_partition_highspy if use == "highspy" else _solve_partition_cvxpy
+    out = solve(candidate_pairs, unit_indices, min_pairs, return_diagnostics)
+    if return_diagnostics:
+        chosen, diagnostics = out
+        return chosen, {**diagnostics, "backend": use}
+    return out
 
 
 def _solve_partition_highspy(
