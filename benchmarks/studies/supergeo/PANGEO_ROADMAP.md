@@ -61,6 +61,54 @@ score. Decides what phases 2 to 4 can gain: if the fast design sits within
 noise of the optimum on real panels, phase 4 is a certificate, not a better
 design.
 
+### Phase 0b: the supergeo objective in PANGEO, solved the base way
+
+PANGEO's objectives (`ss_res`, `r2`, `weighted`) all score the level-removed gap
+between the halves' mean trajectories; none is the objective of Chen, Doudchenko,
+Jiang, Stein and Ying (2023), which this study optimises. A comparison of the
+study's methods with PANGEO is fair only on one objective, so PANGEO first gets
+the paper's, solved by the route a practitioner would build from the paper:
+enumerate every group, then an exact-cover MIP through cvxpy with HiGHS. Phases
+1 to 4 are then measured against that base, and the difference is what the
+research buys (time, scale, proven optimality), with the objective held fixed.
+
+- Objective: `objective="supergeo_total"`, score(G) = min over non-empty proper
+  A of (sum_{i in A} z_i - sum_{i in G minus A} z_i)^2, z_i market i's total over
+  the estimation window (`frac_E`, the same window for every arm). Sums, not
+  means (the paper's variance under a fixed budget is a sum over supergeos of
+  the squared difference of the halves' totals); no level shift delta (the
+  level is what the objective balances); no trajectory.
+- Group size: the cap is on the group (2 to 4 markets, any split, one against
+  three included), not on each half (PANGEO's Q). A test pins that a group of
+  four may split one against three under this objective.
+- Solver: `fast=False` enumerates the groups and solves the exact-cover MIP with
+  cvxpy and HiGHS (`pangeo_helpers/mip.py`), PANGEO's options as they are, with a
+  stated time limit. The base runs as shipped: its default relative gap (about
+  1e-4), the presolve failure on a feasible master (`presolve_failure_master.json`)
+  and HiGHS's optimality to about 1e-6 are recorded on the comparison, not
+  fixed here (phase 1 fixes them).
+- `fast=True` with this objective raises: PANGEO's fast path removes levels and
+  clusters similar trajectories, which suits its own objective, and the study
+  found similarity clustering fails for this one (good groups join large and
+  small markets). The heuristic for this objective comes with phase 3.
+- Defaults unchanged: a test pins `objective="ss_res"` and its designs on the
+  existing fixtures.
+- The comparison (study side, one session, same machine and threads): the 50-
+  state panel, GeoLift and simulated panels at 20 to 180 markets; for each arm
+  the time, the status, the design's cost, the proven gap (the base reports
+  HiGHS's; the study's certificate reports its exact one), the exact cost of
+  the base's design (re-costed in exact arithmetic), and where the base stops
+  (enumeration memory or the time limit: about 8.5 million groups at 120
+  markets and 43 million at 180). Then both designs and PANGEO's own on held-out
+  windows: the variance of the effect estimate (phase 5) and the RMSE with
+  injected effects, each design analysed by both estimators.
+- Tests first: the new score against brute force on small panels (property),
+  the MIP's design against brute force over partitions, failure tests for
+  `fast=True` and for bad group sizes, mutants for the score (sums, no delta,
+  the group cap).
+
+Own branch, library code; lands before phase 1.
+
 ### Phase 1: harden the exact-cover MIP (`pangeo_helpers/mip.py`)
 
 - Relative and absolute MIP gap 0 (or a stated tolerance, reported).
@@ -310,7 +358,7 @@ same supergeos.
 
 ## Order and dependencies
 
-Phase 0, then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5's
+Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5's
 closed form and backtest can start after phase 1 and run beside 2 to 4; its
 Trimmed Match simulations follow phase 6, and phase 6b follows phase 6. The Trimmed Match benchmark (phase 7)
 lands with phase 6. The rest of phase 7 after each phase lands.
