@@ -18854,6 +18854,168 @@ timeout = 1200.0
   models = "the partition count stopping one short, so n = k lo exactly (all groups of the smallest size) reads as infeasible"
 
 [[target]]
+name = "supergeo-matching"
+module-path = "benchmarks/studies/supergeo/matching.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_matching.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-slack-not-doubled"
+  find = "    return dual[i] + dual[j] - 2.0 * W[i, j]"
+  replace = "    return dual[i] + dual[j] - W[i, j]"
+  models = "the edge slack taken against W, not 2 W, so the doubled duals no longer bound the weights"
+
+  [[target.mutant]]
+  id = "the-s-s-step-not-halved"
+  find = "                    d = _slack(W, dual, I[BESTU, b], I[BESTV, b]) / 2.0"
+  replace = "                    d = _slack(W, dual, I[BESTU, b], I[BESTV, b])"
+  models = "a step that closes an edge between two S blossoms taken at its full slack, overshooting by half"
+
+  [[target.mutant]]
+  id = "the-t-blossom-step-not-halved"
+  find = "dual[b] / 2.0 < delta:"
+  replace = "dual[b] < delta:"
+  models = "a T blossom's dual allowed to step past zero"
+
+  [[target.mutant]]
+  id = "s-vertices-stepped-the-wrong-way"
+  find = "                    dual[v] -= delta"
+  replace = "                    dual[v] += delta"
+  models = "the dual step raising S vertices' duals, so no edge ever becomes tight"
+
+  [[target.mutant]]
+  id = "s-blossoms-stepped-by-half"
+  find = "                        dual[b] += 2.0 * delta"
+  replace = "                        dual[b] += delta"
+  models = "S blossoms' duals stepped by delta, not 2 delta, loosening the edges inside them"
+
+  [[target.mutant]]
+  id = "no-dummy-for-an-odd-count"
+  find = "    m = n + n % 2\n    Wp = np.zeros((m, m))"
+  replace = "    m = n\n    Wp = np.zeros((m, m))"
+  models = "an odd count solved without the dummy market, so no perfect matching exists to find"
+
+  [[target.mutant]]
+  id = "the-maximum-not-the-minimum"
+  find = "    Wp[:n, :n] = -W"
+  replace = "    Wp[:n, :n] = W"
+  models = "the costs not negated, so the matcher finds the most expensive pairing"
+
+  [[target.mutant]]
+  id = "augmenting-a-blossom-the-odd-way-round"
+  find = "        if i % 2 == 1:\n            jstep = 1\n            end = nc"
+  replace = "        if i % 2 == 0:\n            jstep = 1\n            end = nc"
+  models = "the matching inside a blossom flipped along the odd side of the cycle"
+
+  [[target.mutant]]
+  id = "expanding-a-t-blossom-the-odd-way-round"
+  find = "            if j % 2 == 1:\n                j -= nc"
+  replace = "            if j % 2 == 0:\n                j -= nc"
+  models = "an expanded T blossom relabelled along the odd side of its cycle"
+
+  [[target.mutant]]
+  id = "the-mate-of-a-t-base-labelled-a-root"
+  find = "        w, t, p = I[MATE, base], 1, base"
+  replace = "        w, t, p = I[MATE, base], 1, -1"
+  models = "the S vertex across a T blossom's matched edge recorded as a tree root, cutting the augmenting path"
+
+  [[target.mutant]]
+  id = "the-wrong-market-reported-left-out"
+  find = "        unmatched = int(mate[n])"
+  replace = "        unmatched = int(mate[0])"
+  models = "for an odd count, the market reported left out is not the one matched to the dummy"
+
+  [[target.mutant]]
+  id = "the-certificate-not-checked"
+  find = "    if gap > result[\"tolerance\"]:"
+  replace = "    if False:"
+  models = "a pairing returned without the proof that it is optimal"
+
+  [[target.mutant]]
+  id = "a-blossom-edge-recorded-backwards"
+  find = "            A[EX, b, i] = I[LABU, c]\n            A[EY, b, i] = I[LABV, c]"
+  replace = "            A[EX, b, i] = I[LABV, c]\n            A[EY, b, i] = I[LABU, c]"
+  models = "the edge between two children of a new blossom stored with its ends swapped"
+
+  [[target.mutant]]
+  id = "absorbed-t-vertices-not-rescanned"
+  find = "        if I[LABEL, I[INB, x]] == 2:\n            Q[CNT[0]] = x"
+  replace = "        if False:\n            Q[CNT[0]] = x"
+  models = "T vertices that become S inside a new blossom never scanned, so their edges are never seen"
+
+  [[target.mutant]]
+  id = "a-new-blossom-labelled-t"
+  find = "    I[LABEL, b] = 1\n    I[LABU, b] = I[LABU, bb]"
+  replace = "    I[LABEL, b] = 2\n    I[LABU, b] = I[LABU, bb]"
+  models = "a blossom closed from S vertices labelled T"
+
+[[target]]
+name = "supergeo-matching-check"
+module-path = "benchmarks/studies/supergeo/matching.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_matching.py -q -p no:cacheprovider -x -k \"certificate or oracle or laminar or crossing or rounding or not_sets or near_tight or brute or wrong or expanded or equal or negative or screen or duals\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-dual-sum-read-the-wrong-way"
+  find = "    C = np.cumsum(np.cumsum(G, axis=0)[:, ::-1], axis=1)[:, ::-1]"
+  replace = "    C = np.cumsum(np.cumsum(G, axis=0), axis=1)"
+  models = "the odd-set duals summed over sets ending before the pair, not those spanning it, so violated pairs are screened out as slack"
+
+  [[target.mutant]]
+  id = "the-screen-without-a-rounding-bound"
+  find = "        uncertain = ~(S > bound)"
+  replace = "        uncertain = ~(S > 0.0)"
+  models = "a pair cleared on a positive floating slack alone, so a violation that rounding turns positive is never settled exactly"
+
+  [[target.mutant]]
+  id = "the-bound-without-the-term-count"
+  find = "        bound = 2.0 * (k * u / (1.0 - k * u)) * A + k * 2.0 ** -1074"
+  replace = "        bound = 2.0 * u * A + 2.0 ** -1074"
+  models = "the rounding bound of one operation used for a sum of up to 2m + |B| + 3 terms"
+
+  [[target.mutant]]
+  id = "the-smallest-set-the-leading-key"
+  find = "    order = np.lexsort(~M[rank][::-1])"
+  replace = "    order = np.lexsort(~M[rank])"
+  models = "the vertices sorted with the smallest set most significant, which scatters the members of the larger sets"
+
+  [[target.mutant]]
+  id = "an-interval-one-short"
+  find = "    hi = np.where(M, pos[None, :], -1).max(axis=1) + 1"
+  replace = "    hi = np.where(M, pos[None, :], -1).max(axis=1)"
+  models = "each set's interval ending one position early, so its last member is not counted as inside it"
+
+  [[target.mutant]]
+  id = "crossing-sets-taken-as-intervals"
+  find = "    if np.any(hi - lo != size):"
+  replace = "    if False:"
+  models = "a crossing family laid out as if every set were an interval, so the dual sums of the screen are wrong"
+
+  [[target.mutant]]
+  id = "the-near-tight-pairs-never-settled"
+  find = "    for i, j in zip(ii.tolist(), jj.tolist()):"
+  replace = "    for i, j in zip(ii.tolist()[:0], jj.tolist()):"
+  models = "the pairs the screen cannot clear dropped instead of settled in exact arithmetic"
+
+  [[target.mutant]]
+  id = "the-odd-set-duals-left-out-of-the-pair"
+  find = "        worst = max(worst, F(p[i]) + F(p[j]) - cross - F(Wf[i, j]))"
+  replace = "        worst = max(worst, F(p[i]) + F(p[j]) - F(Wf[i, j]))"
+  models = "the exact slack of a pair computed without the duals of the odd sets holding it"
+
+  [[target.mutant]]
+  id = "malformed-sets-accepted"
+  find = "    if any(len(set(mem)) != len(mem) or any(not 0 <= v < m for v in mem) for mem in family):"
+  replace = "    if False:"
+  models = "an odd set with a repeated vertex or a vertex outside the markets used as if it were a set of them"
+
+  [[target.mutant]]
+  id = "a-crossing-family-checked-on-some-pairs"
+  find = "        ii, jj = np.triu_indices(m, 1)"
+  replace = "        ii, jj = np.triu_indices(m, 2)"
+  models = "with crossing sets, the pairs of consecutive vertices left out of the exact check"
+
+[[target]]
 name = "supergeo-lns-stop"
 module-path = "benchmarks/studies/supergeo/lns.py"
 test-command = "python -m pytest benchmarks/studies/supergeo/test_lns.py -q -p no:cacheprovider -x -k \"patience or target or rules or stopping or perfect or cannot_improve\""
