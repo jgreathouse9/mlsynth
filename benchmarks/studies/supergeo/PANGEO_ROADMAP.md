@@ -131,6 +131,129 @@ over pairs before it shows what the research buys over the MIP.
 
 Own branch, library code; lands before phase 1.
 
+### Phase 0c: the general solver on the closed-form case
+
+With pairs (groups of exactly two) the paper's objective has a closed form: the
+markets paired as neighbours in sorted order of their totals are optimal (an
+exchange argument: for sorted a <= b <= c <= d the crossing pairing costs at least
+(b - a)^2 + (d - c)^2, since each difference only grows, and the nested one
+(d - a)^2 + (c - b)^2 >= (b - a)^2 + (d - c)^2). With any other per-pair cost
+(trajectories, PANGEO's DiD score) pairs are a minimum weight perfect matching,
+polynomial. Pairs are therefore the instance on which the general machinery's
+overhead can be measured against a known answer and its known cost, before the
+roadmap continues.
+
+Measured on google/trimmed_match's 174 example geos (totals over 2020-01-01 to
+2020-12-01), pairs only, one session, all at the exact optimum:
+
+| route | time |
+| --- | --- |
+| sorting (Trimmed Match's create_geo_pairs) | 0.04 s |
+| PANGEO, supergeo_total, cvxpy and HiGHS MIP over 15,051 candidate pairs | 0.76 to 1.24 s (MIP 0.48 to 0.80 s) |
+| the study's certificate, lo = hi = 2, defaults | 5.89 to 7.33 s, of which the heuristic 5.4 to 5.7 s |
+| the same, heuristic off | 0.37 to 0.41 s (root 0.21 s; proof 8,742 nodes) |
+
+The default heuristic runs a fixed N/2 steps (87) although the sorted start is
+already optimal; the proof itself is cheap because the start is optimal, and the
+root bound is 0.32 of the optimum. Three steps, each general, each measured on
+the known-answer families below and on groups of 2 to 4 so the hard case does
+not slow:
+
+1. Stop the heuristic when it stops paying: after k steps without improvement,
+   or once the bound proves the gap asked for, counted in steps so the design
+   stays a function of the inputs and the seed. On pairs it stops at once; on
+   the 180-market panel the fixed budget was a third of the run, and on the 174
+   geos with groups of 2 to 4 it took 7.4 s.
+2. Tighten the bound with odd-set (blossom) inequalities. With pairs the master
+   is the perfect matching LP, and Edmonds' blossom inequalities make it exact;
+   Chandrasekaran, Vegh and Vempala ("The cutting plane method is polynomial for
+   perfect matchings", Math. Oper. Res. 41 (2016) 23-48,
+   doi:10.1287/moor.2015.0714) show the cutting plane loop converges in
+   polynomial time when (a) violated blossoms are read off the odd cycles in the
+   support of the half-integral LP solutions (no Padberg-Rao separation needed
+   while solutions stay half-integral) and (b) only the cuts with positive duals
+   are kept, a laminar family. Blossom inequalities have Chvatal rank 1, so the
+   study's rank-1 Chvatal-Gomory cuts on 3 to 5 rows (rank1.py) are small
+   blossoms already, and the parity cut for odd N is the blossom on the whole set;
+   odd-cycle separation extends them to odd sets of any size, and pricing
+   subtracts the duals of the cuts a group crosses. Target: the pairs bound equal
+   to the optimum at the root, so the certificate ends without a search. Open
+   question: how far such cuts lift the bound with groups of 2 to 4, where a
+   triple covers an odd set and the argument weakens.
+
+   Which cuts the pricing can carry. The master's columns are generated, so a
+   cut is robust or non-robust in the sense of Uchoa, Pessoa and Moreno
+   ("Optimizing with Column Generation: Advanced Branch-Cut-and-Price
+   Algorithms", Part I, Cadernos do LOGIS 2024(3), section 4.3): a cut stated on
+   the markets (the rows) gives a new group a coefficient that depends only on
+   how many of the cut's markets it covers, and the scan prices it cheaply; a cut
+   stated on the groups (the columns) needs the pricing to decide a new group's
+   coefficient from the groups already in the cut. Borndörfer ("Aspects of Set
+   Packing, Partitioning, and Covering", dissertation, TU Berlin, 1998, section
+   3.3) separates clique, odd-cycle and aggregated odd-cycle inequalities on the
+   fractional intersection graph for set partitioning; those are facets of the
+   set packing polytope whatever the group sizes, and they are stated on columns,
+   so in this master they are non-robust in the costly way. The rank-1 cut with
+   multiplier 1/2 on an odd set S of markets is the bridge: a group's
+   coefficient is floor(|group ∩ S| / 2), which for pairs is Edmonds' blossom
+   inequality on S, and for groups of 2 to 4 its generalisation, priced from a
+   count. Step 2 is therefore the study's rank-1 cuts (3 to 5 markets) extended
+   to odd sets of any size, separated from the odd cycles of the LP solution as
+   in Chandrasekaran-Vegh-Vempala, with limited memory to keep pricing cheap
+   (Pecin, Pessoa, Poggi and Uchoa, "Improved branch-cut-and-price for capacitated
+   vehicle routing", Math. Program. Comput. 9 (2017) 61-100). Borndörfer's
+   preprocessing (section 3.2) lists the reductions beside it: reduced cost
+   fixing (3.2.11), which the exact elimination already performs, and dominated
+   columns and probing, which it does not. Rasmussen ("Optimisation-Based
+   Solution Methods for Set Partitioning Models", dissertation, DTU, 2011,
+   section 2.5) gives the conditions under which the set partitioning LP is
+   integral (balanced and perfect matrices); the pairs master meets none of
+   them, which is why its root bound is 0.32 of the optimum without odd-set cuts.
+3. Profile what remains: the root LP's warm start and the initial pool. The
+   bound at every column generation iteration, z_RM + (N / lo) c* (Uchoa, Pessoa
+   and Moreno, Theorem 2.8, pp. 29-30; it is the bound `_exact_bound` already
+   computes at convergence), says when further pricing rounds stop moving the
+   bound, the test for stopping the root early. Farley's bound (their p. 181)
+   needs equal column costs and does not apply.
+
+Known-answer families for every claim: pairs against sorting at 20 to 1,000
+markets; pairs with trajectory costs against an exact minimum weight perfect
+matching, from Blossom VI (Arkhipov and Kolmogorov, "Blossom VI: A practical
+minimum weight perfect matching algorithm", arXiv:2604.20351, 2026; C++ at
+github.com/Paul566/blossom-vi, nearly linear in practice on every family they
+tested, faster than Blossom V where Blossom V is superlinear; built in a pinned
+environment like the Trimmed Match reference) or networkx's Edmonds
+implementation at a few hundred markets; groups of 2 to 4 with planted optima.
+
+PANGEO side: with Q = 1 every objective is a minimum weight perfect matching, so
+an exact matching (sorting for supergeo_total; Blossom VI or Edmonds for the
+trajectory objectives) can replace the enumeration and the MIP. With an odd
+number of markets no perfect matching exists: one market is dropped or put in a
+triple, as Trimmed Match drops its largest geo; the choice is stated and tested.
+
+Which market to drop has an exact answer. Kaibel and Walter ("A note on matchings
+constructed during Edmonds' weighted perfect matching algorithm",
+arXiv:1703.09505, 2017; earlier Lawler, "Combinatorial Optimization: Networks
+and Matroids", Holt, Rinehart and Winston, 1976, chapter 6, problem 8.2, p. 247,
+with the bipartite case proved in chapter 5, section 8, p. 205) prove that every
+matching Edmonds' weighted perfect matching algorithm builds is of minimum weight among the
+matchings of its cardinality, under mild restrictions on the algorithm's
+choices. Run on an odd number of markets, the algorithm ends at a maximum
+matching that is of minimum weight among maximum matchings: the optimal market
+to leave out, with no auxiliary graph of doubled size. For supergeo_total the
+same answer is a scan of the sorted order: with market i left out, the rest pair
+as neighbours, so the cost is a prefix sum below i plus a suffix sum above it,
+and only even positions i qualify. Trimmed Match's drop of the largest geo is
+one point of that scan, compared against its minimum.
+
+The same result covers pair exclusion. Trimmed Match's designs drop pairs in a
+nested sequence, the worst pair each time; the matchings of Edmonds' algorithm
+give, for each number of pairs k, the k pairs of least total cost. Those are not
+nested in general (an augmenting path changes pairs already formed), so the two
+answer different questions: the nested sequence keeps one pairing and trims it,
+the cardinality-optimal one re-pairs at each k. The comparison on the 174 geos
+reports both costs at every k.
+
 ### Phase 1: harden the exact-cover MIP (`pangeo_helpers/mip.py`)
 
 - Relative and absolute MIP gap 0 (or a stated tolerance, reported).
@@ -443,12 +566,53 @@ same supergeos.
   effects into two private advertising datasets of the 210 US DMAs, so neither
   path A nor path B applies; the Trimmed Match case is cross-validation.
 
+### Phase 8 (open): designs that survive losing markets
+
+A design is fixed before the test, and markets can be lost during it: a data
+outage, contamination from a national campaign, a market withdrawn by its owner.
+Recoverable robustness (Büsing, "Recoverable Robustness in Combinatorial
+Optimization", dissertation, TU Berlin, 2010; Cuvillier, 2011) models this in two
+stages: choose a design now, then, once a scenario is revealed, repair it within
+a stated recovery rule, and optimise the first-stage design against the worst
+repaired outcome. Two of its recovery rules fit geo designs:
+
+- exact subset recovery (chapter 4): the repair may only keep part of the
+  design, so the groups containing a lost market are dropped;
+- k-distance recovery (chapter 2): the affected groups may be re-formed, with at
+  most k markets moved.
+
+Its Γ-scenarios (at most Γ elements fail; sections 2.4, 3.4, 4.4) are "at most Γ
+markets lost".
+
+Two limits. The thesis solves knapsack, shortest path, minimum cut, matroid bases
+and disjoint hitting set, not matching or set partitioning, so the framework
+carries over and the algorithms do not. And the objective decides whether the
+problem exists: under supergeo_total a dropped group removes its term from the
+sum, so losing markets lowers the cost and the robust problem is trivial. It
+binds only under an objective that charges for lost markets, the variance of the
+estimator (phase 5) or a floor on the number of groups or on the share of the
+population covered.
+
+Measurement first, any time after phase 0b: on the certified designs of the
+study's panels, remove the worst single market and the worst pair (N and
+N(N-1)/2 scenarios), drop the groups they sit in, and report the change in
+balance and in the closed-form variance. A small change closes the phase as a
+note; a large one opens a design phase, starting from the Γ-scenario model and
+the extended cover inequalities of the thesis's recoverable robust knapsack
+(chapter 5).
+
+Trimmed Match is a different mechanism: its estimator trims the pairs with
+extreme effects after the test, and its design's pair exclusion chooses how many
+pairs to keep. Neither repairs a design after a market is lost.
+
 ## Order and dependencies
 
-Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5's
+Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 0c (the general solver against the closed form on pairs: heuristic stopping, odd-set cuts, the matching oracles), then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5's
 closed form and backtest can start after phase 1 and run beside 2 to 4; its
 Trimmed Match simulations follow phase 6, and phase 6b follows phase 6. The Trimmed Match benchmark (phase 7)
-lands with phase 6. The rest of phase 7 after each phase lands.
+lands with phase 6. The rest of phase 7 after each phase lands. Phase 8 is open:
+its measurement can run any time after phase 0b, and any design work waits on
+phase 5's variance.
 
 ## Risks
 
