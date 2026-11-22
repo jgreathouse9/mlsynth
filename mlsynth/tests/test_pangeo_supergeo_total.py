@@ -26,7 +26,7 @@ from mlsynth.config_models import PANGEOConfig
 from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
 from mlsynth.utils.pangeo_helpers import mip as pmip
 from mlsynth.utils.pangeo_helpers import prepare_pangeo_inputs, run_pangeo
-from mlsynth.utils.pangeo_helpers.parallelism import best_split
+from mlsynth.utils.pangeo_helpers.parallelism import best_split, enumerate_candidate_pairs
 
 # The cross-version CI jobs do not install highspy; its cases run where it is.
 HAS_HIGHSPY = pmip._highspy_available()
@@ -190,8 +190,7 @@ class TestAgainstTheOracle:
 class TestBackend:
     @pytest.mark.parametrize("backend, used", [
         ("cvxpy", "cvxpy"),
-        pytest.param("highspy", "highspy", marks=needs_highspy),
-        ("auto", "highspy" if HAS_HIGHSPY else "cvxpy")])
+        pytest.param("highspy", "highspy", marks=needs_highspy)])
     def test_the_backend_asked_for_is_the_one_used(self, backend, used,
                                                    monkeypatch):
         calls = []
@@ -205,11 +204,22 @@ class TestBackend:
         assert res.metadata["solver_diagnostics"]["A"]["backend"] == used
         assert res.metadata["mip_backend"] == backend
 
+    def test_the_mips_auto_backend_is_highspy_where_installed(self):
+        """With pairs, PANGEO's auto path is the closed form (test_pangeo_pairs.py); the MIP's own auto rule
+        is pinned here, on solve_partition, where it lives."""
+        Y = np.random.default_rng(1).normal(100, 10, (6, 8))
+        idx = np.arange(6)
+        cands = enumerate_candidate_pairs(idx, Y, 1, objective="supergeo_total")
+        _, diag = pmip.solve_partition(cands, idx, return_diagnostics=True, backend="auto")
+        assert diag["backend"] == ("highspy" if HAS_HIGHSPY else "cvxpy")
+
     def test_auto_falls_back_to_cvxpy_without_highspy(self, monkeypatch):
         monkeypatch.setattr(pmip, "_highspy_available", lambda: False)
-        _, res = _design(np.random.default_rng(2).normal(100, 10, (4, 6)),
-                         backend="auto")
-        assert res.metadata["solver_diagnostics"]["A"]["backend"] == "cvxpy"
+        Y = np.random.default_rng(2).normal(100, 10, (4, 6))
+        idx = np.arange(4)
+        cands = enumerate_candidate_pairs(idx, Y, 1, objective="supergeo_total")
+        _, diag = pmip.solve_partition(cands, idx, return_diagnostics=True, backend="auto")
+        assert diag["backend"] == "cvxpy"
 
     def test_highspy_asked_for_but_missing_is_reported(self, monkeypatch):
         monkeypatch.setattr(pmip, "_highspy_available", lambda: False)
