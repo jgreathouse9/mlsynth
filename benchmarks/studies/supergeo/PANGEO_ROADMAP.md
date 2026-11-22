@@ -205,9 +205,17 @@ analysis of a finished experiment.
 - `benchmarks/cases/trimmed_match.py`, cross-validation against the reference
   implementation: the estimate, the trimming and the interval on fixed inputs
   (the README's toy example, simulated pairs, pairs from a public panel) match
-  google/trimmed_match. The reference needs bazel, so its outputs are generated
-  once by a script under `benchmarks/` and kept as a fixture with the commit of
-  the reference they came from; the case compares against the fixture.
+  google/trimmed_match, following the benchmarks' existing pattern for pinned
+  references. A pinned installer (`benchmarks/reference/install_trimmed_match.sh`)
+  builds the reference at a fixed commit (head at the time of writing:
+  0be855234ee3a589eaddc8b945e2a0d924ad8791) into its own virtual environment,
+  since it is tested with Python 3.7 and builds a C++ core with bazel while
+  mlsynth runs on a current Python; the case runs it live through a subprocess,
+  exchanging JSON, raises BenchmarkSkipped when that environment is absent (as
+  `drosc_basque.py` does for R), and writes `benchmarks/reference/trimmed_match/`
+  with the manifest, the provenance (reference commit, Python and bazel
+  versions) and the cell-by-cell comparison. Building that environment is the
+  first task, and the installer pins every dependency.
 - `benchmarks/cases/pangeo_power.py`: the closed-form variance against
   simulation, and the power analysis against the reference design package's
   RMSE on the same pairs and windows, once its entry points are confirmed.
