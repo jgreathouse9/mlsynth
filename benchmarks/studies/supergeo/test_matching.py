@@ -237,3 +237,122 @@ def test_the_certificate_rejects_a_pairing_that_is_not_a_matching():
     paired = out5["pairs"][0][0]
     assert matching.check_certificate(W5, dict(out5, unmatched=paired)) == float("inf")
     assert matching.check_certificate(W5, dict(out5, unmatched=7)) == float("inf")
+
+
+# --- the certificate check: exact, and fast where the pairing has slack ---------------------------------------------
+
+def _oracle_check(W, result):
+    """The certificate check written directly in exact rational arithmetic, every pair and every odd set: the oracle
+    the fast check must equal."""
+    W = np.asarray(W, dtype=float)
+    n = len(W); m = n + n % 2
+    pairs = list(result["pairs"]); covered = [v for pr in pairs for v in pr]
+    if len(set(covered)) != len(covered) or len(pairs) != n // 2 or any(not 0 <= v < n for v in covered):
+        return float("inf")
+    if n % 2 and (result["unmatched"] in covered or not 0 <= result["unmatched"] < n):
+        return float("inf")
+    p = [Fraction(float(x)) for x in result["p"]]
+    if len(p) != m:
+        return float("inf")
+    worst = Fraction(0); obj = sum(p)
+    for members, q in result["blossoms"]:
+        worst = max(worst, -Fraction(float(q))); obj -= (len(members) // 2) * Fraction(float(q))
+    for i in range(m):
+        for j in range(i + 1, m):
+            cross = sum((Fraction(float(q)) for mem, q in result["blossoms"] if i in mem and j in mem), Fraction(0))
+            w = Fraction(float(W[i, j])) if j < n else Fraction(0)
+            worst = max(worst, p[i] + p[j] - cross - w)
+    worst = max(worst, abs(obj - sum((Fraction(float(W[i, j])) for i, j in pairs), Fraction(0))))
+    return float(worst)
+
+
+def _laminar(rng, m, k):
+    """k random odd sets over range(m) that are pairwise nested or disjoint: each is drawn inside a random earlier
+    set (or the whole range) and disjoint from that set's other drawn children, so the family is laminar."""
+    fam, kids = [], {None: []}
+    for _ in range(k):
+        par = None if not fam or rng.random() < 0.3 else int(rng.integers(len(fam)))
+        room = sorted((set(range(m)) if par is None else set(fam[par])) - {v for c in kids[par] for v in fam[c]})
+        size = len(room) if len(room) % 2 else len(room) - 1
+        if size < 3 or (par is not None and size == len(fam[par])):
+            continue
+        size = int(rng.choice(range(3, size + 1, 2)))
+        fam.append(tuple(sorted(int(v) for v in rng.choice(room, size, replace=False))))
+        kids[par].append(len(fam) - 1); kids[len(fam) - 1] = []
+    return fam
+
+
+@settings(max_examples=150, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), m=st.integers(1, 40), k=st.integers(0, 12))
+def test_a_laminar_family_is_laid_out_as_intervals(seed, m, k):
+    """Unit, over random laminar families: the vertex order puts every set's members in consecutive positions, and the
+    interval bounds it reports are those positions."""
+    fam = _laminar(np.random.default_rng(seed), m, k)
+    order, lo, hi = matching._interval_order(fam, m)
+    pos = np.empty(m, np.int64); pos[order] = np.arange(m)
+    assert sorted(order.tolist()) == list(range(m))
+    for b, mem in enumerate(fam):
+        assert sorted(pos[list(mem)].tolist()) == list(range(lo[b], hi[b]))
+
+
+def test_crossing_sets_are_not_intervals_and_are_reported_so():
+    """Edge: {0, 1, 2}, {2, 3, 4} and {0, 4, 5} cross pairwise, so no order makes all three consecutive; the layout says
+    so (None) and the check falls back to the direct one."""
+    assert matching._interval_order([(0, 1, 2), (2, 3, 4), (0, 4, 5)], 6) is None
+
+
+@settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(0, 9), kind=st.sampled_from(["int", "real", "tied"]),
+       tamper=st.sampled_from(["none", "p-ulp", "p-shift", "q-shift", "drop-set", "add-set", "add-crossing",
+                               "negative-q", "swap-pairs"]))
+def test_the_check_equals_the_exact_oracle(seed, n, kind, tamper):
+    """Property, over solved instances and certificates tampered with in every way the checker must notice (a dual
+    moved by one ulp or by a step, an odd set dropped, added, crossing the others, or given a negative dual, partners
+    swapped): the check returns exactly what the direct rational check returns."""
+    rng = np.random.default_rng(seed)
+    W = _sym(rng, n, 0, 3) if kind == "tied" else _sym(rng, n, -20, 20, integer=(kind == "int"))
+    out = matching.min_weight_matching(W)
+    m = n + n % 2
+    r = dict(out, p=np.array(out["p"], float), blossoms=list(out["blossoms"]), pairs=list(out["pairs"]))
+    if m and tamper == "p-ulp":
+        i = int(rng.integers(m)); r["p"][i] = np.nextafter(r["p"][i], np.inf if rng.random() < .5 else -np.inf)
+    elif m and tamper == "p-shift":
+        r["p"][int(rng.integers(m))] += float(rng.choice([-1.0, 0.5, 2.0]))
+    elif r["blossoms"] and tamper == "q-shift":
+        b = int(rng.integers(len(r["blossoms"]))); mem, q = r["blossoms"][b]; r["blossoms"][b] = (mem, q + 0.25)
+    elif r["blossoms"] and tamper == "drop-set":
+        r["blossoms"].pop(int(rng.integers(len(r["blossoms"]))))
+    elif m >= 3 and tamper in ("add-set", "add-crossing", "negative-q"):
+        fam = [mem for mem, _ in r["blossoms"]]
+        new = _laminar(rng, m, 3) if tamper != "add-crossing" else [
+            tuple(sorted(int(v) for v in rng.choice(m, 3, replace=False))) for _ in range(3)]
+        for mem in new:
+            if mem not in fam:
+                r["blossoms"].append((mem, float(rng.choice([-0.5, 0.5, 1.0])) * (-1 if tamper == "negative-q" else 1)))
+    elif len(r["pairs"]) >= 2 and tamper == "swap-pairs":
+        (a, b), (c, d) = r["pairs"][:2]; r["pairs"][:2] = [tuple(sorted((a, d))), tuple(sorted((c, b)))]
+    assert matching.check_certificate(W, r) == _oracle_check(W, r)
+
+
+def test_a_violation_hidden_by_rounding_is_found():
+    """Unit: p_0 + p_2 = 2^53 + 0.5 rounds to 2^53 = W_02 in floating point, so a floating check sees the pair (0, 2)
+    tight; in exact arithmetic it is violated by 0.5. Every other condition holds (the objective included), so the
+    check reports 0.5 only if it settles that pair exactly."""
+    B = 2.0 ** 53
+    W = np.array([[0, 0, B, B], [0, 0, 0, 0], [B, 0, 0, 0.5], [B, 0, 0.5, 0]])
+    r = dict(pairs=[(0, 1), (2, 3)], unmatched=None, cost=0.5, p=np.array([B, -B, 0.5, 0.0]), blossoms=[],
+             tolerance=0.0)
+    assert _oracle_check(W, r) == 0.5
+    assert matching.check_certificate(W, r) == 0.5
+
+
+def test_only_the_near_tight_pairs_are_settled_exactly():
+    """Unit: on 400 markets with the scalar cost (199 odd sets with positive duals), the floating screen clears all but
+    the pairs whose slack is within its rounding bound: fewer than 4 per market, of the 79800 pairs."""
+    z = np.random.default_rng(400).lognormal(0, 1.3, 400) * 1000
+    W = (z[:, None] - z[None, :]) ** 2
+    out = matching.min_weight_matching(W)
+    Wf = np.zeros((400, 400)); Wf[:] = W
+    order, lo, hi = matching._interval_order([mem for mem, _ in out["blossoms"]], 400)
+    ii, jj = matching._near_tight(Wf, np.asarray(out["p"], float), [q for _, q in out["blossoms"]], order, lo, hi)
+    assert len(out["blossoms"]) > 100 and 200 <= len(ii) < 4 * 400
