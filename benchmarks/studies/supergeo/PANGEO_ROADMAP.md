@@ -455,7 +455,8 @@ is evaluated on decides whether the number means anything.
   cut 1,835 +- 59 (half of all spend) against a cap of 1,468, in every assignment;
   the proportional cut met the cap exactly with a ratio of 0.80. Re-choosing the
   splits to balance spend narrowed the cut's spread and raised the iROAS error
-  12%, so spend balance is a constraint for small designs, not an objective.
+  12%, so spend balance is a constraint for small designs, not an objective
+  (phase 5e).
 - Also from Trimmed Match Design: the maximum supergeo size (Q) and the number of
   pairs chosen by the cross-validated RMSE, rerandomization with recorded balance
   checks (TMD section 4.3), and optional geo exclusion as singleton columns with a
@@ -628,6 +629,91 @@ SYNDES's examples already simulate.
   unblocked sorted design, the trajectory objective and the matcher on the full
   cost; the permutation test recovers the planted partition and rejects a random
   one; the analysis with weather as a control against the analysis without it.
+
+### Phase 5e: spend balance as a design constraint
+
+The paper's variance, Var(theta_hat) = sum_k D_k^2 / B^2 (eq. 3), needs the
+spend difference between the arms to be a constant B whatever the coin flips
+(Assumption 2). A proportional heavy-up meets it by construction: the ratio r is
+set after the draw so the treated geos' extra spend is B (Assumption 4). A go-dark
+does not. It cuts each treated geo's whole spend, so the cut is the spend of
+whichever half each coin treats.
+
+- What a random B does. Write S_k+ and S_k- for the spend of pair k's halves over
+  the test window, g_k = S_k+ - S_k- for their gap, and B0 = sum_k (S_k+ + S_k-) / 2
+  for the mean cut. A go-dark cuts B(A) = B0 + sum_k A_k g_k / 2. Then:
+  1. The cut ranges over [sum_k min(S_k+, S_k-), sum_k max(S_k+, S_k-)] and has
+     variance sum_k g_k^2 / 4 over the coin flips.
+  2. The error of the ratio estimator is sum_k A_k D_k / B(A). Its numerator and
+     denominator share the coins, so to first order it has mean
+     -sum_k D_k g_k / (2 B0^2). The bias is zero when the spend gaps are unrelated
+     to the response gaps, and in ad data the two move together (the geo that
+     spends more sells more).
+  3. A business cap on the cut can be broken. On the simulated 180-market panel
+     (phase 5, Budget) a full go-dark cut 1,835 +- 59 against a cap of 1,468, in
+     every assignment.
+  Under a heavy-up B is fixed, but r = B / (treated spend) still varies with the
+  draw, and the heterogeneous-iROAS error err_3 = r sum_{treated} (theta_g - theta)
+  S_g (Chen et al. 2023, eq. 5) scales with it. Spend balance narrows r's spread
+  too.
+- The constraints. Each is linear in the columns of the exact-cover program, so
+  it adds rows or removes columns, and the objective stays sum_k D_k^2:
+  1. A cap on every assignment's cut: sum_k max(S_k+, S_k-) x_k <= cap, one
+     knapsack row. Since max(a, b) = (a + b) / 2 + |a - b| / 2 and the halves
+     cover every market, the row is sum_k |g_k| x_k <= 2 cap - S, with S the
+     total spend. A floor (the cut must reach a stated size for power) is the
+     row sum_k min(S_k+, S_k-) x_k >= floor, the same gap row against S - 2 floor.
+  2. A bound on the cut's spread: sum_k g_k^2 x_k <= 4 v, a row on the variance.
+  3. A gap per pair: |g_k| <= tau (S_k+ + S_k-), applied by dropping the columns
+     that break it, with no row. For pairs (Q = 1) these are forbidden pairs of
+     markets.
+  The measured case for a constraint over an objective: re-choosing the splits
+  to balance spend narrowed the cut's spread and raised the iROAS error 12%
+  (phase 5, Budget). The design keeps the response objective and imposes spend
+  balance only as far as the cap, floor or gap requires.
+- Solvers, closed form first (CLAUDE.md invariant 8). A design that is optimal
+  without the constraints and meets them is optimal with them, so every path
+  first solves the unconstrained problem (the sorted pairing, the matcher, the
+  staged search) and checks the constraints on its answer. Only a design that
+  breaks one goes further:
+  - Pairs with a gap per pair only: the matcher with the forbidden pairs at a
+    cost above any saving; a forbidden pair in its answer means no admissible
+    pairing exists, which raises.
+  - Pairs with a cap, floor or spread row: a matching with one budget row, which
+    is NP-hard (Berger, Bonifaci, Grandoni and Schafer, "Budgeted matching and
+    budgeted matroid intersection via the gasoline puzzle", Math. Program. 128
+    (2011) 355-372, who give a PTAS). For each multiplier lambda, the cost
+    D_k^2 + lambda |g_k| is a plain matching, so the matcher gives the
+    Lagrangian bound and a feasible design at the multiplier where the row is
+    met; the gap between the two is reported, and an exact answer comes from
+    branching on pairs under that bound, or from the exact-cover program with
+    the row.
+  - Supergeos (Q >= 2): the row in the exact-cover program, and in the staged
+    search (phase 3) as a bound on the cheapest completion's gap sum.
+- Interface. A spend column in the panel; `spend_change` ("heavy_up",
+  "go_dark", "partial_go_dark", the last cutting each treated geo by one fraction
+  chosen after the draw so the cut is a fixed B, which restores Assumption 2);
+  `budget_cap`, `budget_floor`, `max_cut_sd` and `max_pair_spend_gap`, each
+  optional. The result reports the cut's range and standard deviation over the
+  assignments, the first-order bias term on the design window, which constraints
+  bind, and the proven gap when the Lagrangian path does not close.
+- Failures. A cap below S / 2 admits no go-dark design: sum_k max(S_k+, S_k-)
+  >= S / 2 for every design, and the mean cut is S / 2. A floor above S / 2
+  admits none for the same reason, since sum_k min(S_k+, S_k-) <= S / 2. A gap
+  bound that leaves a market with no admissible partner admits none either. Each
+  raises MlsynthConfigError naming the bound and the value it would need.
+- Acceptance:
+  - brute force over every design of up to 12 markets with each constraint,
+    against every solver path, and the unconstrained answer returned unchanged
+    when it meets the constraints;
+  - the Lagrangian bound never above the brute-force optimum;
+  - on the simulated 180-market panel, the share of assignments over the cap
+    (100% unconstrained) falls to 0, with the held-out MDE (phase 5) of the
+    constrained design against the unconstrained one and against spend in the
+    objective;
+  - the bias term measured by simulation on panels where spend and response are
+    correlated, against its first-order value, under go-dark and partial
+    go-dark.
 
 ### Phase 6: Trimmed Match as an analysis estimator
 
@@ -804,7 +890,8 @@ Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and
 closed form and backtest can start after phase 1 and run beside 2 to 4; its
 Trimmed Match simulations follow phase 6, and phase 6b follows phase 6. The Trimmed Match benchmark (phase 7)
 lands with phase 6. Phases 5b, 5c and 5d follow phase 5's held-out MDE, which
-is their measurement, and 5d uses 5c's test on its clusters; 5b's inference change and its citation of the pairs path can
+is their measurement, and 5d uses 5c's test on its clusters. Phase 5e follows phase 5's
+closed form and backtest, needs a spend column, and adds its row to the exact paths of phases 2 and 3 as they land. 5b's inference change and its citation of the pairs path can
 land any time. The rest of phase 7 after each phase lands. Phase 8 is open:
 its measurement can run any time after phase 0b, and any design work waits on
 phase 5's variance.
