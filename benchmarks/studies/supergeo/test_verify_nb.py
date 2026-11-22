@@ -577,3 +577,12 @@ def test_the_automatic_split_follows_the_schedule(monkeypatch):
         vn.verify(n, 2, cand, cost, pi, m, tau, OPT, node_limit=lim, workers=w, deterministic=det)
     assert seen == [(2, 128, False)] * 2 + [(3, 12_288, True)] * 2 + [(3, 19, True)] * 2 + [(3, 3, True)] * 2, seen
     assert vn.ROUND_TASKS_PER_WORKER == 4
+
+
+def test_a_limit_reached_in_the_last_round_is_reported():
+    """One subtree, so one round: the limit stops it inside the round, and with no round after it the search
+    must still report status 1, not a finished search."""
+    n, pi, tau, cand, cost, m, OPT = _big_tree_case()
+    st, nodes, covers = _rows_run(n, pi, tau, cand, cost, m, OPT, node_limit=50_000, workers=2, split=1,
+                                  deterministic=True)
+    assert st == 1 and nodes <= 50_000 + 1024 * vn.ROUND_TASKS_PER_WORKER * 2, (st, nodes)

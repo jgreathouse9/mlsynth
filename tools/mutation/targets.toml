@@ -18627,8 +18627,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "rounds-cut-as-few-subtrees-as-dynamic"
-  find = "    return (4096 if deterministic else 64) * int(workers)"
-  replace = "    return 64 * int(workers)"
+  find = "    return min(4096 * int(workers), max(int(workers), int(node_limit) // 1024))"
+  replace = "    return min(64 * int(workers), max(int(workers), int(node_limit) // 1024))"
   models = "rounds over the dynamic schedule's 64 subtrees a thread: at 80 markets 376 s against 106.9 s"
 
   [[target.mutant]]
