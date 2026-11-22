@@ -462,6 +462,23 @@ is evaluated on decides whether the number means anything.
   bound on their number. Excluding geos changes the estimand to the included
   geos' spend-weighted iROAS and can bias it when their iROAS differs (Chen et al.
   2023, err_3); the result says which estimand it reports.
+- Pair exclusion is valid under four conditions, and the library option checks
+  or reports each:
+  1. Design time only. Pairs are dropped before assignment, on pre-period data;
+     dropping pairs after seeing post-period outcomes is a specification search
+     and voids the inference.
+  2. The estimand is restated. The effect reported is the included markets'
+     spend-weighted iROAS, named on the result with the markets left out.
+  3. The count is chosen out of sample. The number of pairs dropped is chosen by
+     the cross-validated RMSE on held-out windows above, not by the in-sample
+     cost, which falls with every pair dropped.
+  4. The count is bounded and refused when it leaves no design: a stated cap on
+     the share of pairs dropped, and an error when the exclusion drops every
+     pair, more pairs than the markets form, or leaves fewer than `min_pairs`
+     (the study's `exclusion.design_excluding` raises in each case).
+  The study (README, "Pair exclusion") compares the two ways of choosing which
+  pairs to keep, nested trimming and the cardinality-optimal pairs; the option
+  waits for the cross-validated count of condition 3.
 - Acceptance: the closed form against simulation on the same windows; a placebo
   study on held-out windows showing whether the cross-validated choices beat the
   in-sample ones in RMSE.
