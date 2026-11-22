@@ -639,3 +639,26 @@ def test_bad_regions_are_rejected():
     for r in (np.zeros(7), np.zeros((8, 1)), [0, 0, 0, 0, 1, 1, 1, None]):
         with pytest.raises(ValueError):
             ce.certify_staged(z, region=r)
+
+
+def test_the_absolute_gap_is_shared_between_regions():
+    """Two identical regions and an absolute gap d between one region's slack s = UB - LB at its start and 2 s. Each
+    region gets d / 2 < s, so each must improve on its start; a region given the whole d would stop at its start,
+    and the two starts together would sit more than d above the optimum. The instance is one where the bound is
+    tight (the optimum within s / 4 of it), so that excess is real."""
+    rng = np.random.default_rng(21)
+    for _ in range(200):
+        x = np.asarray(test_bcp.gen(rng, 8, 2), float)
+        one = ce.certify_staged(x, heuristic_seconds=0.0, caps=(1,))
+        start = ce.certify_staged(x, heuristic_seconds=0.0, gap=0.99)           # proved by the bound: the start
+        S, LB, O = start["opt_exact"], one["lb_exact"], _exact_brute(x)
+        s = S - LB
+        if s > 0 and O - LB < s / 4 and S > O:
+            break
+    else:
+        raise AssertionError("no instance with a tight bound")
+    d = float(1.5 * s)
+    z = np.concatenate([x, x]); region = np.array([0] * 8 + [1] * 8)
+    out = ce.certify_staged(z, heuristic_seconds=0.0, region=region, abs_gap=d)
+    assert out["proved"]
+    assert out["opt_exact"] - 2 * O <= Fraction(d)
