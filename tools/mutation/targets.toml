@@ -18678,3 +18678,99 @@ timeout = 900.0
   find = "                   deterministic=True, verbose=False):"
   replace = "                   deterministic=False, verbose=False):"
   models = "the certificate's threads on the dynamic schedule unless asked, so a default run's design depends on thread timing"
+
+[[target]]
+name = "pangeo-supergeo-total-score"
+module-path = "mlsynth/utils/pangeo_helpers/parallelism.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_supergeo_total.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-paper-objective-scored-as-the-did-residual"
+  find = "            if objective == \"supergeo_total\":"
+  replace = "            if False:"
+  models = "supergeo_total falling through to the level-removed DiD score, so the paper's objective is never optimised"
+
+  [[target.mutant]]
+  id = "the-difference-not-squared"
+  find = "    return d * d"
+  replace = "    return abs(d)"
+  models = "the absolute difference of the totals: the same sorted pairing, a different objective value and variance"
+
+  [[target.mutant]]
+  id = "means-in-place-of-totals"
+  find = "    d = float(Ypre[side_a].sum()) - float(Ypre[side_b].sum())"
+  replace = "    d = float(Ypre[side_a].mean()) - float(Ypre[side_b].mean())"
+  models = "the halves' mean levels in place of their totals, which is not the paper's fixed-budget variance"
+
+[[target]]
+name = "pangeo-mip-backend"
+module-path = "mlsynth/utils/pangeo_helpers/mip.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_supergeo_total.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-backend-asked-for-ignored"
+  find = "    solve = _solve_partition_highspy if use == \"highspy\" else _solve_partition_cvxpy"
+  replace = "    solve = _solve_partition_highspy if _highspy_available() else _solve_partition_cvxpy"
+  models = "mip_backend='cvxpy' still solved by highspy whenever it is installed, so the base comparison is not the cvxpy route"
+
+  [[target.mutant]]
+  id = "a-missing-highspy-not-reported"
+  find = "    if backend == \"highspy\" and not _highspy_available():"
+  replace = "    if False:"
+  models = "highspy asked for and absent, passed on to an import error inside the solve"
+
+  [[target.mutant]]
+  id = "the-backend-recorded-as-asked-not-as-used"
+  find = "        return chosen, {**diagnostics, \"backend\": use}"
+  replace = "        return chosen, {**diagnostics, \"backend\": backend}"
+  models = "'auto' recorded in place of the backend that ran"
+
+[[target]]
+name = "pangeo-supergeo-total-pipeline"
+module-path = "mlsynth/utils/pangeo_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_supergeo_total.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-backend-not-passed-to-the-mip"
+  find = "                backend=mip_backend)"
+  replace = "                backend=\"auto\")"
+  models = "the design's MIP solved on the automatic backend whatever was configured"
+
+  [[target.mutant]]
+  id = "the-q-sweep-on-the-automatic-backend"
+  find = "        mip_backend=mip_backend,\n    )\n    sweep, results"
+  replace = "    )\n    sweep, results"
+  models = "automatic Q selection designing every Q on the automatic backend whatever was configured"
+
+  [[target.mutant]]
+  id = "groups-beyond-pairs-scored-by-the-paper-objective"
+  find = "    if objective == \"supergeo_total\" and (fast or max_supergeo_size != 1):"
+  replace = "    if False:"
+  models = "run_pangeo accepting supergeo_total with Q > 1 (a per-half cap, not the paper's group cap) or on the fast path"
+
+[[target]]
+name = "pangeo-supergeo-total-config"
+module-path = "mlsynth/utils/pangeo_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_supergeo_total.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-fast-path-allowed"
+  find = "            if self.fast:"
+  replace = "            if False:"
+  models = "supergeo_total accepted with fast=True, whose trajectory clustering does not optimise it"
+
+  [[target.mutant]]
+  id = "groups-beyond-pairs-allowed"
+  find = "            if self.max_supergeo_size != 1:"
+  replace = "            if False:"
+  models = "supergeo_total accepted with Q > 1 or automatic Q at construction"
+
+  [[target.mutant]]
+  id = "the-q-sweep-allowed"
+  find = "            if self.compute_q_sweep:"
+  replace = "            if False:"
+  models = "supergeo_total accepted with a Q sweep, which designs Q > 1"
