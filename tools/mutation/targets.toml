@@ -18567,7 +18567,7 @@ timeout = 900.0
 [[target]]
 name = "supergeo-certify-region"
 module-path = "benchmarks/studies/supergeo/certify_exact.py"
-test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"region\""
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"region or never_add_up\""
 timeout = 900.0
 
   [[target.mutant]]
@@ -18578,9 +18578,21 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-absolute-gap-given-to-every-region"
-  find = "        out = certify_staged(z0[idx], lo, hi, incumbent=inc, abs_gap=abs_gap * len(idx) / n, **kw)"
+  find = "        out = certify_staged(z0[idx], lo, hi, incumbent=inc, abs_gap=share, **kw)"
   replace = "        out = certify_staged(z0[idx], lo, hi, incumbent=inc, abs_gap=abs_gap, **kw)"
   models = "each region allowed the whole absolute gap, so the regions' gaps add up to more than the one claimed"
+
+  [[target.mutant]]
+  id = "a-share-rounded-to-the-nearest-float"
+  find = "        if Fraction(f) > exact:"
+  replace = "        if False:"
+  models = "a region's share of the gap rounded to the nearest float, one unit in the last place above its part of d"
+
+  [[target.mutant]]
+  id = "a-share-rounded-down-twice"
+  find = "            f = math.nextafter(f, 0.0)"
+  replace = "            f = math.nextafter(math.nextafter(f, 0.0), 0.0)"
+  models = "a share rounded two units below its exact part, giving away gap the region was owed"
 
   [[target.mutant]]
   id = "a-region-too-small-not-caught"

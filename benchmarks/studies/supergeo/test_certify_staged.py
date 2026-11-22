@@ -667,6 +667,38 @@ def test_the_absolute_gap_is_shared_between_regions():
     assert out["opt_exact"] - 2 * O <= Fraction(d)
 
 
+def test_one_region_keeps_the_whole_gap_and_no_more():
+    """The reproduction (falsified by test_regions_against_brute_force at seed 11, 11 markets, one region, f 0.3):
+    the region's share was computed as d * 11 / 11 in floating point, which rounds to one unit in the last place
+    above d, and the certificate proved its region within that share: 0.006000000000000018 against the allowed
+    0.0060000000000000175. Each region's share must be at most its exact part of d, so the shares sum to at most d."""
+    rng = np.random.default_rng(11)
+    z = np.asarray(test_bcp.gen(rng, 11, 1), float)
+    region = rng.integers(0, 1, 11)
+    want = _exact_brute(z, region=region)
+    d = float(0.3 * float(want))
+    out = ce.certify_staged(z, region=region, abs_gap=d, heuristic_seconds=0.0)
+    assert out["proved"] and out["opt_exact"] - out["lb_proved_exact"] <= Fraction(d)
+
+
+@settings(max_examples=300, deadline=None)
+@given(d=st.one_of(st.just(0.0), st.floats(0.0, 1e300, allow_nan=False, allow_infinity=False),
+                   st.sampled_from([5e-324, 2.2250738585072014e-308, 0.1, 0.3, 1.0, 1e-17])),
+       sizes=st.lists(st.integers(1, 400), min_size=1, max_size=12))
+def test_the_shares_of_the_gap_never_add_up_to_more_than_it(d, sizes):
+    """Property, over the gap (0, subnormal, tiny, huge) and the regions' sizes: every share is a non-negative float
+    at most its exact part d * n_r / n, so the shares sum to at most d, and each is within one unit in the last place
+    of that exact part (rounding down loses no more than that)."""
+    import math
+    shares = ce._gap_shares(d, sizes)
+    n = sum(sizes)
+    assert len(shares) == len(sizes) and all(isinstance(v, float) and v >= 0 for v in shares)
+    for v, k in zip(shares, sizes):
+        exact = Fraction(d) * k / n
+        assert Fraction(v) <= exact < Fraction(math.nextafter(v, math.inf)) or Fraction(v) == exact
+    assert sum(Fraction(v) for v in shares) <= Fraction(d)
+
+
 # --- reproducible threaded stages ----------------------------------------------------------------------------------
 
 def test_deterministic_stages_give_the_same_run_on_the_threads():
