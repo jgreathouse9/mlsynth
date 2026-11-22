@@ -412,12 +412,42 @@ of a candidate split and :math:`\bar g` for its estimation-window mean,
   whatever their shapes. It is the baseline PANGEO's trajectory objectives
   are compared against. It is available for pairs (``max_supergeo_size=1``)
   on the exact path (``fast=False``); with pairs the optimal design pairs
-  the markets in sorted order of their totals, neighbour with neighbour,
-  which the test suite uses as an exact check on the program.
+  the markets in sorted order of their totals, neighbour with neighbour, and
+  PANGEO designs it that way (see Pairs, below).
 
 The per-pair ``gap_variance`` and ``parallelism_r2`` reported on the result
 are always the unweighted quantities of :eq:`score`, so designs from
 different objectives are comparable on a common yardstick.
+
+Pairs: a closed form and a matching
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+With :math:`Q=1` every supergeo is one geo, so a design of an arm is a
+perfect matching of its geos, and :eq:`mip` is the minimum-weight perfect
+matching problem (Edmonds 1965). On the exact path (``fast=False``) with
+``mip_backend="auto"``, PANGEO solves it directly, in one of two ways.
+
+* Under ``"supergeo_total"`` with no covariates, the cost of a pair is the
+  squared difference of two scalars, the geos' totals over :math:`\mathcal E`.
+  For totals :math:`a\le b\le c\le d`, the neighbour pairing costs
+  :math:`(b-a)^2+(d-c)^2`, no more than either the crossing pairing
+  :math:`(c-a)^2+(d-b)^2` or the nested one :math:`(d-a)^2+(c-b)^2`. A design
+  with two crossing or nested pairs can therefore be uncrossed at no extra
+  cost, and the optimum pairs the geos in sorted order of their totals,
+  neighbour with neighbour. The design is a sort, with no program to solve.
+* Under any other objective, or with covariates, the cost of a pair depends
+  on whole trajectories and there is no closed form. The design is solved by
+  Edmonds' blossom algorithm, which returns with the pairing the dual
+  solution that proves it optimal. PANGEO checks that proof in exact
+  arithmetic before it returns, and records it in the solver diagnostics
+  (``proved_optimal``, ``certificate_violation``, ``certificate_tolerance``).
+
+An explicit ``mip_backend="highspy"`` or ``"cvxpy"`` solves :eq:`mip`
+instead. The solver diagnostics' ``path`` records which route ran:
+``closed_form_sorted_pairs``, ``blossom_matching`` or ``exact_mip``. Pairs
+need an even number of geos in each arm; an odd arm raises. On the 174 geos
+of google/trimmed_match's example, the sorted design takes 40 to 57 ms
+against 0.71 to 0.93 s for the MIP, at the same objective value.
 
 Supergeo size :math:`Q` and automatic selection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -994,6 +1024,12 @@ References
 Chen, A., Doudchenko, N., Jiang, S., Stein, C., & Ying, B. (2023).
 "Supergeo Design: Generalized Matching for Geographic Experiments."
 arXiv:2301.12044.
+
+Edmonds, J. (1965). "Paths, Trees, and Flowers." *Canadian Journal of
+Mathematics* 17:449-467.
+
+Edmonds, J. (1965). "Maximum Matching and a Polyhedron with 0,1-Vertices."
+*Journal of Research of the National Bureau of Standards* 69B:125-130.
 
 Shaw, C. (2025). "Optimized Supergeo Design: A Scalable Framework for
 Geographic Marketing Experiments." arXiv:2506.20499.
