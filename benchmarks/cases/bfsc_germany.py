@@ -8,8 +8,17 @@ pins the reproducible headline quantities of a fresh NumPyro fit: the classical
 negative reunification effect (~-1600 PPP-USD per capita), a positive-then-
 negative gap path, a close pre-period fit, and converged NUTS.
 
-Bayesian (NUTS) => the cells carry MCMC tolerances; the seed is fixed so a run
-is reproducible. Requires the ``[bayes]`` optional dependency (NumPyro).
+Bayesian (NUTS) => the cells carry MCMC tolerances. The seed is fixed, so a run
+repeats on one machine; across machines the draws differ (the same seed, jax and
+numpyro gave max R-hat 1.03 on one CI runner and 1.125 on another), and the
+tolerances are set for that spread. Requires the ``[bayes]`` optional dependency
+(NumPyro).
+
+n_samples is draws per chain: 4 chains of 500. Until the fix of 2026-11-22 BFSC
+drew n_samples / n_chains per chain (125 here), and split R-hat on 125
+autocorrelated draws exceeded the 1.1 band on some runners from noise alone; over
+seeds 0 to 7 on one machine max R-hat was 1.034 to 1.102 at 125 draws per chain;
+at 500 per chain seeds 0 and 1 gave 1.016 and 1.016.
 
 Provenance: Pinkney (2021), arXiv:2103.16244, Section 2.1 + appendix Stan;
 Abadie & Gardeazabal (2003) / Abadie, Diamond & Hainmueller (2015) for the data
@@ -66,7 +75,8 @@ def run() -> dict:
     }
 
 
-# NUTS with a fixed seed => reproducible up to MCMC error; tolerances absorb it.
+# NUTS with a fixed seed repeats on one machine; across machines the draws differ
+# within MCMC error, and the tolerances absorb it.
 # Validated cell-for-cell against the author's appendix Stan (corr 0.999999).
 EXPECTED = {
     "mean_att": (-1600.0, 600.0),      # Abadie ~-1600/yr reunification effect

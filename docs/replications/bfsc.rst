@@ -25,7 +25,7 @@ the NumPyro estimator on the identical data.
 Cross-validation -- cell for cell
 ---------------------------------
 
-Both samplers use 4 chains, 500 warm-up + 500 draws, ``adapt_delta`` 0.95, and
+Both samplers use 4 chains, 500 warm-up + 500 draws per chain, ``adapt_delta`` 0.95, and
 8 latent factors on ``basedata/german_reunification.csv`` (West Germany treated,
 16 OECD donors, 1960--2003, reunification in 1990). The posterior counterfactual
 of West Germany agrees:
@@ -97,7 +97,10 @@ post-period imputation is less pinned and both samplers mix less cleanly (Stan
 reports it too -- NA R-hat on the non-identified factor loadings, low ESS). The
 residual ATT difference is therefore Monte-Carlo error between two under-mixed
 runs of one model, and it shrinks as the sampling budget grows -- itself evidence
-that the two implementations are the same model, not two specifications. The case
+that the two implementations are the same model, not two specifications. Until
+2026-11-22 the NumPyro side drew ``n_samples / n_chains`` per chain, a quarter of
+the Stan run's draws at four chains, so part of that residual was a smaller
+NumPyro budget; BFSC now draws ``n_samples`` per chain, as configured. The case
 requires the ``[bayes]`` extra for mlsynth and ``rstan`` for the reference, and
 skips gracefully when either is absent.
 
