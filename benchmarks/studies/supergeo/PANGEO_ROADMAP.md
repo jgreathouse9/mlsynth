@@ -124,36 +124,106 @@ this is the path from the base problem's machinery to PANGEO's objective.
   path stays the default; the gap makes its quality visible.
 - Acceptance: on the phase 0 panels, the gap reported in seconds.
 
-### Phase 5: the statistical layer from Trimmed Match Design
+### Phase 5: power analysis
 
-- Power from the evaluation window: simulate random within-pair assignment on
-  the blank window (TMD Algorithm 1 for PANGEO's DiD estimator, and for Trimmed
-  Match where effects are heavy tailed), report RMSE and the MDE from it, next
-  to today's in-sample MDE.
-- Q (and the number of pairs) chosen by the cross-validated RMSE.
-- Rerandomization: within-pair assignment drawn until stated balance checks
-  pass (TMD section 4.3), the checks and the draws recorded on the result.
-- Optional geo exclusion: singleton columns at zero cost with a bound on their
-  number, the set-partitioning form of TMD's pseudo geos.
-- Acceptance: a placebo study (study's earlier GSW comparison as the template)
-  showing whether the cross-validated choice beats the in-sample one in RMSE.
+The variance of the design's iROAS estimate has a closed form, and the window it
+is evaluated on decides whether the number means anything.
+
+- Closed form. Under a common iROAS, a fixed budget B and the ratio estimator,
+  the randomization over the coin flips gives Var(theta_hat) = sum_k D_k^2 / B^2,
+  D_k the difference between supergeo k's halves in the test window's response
+  without treatment (Chen, Doudchenko, Jiang, Stein and Ying, "Supergeo design",
+  arXiv:2301.12044, eq. 3). The minimum detectable iROAS is
+  (z_{1-alpha} + z_{power}) sqrt(sum_k D_k^2) / B, about 2.49 sqrt(sum D_k^2) / B
+  for a one-sided 5% test with 80% power; the budget for a target iROAS theta* is
+  2.49 sqrt(sum D_k^2) / theta*.
+- Held-out windows. The D_k of the test window are unknown at design time, and on
+  the design's own window they are the design loss, which understates them: on
+  the simulated 180-market panel (study README) sqrt(sum D_k^2) was 0.63 in sample
+  and 583 at the median held-out 4-week window, a minimum detectable iROAS of
+  0.001 against 0.99 (1.54 at the 95th percentile). Design on one window and
+  evaluate on others (Chen, Longfils and Remy, arXiv:2105.07060, Algorithm 1).
+  Report the median and a high percentile over the evaluation windows.
+- Rolling re-design. The faithful backtest re-runs the design at each historical
+  date and evaluates it on the next window, at the lag the real test has; one
+  design evaluated on distant windows mixes in the decay of its balance. The
+  design is reproducible (step-budgeted heuristic, seed), so each backtest design
+  is too.
+- Test length. On that panel the minimum detectable iROAS fell only from 1.03 at
+  1 week to 0.84 at 26 weeks: the halves' differences drift (trends, seasons,
+  persistent factors) and grow almost as fast as the budget. The power analysis
+  reports the curve against length, and the estimators below are compared on it.
+- Estimators by simulation. For the Trimmed Match estimator (phase 6), a
+  pretest-adjusted estimator (difference in differences, or the TBR regression),
+  and heterogeneous iROAS, there is no closed form: inject a known effect into
+  each evaluation window, draw assignments, run the estimator, take the RMSE
+  (TMD Algorithm 1). With few supergeos, critical values from the permutation
+  distribution of sum_k A_k D_k (on the 180-market design, 47 supergeos, the
+  permutation 95th percentile was 1.647 standard errors against the normal 1.645).
+- Budget. The fixed-budget assumption holds when the change is proportional to
+  each treated geo's spend with the ratio set from the realized assignment
+  (Chen et al. 2023, Assumption 4); a full go-dark cuts the treated geos' whole
+  spend, which varies with the assignment. On the simulated panel a full go-dark
+  cut 1,835 +- 59 (half of all spend) against a cap of 1,468, in every assignment;
+  the proportional cut met the cap exactly with a ratio of 0.80. Re-choosing the
+  splits to balance spend narrowed the cut's spread and raised the iROAS error
+  12%, so spend balance is a constraint for small designs, not an objective.
+- Also from Trimmed Match Design: the maximum supergeo size (Q) and the number of
+  pairs chosen by the cross-validated RMSE, rerandomization with recorded balance
+  checks (TMD section 4.3), and optional geo exclusion as singleton columns with a
+  bound on their number. Excluding geos changes the estimand to the included
+  geos' spend-weighted iROAS and can bias it when their iROAS differs (Chen et al.
+  2023, err_3); the result says which estimand it reports.
+- Acceptance: the closed form against simulation on the same windows; a placebo
+  study on held-out windows showing whether the cross-validated choices beat the
+  in-sample ones in RMSE.
 
 ### Phase 6: Trimmed Match as an analysis estimator
 
-A separate estimator, own branch and replication (Chen and Au 2019; TMD), used
-by phase 5's simulations and by PANGEO's analysis of a finished experiment.
+A separate estimator, own branch: the trimmed ratio estimator of Chen and Au
+("Robust causal inference for incremental return on ad spend with randomized geo
+experiments", Annals of Applied Statistics), with its confidence interval, for
+pairs and for supergeo pairs. Used by phase 5's simulations and by PANGEO's
+analysis of a finished experiment.
+
+- Reference implementation: google/trimmed_match (Apache 2.0, "for research
+  purposes only"), a C++ core with a Python wrapper built by bazel, tested with
+  Python 3.7. Its estimator is `trimmed_match.estimator.TrimmedMatch`, taking the
+  per-pair `delta_response` and `delta_spend` (treatment minus control), with
+  `Report(confidence=...)` returning the estimate and the interval. Its design
+  package is described as preliminary and demonstrated in a notebook; its entry
+  points are to be read from the package source before the design benchmark is
+  written.
+- Trimming and supergeos: Chen et al. (2023, section 4) show trimming poorly
+  matched pairs can bias the estimate under heterogeneous iROAS, and that the
+  supergeo design does not introduce that bias; the estimator reports how many
+  pairs it trimmed, and phase 5 measures the bias on simulated heterogeneous
+  effects.
 
 ### Phase 7: benchmarks and docs (separate workstream)
 
-`benchmarks/cases/pangeo_certificate.py` (certified optima on fixed panels),
-`docs/replications/` pages, and the PANGEO docs page's Verification pointer and
-solver section.
+- `benchmarks/cases/trimmed_match.py`, cross-validation against the reference
+  implementation: the estimate, the trimming and the interval on fixed inputs
+  (the README's toy example, simulated pairs, pairs from a public panel) match
+  google/trimmed_match. The reference needs bazel, so its outputs are generated
+  once by a script under `benchmarks/` and kept as a fixture with the commit of
+  the reference they came from; the case compares against the fixture.
+- `benchmarks/cases/pangeo_power.py`: the closed-form variance against
+  simulation, and the power analysis against the reference design package's
+  RMSE on the same pairs and windows, once its entry points are confirmed.
+- `benchmarks/cases/pangeo_certificate.py`: certified optima on fixed panels.
+- `docs/replications/` pages for each, and the PANGEO docs page's Verification
+  pointer, solver section and power-analysis section.
+- The supergeo paper's results (Chen et al. 2023, Tables 1 to 3) inject synthetic
+  effects into two private advertising datasets of the 210 US DMAs, so neither
+  path A nor path B applies; the Trimmed Match case is cross-validation.
 
 ## Order and dependencies
 
-Phase 0, then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5
-can start after phase 1 and runs beside 2 to 4. Phase 6 before phase 5's Trimmed
-Match variant. Phase 7 after each phase lands.
+Phase 0, then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5's
+closed form and backtest can start after phase 1 and run beside 2 to 4; its
+Trimmed Match simulations follow phase 6. The Trimmed Match benchmark (phase 7)
+lands with phase 6. The rest of phase 7 after each phase lands.
 
 ## Risks
 
