@@ -532,12 +532,53 @@ same supergeos.
   effects into two private advertising datasets of the 210 US DMAs, so neither
   path A nor path B applies; the Trimmed Match case is cross-validation.
 
+### Phase 8 (open): designs that survive losing markets
+
+A design is fixed before the test, and markets can be lost during it: a data
+outage, contamination from a national campaign, a market withdrawn by its owner.
+Recoverable robustness (Büsing, "Recoverable Robustness in Combinatorial
+Optimization", dissertation, TU Berlin, 2010; Cuvillier, 2011) models this in two
+stages: choose a design now, then, once a scenario is revealed, repair it within
+a stated recovery rule, and optimise the first-stage design against the worst
+repaired outcome. Two of its recovery rules fit geo designs:
+
+- exact subset recovery (chapter 4): the repair may only keep part of the
+  design, so the groups containing a lost market are dropped;
+- k-distance recovery (chapter 2): the affected groups may be re-formed, with at
+  most k markets moved.
+
+Its Γ-scenarios (at most Γ elements fail; sections 2.4, 3.4, 4.4) are "at most Γ
+markets lost".
+
+Two limits. The thesis solves knapsack, shortest path, minimum cut, matroid bases
+and disjoint hitting set, not matching or set partitioning, so the framework
+carries over and the algorithms do not. And the objective decides whether the
+problem exists: under supergeo_total a dropped group removes its term from the
+sum, so losing markets lowers the cost and the robust problem is trivial. It
+binds only under an objective that charges for lost markets, the variance of the
+estimator (phase 5) or a floor on the number of groups or on the share of the
+population covered.
+
+Measurement first, any time after phase 0b: on the certified designs of the
+study's panels, remove the worst single market and the worst pair (N and
+N(N-1)/2 scenarios), drop the groups they sit in, and report the change in
+balance and in the closed-form variance. A small change closes the phase as a
+note; a large one opens a design phase, starting from the Γ-scenario model and
+the extended cover inequalities of the thesis's recoverable robust knapsack
+(chapter 5).
+
+Trimmed Match is a different mechanism: its estimator trims the pairs with
+extreme effects after the test, and its design's pair exclusion chooses how many
+pairs to keep. Neither repairs a design after a market is lost.
+
 ## Order and dependencies
 
 Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 0c (the general solver against the closed form on pairs: heuristic stopping, odd-set cuts, the matching oracles), then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5's
 closed form and backtest can start after phase 1 and run beside 2 to 4; its
 Trimmed Match simulations follow phase 6, and phase 6b follows phase 6. The Trimmed Match benchmark (phase 7)
-lands with phase 6. The rest of phase 7 after each phase lands.
+lands with phase 6. The rest of phase 7 after each phase lands. Phase 8 is open:
+its measurement can run any time after phase 0b, and any design work waits on
+phase 5's variance.
 
 ## Risks
 
