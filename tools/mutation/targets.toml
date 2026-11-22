@@ -17981,6 +17981,705 @@ timeout = 600.0
   models = "a size the time limit cut short reported without saying so"
 
 [[target]]
+name = "supergeo-bcp"
+module-path = "benchmarks/studies/supergeo/bcp.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_bcp.py -q -p no:cacheprovider -x"
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "fixing-reads-a-nodes-duals"
+  find = "            bound, best, scan = self._root_last[:3]  # the root's duals: a node's hold only in its subtree"
+  replace = "            bound, best, scan = self._last[:3]"
+  models = "reduced-cost fixing with the duals of whichever node solved last: when the first incumbent is a leaf deep in the tree, those duals price under that node's branching decisions, and a group a better design needs elsewhere is dropped"
+
+  [[target.mutant]]
+  id = "parity-dual-left-out-of-elimination"
+  find = "                scan = lambda th, cap: _scan_bcp(z_, pi, tau, Q, R, T, self.lo, self.hi, th, cap)"
+  replace = "                scan = lambda th, cap: _scan_bcp(z_, pi, 0.0, Q, R, T, self.lo, self.hi, th, cap)"
+  models = "the parity dual left out of the elimination scan for odd N: every odd group's reduced cost reads tau too high, so an odd group a better design needs is eliminated"
+
+  [[target.mutant]]
+  id = "pricing-continues-after-fixing"
+  find = "            if self.universe is not None:\n                pass                    # every group that can be in a better design is in the master\n            else:\n                self.stats[\"scans_after_fix\"] += self.universe is not None\n                Q, R"
+  replace = "            if False:\n                pass\n            else:\n                self.stats[\"scans_after_fix\"] += self.universe is not None\n                Q, R"
+  models = "the full scan kept after the universe is fixed: correct, and the 4 to 11 times the cost per node the root-cause analysis measured at 50 markets"
+
+  [[target.mutant]]
+  id = "the-universe-never-shrinks"
+  find = "        keep = {c for c, rc in r[\"rc\"].items() if rc <= theta} | "
+  replace = "        keep = set(r[\"rc\"]) | "
+  models = "a better incumbent never refilters the universe: the master keeps every group fixed at the start's cost, 3,284 on the 50-state panel where 422 can be in a better design"
+
+  [[target.mutant]]
+  id = "the-master-keeps-every-priced-column"
+  find = "        self.cols = sorted(keep)\n"
+  replace = "        self.cols = sorted(set(self.cols) | keep)\n"
+  models = "the universe computed and the master's pool left as it was: every column priced before the fix stays in every node LP"
+
+  [[target.mutant]]
+  id = "root-mip-at-the-solver-default-gap"
+  find = "return_status=True, gap=0.0)"
+  replace = "return_status=True)"
+  models = "the root MIP at HiGHS's default relative gap of 1e-4: it stops at a warm start that close, the lognormal instance's 8.2e-6"
+
+  [[target.mutant]]
+  id = "root-mip-result-discarded"
+  find = "        if val < ub:\n            self.stats[\"root_mip_improved\"] = 1"
+  replace = "        if False:\n            self.stats[\"root_mip_improved\"] = 1"
+  models = "the root MIP solved and its design thrown away: the search starts from the heuristic, 48.9 times the optimum on the 50-state panel"
+
+  [[target.mutant]]
+  id = "a-universe-group-dropped-from-the-children"
+  find = "                    g = [c for c in self._by_market[i] if bnp.compat_py(T, c) and self.score[c] < ub]"
+  replace = "                    g = [c for c in self._by_market[i] if bnp.compat_py(T, c) and self.score[c] < ub][1:]"
+  models = "a group branch over the universe that leaves one of the market's groups out: the children no longer cover every better design"
+
+  [[target.mutant]]
+  id = "universe-children-ignore-the-node"
+  find = "                    g = [c for c in self._by_market[i] if bnp.compat_py(T, c) and self.score[c] < ub]"
+  replace = "                    g = [c for c in self._by_market[i] if self.score[c] < ub]"
+  models = "group children drawn from the universe without the node's pair decisions: a child can fix a group the node already forbids"
+
+  [[target.mutant]]
+  id = "group-branching-scans-every-group-after-fixing"
+  find = "                if self.universe is not None:\n                    # a better design puts market i in one universe group"
+  replace = "                if False:\n                    # a better design puts market i in one universe group"
+  models = "the scan of every group holding the market kept after the universe is fixed: 92% of a 50-state node, and the absolute loss test that leaves an outlier instance to pair branching"
+
+  [[target.mutant]]
+  id = "exact-start-result-discarded"
+  find = "            if val < ub:\n                self.stats[\"start_improved\"] = 1"
+  replace = "            if False:\n                self.stats[\"start_improved\"] = 1"
+  models = "the exact search's cover thrown away: the tree starts from pairs plus repair, 48.9 times the 50-state optimum"
+
+  [[target.mutant]]
+  id = "no-refix-after-the-exact-start"
+  find = "                self._fix(val, found)\n                return val, found"
+  replace = "                return val, found"
+  models = "the exact start's incumbent not used to shrink the universe: the tree runs over the groups fixed at the heuristic's cost"
+
+  [[target.mutant]]
+  id = "exact-start-bound-without-the-minimum-reduced-cost"
+  find = "        m = min([certify_exact.exact_rc_tau(self.z, pi, tau, c) for c in cand] + [Fraction(0)])"
+  replace = "        m = Fraction(0)"
+  models = "the exact search's node bound without the (|U|/lo) m term: it overstates the bound and prunes covers cheaper than the start"
+
+  [[target.mutant]]
+  id = "exact-start-at-every-size"
+  find = "    return \"exact\" if n <= 62 else \"mip\""
+  replace = "    return \"exact\""
+  models = "the exact search dispatched above 62 markets, where its 64-bit masks cannot hold a group"
+
+  [[target.mutant]]
+  id = "children-start-cold"
+  find = "                heapq.heappush(heap, (max(bnd, prio), nid, T2, None, depth + 1, warm))"
+  replace = "                heapq.heappush(heap, (max(bnd, prio), nid, T2, None, depth + 1, None))"
+  models = "the parent's basis not handed to its children: every node's simplex starts cold from the artificial basis"
+
+  [[target.mutant]]
+  id = "simplex-bound-without-the-cut-duals"
+  find = "            bound = float(np.sum(pi)) + tau + float(np.sum(sigma))     # every universe group is in the master"
+  replace = "            bound = float(np.sum(pi)) + tau"
+  models = "the simplex node bound without sum sigma rhs (sigma <= 0): it overstates the LP value and prunes nodes that hold a better design"
+
+  [[target.mutant]]
+  id = "simplex-rank1-bound-without-the-cut-duals"
+  find = "            bound = float(np.sum(pi)) + tau + float(sum(sg_ * c.rhs for sg_, c in zip(sigma, self.cuts)))\n            self._last"
+  replace = "            bound = float(np.sum(pi)) + tau\n            self._last"
+  models = "the rank-1 simplex bound without its cut duals, as above for the rank-1 families"
+
+  [[target.mutant]]
+  id = "no-refix-after-the-root-mip"
+  find = "            self.stats[\"root_mip_improved\"] = 1\n            self._fix(val, found)\n"
+  replace = "            self.stats[\"root_mip_improved\"] = 1\n"
+  models = "the root MIP's incumbent not used to shrink the universe: the tree runs over the set fixed at the heuristic's cost"
+
+[[target]]
+name = "supergeo-rank1"
+module-path = "benchmarks/studies/supergeo/rank1.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_rank1.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "rescale-every-round"
+  find = "            if not rescaled and 0 < lp < 1e-2 * n:"
+  replace = "            if 0 < lp < 1e-2 * n:"
+  models = "the cost rescale on every tiny LP: an LP of 0 up to noise rescales again each time, and the costs reach 8e31"
+  expected = "survived"
+  accepted-because = "equivalent under the cap: _rescale_power never lifts the dearest column past 1e10, so a second rescale can add at most what the cap leaves, and no test can see the difference. The once-only guard stays as documentation of intent and to save the re-solves."
+
+  [[target.mutant]]
+  id = "rescale-uncapped"
+  find = "    if top > 0:\n        k = min(k, int(math.floor((math.log(cap) - math.log(top)) / math.log(4))))"
+  replace = "    if False:\n        k = min(k, int(math.floor((math.log(cap) - math.log(top)) / math.log(4))))"
+  models = "the rescale power taken from the LP alone: an LP of 1.6e-30 gives 4^50, costs of 8e31, and HiGHS returns 'Unknown'"
+
+[[target]]
+name = "supergeo-bnp"
+module-path = "benchmarks/studies/supergeo/bnp.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_bcp.py benchmarks/studies/supergeo/test_bnp.py -q -p no:cacheprovider -x -k \"artificial or brute or property\""
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "artificials-at-a-fixed-price"
+  find = "    return max(BIG, factor * float(np.max(np.abs(np.asarray(costs, float)), initial=0.0)))"
+  replace = "    return BIG"
+  models = "the artificials at a fixed 1e7 whatever the columns cost: after a rescale columns cost 9e9, a feasible master covers a market artificially, and the node is pruned as infeasible"
+
+  [[target.mutant]]
+  id = "a-feasible-master-is-not-solved-again"
+  find = "        big *= 1e3\n"
+  replace = "        return out\n"
+  models = "the phase-1 LP finds the master feasible and its artificial use is reported anyway: the node is pruned"
+
+  [[target.mutant]]
+  id = "phase-one-skipped"
+  find = "        if fn(cols, np.zeros(len(costs)), n, odd, *rest, big=1.0)[-1] > 1e-9:"
+  replace = "        if True:"
+  models = "any artificial in use read as infeasibility without the phase-1 check"
+
+[[target]]
+name = "supergeo-sg"
+module-path = "benchmarks/studies/supergeo/sg.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_bcp.py -q -p no:cacheprovider -x -k presolve"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "presolve-failure-not-retried"
+  find = "    if st != \"Optimal\":\n        h.setOptionValue(\"presolve\", \"off\")"
+  replace = "    if False:\n        h.setOptionValue(\"presolve\", \"off\")"
+  models = "a master HiGHS's presolve cannot solve reported as a failure: the 14-market node that raised 'Solve error'"
+
+[[target]]
+name = "supergeo-lpsx"
+module-path = "benchmarks/studies/supergeo/lpsx.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_lpsx.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-removed-basic-column-is-not-a-violation"
+  find = "            elif xB[i] > TOL_P and not allowed[basis[i]]:\n                rho = -xB[i]                         # above its upper bound 0: u - x < 0"
+  replace = "            elif False:\n                rho = -xB[i]"
+  models = "the dual simplex blind to a column the node forbids that is still basic above 0: the child keeps it, and the LP is the parent's"
+
+  [[target.mutant]]
+  id = "the-primal-step-ignores-a-removed-columns-zero-bound"
+  find = "            elif col[i] < -TOL_PIV and not allowed[basis[i]]:\n                t = (max(-xB[i], 0.0) + HARRIS) / (-col[i])"
+  replace = "            elif False:\n                t = (max(-xB[i], 0.0) + HARRIS) / (-col[i])"
+  models = "the primal ratio test without the upper bound 0 of a forbidden basic column: the step raises it, and a forbidden group enters the solution"
+
+  [[target.mutant]]
+  id = "the-inverse-update-leaves-the-pivot-row"
+  find = "    for k in range(m):\n        Binv[r, k] /= piv"
+  replace = "    for k in range(m):\n        Binv[r, k] /= 1.0"
+  models = "Pan (3.21) applied without dividing the pivot row by the pivot: the inverse is of a different basis after the first pivot"
+
+  [[target.mutant]]
+  id = "violated-cuts-are-never-activated"
+  find = "            viol = [(float(v[t]), pool_keys[t]) for t in np.flatnonzero(v > TOL_P) if pool_keys[t] not in act]"
+  replace = "            viol = []"
+  models = "row activation off: the LP ignores every pool cut, its value is the cut-free relaxation, and its point violates the cuts"
+
+  [[target.mutant]]
+  id = "a-feasible-node-keeps-its-artificial"
+  find = "            big *= 1e3; warm = None"
+  replace = "            return r"
+  models = "the phase-1 LP finds the node feasible and its artificial use is returned anyway: the search prunes a feasible node"
+
+  [[target.mutant]]
+  id = "a-duplicate-cut-takes-the-dual-again"
+  find = "            k = cut_key(cut); out.append(0.0 if k in seen else sig.get(k, 0.0)); seen.add(k)"
+  replace = "            k = cut_key(cut); out.append(sig.get(k, 0.0)); seen.add(k)"
+  models = "every copy of a cut in the pool given the row's dual: sum sigma rhs counts the row as often as it is listed, and the node bound is wrong"
+
+[[target]]
+name = "supergeo-certify-staged"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"not same_exact\""
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "survivors-fixed-at-the-first-incumbent"
+  find = "        T = UB - allowed(UB) if design is not None else UB"
+  replace = "        T = (UB - allowed(UB) if design is not None else UB) if not stages else T"
+  models = "the elimination run once at the starting design's cost: every stage searches the same survivors, 3,284 on the 50-state panel where 549 remain at the third stage's incumbent"
+
+  [[target.mutant]]
+  id = "a-float-stage-claims-the-proof"
+  find = "            proved = within(UB)\n        else:"
+  replace = "            proved = within(UB) or status == 0\n        else:"
+  models = "a capped stage on floating-point scores that completes taken as the proof: its search ran on rounded costs with a margin built for exact inputs"
+
+  [[target.mutant]]
+  id = "a-stages-better-cover-is-dropped"
+  find = "            if better is not None:\n                UB, design = better"
+  replace = "            if False:\n                UB, design = better"
+  models = "each capped stage's best cover thrown away: the final stage starts from the starting design and its survivors"
+
+  [[target.mutant]]
+  id = "auto-staging-ignores-the-halving-rule"
+  find = "            capped = last is None or (last[\"improved\"] and len(rows) <= keep * last[\"survivors\"])"
+  replace = "            capped = last is None or last[\"improved\"]"
+  models = "automatic staging continued while the survivors barely shrink: at 80 markets six capped stages took 688 s against 566 s for three"
+
+  [[target.mutant]]
+  id = "elimination-without-the-reduced-cost-floor"
+  find = "    th = up(UB - S - (Fraction(n, lo) - 1) * m)\n    if window is not None and th <= window[1]:"
+  replace = "    th = up(UB - S)\n    if window is not None and th <= window[1]:"
+  models = "the elimination threshold without the (N/lo - 1) m term: columns a better design needs are eliminated when m < 0"
+
+  [[target.mutant]]
+  id = "later-stages-keep-the-last-stages-rows"
+  find = "    return rows[ex.members2(z, pi, rows, th, tau, False)]"
+  replace = "    return rows"
+  models = "a later stage handed the last stage's rows unscreened: a better incumbent eliminates nothing"
+
+  [[target.mutant]]
+  id = "the-screen-without-the-parity-dual"
+  find = "    return rows[ex.members2(z, pi, rows, th, tau, False)]"
+  replace = "    return rows[ex.members2(z, pi, rows, th, 0.0, False)]"
+  models = "the later stages' exact test without the parity dual tau: odd groups lose their credit and can be eliminated"
+
+  [[target.mutant]]
+  id = "the-screen-at-the-full-reduced-cost-floor"
+  find = "    th = up(UB - S - (Fraction(n, lo) - 1) * m)\n    return rows[ex.members2"
+  replace = "    th = up(UB - S - Fraction(n, lo) * m)\n    return rows[ex.members2"
+  models = "the later stages' threshold with N / lo copies of m in place of N / lo - 1: a different survivor set from the window's"
+  [[target.mutant]]
+  id = "the-gap-ignored-when-stopping"
+  find = "        return design is not None and ub - LB <= allowed(ub)"
+  replace = "        return design is not None and ub == LB"
+  models = "a gap the bound already proves still sends the run to the exact search"
+
+  [[target.mutant]]
+  id = "elimination-at-the-incumbent-not-the-target"
+  find = "            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, T, window=shared)"
+  replace = "            rows, nwin = _survivor_rows(z, pi, tau, lo, hi, S, m, UB, window=shared)"
+  models = "the first stage keeps every group of a design costing up to the incumbent, not up to (1 - g) times it"
+
+  [[target.mutant]]
+  id = "the-target-at-twice-the-gap"
+  find = "        T = UB - allowed(UB) if design is not None else UB"
+  replace = "        T = UB - 2 * allowed(UB) if design is not None else UB"
+  models = "the search rules out designs below (1 - 2g) UB while the result claims (1 - g) UB"
+
+  [[target.mutant]]
+  id = "the-proven-bound-stays-at-the-root"
+  find = "                lb_proved = UB if found is not None else T"
+  replace = "                lb_proved = LB"
+  models = "a completed exact stage reports the root bound as proven, so the proven gap overstates what remains"
+
+  [[target.mutant]]
+  id = "a-found-design-proves-only-the-target"
+  find = "                lb_proved = UB if found is not None else T"
+  replace = "                lb_proved = T"
+  models = "when the exact stage finds a design below T it has found the optimum, but the proven bound is left at T, above the optimum"
+  [[target.mutant]]
+  id = "the-standard-not-applied"
+  find = "        return rows if tq is None else rows[ex.members2(z, zeros, rows, tq, 0.0, False)]"
+  replace = "        return rows"
+  models = "groups above the threshold stay among the survivors, so the design can break the standard it reports"
+
+  [[target.mutant]]
+  id = "a-start-that-breaks-the-standard-is-kept"
+  find = "            design = None                           # the start breaks the standard"
+  replace = "            pass"
+  models = "a starting design with a group above the threshold kept as the incumbent and returned when nothing cheaper meets the standard"
+
+  [[target.mutant]]
+  id = "the-gap-shrinks-the-search-before-a-design"
+  find = "        T = UB - allowed(UB) if design is not None else UB"
+  replace = "        T = UB - allowed(UB)"
+  models = "with no design meeting the standard yet, the search stops short of (N // lo) t and can report infeasible when designs costing more than (1 - g) of it meet the standard"
+
+  [[target.mutant]]
+  id = "the-standard-in-the-rescaled-units"
+  find = "        tq = float(max_group_cost) * scale          # scale is a power of 4: exact"
+  replace = "        tq = float(max_group_cost)"
+  models = "the threshold compared with costs in the certificate's rescaled units: after a rescale the standard admits far fewer groups than asked"
+
+  [[target.mutant]]
+  id = "the-virtual-start-proves-the-gap"
+  find = "        return design is not None and ub - LB <= allowed(ub)"
+  replace = "        return ub - LB <= allowed(ub)"
+  models = "the bound compared with the start value (N // lo) t, which no design is known to reach, and taken as a proof"
+  [[target.mutant]]
+  id = "the-absolute-gap-ignored"
+  find = "        return max(G * ub, D)"
+  replace = "        return G * ub"
+  models = "an absolute gap accepted and reported but never used: similar-sized panels run to the exact search for a gap the bound already proves"
+
+  [[target.mutant]]
+  id = "the-two-gaps-added"
+  find = "        return max(G * ub, D)"
+  replace = "        return G * ub + D"
+  models = "the relative and absolute gaps summed: the search proves less than the max(g UB, d) the result claims"
+
+  [[target.mutant]]
+  id = "the-absolute-gap-in-rescaled-units"
+  find = "    D = Fraction(abs_gap) * Fraction(scale)        # in the rescaled units of the costs"
+  replace = "    D = Fraction(abs_gap)"
+  models = "the absolute gap compared with costs in the certificate's rescaled units: after a rescale it allows far less than asked"
+  [[target.mutant]]
+  id = "the-shared-window-used-below-its-threshold"
+  find = "    if window is not None and th <= window[1]:"
+  replace = "    if window is not None:"
+  models = "the shared window screened at a first-stage threshold above the one it was built for: groups the stage needs are missing"
+
+  [[target.mutant]]
+  id = "a-negative-window-guess-kept"
+  find = "    thw = max(_window_threshold(z, pi, tau, lo, hi, S0, T0), 0.0)"
+  replace = "    thw = _window_threshold(z, pi, tau, lo, hi, S0, T0)"
+  models = "a threshold guess below 0 used for the shared window, which then misses columns of negative reduced cost and makes the bound too high"
+
+  [[target.mutant]]
+  id = "the-window-guess-without-the-reduced-cost-term"
+  find = "    mg = min(0.0, mf)\n"
+  replace = "    mg = 0.0\n"
+  models = "the window threshold guessed with m = 0: below the first stage's whenever m < 0, so the window is built twice"
+[[target]]
+name = "supergeo-verify-rows"
+module-path = "benchmarks/studies/supergeo/verify_nb.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k \"rows_search\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "rows-search-drops-a-member-dual"
+  find = "    pisum = np.where(rows >= 0, pi[np.maximum(rows, 0)], 0.0).sum(1); odd = (k % 2 == 1)"
+  replace = "    pisum = np.where(rows >= 0, pi[np.maximum(rows, 0)], 0.0)[:, :2].sum(1); odd = (k % 2 == 1)"
+  models = "a column's dual sum taken over its first two markets: the node bound is wrong for groups of 3 and 4, and covers are pruned that hold the optimum"
+
+  [[target.mutant]]
+  id = "rows-search-indexes-markets-by-count"
+  find = "    gptr = np.zeros(n + 1, np.int64); gptr[1:] = np.cumsum(np.bincount(mk, minlength=n))"
+  replace = "    gptr = np.zeros(n + 1, np.int64); gptr[1:] = np.cumsum(np.bincount(np.minimum(mk + 1, n - 1), minlength=n))"
+  models = "the per-market column lists offset by one market: the search branches on a market's neighbour's columns"
+
+[[target]]
+name = "supergeo-verify-wide"
+module-path = "benchmarks/studies/supergeo/verify_nb.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k \"several_words or seventy\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-market-in-the-wrong-bit"
+  find = "            for g in c: masks[j, g // B] |= np.int64(1) << (g % B)"
+  replace = "            for g in c: masks[j, g // B] |= np.int64(1) << ((g + 1) % B)"
+  models = "markets mapped to the wrong bit of their word: two markets share a bit, and covers that overlap pass as exact"
+
+  [[target.mutant]]
+  id = "branching-scans-the-first-word-only"
+  find = "        bestc = 1 << 30; gb = -1\n        for w in range(W):\n            x = U1[w]"
+  replace = "        bestc = 1 << 30; gb = -1\n        for w in range(1):\n            x = U1[w]"
+  models = "the fewest-columns market chosen among the first word's markets alone: once those are covered no market is chosen and the branch is lost"
+
+  [[target.mutant]]
+  id = "the-bound-counts-the-first-word-only"
+  find = "            cnt += _popcount(U1[w])\n        P1 = Pd[depth] + cost[col]\n        S1 = Sd[depth] - pisum[col]\n        O1 = Od[depth] or odd[col]\n        path[depth] = col"
+  replace = "            cnt += _popcount(U1[w]) if w == 0 else 0\n        P1 = Pd[depth] + cost[col]\n        S1 = Sd[depth] - pisum[col]\n        O1 = Od[depth] or odd[col]\n        path[depth] = col"
+  models = "the node bound with |U| from the first word: (|U|/lo) m with m <= 0 is too small a correction, the bound too high, and nodes holding the optimum are pruned"
+
+  [[target.mutant]]
+  id = "a-cover-judged-by-the-first-word"
+  find = "            if U1[w] != 0: empty = False\n            cnt += _popcount(U1[w])\n        P1 = Pd[depth] + cost[col]\n        S1 = Sd[depth] - pisum[col]\n        O1 = Od[depth] or odd[col]\n        path[depth] = col"
+  replace = "            if U1[w] != 0 and w == 0: empty = False\n            cnt += _popcount(U1[w])\n        P1 = Pd[depth] + cost[col]\n        S1 = Sd[depth] - pisum[col]\n        O1 = Od[depth] or odd[col]\n        path[depth] = col"
+  models = "a partial cover recorded as complete once the first word's markets are covered"
+
+[[target]]
+name = "supergeo-verify-parallel"
+module-path = "benchmarks/studies/supergeo/verify_nb.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k \"parallel or subtree or bounds_the_total or rows_search_on_threads or uses_the_threads\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-subtree-prunes-on-its-starting-incumbent"
+  find = "        if lb - err >= shared[0]:\n            continue\n        bestc, gb = _branch_geo"
+  replace = "        if lb - err >= 1e300:\n            continue\n        bestc, gb = _branch_geo"
+  models = "a task that never reads the incumbent other threads have written (here, any incumbent): correct and as slow as no pruning"
+
+  [[target.mutant]]
+  id = "a-subtree-keeps-its-incumbent-to-itself"
+  find = "                if P1 + err < shared[0]:\n                    shared[0] = P1 + err\n            continue\n        lb = P1 + S1"
+  replace = "                if P1 + err < shared[0]:\n                    pass\n            continue\n        lb = P1 + S1"
+  models = "a better cover recorded but its upper value never written to the shared incumbent, so no thread prunes on it"
+
+  [[target.mutant]]
+  id = "a-subtree-records-covers-without-its-prefix"
+  find = "    for t in range(d0): path[t] = prefix[t]"
+  replace = "    pass"
+  models = "a task's recorded covers missing the columns above its root: partial designs, re-costed as cheaper than any cover"
+
+  [[target.mutant]]
+  id = "frontier-leaves-dropped"
+  find = "                leaves.append(path)"
+  replace = "                pass"
+  models = "complete covers met while the frontier is cut neither recorded nor searched: an optimum at the top of the tree is lost"
+
+  [[target.mutant]]
+  id = "frontier-children-forget-an-odd-column"
+  find = "        P1 = P + cost[col]; S1 = S - pisum[col]; O1 = O or odd[col]"
+  replace = "        P1 = P + cost[col]; S1 = S - pisum[col]; O1 = O"
+  models = "a frontier node below an odd column still charged the parity dual tau, so its bound is too high and the optimum pruned"
+
+  [[target.mutant]]
+  id = "frontier-children-keep-the-column-duals"
+  find = "        P1 = P + cost[col]; S1 = S - pisum[col]; O1 = O or odd[col]"
+  replace = "        P1 = P + cost[col]; S1 = S; O1 = O or odd[col]"
+  models = "a frontier node's dual sum still holding the duals of the markets its column covered: the bound counts them twice"
+
+  [[target.mutant]]
+  id = "threads-search-only-the-first-task"
+  find = "            if i is None:\n                break"
+  replace = "            if i is None or i > 0:\n                break"
+  models = "tasks after the first never searched: the parallel search proves on part of the tree"
+
+  [[target.mutant]]
+  id = "a-thread-checks-only-its-own-count"
+  find = "            for r in range(counts.shape[0]):\n                tot += counts[r, 0]"
+  replace = "            for r in range(slot, slot + 1):\n                tot += counts[r, 0]"
+  models = "each thread stops on its own nodes alone, so four threads run to four times the limit"
+
+  [[target.mutant]]
+  id = "a-threads-count-is-never-published"
+  find = "        if nodes & 1023 == 0:\n            counts[slot, 0] = base + nodes\n"
+  replace = "        if nodes & 1023 == 0:\n"
+  models = "a thread checks the sum without writing its own count first: the other threads see none of its nodes until its subtree ends"
+  [[target.mutant]]
+  id = "the-capped-search-ignores-its-workers"
+  find = "    if workers is not None:\n        S0 = 0.0"
+  replace = "    if False:\n        S0 = 0.0"
+  models = "verify_rows accepts workers and runs on one thread: the capped stages keep their 21 s at 120 markets"
+
+  [[target.mutant]]
+  id = "a-capped-cover-keeps-its-padding"
+  find = "        return status, int(nodes), [np.array([j for j in r if j >= 0], np.int64) for r in found]"
+  replace = "        return status, int(nodes), [np.array(r, np.int64) for r in found]"
+  models = "a recorded cover returned with its -1 padding, read by the caller as the last row"
+
+[[target]]
+name = "supergeo-exactnb-filter"
+module-path = "benchmarks/studies/supergeo/exactnb.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_exactnb.py -q -p no:cacheprovider -x -k \"within_its_bound or members2 or outside_the_error_model\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-filter-bound-without-the-square"
+  find = "    bnd = 16.0 * 2.0 ** -53 * (A * A + P + abs(tau) + abs(theta))"
+  replace = "    bnd = 16.0 * 2.0 ** -53 * (P + abs(tau) + abs(theta))"
+  models = "the error bound without the rounding of the squared split sums, the largest term: near ties are decided by a float whose sign can be wrong"
+
+  [[target.mutant]]
+  id = "undecided-rows-decided-by-the-float"
+  find = "        else:\n            out[r] = member2(z, pi, rows[r], k, theta, tau, strict)"
+  replace = "        else:\n            out[r] = v <= 0"
+  models = "rows within the error bound decided by the float's sign instead of the exact test"
+
+  [[target.mutant]]
+  id = "the-filter-decisions-swapped"
+  find = "        if v > b:\n            out[r] = False"
+  replace = "        if v > b:\n            out[r] = True"
+  models = "a row whose float value is certainly above the threshold kept as a member"
+
+  [[target.mutant]]
+  id = "the-filter-range-guard-dropped"
+  find = "    if not (2.0 ** -400 <= A <= 2.0 ** 400):\n        return 0.0, np.inf"
+  replace = "    if False:\n        return 0.0, np.inf"
+  models = "the filter trusted outside the range where its relative error model holds"
+
+  [[target.mutant]]
+  id = "the-filter-forgets-the-parity-dual"
+  find = "    if k % 2 == 1:\n        v -= tau\n    v -= theta"
+  replace = "    v -= theta"
+  models = "odd groups' float value without the parity dual: decided against a reduced cost the exact test does not use"
+
+[[target]]
+name = "supergeo-window-par"
+module-path = "benchmarks/studies/supergeo/mitm_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_mitm_exact.py -q -p no:cacheprovider -x -k \"parallel_window\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-first-half-not-counted"
+  find = "    for L in prange(m):\n        cnt[L] = _window_half("
+  replace = "    for L in prange(1, m):\n        cnt[L] = _window_half("
+  models = "the count pass skips the first left half (market 0, positive), so its rows are never filled. (Skipping the last half instead is equivalent: it is the pair of the two last markets with a negative first sign, which the window skips anyway.)"
+
+  [[target.mutant]]
+  id = "a-half-filled-at-the-next-offset"
+  find = "            _window_half(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v, sv, L, out,\n                         off[L], True)"
+  replace = "            _window_half(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v, sv, L, out,\n                         max(off[L] - 1, 0), True)"
+  models = "a half's rows written one row early, over the end of the previous half's: rows lost and the last row of the array left at -1"
+
+  [[target.mutant]]
+  id = "the-half-size-test-dropped"
+  find = "        size = nl + nr\n        if size < lo or size > hi:\n            continue\n        if c <= a or (d >= 0 and d <= a):\n            continue\n        if c == b or (d >= 0 and d == b):\n            continue\n        if not ((b >= 0 and hsb[L] == -1) or hsa[R] == -1 or (d >= 0 and hsb[R] == -1)):\n            continue\n        if fill:"
+  replace = "        size = nl + nr\n        if c <= a or (d >= 0 and d <= a):\n            continue\n        if c == b or (d >= 0 and d == b):\n            continue\n        if not ((b >= 0 and hsb[L] == -1) or hsa[R] == -1 or (d >= 0 and hsb[R] == -1)):\n            continue\n        if fill:"
+  models = "the parallel window without the group-size test: it emits groups of the wrong size that the serial window does not"
+
+[[target]]
+name = "supergeo-lns-steps"
+module-path = "benchmarks/studies/supergeo/lns.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_lns.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "one-step-too-many"
+  find = "    while (it < steps) if steps is not None else (time.perf_counter() - t0 < seconds):"
+  replace = "    while (it <= steps) if steps is not None else (time.perf_counter() - t0 < seconds):"
+  models = "the step budget run one step past what was asked"
+
+  [[target.mutant]]
+  id = "the-search-unseeded"
+  find = "        raise ValueError(f\"steps must be a non-negative integer or None, not {steps!r}\")\n    rng = np.random.default_rng(seed)"
+  replace = "        raise ValueError(f\"steps must be a non-negative integer or None, not {steps!r}\")\n    rng = np.random.default_rng()"
+  models = "the seed accepted and ignored: the same inputs give a different design each run"
+
+  [[target.mutant]]
+  id = "the-step-budget-unchecked"
+  find = "    if steps is not None and (isinstance(steps, bool) or not isinstance(steps, (int, np.integer)) or steps < 0):\n        raise ValueError"
+  replace = "    if False:\n        raise ValueError"
+  models = "a negative, fractional or non-numeric step budget accepted: the search runs a number of steps nobody asked for, or fails with an unrelated error"
+
+[[target]]
+name = "supergeo-certify-heuristic"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"reproducible or seed or budgets\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-certificate-seed-not-passed"
+  find = "            incumbent, _, trace = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed, verbose=False)"
+  replace = "            incumbent, _, trace = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), verbose=False)"
+  models = "the certificate's seed recorded on the result but never given to the heuristic"
+
+  [[target.mutant]]
+  id = "auto-steps-not-the-documented-budget"
+  find = "        heuristic_steps = max(10, n // 2)"
+  replace = "        heuristic_steps = max(10, n)"
+  models = "the automatic step budget twice the documented max(10, N // 2), doubling the heuristic's time"
+
+  [[target.mutant]]
+  id = "the-default-heuristic-on-the-clock"
+  find = "            incumbent, _, trace = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed, verbose=False)"
+  replace = "            incumbent, _, trace = lns.lns_dp(z, incumbent, seconds=max(1.0, n / 24), seed=seed, verbose=False)"
+  models = "the default heuristic stopped by the clock again: the design depends on the machine's load"
+
+[[target]]
+name = "supergeo-certify-region"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"region\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "regions-not-separated"
+  find = "        idx = np.flatnonzero(labels == lab)"
+  replace = "        idx = np.arange(n)"
+  models = "every region's certificate run on all the markets: groups cross regions and markets repeat"
+
+  [[target.mutant]]
+  id = "the-absolute-gap-given-to-every-region"
+  find = "        out = certify_staged(z0[idx], lo, hi, incumbent=inc, abs_gap=abs_gap * len(idx) / n, **kw)"
+  replace = "        out = certify_staged(z0[idx], lo, hi, incumbent=inc, abs_gap=abs_gap, **kw)"
+  models = "each region allowed the whole absolute gap, so the regions' gaps add up to more than the one claimed"
+
+  [[target.mutant]]
+  id = "a-region-too-small-not-caught"
+  find = "        if len(idx) < lo:"
+  replace = "        if len(idx) < 1:"
+  models = "a region with a single market sent to the certificate, which has no design for it"
+
+  [[target.mutant]]
+  id = "the-bound-from-the-largest-region"
+  find = "    LBp = sum(r[\"lb_proved_exact\"] for r in regions)"
+  replace = "    LBp = max(r[\"lb_proved_exact\"] for r in regions)"
+  models = "the proven lower bound taken from one region instead of the sum, so the proven gap overstates what remains"
+
+
+[[target]]
+name = "supergeo-verify-rounds"
+module-path = "benchmarks/studies/supergeo/verify_nb.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_verify_nb.py -q -p no:cacheprovider -x -k \"round or automatic_split\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-round-budget-not-split"
+  find = "            per = max(1, (left - total) // len(batch))"
+  replace = "            per = max(1, left - total)"
+  models = "every subtree in a round given the whole node limit left, so a round can pass the limit by the round's size times it"
+
+  [[target.mutant]]
+  id = "the-incumbent-not-carried-between-rounds"
+  find = "                best = min(best, b)"
+  replace = "                best = best"
+  models = "every round pruning on the starting incumbent: still the same on every run, but the designs found in earlier rounds never prune later ones"
+
+  [[target.mutant]]
+  id = "one-incumbent-shared-within-a-round"
+  find = "            start = best\n            def run(task):\n                U, P, S, O, pre, lb = task\n                sh = np.array([start]); counts"
+  replace = "            start = best; common = np.array([best])\n            def run(task):\n                U, P, S, O, pre, lb = task\n                sh = common; counts"
+  models = "the subtrees of a round reading each other's finds, so pruning, nodes and covers depend on thread timing again"
+
+  [[target.mutant]]
+  id = "a-stopped-subtree-not-reported"
+  find = "                if st in (1, 2) and not status:"
+  replace = "                if st == 2 and not status:"
+  models = "a subtree stopped by its share of the node limit reported as finished, so a cut-off search reads as complete"
+
+  [[target.mutant]]
+  id = "rounds-cut-as-few-subtrees-as-dynamic"
+  find = "    return min(4096 * int(workers), max(int(workers), int(node_limit) // 1024))"
+  replace = "    return min(64 * int(workers), max(int(workers), int(node_limit) // 1024))"
+  models = "rounds over the dynamic schedule's 64 subtrees a thread: at 80 markets 376 s against 106.9 s"
+
+  [[target.mutant]]
+  id = "rounds-of-one-subtree-a-thread"
+  find = "ROUND_TASKS_PER_WORKER = 4 "
+  replace = "ROUND_TASKS_PER_WORKER = 1 "
+  models = "a round of one subtree a thread, which waits on its slowest subtree four times as often: 157.9 s against 106.9 s"
+
+  [[target.mutant]]
+  id = "rounds-split-not-bounded-by-the-node-limit"
+  find = "    return min(4096 * int(workers), max(int(workers), int(node_limit) // 1024))"
+  replace = "    return 4096 * int(workers)"
+  models = "a capped stage cut into 4,096 subtrees a thread whatever its node limit: a 2,000-node stage spent it on the frontier and found no cover"
+
+[[target]]
+name = "supergeo-certify-schedule"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"schedule or deterministic_stages or rounds_by_default\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-schedule-not-given-to-the-capped-stages"
+  find = "                                                   workers=workers, deterministic=deterministic)"
+  replace = "                                                   workers=workers)"
+  models = "the capped stages searched on the dynamic schedule whatever was asked, so their incumbents depend on thread timing"
+
+  [[target.mutant]]
+  id = "the-schedule-not-given-to-the-exact-stage"
+  find = "                                                 deterministic=deterministic)"
+  replace = "                                                 deterministic=False)"
+  models = "the exact stage searched on the dynamic schedule whatever was asked"
+
+  [[target.mutant]]
+  id = "the-schedule-not-given-to-the-regions"
+  find = "                               deterministic=deterministic, verbose=verbose))"
+  replace = "                               deterministic=False, verbose=verbose))"
+  models = "each region's certificate run on the dynamic schedule whatever was asked"
+
+  [[target.mutant]]
+  id = "a-bad-schedule-accepted"
+  find = "    if not isinstance(deterministic, bool):"
+  replace = "    if False:"
+  models = "a schedule that is not True or False accepted and read as truthy or falsy"
+
+  [[target.mutant]]
+  id = "the-dynamic-schedule-by-default"
+  find = "                   deterministic=True, verbose=False):"
+  replace = "                   deterministic=False, verbose=False):"
+  models = "the certificate's threads on the dynamic schedule unless asked, so a default run's design depends on thread timing"
+
+[[target]]
 name = "pangeo-supergeo-total-score"
 module-path = "mlsynth/utils/pangeo_helpers/parallelism.py"
 test-command = "python -m pytest mlsynth/tests/test_pangeo_supergeo_total.py -q -p no:cacheprovider -x"
