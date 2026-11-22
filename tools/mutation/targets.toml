@@ -18892,7 +18892,7 @@ timeout = 900.0
 [[target]]
 name = "supergeo-certify-stop"
 module-path = "benchmarks/studies/supergeo/certify_exact.py"
-test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"stall or at_the_bound or keeps_improving or no_heuristic or region_reports or patience or as_a_target or stop_rules\""
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"stall or at_the_bound or keeps_improving or no_heuristic or region_reports or patience or as_a_target or stop_rules or rounding_error_below\""
 timeout = 1500.0
 
   [[target.mutant]]

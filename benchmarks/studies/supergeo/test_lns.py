@@ -193,3 +193,14 @@ def test_bad_stopping_rules_are_rejected(kw):
     name = [k for k in kw if kw[k] is not None][0]
     with pytest.raises(ValueError, match=name):
         lns.lns_dp(z, _pairs(z), steps=5, verbose=False, **kw)
+
+
+def test_patience_counts_steps_in_a_row_not_in_total():
+    """Unit: 40 similar-sized markets, seed 0. The loss sits at 0.166 for steps 5 and 6, falls at 7 and 8, then
+    sits at 0.115 from step 9. With patience 3 the search stops at step 11, three idle steps after the fall at 8;
+    a count of idle steps in total (2 + 1 = 3 at step 9) would stop it at 9, before the run of three."""
+    z = _similar(40)
+    plain = _losses(lns.lns_dp(z, _pairs(z), steps=20, seed=0, verbose=False)[2])
+    assert plain[4] == plain[5] == plain[6] > plain[7] > plain[8] == plain[9] == plain[10] == plain[11]
+    trace = lns.lns_dp(z, _pairs(z), steps=20, seed=0, patience=3, verbose=False)[2]
+    assert len(trace) - 1 == 11 == _oracle_stop(plain, patience=3)

@@ -993,12 +993,15 @@ def test_the_regions_forward_the_patience(monkeypatch):
 
 
 @pytest.mark.parametrize("budget", [dict(heuristic_steps=3), dict(heuristic_seconds=0.05)])
-@pytest.mark.parametrize("gap, d", [(0.0, 0.0), (0.1, 0.0), (0.0, 2.0), (0.3, 5.0)])
-def test_the_heuristic_receives_the_gap_as_a_target(monkeypatch, budget, gap, d):
+@pytest.mark.parametrize("gap, d, size", [(0.0, 0.0, 1.0), (0.1, 0.0, 1.0), (0.0, 2.0, 1.0), (0.3, 5.0, 1.0),
+                                          (0.0, 2e-6, 1e-3), (0.2, 5e-6, 1e-3)])
+def test_the_heuristic_receives_the_gap_as_a_target(monkeypatch, budget, gap, d, size):
     """Both budgets forward the target: the cost at which the design is within the requested gap of the root LP
-    bound b (clipped at 0), in the rescaled units, max(b / (1 - g), b + d * scale)."""
-    z = _ten_markets()
+    bound b (clipped at 0), in the rescaled units, max(b / (1 - g), b + d * scale). At a thousandth of the size the
+    root rescales the totals (scale 2^20), so the absolute gap must be scaled with them."""
+    z = _ten_markets() * size
     zs, scale, pi, tau = ce._root(z, 2, 4)
+    assert (scale == 1.0) == (size == 1.0)
     b = max(float(sum(pi)) + tau, 0.0)
     want = max(b / (1 - gap), b + d * scale)
     seen = _spy(monkeypatch)
@@ -1040,3 +1043,28 @@ def test_the_stop_rules_change_when_the_heuristic_ends_and_nothing_else(seed, n,
             assert p is not None and ran >= p
     again = ce.certify_staged(z, lo=lo, hi=hi, gap=gap, heuristic_patience=None, heuristic_steps=ran)
     assert sorted(again["design"]) == sorted(out["design"]) and again["opt_exact"] == out["opt_exact"]
+
+
+def test_a_root_bound_a_rounding_error_below_zero_still_stops_at_a_perfect_design(monkeypatch):
+    """Edge: the root LP's value, summed in floating point, can fall a rounding error below 0 on a panel whose
+    optimum is 0. The bound is clipped at 0, so the target is 0 and the quadruples' design of cost 0 still meets it
+    and stops the heuristic (at step 4). The duals are shifted here to put the bound 1e-12 below 0; the run is
+    stopped after the heuristic, since with those duals the proof is a long search unrelated to this rule."""
+    from . import lns
+    from .test_lns import _quadruples
+    real_root, real_lns, seen = ce._root, lns.lns_dp, {}
+    def shifted(*a, **k):
+        z, scale, pi, tau = real_root(*a, **k)
+        pi = np.array(pi, float); pi[0] -= 1e-12 + float(sum(pi)) + tau
+        return z, scale, pi, tau
+    class Done(Exception):
+        pass
+    def spy(*a, **k):
+        seen["target"] = k["target"]; seen["out"] = real_lns(*a, **k)
+        raise Done
+    monkeypatch.setattr(ce, "_root", shifted)
+    monkeypatch.setattr(lns, "lns_dp", spy)
+    with pytest.raises(Done):
+        ce.certify_staged(_quadruples())
+    design, loss, trace = seen["out"]
+    assert seen["target"] == 0.0 and loss == 0.0 and len(trace) - 1 < 16
