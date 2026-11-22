@@ -371,7 +371,11 @@ set-partitioning program
    \mathbf{M}\mathbf{x} = \mathbf 1 \ \ (\text{exact cover}),\qquad
    \mathbf 1^{\top} \mathbf{x} \ge \kappa_{\min}\ \ (\text{minimum pairs}),
 
-solved with ``cvxpy`` and the HiGHS mixed-integer backend. The exact-cover
+solved with HiGHS, through the standalone ``highspy`` interface when it is
+installed and through ``cvxpy`` otherwise (``mip_backend``: ``"auto"``,
+``"highspy"`` or ``"cvxpy"``; the solver diagnostics record which one ran).
+Both state the same program and stop at HiGHS's default relative MIP gap,
+:math:`10^{-4}`. The exact-cover
 constraint :math:`\mathbf{M}\mathbf{x}=\mathbf 1` assigns every geo to exactly one chosen
 pair (no geo is trimmed). Because each :math:`c_G` is *precomputed* offline,
 the objective is linear in :math:`\mathbf{x}` --- the program is a mixed-integer
@@ -383,8 +387,8 @@ treated is randomised in the field.
 Per-pair objectives
 ^^^^^^^^^^^^^^^^^^^^
 
-The ``objective`` argument selects the per-pair cost :math:`c_G`; all three
-choices leave :eq:`mip` a linear program. Writing :math:`g_t` for the gap
+The ``objective`` argument selects the per-pair cost :math:`c_G`; every
+choice leaves :eq:`mip` a linear program. Writing :math:`g_t` for the gap
 of a candidate split and :math:`\bar g` for its estimation-window mean,
 
 * ``"ss_res"`` (default) --- the absolute residual sum of squares
@@ -399,6 +403,17 @@ of a candidate split and :math:`\bar g` for its estimation-window mean,
   :math:`\bar g_w`, with weights :math:`w_t=\rho_{\mathrm{dec}}^{\,T_0-1-t}`
   (``recency_decay``), up-weighting the recent pre-period closest to the
   experiment.
+* ``"supergeo_total"`` --- the objective of the Supergeo paper (Chen,
+  Doudchenko, Jiang, Stein and Ying 2023), the squared difference between
+  the halves' totals over the estimation window :math:`\mathcal E`,
+  :math:`\big(\sum_{i\in A}\sum_{t\in\mathcal E} Y_{it} - \sum_{i\in B}\sum_{t\in\mathcal E} Y_{it}\big)^2`.
+  Sums over markets, no level shift and no trajectory: the level is what
+  it balances, and two markets with equal totals score as a perfect match
+  whatever their shapes. It is the baseline PANGEO's trajectory objectives
+  are compared against. It is available for pairs (``max_supergeo_size=1``)
+  on the exact path (``fast=False``); with pairs the optimal design pairs
+  the markets in sorted order of their totals, neighbour with neighbour,
+  which the test suite uses as an exact check on the program.
 
 The per-pair ``gap_variance`` and ``parallelism_r2`` reported on the result
 are always the unweighted quantities of :eq:`score`, so designs from
