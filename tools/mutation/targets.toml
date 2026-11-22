@@ -19496,6 +19496,180 @@ timeout = 600.0
   models = "PANGEO designing with seed 0 whatever assignment_seed says"
 
 [[target]]
+name = "supergeo-exclusion"
+module-path = "benchmarks/studies/supergeo/exclusion.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_exclusion.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-program-never-leaves-a-market-out"
+  find = "        f[i, 1:] = np.minimum(f[i - 1, 1:], take)"
+  replace = "        f[i, 1:] = take"
+  models = "the sorted program forced to pair market i with i - 1, so it can only keep a prefix of neighbour pairs"
+
+  [[target.mutant]]
+  id = "the-program-pairs-with-the-first-market"
+  find = "        d = s[i - 1] - s[i - 2]"
+  replace = "        d = s[i - 1] - s[0]"
+  models = "the cost of a neighbour pair read against the smallest total, not the neighbour"
+
+  [[target.mutant]]
+  id = "the-program-reports-sorted-positions"
+  find = "                got.append(tuple(sorted((int(order[i - 2]), int(order[i - 1])))))"
+  replace = "                got.append((i - 2, i - 1))"
+  models = "the pairs returned as positions in sorted order, not as markets"
+
+  [[target.mutant]]
+  id = "the-program-runs-on-unsorted-totals"
+  find = "    order = np.lexsort((np.arange(n), z))\n    s = z[order]\n    f = np.full"
+  replace = "    order = np.arange(n)\n    s = z[order]\n    f = np.full"
+  models = "the dynamic program run in input order, where neighbour pairs need not be optimal"
+
+  [[target.mutant]]
+  id = "no-dummies-a-perfect-matching"
+  find = "    d = n - 2 * k\n"
+  replace = "    d = n % 2\n"
+  models = "the matcher given no dummy markets, so it returns the full pairing for every k"
+
+  [[target.mutant]]
+  id = "dummies-pair-with-each-other-free"
+  find = "    M[n:, n:] = big\n"
+  replace = "    M[n:, n:] = 0.0\n"
+  models = "dummy-dummy pairs at cost 0, so the matcher may keep more real pairs than k or fewer"
+
+  [[target.mutant]]
+  id = "the-dummy-cost-not-above-a-saving"
+  find = "    big = float(np.abs(off).max()) + 1.0 if len(off) else 1.0"
+  replace = "    big = -float(np.abs(off).max()) - 1.0 if len(off) else 1.0"
+  models = "a dummy-dummy cost below every real pair, so the matcher prefers dummy pairs to real ones"
+
+  [[target.mutant]]
+  id = "trimming-keeps-the-worst-pairs"
+  find = "    rank = np.argsort(c, kind=\"stable\")"
+  replace = "    rank = np.argsort(-c, kind=\"stable\")"
+  models = "nested trimming dropping the best pair first"
+
+  [[target.mutant]]
+  id = "trimming-keeps-pairs-in-the-order-given"
+  find = "    rank = np.argsort(c, kind=\"stable\")"
+  replace = "    rank = np.arange(len(c))"
+  models = "nested trimming keeping the first pairs listed, not the cheapest"
+
+  [[target.mutant]]
+  id = "trimming-accepts-a-market-in-two-pairs"
+  find = "    if len(set(used)) != len(used):"
+  replace = "    if False:"
+  models = "nested trimming accepting pairs that are not a matching"
+
+  [[target.mutant]]
+  id = "excluding-every-pair-not-named"
+  find = "    if drop_pairs == available:"
+  replace = "    if False:"
+  models = "an exclusion of every pair reported as too few pairs, not as no design at all"
+
+  [[target.mutant]]
+  id = "excluding-past-every-pair-not-named"
+  find = "    if drop_pairs > available:"
+  replace = "    if False:"
+  models = "an exclusion of more pairs than the markets form reported with a negative count of pairs kept"
+
+  [[target.mutant]]
+  id = "min-pairs-not-checked-after-dropping"
+  find = "    if kept < min_pairs:"
+  replace = "    if kept < 1:"
+  models = "a design kept with fewer pairs than min_pairs after the drop"
+
+  [[target.mutant]]
+  id = "min-pairs-not-checked-after-excluding-markets"
+  find = "    if available < min_pairs:"
+  replace = "    if False:"
+  models = "markets excluded by hand down to fewer than min_pairs pairs reported as a drop of pairs"
+
+  [[target.mutant]]
+  id = "no-pair-forms-not-named"
+  find = "    if available == 0:"
+  replace = "    if False:"
+  models = "markets excluded by hand down to none or one reported as too few pairs, not as no pair at all"
+
+  [[target.mutant]]
+  id = "markets-excluded-by-hand-ignored"
+  find = "    rest = [i for i in range(n) if i not in set(by_hand)]"
+  replace = "    rest = list(range(n))"
+  models = "markets excluded by hand still paired"
+
+  [[target.mutant]]
+  id = "a-market-excluded-twice-accepted"
+  find = "    if len(set(by_hand)) != len(by_hand):"
+  replace = "    if False:"
+  models = "excluded_units naming a market twice, counted twice"
+
+  [[target.mutant]]
+  id = "a-bool-taken-for-an-integer"
+  find = "    ok = isinstance(value, (int, np.integer)) and not isinstance(value, (bool, np.bool_))"
+  replace = "    ok = isinstance(value, (int, np.integer))"
+  models = "True accepted as a count of 1 or as market 1"
+
+  [[target.mutant]]
+  id = "pairs-not-mapped-back-to-markets"
+  find = "        return sorted(tuple(sorted((rest[a], rest[b]))) for a, b in ps)"
+  replace = "        return sorted(tuple(sorted((a, b))) for a, b in ps)"
+  models = "the kept pairs reported in the indices of the markets left, not the panel's"
+
+  [[target.mutant]]
+  id = "nested-from-totals-takes-the-optimum"
+  find = "        if method == \"optimal\":\n            local = by_k[kept]"
+  replace = "        if True:\n            local = by_k[kept]"
+  models = "method='nested' on totals returning the re-paired optimum"
+
+  [[target.mutant]]
+  id = "nested-from-costs-keeps-the-worst"
+  find = "            local = nested_trim(Wr, full)[1][:kept]\n\n    def back"
+  replace = "            local = nested_trim(Wr, full)[1][-kept:]\n\n    def back"
+  models = "nested trimming on a cost matrix keeping the worst pairs of the full pairing"
+
+  [[target.mutant]]
+  id = "both-inputs-accepted"
+  find = "    if (costs is None) == (totals is None):"
+  replace = "    if costs is None and totals is None:"
+  models = "a cost matrix and totals both passed, one of them ignored"
+
+  [[target.mutant]]
+  id = "excluded-units-only-those-by-hand"
+  find = "                excluded_units=[i for i in range(n) if i not in used], excluded_by_hand=sorted(by_hand),"
+  replace = "                excluded_units=sorted(by_hand), excluded_by_hand=sorted(by_hand),"
+  models = "the markets left out by the drop missing from excluded_units"
+
+[[target]]
+name = "supergeo-exclusion-tm"
+module-path = "benchmarks/studies/supergeo/exclusion_tm.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_exclusion.py -q -p no:cacheprovider -x -k \"comparison or ss_res_matrix or design_window\""
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "ss-res-not-demeaned"
+  find = "    C = Y - Y.mean(1, keepdims=True)"
+  replace = "    C = Y"
+  models = "the trajectory cost taken without removing each market's level, unlike PANGEO's ss_res"
+
+  [[target.mutant]]
+  id = "the-design-window-reads-the-evaluation-window"
+  find = "    z = P.loc[:, (cols >= DESIGN_START) & (cols < s)].to_numpy(float).sum(1)"
+  replace = "    z = P.loc[:, (cols >= DESIGN_START) & (cols <= e)].to_numpy(float).sum(1)"
+  models = "the rolling check designing on the days it evaluates on, so held-out costs are in-sample"
+
+  [[target.mutant]]
+  id = "the-evaluation-window-a-day-long"
+  find = "    e = s + pd.Timedelta(days=days - 1)"
+  replace = "    e = s + pd.Timedelta(days=days)"
+  models = "an evaluation window of days + 1 days"
+
+  [[target.mutant]]
+  id = "nested-ss-res-trims-a-sorted-pairing"
+  find = "    nest_ss = exclusion.nested_trim(Wss, full_ss)[0]"
+  replace = "    nest_ss = exclusion.nested_trim(Wss, pairs_tot[m])[0]"
+  models = "nested trimming under ss_res started from the supergeo_total pairing, not the ss_res optimum"
+
+[[target]]
 name = "pangeo-pairs-odd"
 module-path = "mlsynth/utils/pangeo_helpers/pairs.py"
 test-command = "python -m pytest mlsynth/tests/test_pangeo_pairs_odd.py mlsynth/tests/test_pangeo_pairs.py -q -p no:cacheprovider -x"

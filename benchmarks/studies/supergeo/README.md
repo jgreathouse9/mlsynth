@@ -885,6 +885,99 @@ and Vygen, "Combinatorial Optimization", 6th ed., 2018; Higham, "Accuracy and
 Stability of Numerical Algorithms", 2nd ed., 2002; Shewchuk, Discrete Comput.
 Geom. 18 (1997) 305-363.
 
+## Pair exclusion
+
+A pairs design may leave some pairs out of the experiment: Trimmed Match Design
+does, and its designs drop pairs in a nested sequence, the worst pair of one
+pairing first. `exclusion.py` compares that with the cardinality-optimal
+answer, which re-pairs at each count: for k pairs kept, the k disjoint pairs of
+least total cost over every k-matching.
+
+- Under `supergeo_total` the cost of a pair is the squared difference of two
+  scalar totals, and some optimal k-matching pairs only neighbours in sorted
+  order (an exchange argument: a pair spanning a market can be uncrossed at no
+  extra cost). A dynamic program over the sorted order gives every k at once
+  (`sorted_k_pairs`, 2.8 ms for all 88 values of k on the 174 geos).
+- Under any other cost, Edmonds' matcher on the n markets and n - 2k dummy
+  markets, each joined to every market at cost 0 and to the other dummies at a
+  cost above any saving (`matched_k_pairs`, 11 to 259 ms per k). The two agree
+  on scalar totals to 4e-16 relative.
+- `design_excluding` builds a design after a stated exclusion: a number of
+  pairs to drop, markets excluded by hand, either method. It raises when the
+  exclusion leaves no design: the markets left form no pair, or fewer than
+  `min_pairs`; the drop excludes every pair, or more pairs than the markets
+  form; or the pairs kept number fewer than `min_pairs`.
+
+### In sample
+
+On google/trimmed_match's 174 example geos (totals over 2020-01-01 to
+2020-12-01), the cost of nested trimming over the cost of the re-paired
+optimum, and the number of the optimum's pairs not in the full pairing:
+
+| pairs dropped | supergeo_total: nested / optimum | new pairs | ss_res: nested / optimum | new pairs |
+| --- | --- | --- | --- | --- |
+| 1 | 1.583 | 2 | 1.195 | 8 |
+| 2 | 3.546 | 4 | 1.296 | 8 |
+| 3 | 4.019 | 4 | 1.390 | 2 |
+| 5 | 3.278 | 4 | 1.263 | 2 |
+| 10 | 1.235 | 4 | 1.103 | 2 |
+| 20 | 1.152 | 4 | 1.054 | 2 |
+| 43 | 1.110 | 3 | 1.012 | 1 |
+| 60 | 1.248 | 3 | 1.000 | 0 |
+| 80 | 2.029 | 1 | 1.000 | 0 |
+
+The optimum differs from trimming by two to four pairs under `supergeo_total`.
+The cost ratio is largest at 2 to 5 pairs dropped (3.3 to 4.0), falls to 1.1 to
+1.25 between 10 and 60, and rises to 2 near the end, where a few small pairs
+are left. Under `ss_res` the ratio stays below 1.4 and the two designs coincide
+from 50 pairs dropped.
+
+### Held out
+
+In-sample cost falls with every pair dropped, so it cannot choose how many to
+drop. For five 28-day windows (starting 2020-08-04, 09-01, 09-29, 10-27 and
+12-02), each design is formed on every day from 2020-01-01 to the day before
+the window and evaluated on the window: the sum over pairs of the squared
+difference of their window totals, sum D_k^2, which is B^2 times the variance
+of the ratio estimator under a fixed budget B (Chen et al. 2023, eq. 3).
+Medians over the windows, relative to the full pairing's cost (in brackets the
+range over the windows):
+
+| pairs dropped | in sample, optimum / nested | held out, optimum | held out, nested | optimum better held out |
+| --- | --- | --- | --- | --- |
+| 1 | 0.219 / 0.347 | 0.956 [0.31, 1.00] | 0.987 [0.57, 1.00] | 3 of 5 |
+| 2 | 0.062 / 0.166 | 0.316 [0.02, 1.00] | 0.850 [0.42, 1.00] | 4 of 5 |
+| 3 | 0.035 / 0.077 | 0.316 [0.01, 1.00] | 0.721 [0.39, 1.00] | 3 of 5 |
+| 5 | 0.019 / 0.030 | 0.315 [0.01, 1.00] | 0.553 [0.15, 1.00] | 4 of 5 |
+| 10 | 0.012 / 0.013 | 0.314 [0.01, 1.00] | 0.315 [0.01, 1.00] | 3 of 5 |
+| 20 | 0.005 / 0.006 | 0.358 [0.01, 1.00] | 0.313 [0.01, 1.00] | 3 of 5 |
+| 43 | 0.001 / 0.001 | 0.125 [0.01, 0.36] | 0.126 [0.01, 0.31] | 3 of 5 |
+| 80 | 0.000 / 0.000 | 0.002 [0.00, 0.18] | 0.000 [0.00, 0.15] | 0 of 5 |
+
+Three findings.
+
+1. The in-sample cost overstates what exclusion buys by one to two orders of
+   magnitude: ten pairs dropped leave 1.2% of the full pairing's cost in
+   sample and 31% held out. A count chosen in sample drops too many pairs.
+2. Re-pairing helps held out when a few pairs are dropped (median 0.32 against
+   0.55 to 0.85 for 2 to 5 pairs, better in 3 or 4 windows of 5). From ten pairs
+   on the two are equal in median and split the windows.
+3. In one window of five the held-out cost does not fall until more than 30
+   pairs are dropped: a pair matched well in sample diverges in that window,
+   and no in-sample rule drops it. Five windows are a small sample, so these
+   are the medians of a noisy quantity.
+
+Exclusion also changes the estimand and the budget. The effect estimated is the
+included geos' spend-weighted iROAS, which differs from the full panel's when
+iROAS varies across geos (Chen et al. 2023, err_3). Under a fixed budget B the
+same incremental spend goes to fewer geos, so the proportional heavy-up ratio r
+grows; the variance formula holds only while each geo's response stays linear
+in its spend over that larger change (Assumptions 1 and 4). The roadmap's phase
+5 states the conditions under which exclusion is valid.
+
+`python -m benchmarks.studies.supergeo.exclusion_tm <example_data_for_design.csv>`
+prints both tables.
+
 ## Tests
 
 `python -m pytest benchmarks/studies/supergeo -q`. Brute force over every
@@ -909,6 +1002,15 @@ for the scalar cost, and networkx where it is installed; the fast certificate
 check against the direct rational check on solved and tampered certificates.
 Its targets `supergeo-matching` (15 mutants) and `supergeo-matching-check`
 (10) are killed in full.
+
+Pair exclusion (`test_exclusion.py`) is checked against brute force over every
+k-matching for up to 9 markets at every k, signed costs included, the sorted
+program against the matcher on up to 40 markets, and `design_excluding`'s
+refusals over a property that draws markets excluded by hand, pairs dropped
+past every pair, and `min_pairs` from 1 to 3. Its targets `supergeo-exclusion`
+(23 mutants) and `supergeo-exclusion-tm` (4) are killed in full; the mutant
+`dummies-pair-with-each-other-free` survived the first run, equivalent while
+every cost is positive, and is killed by signed costs.
 
 ## Running a script and the tests in one tree
 
