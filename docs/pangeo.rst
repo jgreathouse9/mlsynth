@@ -380,9 +380,16 @@ constraint :math:`\mathbf{M}\mathbf{x}=\mathbf 1` assigns every geo to exactly o
 pair (no geo is trimmed). Because each :math:`c_G` is *precomputed* offline,
 the objective is linear in :math:`\mathbf{x}` --- the program is a mixed-integer
 *linear* program regardless of the (possibly nonlinear) per-pair cost,
-which is what keeps it tractable. Within each chosen pair the treatment and
-control halves are the score-minimising split; which half is actually
-treated is randomised in the field.
+which is what keeps it tractable. Within each chosen pair the two halves are
+the score-minimising split, and a fair coin, drawn independently in each pair
+after the pairs are chosen, decides which half is treated, as in the
+supergeo design of Chen et al. (2023, section 3). The coins come from ``assignment_seed`` (default 0): the pairs do
+not depend on it, and the same seed on the same pre-period panel labels the
+pairs the same way, so a run with ``post_col`` after the experiment reads the
+assignment the experiment ran. Each pair's coin is on
+``SupergeoPair.first_half_treated`` (whether the half holding the pair's first
+unit is treated) and the seed on ``results.assignment_seed``. These coins are
+the randomization the permutation test below inverts.
 
 Per-pair objectives
 ^^^^^^^^^^^^^^^^^^^^

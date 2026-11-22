@@ -50,6 +50,11 @@ class SupergeoPair:
         B is excluded from the optimisation, so these residuals are an honest
         out-of-sample estimate of the parallel-trends noise -- the reservoir
         for conformal inference and the variance behind the MDE.
+    first_half_treated : bool
+        The pair's coin: True when the half holding the pair's first unit (the
+        lowest index in the panel) is the treated half. Drawn with probability
+        one half, independently across pairs, from the design's
+        ``assignment_seed`` (Chen et al. 2023, arXiv:2301.12044, section 3).
     """
 
     treatment: List[Any]
@@ -61,6 +66,7 @@ class SupergeoPair:
     covariate_smd: Dict[str, float] = field(default_factory=dict)
     gap_level: float = 0.0
     holdout_resid: np.ndarray = field(default_factory=lambda: np.empty(0))
+    first_half_treated: bool = True
 
 
 @dataclass(frozen=True)
@@ -127,12 +133,18 @@ class PangeoResults(DesignResult):
     effects : PangeoEffects or None
         The rich realized-ATT object (per-pair, per-arm, program, plus the
         design-based randomization inference) when post-period data is given.
+    assignment_seed : int
+        The seed of the coins that labelled each pair's halves treatment and
+        control. A run with the same seed on the same pre-period panel labels
+        the pairs the same way, which is how an analysis run (``post_col``)
+        reads the assignment the experiment ran.
     """
 
     arm_designs: Dict[Any, ArmDesign] = Field(default_factory=dict)
     max_supergeo_size: Optional[int] = None
     time_labels: Optional[np.ndarray] = None
     effects: Optional[Any] = None  # PangeoEffects when post-period data given
+    assignment_seed: Optional[int] = None
 
     class Config:
         arbitrary_types_allowed = True

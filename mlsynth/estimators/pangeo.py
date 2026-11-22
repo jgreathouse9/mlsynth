@@ -144,6 +144,7 @@ class PANGEO:
                 q_min_pairs=self.q_min_pairs,
                 compute_q_sweep=self.compute_q_sweep,
                 mip_backend=self.mip_backend,
+                assignment_seed=self.config.assignment_seed,
             )
 
             if post_df is not None and not post_df.empty:
