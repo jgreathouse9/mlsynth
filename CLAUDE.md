@@ -64,6 +64,18 @@ python benchmarks/run_benchmarks.py --all     # durable paper/reference validati
    code does not `print`. A diagnostic the caller might act on becomes a typed
    field on the result (usually `MethodDetailsResults`) or a `warnings.warn` —
    never stdout, and never discarded.
+8. **Closed forms first.** When a problem, or a case of it, has a closed-form
+   solution, solve that case in closed form, not with an iterative or
+   combinatorial solver, in every solver: optimisation, matching, partitioning,
+   sampling, inference. Cite the result that gives it (the theorem, identity or
+   exchange argument) in the docstring, and state the conditions under which it
+   holds. Route only the cases outside those conditions to the general solver,
+   and test the two against each other on the cases they share. A worked
+   example: pairs under a squared difference of scalar totals are optimal as
+   neighbours in sorted order (an exchange argument), so they are sorted; with
+   an odd count, the market left out is found by one scan of that order. The
+   same pairs under a trajectory or covariate cost have no closed form and go to
+   a matcher.
 
 ## Design doctrine (the Unix rules)
 
