@@ -101,7 +101,9 @@ donor, no pre-periods, near-singular / collinear, treatment at `t=0`), and
 and a test asserts the failure is *reported*, not swallowed). Two instruments
 sit beside those four and are equally non-optional: a **`hypothesis` property**
 for every invariant the unit promises, asserted over the input domain and not
-only at the fixture, and a **mutant** in `tools/mutation/targets.toml` for each
+only at the fixture (the domain is every argument, invalid values included, and
+calls in sequence where state persists: "Properties over the whole domain" in
+`agents/agents_tests.md`), and a **mutant** in `tools/mutation/targets.toml` for each
 defect the change could reintroduce, carrying a `models` line that names it and
 confirmed killed.
 

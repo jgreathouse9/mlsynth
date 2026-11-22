@@ -777,6 +777,38 @@ reach rung 3. Follow every branch; a ladder with one rung per level is usually a
 ladder that stopped at the first plausible story. The next section makes that
 branching systematic instead of opportunistic.
 
+## Properties over the whole domain
+
+A property draws its input from the domain of the function, and the domain is
+every argument, not only the data. The supergeo certificate's properties drew
+panel sizes, distributions and gaps, and held `lo` and `hi` at their defaults;
+the heuristic it calls ignored both, and every property passed. Five rules:
+
+1. **Every argument is drawn.** Each parameter takes values across its whole
+   range in some property: the defaults, the boundaries, values that equal each
+   other where the code compares them (`lo == hi`), and both settings of every
+   switch (the heuristic on and off, one thread and several, a gap of zero and
+   above zero).
+2. **Invalid values are part of the domain, with their own outcome.** -1, 0,
+   values on the wrong side of a bound (`hi < lo`), the wrong type and NaN are
+   drawn too, and the property asserts the translated `Mlsynth*Error`, never a
+   returned value. A property has two outcomes: on a valid input the invariant
+   holds against an oracle; on an invalid input the call raises.
+3. **Sequences, not only single calls.** Where a function keeps state (a cache,
+   a compiled kernel's buffers, a random generator, a module-level setting), a
+   stateful property runs calls in random order with random arguments in one
+   process and asserts each result equals the same call in isolation
+   (`hypothesis.stateful`).
+4. **The result checks its own invariants.** Where a result carries a claim that
+   can be checked cheaply (a design's groups lie within the size limits; a
+   proven lower bound is no larger than the design's cost; weights sum to one),
+   the code checks it before returning and raises if it fails. Tests miss
+   inputs; a check inside the result does not.
+5. **Every forwarding site has a mutant.** "The argument is not passed on" is
+   the cheapest defect to make and to model: a call that drops a keyword and
+   falls back to the callee's default. Each place a parameter is forwarded to
+   another function gets a mutant that drops it, and a property that kills it.
+
 ## Breadth: the dependency chain
 
 The rungs above are the depth axis. Used alone they find one cause and stop,
