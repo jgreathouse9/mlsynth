@@ -205,3 +205,35 @@ def test_bad_cost_matrices_are_rejected(W, what):
     else raises before any work, naming what is wrong."""
     with pytest.raises(ValueError, match=what):
         matching.min_weight_matching(W)
+
+
+@pytest.mark.parametrize("seed", [724, 1870])
+def test_a_t_blossom_expanded_mid_stage(seed):
+    """Unit: two small instances (integer costs 0 to 5, found by a search over seeds) on which a T blossom's dual
+    reaches zero inside a stage and it is expanded there. In seed 724 a child off the even path holds a vertex an S
+    vertex already reached, which is relabelled T; in seed 1870 an off-path child already carries S. The pairing is
+    the brute-force optimum and the certificate is exact."""
+    rng = np.random.default_rng(seed)
+    n = int(rng.integers(6, 13))
+    A = rng.integers(0, 6, (n, n)).astype(float)
+    W = np.triu(A, 1); W = W + W.T
+    out = matching.min_weight_matching(W)
+    assert out["cost"] == _brute(W)[0] and matching.check_certificate(W, out) == 0
+
+
+def test_the_certificate_rejects_a_pairing_that_is_not_a_matching():
+    """The checker returns infinity for pairings that are not matchings of the required size: a market used twice,
+    too few pairs, a market out of range, an odd count whose left-out market is also paired, and duals of the
+    wrong length."""
+    W = _sym(np.random.default_rng(7), 6, 0, 10)
+    out = matching.min_weight_matching(W)
+    (a, b), (c, d), (e, f) = out["pairs"]
+    assert matching.check_certificate(W, dict(out, pairs=[(a, b), (a, c), (e, f)])) == float("inf")
+    assert matching.check_certificate(W, dict(out, pairs=[(a, b), (c, d)])) == float("inf")
+    assert matching.check_certificate(W, dict(out, pairs=[(a, b), (c, d), (e, 9)])) == float("inf")
+    assert matching.check_certificate(W, dict(out, p=out["p"][:-1])) == float("inf")
+    W5 = _sym(np.random.default_rng(8), 5, 0, 10)
+    out5 = matching.min_weight_matching(W5)
+    paired = out5["pairs"][0][0]
+    assert matching.check_certificate(W5, dict(out5, unmatched=paired)) == float("inf")
+    assert matching.check_certificate(W5, dict(out5, unmatched=7)) == float("inf")
