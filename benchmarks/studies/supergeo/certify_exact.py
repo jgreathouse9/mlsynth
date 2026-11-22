@@ -205,8 +205,8 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
     workers=None. False (dynamic): each thread takes the next subtree when it is free and prunes on the best design
     any thread has found so far, so the incumbent a capped stage hands on, the later stages and the node counts
     depend on thread timing (the cost proved does not). Rounds cost time; on four threads, in one session, the
-    captured 80-market exact stage took 106.9 s against 86.4 s, and the 120-market capped stage 8.0 to 8.9 s against
-    5.0 to 7.6 s.
+    captured 80-market exact stage took 106.9 s against 86.4 s, and the 120-market capped stage 7.0 to 7.6 s against
+    4.0 s (:func:`.verify_nb._split`).
 
     gap: a relative optimality gap g in [0, 1). The certificate then proves that no design costs less than
     T = (1 - g) UB, UB the cost of the design returned, so the design is within a factor 1 / (1 - g) of the

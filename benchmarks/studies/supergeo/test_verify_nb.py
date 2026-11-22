@@ -522,12 +522,12 @@ def test_rounds_give_the_same_search_every_run():
 
 def test_rounds_share_the_node_limit():
     """The limit left at each round is split among its subtrees, so the total passes it by at most a check
-    interval (1,024 nodes) a subtree."""
+    interval (1,024 nodes) for each subtree of the last round, ROUND_TASKS_PER_WORKER subtrees a thread."""
     n, pi, tau, cand, cost, m, OPT = _big_tree_case()
     for workers in (2, 4):
         st, nodes, covers = _rows_run(n, pi, tau, cand, cost, m, OPT, node_limit=300_000, workers=workers,
                                       deterministic=True)
-        assert st == 1 and nodes <= 300_000 + 1024 * workers, (workers, nodes)
+        assert st == 1 and nodes <= 300_000 + 1024 * vn.ROUND_TASKS_PER_WORKER * workers, (workers, nodes)
 
 
 def test_each_round_starts_from_the_best_of_the_rounds_before(monkeypatch):
@@ -561,16 +561,19 @@ def test_each_round_starts_from_the_best_of_the_rounds_before(monkeypatch):
 def test_the_automatic_split_follows_the_schedule(monkeypatch):
     """split="auto" cuts 64 subtrees a thread for the dynamic schedule and 4,096 for rounds (with rounds of
     ROUND_TASKS_PER_WORKER = 4 subtrees a thread): the captured 80-market exact stage took 86.4 s dynamic, and in
-    rounds 106.9 s at 4,096 subtrees a thread against 376 s at 64 (an earlier session)."""
+    rounds 106.9 s at 4,096 subtrees a thread against 376 s at 64 (an earlier session). Rounds also give each
+    subtree at least the check interval, 1,024 nodes, of the node limit: at most node_limit // 1,024 subtrees (and
+    at least one a thread). Without that a capped stage of 2,000 nodes spent its budget on a frontier of 16,384
+    subtrees and found no cover."""
     seen = []
     real = vn._parallel_core
     monkeypatch.setattr(vn, "_parallel_core", lambda p, n, lim, cap, w, split, det=False: seen.append((w, split, det))
                         or real(p, n, lim, cap, w, split, det))
     n, pi, tau, cand, cost, m, OPT = _big_tree_case()
     fc = np.array([float(cost[c]) for c in cand])
-    for w, det in ((2, False), (3, True)):
-        vn.verify_rows(n, 2, _rows_of(cand), fc, pi, float(m), tau, float(OPT), node_limit=20_000, workers=w,
+    for w, det, lim in ((2, False, 20_000), (3, True, 2_000_000_000), (3, True, 20_000), (3, True, 1_000)):
+        vn.verify_rows(n, 2, _rows_of(cand), fc, pi, float(m), tau, float(OPT), node_limit=lim, workers=w,
                        deterministic=det)
-        vn.verify(n, 2, cand, cost, pi, m, tau, OPT, node_limit=20_000, workers=w, deterministic=det)
-    assert seen == [(2, 128, False), (2, 128, False), (3, 12_288, True), (3, 12_288, True)], seen
+        vn.verify(n, 2, cand, cost, pi, m, tau, OPT, node_limit=lim, workers=w, deterministic=det)
+    assert seen == [(2, 128, False)] * 2 + [(3, 12_288, True)] * 2 + [(3, 19, True)] * 2 + [(3, 3, True)] * 2, seen
     assert vn.ROUND_TASKS_PER_WORKER == 4

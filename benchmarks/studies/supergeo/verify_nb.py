@@ -298,7 +298,7 @@ def verify(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit=2_000_000_000, c
         if split != "auto" and int(split) < 1:
             raise ValueError(f"split must be a positive integer or 'auto', not {split}")
         return _parallel(n, lo, cand, exact_cost, pi, m, tau, OPT, node_limit, cand_cap, bits, int(workers),
-                         _split(workers, split, deterministic), bool(deterministic))
+                         _split(workers, split, deterministic, node_limit), bool(deterministic))
     p = _prepare(n, lo, cand, exact_cost, pi, m, tau, OPT, bits)
     masks, cost, pisum, odd, gptr, gcols = p["masks"], p["cost"], p["pisum"], p["odd"], p["gptr"], p["gcols"]
     if p["wide"]:
@@ -573,16 +573,23 @@ def _row_masks(rows, n, B, W, wide):
 ROUND_TASKS_PER_WORKER = 4        # subtrees per thread in a round of the deterministic schedule
 
 
-def _split(workers, split, deterministic):
+def _split(workers, split, deterministic, node_limit=2_000_000_000):
     """The number of subtrees for split="auto": 64 a thread for the dynamic schedule, 4,096 a thread for rounds.
     Rounds want many small subtrees: a round waits for its slowest subtree, and a subtree prunes only on the
     incumbent known when its round began. On the captured 80-market exact stage, four threads, in one session: the
     dynamic schedule 86.4 s (157 million nodes); rounds of 4 subtrees a thread (ROUND_TASKS_PER_WORKER) 132.5 s
     over 1,024 subtrees a thread and 106.9 s over 4,096 (153 million nodes); over 4,096, rounds of 1, 2 and 8 a
-    thread 157.9, 121.0 and 115.6 s. In an earlier session rounds of 4 over 64 subtrees a thread took 376 s."""
+    thread 157.9, 121.0 and 115.6 s. In an earlier session rounds of 4 over 64 subtrees a thread took 376 s.
+    Rounds also give each subtree at least the check interval of _search_from, 1,024 nodes, of the node limit:
+    at most node_limit // 1,024 subtrees, and at least one a thread. A share below the check interval is not
+    honoured, and a capped stage of 2,000 nodes cut into 16,384 subtrees spent its budget on the frontier and found
+    no cover; on the 120-market capped stage (300,000 nodes, 292 subtrees) rounds took 7.0 to 7.6 s against 4.0 s
+    dynamic, with the same cover as at every split tried."""
     if split != "auto":
         return int(split)
-    return (4096 if deterministic else 64) * int(workers)
+    if not deterministic:
+        return 64 * int(workers)
+    return min(4096 * int(workers), max(int(workers), int(node_limit) // 1024))
 
 
 def _rounds(args, plen, tasks, best, left, cand_cap, workers):
@@ -653,7 +660,8 @@ def verify_rows(n, lo, rows, cost, pi, m, tau, opt, node_limit=2_000_000_000, ca
         p = dict(B=B, W=W, g2=g2, absA0=absA0, opt_up=opt_up, S0=S0,
                  args=(n, B, W, float(lo), mw, cost, pisum, odd, gptr, gcols, float(m), float(tau), g2, absA0))
         status, nodes, found = _parallel_core(p, n, node_limit, cand_cap, int(workers),
-                                              _split(workers, split, deterministic), bool(deterministic))
+                                              _split(workers, split, deterministic, node_limit),
+                                              bool(deterministic))
         return status, int(nodes), [np.array([j for j in r if j >= 0], np.int64) for r in found]
     args = (cost, pisum, odd, gptr, gcols, pi, float(m), float(tau), opt_up, g2, absA0, node_limit, cand_cap, n // 2 + 2)
     if wide:

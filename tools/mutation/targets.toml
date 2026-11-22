@@ -18637,6 +18637,12 @@ timeout = 900.0
   replace = "ROUND_TASKS_PER_WORKER = 1 "
   models = "a round of one subtree a thread, which waits on its slowest subtree four times as often: 157.9 s against 106.9 s"
 
+  [[target.mutant]]
+  id = "rounds-split-not-bounded-by-the-node-limit"
+  find = "    return min(4096 * int(workers), max(int(workers), int(node_limit) // 1024))"
+  replace = "    return 4096 * int(workers)"
+  models = "a capped stage cut into 4,096 subtrees a thread whatever its node limit: a 2,000-node stage spent it on the frontier and found no cover"
+
 [[target]]
 name = "supergeo-certify-schedule"
 module-path = "benchmarks/studies/supergeo/certify_exact.py"

@@ -690,10 +690,18 @@ its slowest subtree, so rounds want many small subtrees. On the captured
 
 The default for rounds is the fastest of these, 4,096 subtrees a thread in
 rounds of 4 a thread, 1.24 times the dynamic schedule. (In an earlier session,
-rounds of 1 and of 4 over 64 subtrees a thread took 236 to 249 s and 376 s.) The
-120-market capped stage (300,000 nodes) took 8.0 to 8.9 s in rounds at every
-split tried against 5.0 to 7.6 s dynamic. `deterministic=False` gives the
-dynamic schedule; the timings in the sections above were taken on it.
+rounds of 1 and of 4 over 64 subtrees a thread took 236 to 249 s and 376 s.)
+
+A capped stage has a small node limit, and a round gives each subtree its share
+of what is left; the search checks its count every 1,024 nodes, so a smaller
+share is not honoured. Rounds therefore cut at most one subtree per 1,024 nodes
+of the limit (and at least one a thread). Without that bound a capped stage of
+2,000 nodes cut into 16,384 subtrees spent its budget on the frontier, found no
+cover, and left the exact stage 1.28 million nodes from the start incumbent
+against 1,216 with the bound (16 markets, four threads). The 120-market capped
+stage (300,000 nodes, 292 subtrees) took 7.0 to 7.6 s in rounds against 4.0 s
+dynamic, with the same cover as at every split tried. `deterministic=False`
+gives the dynamic schedule; the timings in the sections above were taken on it.
 
 A deterministic replacement was measured and rejected: the best partition into
 runs of consecutive markets by size (a one-pass dynamic program) costs 70 to
