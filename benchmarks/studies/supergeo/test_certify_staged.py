@@ -725,3 +725,153 @@ def test_the_certificate_runs_its_threads_in_rounds_by_default():
     z = list(test_bcp._subsets(16, 3))[1]
     out = ce.certify_staged(z, incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200,), workers=2)
     assert out["deterministic"] is True and out["stages"] and all(s["deterministic"] for s in out["stages"])
+
+
+# --- group-size limits (RCA: the heuristic dropped lo and hi) -------------------------------------------------------
+#
+# certify_staged(z, lo, hi) started from a heuristic called without lo and hi, which therefore built groups of 2 to 4
+# whatever was asked, and nothing checked the result: with lo=2, hi=2 it returned the 2-to-4 optimum, groups of four,
+# labelled proved with a negative proven gap. Every earlier property held lo=2, hi=4, the heuristic's own defaults.
+
+def _brute_sizes(z, lo, hi):
+    """The exact optimum (a Fraction) over every partition into groups of lo to hi markets, or None if there is
+    none; recursion on the lowest market."""
+    from itertools import combinations
+    from . import mitm_exact as mx
+    n = len(z); zeros = np.zeros(n); memo = {}
+    def best(U):
+        if not U:
+            return Fraction(0)
+        if U in memo:
+            return memo[U]
+        i = min(U); rest = sorted(U - {i}); out = None
+        for k in range(lo - 1, hi):
+            for others in combinations(rest, k):
+                g = (i,) + others
+                sub = best(frozenset(U - set(g)))
+                if sub is not None:
+                    c = mx.exact_rc(z, zeros, g) + sub
+                    out = c if out is None or c < out else out
+        memo[U] = out
+        return out
+    return best(frozenset(range(n)))
+
+
+def _ten_markets():
+    z = np.sort(np.random.default_rng(10).lognormal(0, 0.9, 10))
+    z[-1] = 8 * np.median(z)                       # one market eight times the median, as in the incident panel
+    return z
+
+
+def _check_sizes(out, n, lo, hi):
+    assert sorted(v for g in out["design"] for v in g) == list(range(n))
+    assert all(lo <= len(g) <= hi for g in out["design"]), out["design"]
+
+
+@pytest.mark.parametrize("lo, hi", [(2, 2), (2, 3), (3, 4), (3, 3), (4, 4), (2, 4)])
+def test_the_group_size_limits_hold_with_the_heuristic_on(lo, hi):
+    """The reproduction: ten markets, one eight times the median, the default heuristic on. The design keeps every
+    group within lo to hi, is the brute-force optimum over such partitions, and the bound lies below it."""
+    z = _ten_markets()
+    want = _brute_sizes(z, lo, hi)
+    out = ce.certify_staged(z, lo=lo, hi=hi)
+    _check_sizes(out, 10, lo, hi)
+    assert out["proved"] and out["opt_exact"] == want
+    assert out["lb_exact"] <= want and out["gap_proved"] >= 0
+
+
+@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(2, 11), kind=st.integers(0, 3),
+       sizes=st.sampled_from([(2, 2), (2, 3), (2, 4), (3, 3), (3, 4), (4, 4)]),
+       heuristic=st.sampled_from([dict(heuristic_seconds=0.0), dict(heuristic_steps=1), dict(heuristic_steps=5), {}]),
+       gap=st.sampled_from([0.0, 0.05]), workers=st.sampled_from([None, 2]))
+def test_every_group_size_limit_against_brute_force(seed, n, kind, sizes, heuristic, gap, workers):
+    """Over the group-size limits, the heuristic (off, one step, five, the default), the gap and the threads: when no
+    partition of n markets into groups of lo to hi exists the certificate proves there is no design; otherwise its
+    design keeps the limits and is within the gap of the brute-force optimum, and its proven bound is below it."""
+    lo, hi = sizes
+    z = np.asarray(test_bcp.gen(np.random.default_rng(seed), n, kind), float)
+    want = _brute_sizes(z, lo, hi)
+    out = ce.certify_staged(z, lo=lo, hi=hi, gap=gap, workers=workers, **heuristic)
+    if want is None:
+        assert out["design"] is None and not out["feasible"] and out["proved"]
+        return
+    _check_sizes(out, n, lo, hi)
+    assert out["proved"]
+    assert out["lb_proved_exact"] <= want <= out["opt_exact"]
+    assert out["opt_exact"] * (1 - Fraction(gap)) <= want
+
+
+@settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), calls=st.lists(st.sampled_from([(2, 2), (2, 3), (2, 4), (3, 4)]),
+                                                min_size=2, max_size=4))
+def test_calls_in_sequence_are_each_correct(seed, calls):
+    """Several certificates with different limits in one process, in any order: each is correct on its own terms
+    (no state carried from one call to the next changes a design or a bound)."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(seed), 8, seed % 4), float)
+    for lo, hi in calls:
+        out = ce.certify_staged(z, lo=lo, hi=hi)
+        _check_sizes(out, 8, lo, hi)
+        assert out["opt_exact"] == _brute_sizes(z, lo, hi) and out["lb_exact"] <= out["opt_exact"]
+
+
+@pytest.mark.parametrize("n, lo, hi", [(5, 2, 2), (7, 4, 4), (5, 3, 4), (3, 2, 2), (2, 3, 4)])
+def test_sizes_that_admit_no_partition_are_proved_infeasible(n, lo, hi):
+    out = ce.certify_staged(np.arange(1.0, n + 1.0), lo=lo, hi=hi)
+    assert out["design"] is None and not out["feasible"] and out["proved"]
+    assert "cannot be split" in out["proof"]
+
+
+@pytest.mark.parametrize("lo, hi", [(1, 2), (0, 2), (-1, 2), (3, 2), (2, 5), (2, 1), (2.0, 4), (2, 4.0),
+                                    (True, 4), (2, None), ("2", 4)])
+def test_bad_group_size_limits_are_rejected(lo, hi):
+    """The solvers price and search groups of 2 to 4 markets only (the pricing scan's loops, the search's rows of
+    four), so lo and hi must be integers with 2 <= lo <= hi <= 4; anything else raises before any work."""
+    with pytest.raises(ValueError, match="lo and hi"):
+        ce.certify_staged(np.arange(1.0, 9.0), lo=lo, hi=hi)
+
+
+@pytest.mark.parametrize("budget", [dict(heuristic_steps=3), dict(heuristic_seconds=0.05)])
+def test_the_heuristic_receives_the_limits(monkeypatch, budget):
+    """Both heuristic budgets forward lo and hi."""
+    from . import lns
+    seen = []
+    real = lns.lns_dp
+    monkeypatch.setattr(lns, "lns_dp", lambda *a, **k: seen.append((k.get("lo"), k.get("hi"))) or real(*a, **k))
+    ce.certify_staged(_ten_markets(), lo=2, hi=3, **budget)
+    assert seen == [(2, 3)]
+
+
+def test_the_older_certificate_forwards_the_limits(monkeypatch):
+    """certify (the MIP certificate) forwards lo and hi to its heuristic too."""
+    from . import lns
+    seen = []
+    def fake(z, design, **k):
+        seen.append((k.get("lo"), k.get("hi")))
+        raise RuntimeError("stop after the heuristic call")
+    monkeypatch.setattr(lns, "lns_dp", fake)
+    with pytest.raises(RuntimeError, match="stop after"):
+        ce.certify(_ten_markets(), lo=3, hi=4, verbose=False)
+    assert seen == [(3, 4)]
+
+
+def test_a_design_outside_the_limits_is_caught(monkeypatch):
+    """The certificate checks its own result: a heuristic that returns a group outside lo to hi (the defect this
+    section pins) makes the run raise, not return a certified design."""
+    from . import lns
+    real = lns.lns_dp
+    monkeypatch.setattr(lns, "lns_dp", lambda z, d, **k: real(z, d, **{**k, "lo": 2, "hi": 4}))
+    with pytest.raises(RuntimeError, match="group sizes"):
+        ce.certify_staged(_ten_markets(), lo=2, hi=2)
+
+
+def test_a_bound_above_the_design_is_caught(monkeypatch):
+    """The certificate checks its own result: a lower bound above the design's cost is a contradiction, and the run
+    raises instead of reading the negative gap as proved."""
+    real = ce._exact_bound
+    def inflated(*a, **k):
+        m, S, LB, neg = real(*a, **k)
+        return m, S, LB * 1000 + 10**6, neg
+    monkeypatch.setattr(ce, "_exact_bound", inflated)
+    with pytest.raises(RuntimeError, match="lower bound"):
+        ce.certify_staged(_ten_markets(), lo=2, hi=4)
