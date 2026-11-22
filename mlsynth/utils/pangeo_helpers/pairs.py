@@ -12,13 +12,20 @@ follow, closed form first (CLAUDE.md invariant 8):
   scalars, and the pairing of neighbours in sorted order of the totals is optimal: if a <= b <= c <= d, then
   (b - a)^2 + (d - c)^2 <= (c - a)^2 + (d - b)^2 and <= (d - a)^2 + (c - b)^2, so any pairing with two crossing or
   nested pairs is no cheaper after uncrossing them, and a pairing with neither is the sorted one. This is
-  :func:`sorted_pairing`, O(n log n).
+  :func:`sorted_pairing`, O(n log n). It is also the MSE-optimal randomized design when the total orders the
+  units' expected outcomes: among stratified randomizations that treat each unit with probability one half, the
+  difference in means is most precise under pairs of neighbours in the order of E[Y(1) + Y(0) | X] (Bai,
+  "Optimality of Matched-Pair Designs in Randomized Controlled Trials", American Economic Review 112(12) (2022)
+  3911-3940, Theorems 1 and 2; the rearrangement inequality is his Lemma B.1).
 * Every other Q = 1 cost: the trajectory objectives (``ss_res``, ``r2``, ``weighted``) and any objective with a
   covariate penalty. The cost of a pair is not a function of one scalar per unit, there is no closed form, and the
   matching is solved by Edmonds' blossom algorithm (:func:`.matching.min_weight_matching`), which returns the dual
   certificate that proves the pairing optimal.
 
-An arm with an odd number of units has no perfect matching; :func:`solve_pairs` raises for it.
+An arm with an odd number of units has no perfect matching, so one market is left out: the one whose removal
+lets the rest pair at the least cost. Under the closed form's condition it sits at an even position of the sorted
+totals, found by one scan (:func:`sorted_pairing_drop_one`); under every other cost the matcher's dummy market,
+joined to every market at cost 0, picks it (Kaibel and Walter, arXiv:1703.09505, 2017).
 """
 from __future__ import annotations
 
@@ -45,12 +52,37 @@ def sorted_pairing(z: Sequence[float]) -> List[Tuple[int, int]]:
     return [tuple(sorted((int(order[k]), int(order[k + 1])))) for k in range(0, len(z), 2)]
 
 
+def sorted_pairing_drop_one(z: Sequence[float]) -> Tuple[List[Tuple[int, int]], int]:
+    """The optimal pairing of all but one of the odd number of positions ``0..len(z)-1`` under the cost
+    ``(z_a - z_b)^2``, as ``(pairs, dropped)``: the position left out and the neighbour pairing of the rest.
+
+    Whatever position is left out, the rest pair best as neighbours in sorted order (:func:`sorted_pairing`), so
+    the optimum is the least over the n candidates of that pairing's cost. Only even positions k of the sorted
+    order need checking: leaving out k odd pairs k + 1 with k - 1, leaving out k - 1 pairs it with k, everything
+    else is the same, and k is nearer to k + 1. With A_t the cost of the pair (2t, 2t + 1) and B_t of
+    (2t + 1, 2t + 2), leaving out 2j costs sum_{t<j} A_t + sum_{t>=j} B_t: a prefix sum and a suffix sum, each a
+    sum of non-negative terms, so one O(n) scan after the sort. Ties go to the lowest sorted position (the lowest
+    total, then the lowest position). Raises ValueError for an even count.
+    """
+    z = np.asarray(z, dtype=float)
+    n = len(z)
+    if n % 2 == 0:
+        raise ValueError(f"leaving one position out needs an odd count, not {n}")
+    order = np.lexsort((np.arange(n), z))
+    s = z[order]
+    m = n // 2
+    A = (s[1:2 * m:2] - s[0:2 * m:2]) ** 2               # (2t, 2t + 1), t < m
+    B = (s[2:2 * m + 1:2] - s[1:2 * m:2]) ** 2           # (2t + 1, 2t + 2), t < m
+    prefix = np.concatenate(([0.0], np.cumsum(A)))
+    suffix = np.concatenate((np.cumsum(B[::-1])[::-1], [0.0]))
+    j = int(np.argmin(prefix + suffix))
+    pairs = [tuple(sorted((int(order[2 * t]), int(order[2 * t + 1])))) for t in range(j)]
+    pairs += [tuple(sorted((int(order[2 * t + 1]), int(order[2 * t + 2])))) for t in range(j, m)]
+    return pairs, int(order[2 * j])
+
+
 def _check_arm(n: int, min_pairs: int) -> None:
-    """An odd arm has no cover by pairs, and an arm of n units gives n / 2 pairs (an empty arm none)."""
-    if n % 2:
-        raise MlsynthEstimationError(
-            f"PANGEO: pairs (max_supergeo_size=1) need an even number of units in each arm; this arm has {n}, "
-            "which has no exact cover by pairs.")
+    """An arm of n units gives n // 2 pairs (an empty arm none, an odd arm leaves one out)."""
     if n // 2 < min_pairs:
         raise MlsynthEstimationError(
             f"PANGEO: an arm of {n} units gives {n // 2} pairs, fewer than min_pairs={min_pairs}.")
@@ -66,8 +98,11 @@ def solve_pairs(candidates: Optional[List[dict]], unit_indices: np.ndarray, *,
     totals; ``candidates`` is not read. Without ``totals``, ``candidates`` must hold every pair of the arm's units
     with its score, and the pairs are the blossom matcher's, with its certificate on the diagnostics.
 
-    Raises MlsynthEstimationError for an odd arm, an arm too small for ``min_pairs`` (an empty one included),
-    and a candidate list missing a pair's score.
+    An odd arm leaves one unit out, by the closed form's scan or by the matcher's dummy; the diagnostics'
+    ``excluded_units`` lists it (empty for an even arm).
+
+    Raises MlsynthEstimationError for an arm too small for ``min_pairs`` (an empty one included) and a
+    candidate list missing a pair's score.
     """
     unit_indices = np.asarray(unit_indices)
     n = len(unit_indices)
@@ -75,7 +110,11 @@ def solve_pairs(candidates: Optional[List[dict]], unit_indices: np.ndarray, *,
     t0 = time.perf_counter()
     if totals is not None:
         totals = np.asarray(totals, dtype=float)
-        pairs = sorted_pairing(totals)
+        if n % 2:
+            pairs, dropped = sorted_pairing_drop_one(totals)
+            excluded = [int(unit_indices[dropped])]
+        else:
+            pairs, excluded = sorted_pairing(totals), []
         chosen = []
         for a, b in pairs:
             d = float(totals[a]) - float(totals[b])
@@ -99,12 +138,14 @@ def solve_pairs(candidates: Optional[List[dict]], unit_indices: np.ndarray, *,
                 f"PANGEO: the pairs path needs every pair's score; {missing} of the arm's pairs have none.")
         result = min_weight_matching(W)
         chosen = [by_pair[p] for p in result["pairs"]]
+        excluded = [] if result["unmatched"] is None else [int(unit_indices[result["unmatched"]])]
         extra = {"path": "blossom_matching", "n_candidate_pairs": len(candidates),
                  "solver_name": "Edmonds blossom matching",
                  "certificate_violation": float(check_certificate(W, result)),
                  "certificate_tolerance": float(result["tolerance"]),
                  "n_blossoms": len(result["blossoms"])}
-    diagnostics = {**extra, "objective_value": float(sum(c["score"] for c in chosen)), "status": "optimal",
+    diagnostics = {**extra, "excluded_units": excluded,
+                   "objective_value": float(sum(c["score"] for c in chosen)), "status": "optimal",
                    "proved_optimal": True, "solve_seconds": float(time.perf_counter() - t0),
                    "n_selected_pairs": len(chosen), "backend": None}
     return chosen, diagnostics

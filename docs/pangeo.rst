@@ -442,6 +442,10 @@ matching problem (Edmonds 1965). On the exact path (``fast=False``) with
   with two crossing or nested pairs can therefore be uncrossed at no extra
   cost, and the optimum pairs the geos in sorted order of their totals,
   neighbour with neighbour. The design is a sort, with no program to solve.
+  It is also the most precise randomized design when the totals order the
+  geos' expected outcomes: among stratified randomizations that treat each
+  unit with probability one half, the difference in means has the least MSE
+  under pairs of neighbours in that order (Bai 2022, Theorems 1 and 2).
 * Under any other objective, or with covariates, the cost of a pair depends
   on whole trajectories and there is no closed form. The design is solved by
   Edmonds' blossom algorithm, which returns with the pairing the dual
@@ -451,10 +455,22 @@ matching problem (Edmonds 1965). On the exact path (``fast=False``) with
 
 An explicit ``mip_backend="highspy"`` or ``"cvxpy"`` solves :eq:`mip`
 instead. The solver diagnostics' ``path`` records which route ran:
-``closed_form_sorted_pairs``, ``blossom_matching`` or ``exact_mip``. Pairs
-need an even number of geos in each arm; an odd arm raises. On the 174 geos
-of google/trimmed_match's example, the sorted design takes 40 to 57 ms
-against 0.71 to 0.93 s for the MIP, at the same objective value.
+``closed_form_sorted_pairs``, ``blossom_matching`` or ``exact_mip``. On the
+174 geos of google/trimmed_match's example, the sorted design takes 40 to
+57 ms against 0.71 to 0.93 s for the MIP, at the same objective value.
+
+An arm with an odd number of geos has no perfect matching, so one geo is
+left out: the one whose removal lets the rest pair at the least cost. Under
+``"supergeo_total"`` without covariates it sits at an even position of the
+sorted totals (leaving out an odd position is never better than leaving out
+the one before it), so one scan of the sorted order finds it. Under every
+other cost, the matcher adds a dummy geo joined to every geo at cost 0, and
+the geo paired with the dummy is the one left out (Kaibel and Walter 2017).
+The geo left out is recorded on ``ArmDesign.excluded_units`` and
+``results.excluded_units``, named in a warning, and kept out of
+``results.assignment``; it takes no part in the experiment or its analysis.
+An explicit MIP backend and the fast path have no such step, and an odd arm
+raises there.
 
 Supergeo size :math:`Q` and automatic selection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1031,6 +1047,12 @@ References
 Chen, A., Doudchenko, N., Jiang, S., Stein, C., & Ying, B. (2023).
 "Supergeo Design: Generalized Matching for Geographic Experiments."
 arXiv:2301.12044.
+
+Bai, Y. (2022). "Optimality of Matched-Pair Designs in Randomized
+Controlled Trials." *American Economic Review* 112(12):3911-3940.
+
+Kaibel, V., & Walter, M. (2017). "A Note on Matchings Constructed during
+Edmonds' Weighted Perfect Matching Algorithm." arXiv:1703.09505.
 
 Edmonds, J. (1965). "Paths, Trees, and Flowers." *Canadian Journal of
 Mathematics* 17:449-467.

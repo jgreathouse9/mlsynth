@@ -19298,10 +19298,10 @@ timeout = 900.0
   models = "a pair's control half built from its treated unit"
 
   [[target.mutant]]
-  id = "an-odd-arm-not-reported"
-  find = "    if n % 2:"
-  replace = "    if False:"
-  models = "an odd arm passed to the solvers, which leave a unit out or fail with a ValueError, not the estimation error"
+  id = "an-odd-arm-sorted-as-even"
+  find = "        if n % 2:\n            pairs, dropped = sorted_pairing_drop_one(totals)"
+  replace = "        if False:\n            pairs, dropped = sorted_pairing_drop_one(totals)"
+  models = "an odd arm handed to the even closed form, which raises instead of leaving one market out"
 
   [[target.mutant]]
   id = "min-pairs-not-checked"
@@ -19425,8 +19425,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-seed-not-on-the-result"
-  find = "        power=power,\n        assignment_seed=assignment_seed,\n    )"
-  replace = "        power=power,\n    )"
+  find = "        power=power,\n        assignment_seed=assignment_seed,\n"
+  replace = "        power=power,\n"
   models = "the result silent on the seed that labelled it"
 
   [[target.mutant]]
@@ -19668,3 +19668,99 @@ timeout = 600.0
   find = "    nest_ss = exclusion.nested_trim(Wss, full_ss)[0]"
   replace = "    nest_ss = exclusion.nested_trim(Wss, pairs_tot[m])[0]"
   models = "nested trimming under ss_res started from the supergeo_total pairing, not the ss_res optimum"
+
+[[target]]
+name = "pangeo-pairs-odd"
+module-path = "mlsynth/utils/pangeo_helpers/pairs.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_pairs_odd.py mlsynth/tests/test_pangeo_pairs.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-lowest-total-always-left-out"
+  find = "    j = int(np.argmin(prefix + suffix))"
+  replace = "    j = 0"
+  models = "the market left out fixed at the lowest total, not the one that frees the cheapest pairing"
+
+  [[target.mutant]]
+  id = "ties-go-to-the-highest-position"
+  find = "    j = int(np.argmin(prefix + suffix))"
+  replace = "    j = len(prefix) - 1 - int(np.argmin((prefix + suffix)[::-1]))"
+  models = "tied drops broken towards the highest total, against the documented rule"
+
+  [[target.mutant]]
+  id = "the-right-pairs-costed-off-by-one"
+  find = "    B = (s[2:2 * m + 1:2] - s[1:2 * m:2]) ** 2           # (2t + 1, 2t + 2), t < m"
+  replace = "    B = (s[2:2 * m + 1:2] - s[0:2 * m:2]) ** 2           # (2t + 1, 2t + 2), t < m"
+  models = "the pairs right of the market left out costed as (2t, 2t + 2), not neighbours"
+
+  [[target.mutant]]
+  id = "the-suffix-summed-as-a-prefix"
+  find = "    suffix = np.concatenate((np.cumsum(B[::-1])[::-1], [0.0]))"
+  replace = "    suffix = np.concatenate(([0.0], np.cumsum(B)))"
+  models = "the cost of the pairs right of the market left out summed from the wrong end"
+
+  [[target.mutant]]
+  id = "the-right-pairs-not-shifted"
+  find = "    pairs += [tuple(sorted((int(order[2 * t + 1]), int(order[2 * t + 2])))) for t in range(j, m)]"
+  replace = "    pairs += [tuple(sorted((int(order[2 * t]), int(order[2 * t + 1])))) for t in range(j, m)]"
+  models = "the pairs right of the market left out built without stepping over it, so it is paired and another is not"
+
+  [[target.mutant]]
+  id = "the-wrong-market-reported"
+  find = "    return pairs, int(order[2 * j])"
+  replace = "    return pairs, int(order[j])"
+  models = "the market reported as left out not the one the pairs leave out"
+
+  [[target.mutant]]
+  id = "an-even-count-accepted"
+  find = "    if n % 2 == 0:"
+  replace = "    if False:"
+  models = "the drop-one closed form run on an even count, which leaves a market out for no reason"
+
+  [[target.mutant]]
+  id = "the-closed-forms-market-not-recorded"
+  find = "            excluded = [int(unit_indices[dropped])]"
+  replace = "            excluded = []"
+  models = "the closed form's market left out but not recorded, so the result reads as a full design"
+
+  [[target.mutant]]
+  id = "the-matchers-market-not-recorded"
+  find = "        excluded = [] if result[\"unmatched\"] is None else [int(unit_indices[result[\"unmatched\"]])]"
+  replace = "        excluded = []"
+  models = "the matcher's market left out but not recorded"
+
+[[target]]
+name = "pangeo-pairs-odd-pipeline"
+module-path = "mlsynth/utils/pangeo_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_pairs_odd.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-arm-silent-on-its-market"
+  find = "            excluded_units=excluded,"
+  replace = "            excluded_units=[],"
+  models = "the arm's design not listing the market it left out"
+
+  [[target.mutant]]
+  id = "the-result-silent-on-the-markets"
+  find = "        excluded_units=[u for d in arm_designs.values() for u in d.excluded_units],"
+  replace = "        excluded_units=[],"
+  models = "the result not listing the markets its arms left out"
+
+  [[target.mutant]]
+  id = "no-warning-for-the-market"
+  find = "        _warn_excluded(arm, int(idx.size), excluded)"
+  replace = "        pass"
+  models = "a market left out of the experiment without a warning"
+
+  [[target.mutant]]
+  id = "the-sweeps-candidates-warn"
+  find = "                warnings.simplefilter(\"ignore\", PangeoExcludedUnitWarning)"
+  replace = "                pass"
+  models = "the Q sweep's candidate designs warning about markets the returned design keeps"
+
+  [[target.mutant]]
+  id = "automatic-q-silent-on-its-market"
+  find = "        _warn_excluded(arm, design.n_units, design.excluded_units)"
+  replace = "        pass"
+  models = "automatic Q returning a design that leaves a market out without naming it"

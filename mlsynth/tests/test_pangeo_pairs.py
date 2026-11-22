@@ -231,11 +231,11 @@ def test_identical_units_tie_and_any_pairing_is_optimal():
 
 
 @pytest.mark.parametrize("objective", ["supergeo_total", "ss_res"])
-def test_an_odd_arm_is_reported(objective):
-    """Failure: pairs need an even arm; an arm of 5 raises MlsynthEstimationError naming the count, as the MIP
-    path's infeasible cover does."""
-    with pytest.raises(MlsynthEstimationError, match="even"):
-        _design(_panel(10, 5), objective=objective)
+def test_an_odd_arm_leaves_one_market_out(objective):
+    """Unit: an arm of 5 designs 2 pairs and leaves one market out (test_pangeo_pairs_odd.py has the rest)."""
+    with pytest.warns(UserWarning, match="left out"):
+        _, res = _design(_panel(10, 5), objective=objective)
+    assert len(res.arm_designs["A"].pairs) == 2 and len(res.excluded_units) == 1
 
 
 @pytest.mark.parametrize("objective", ["supergeo_total", "ss_res"])
