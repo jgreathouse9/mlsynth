@@ -165,6 +165,71 @@ margin so the elimination stays exact. Totals cannot see trend, seasonality or
 volatility (two markets with equal pretest totals can differ in all three), so
 this is the path from the base problem's machinery to PANGEO's objective.
 
+### Note for the trajectory objective: what the QUBO literature offers
+
+With sums over markets and the level profiled out (M = I - 11'/T on a market's
+path y_i), a split's trajectory cost is ||M sum_i s_i y_i||^2 = s' G s, s in
+{-1, +1}^n the halves and G_ij = y_i' M y_j the Gram matrix of the note above: an
+Ising problem with couplings G and no field, that is a QUBO. The base problem's
+objective is the rank-one case G = z z' (number partitioning; Lucas, "Ising
+formulations of many NP problems", Front. Phys. 2 (2014) 5); with trajectories G
+has rank at most T - 1 (vector number partitioning, or vector balancing).
+
+- Complexity. The rank-one QUBO is NP-hard (Cela and Punnen, "Complexity and
+  polynomially solvable special cases of QUBO", ch. 3 of Punnen (ed.), The
+  Quadratic Unconstrained Binary Optimization Problem, Springer 2022,
+  doi:10.1007/978-3-031-04520-2, Theorem 3.10, after Cela, Klinz and Meyer, J.
+  Comb. Optim. 12 (2006) 187-215, and Hammer, Hansen, Pardalos and Rader,
+  Optimization 51 (2002) 511-537). The polynomial fixed-rank case is the
+  maximisation of a positive semidefinite form, by enumerating a zonotope's
+  vertices (Allemand, Fukuda, Liebling and Steiner, Math. Program. 91 (2001)
+  49-52; Ferrez, Fukuda and Liebling, Eur. J. Oper. Res. 166 (2005) 35-50; ch. 3,
+  section 3.3.2): the max-cut direction, not ours, which minimises one. What
+  does carry over is the pseudo-polynomial algorithm for rational Q of fixed rank
+  (ch. 3, section 3.5.1, after Cela, Klinz and Meyer 2006), the counterpart of
+  the number-partitioning dynamic program; its table grows with the data's range
+  to the power of the rank, so at most a few leading eigen-directions.
+- Pricing. Column generation's pricing becomes a QUBO restricted to groups of 2
+  to 4 with the duals as a linear term; with G precomputed a group scores in
+  about 16 lookups. The scalar window's sort has no counterpart in R^T; the
+  projection on G's leading eigenvectors with a proven margin (note above) is
+  the route.
+- Bounds. The semidefinite relaxation of min s' G s may sit near zero: G's rank
+  is at most T - 1, far below the number of markets, which leaves the
+  relaxation room, the same failure as the LP bound on number partitioning (0.27
+  of the optimum on GeoLift). Measure before relying on it. The warm-startable
+  bounds of Chalkis, Kleinert and Sofranac ("QUBO dual bounds via SDP plane
+  projection method", arXiv:2312.15026), built on the quadratic convex
+  reformulation for branch and bound, are the candidate to measure; Rehfeldt,
+  Koch and Shinano ("Faster exact solution of sparse MaxCut and QUBO problems",
+  Math. Program. Comput. 15 (2023) 445-470) is the exact branch-and-cut state of
+  the art, whose reductions and separation assume sparsity that a Gram matrix
+  does not have.
+- Fixing. Autarkies and persistencies (Boros, ch. 5 of Punnen 2022) fix
+  variables in every optimum from the roof dual: the QUBO counterpart of the
+  reduced-cost elimination, to measure on the trajectory objective.
+- Incumbents. QUBO heuristics supply incumbents to the exact certificate, never
+  the proof: metaheuristics (Wang and Hao, ch. 9 of Punnen 2022: tabu search,
+  path relinking), mean-field annealing (Veszeli and Vattay, PLoS ONE 17 (2022)
+  e0273709), and recent hybrid solvers (VeloxQ, Pawlowski et al.,
+  arXiv:2501.19221; QIS3, TuringQ, arXiv:2506.04596). Software: ch. 11 of
+  Punnen 2022.
+- Constraints. The whole design as one QUBO needs penalty terms for group
+  membership, group size (2 to 4) and a budget, which distort the landscape and
+  need tuning; Samanta, Wang, Hodges and Ferenczi ("An effective QUBO formulation
+  for knapsack problems", IEEE QAI 2025, doi:10.1109/QAI63978.2025.00039) encode
+  an inequality with two slack variables, the form a budget or size cap would
+  take. The study keeps the constraints in the set-partitioning master instead.
+- Random instances. The random QUBO (Natarajan, ch. 7 of Punnen 2022) and
+  Mertens' random-cost picture of partitioning (phase 3) bear on how the
+  proof's tree grows with T; check what the multidimensional partitioning
+  literature says before claiming where the phase transition moves.
+- Design, not optimisation: the Gram-Schmidt walk design (Harshaw, Savje,
+  Spielman and Zhang, "Balancing covariates in randomized experiments with the
+  Gram-Schmidt walk design", J. Amer. Statist. Assoc.) randomises while
+  balancing vector covariates such as pretest paths, with a design-based
+  variance bound; a comparison arm for phase 5.
+
 ### Phase 4: the fast design, certified
 
 - `fast=True` keeps its design as the incumbent; the staged search then improves
