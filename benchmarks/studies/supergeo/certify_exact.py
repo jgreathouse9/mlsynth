@@ -534,6 +534,20 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
                 t=time.perf_counter() - t0, design=design)
 
 
+def _gap_shares(abs_gap, sizes):
+    """The regions' shares of the absolute gap d: each the float at or below its exact part d n_r / n, so the
+    shares sum to at most d. Rounding d n_r / n to the nearest float can land one unit in the last place above it
+    (d * 11 / 11 > d for some d), and a region proved within such a share lets the sum exceed d."""
+    n = sum(sizes); out = []
+    for k in sizes:
+        exact = Fraction(abs_gap) * k / n
+        f = float(exact)
+        if Fraction(f) > exact:
+            f = math.nextafter(f, 0.0)
+        out.append(f)
+    return out
+
+
 def _by_region(z0, lo, hi, labels, incumbent, abs_gap, max_group_cost, kw):
     """certify_staged with groups confined to regions: one certificate per region, on its markets, the absolute
     gap shared in proportion to the regions' sizes; the results added up. Regions in sorted order of label."""
@@ -555,7 +569,8 @@ def _by_region(z0, lo, hi, labels, incumbent, abs_gap, max_group_cost, kw):
                     deterministic=kw["deterministic"], t_cg=0.0, t=time.perf_counter() - t0, design=None,
                     regions=regions)
     regions, design = [], []
-    for lab in order:
+    shares = _gap_shares(abs_gap, [int(np.sum(labels == lab)) for lab in order])
+    for lab, share in zip(order, shares):
         idx = np.flatnonzero(labels == lab)
         if len(idx) < lo:
             return no_design(f"no design: region {lab!r} has {len(idx)} market(s), fewer than {lo}", True, regions)
@@ -563,7 +578,7 @@ def _by_region(z0, lo, hi, labels, incumbent, abs_gap, max_group_cost, kw):
         if incumbent is not None:
             pos = {int(g): j for j, g in enumerate(idx)}
             inc = [tuple(pos[int(v)] for v in g) for g in incumbent if int(g[0]) in pos]
-        out = certify_staged(z0[idx], lo, hi, incumbent=inc, abs_gap=abs_gap * len(idx) / n, **kw)
+        out = certify_staged(z0[idx], lo, hi, incumbent=inc, abs_gap=share, **kw)
         regions.append(dict(label=lab, n=len(idx), proved=out["proved"], feasible=out["feasible"], proof=out["proof"],
                             opt_exact=out["opt_exact"], lb_exact=out["lb_exact"], lb_proved_exact=out["lb_proved_exact"],
                             stages=out["stages"], verify_nodes=out["verify_nodes"],
