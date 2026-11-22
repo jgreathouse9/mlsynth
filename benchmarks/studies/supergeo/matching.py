@@ -577,12 +577,78 @@ def min_weight_matching(W):
     return result
 
 
+def _interval_order(family, m):
+    """An order of the vertices 0..m-1 in which every set of family is a run of consecutive positions, as
+    (order, lo, hi) with set b at positions lo[b] .. hi[b] - 1; None when no such order is found.
+
+    A laminar family (any two sets nested or disjoint), such as the odd sets of Edmonds' algorithm, is a tree, and
+    reading its leaves depth first puts each set's members together (Korte and Vygen, "Combinatorial Optimization:
+    Theory and Algorithms", 6th ed., Springer 2018, section 2.2, the tree representation of a laminar family). Sorting
+    the vertices lexicographically by membership, the largest set the most significant key, gives that order: the
+    members of a set agree on every larger set, which contains them all or none of them. Crossing sets get None."""
+    k = len(family)
+    if k == 0:
+        return np.arange(m), np.zeros(0, np.int64), np.zeros(0, np.int64)
+    M = np.zeros((k, m), dtype=bool)
+    for b, members in enumerate(family):
+        M[b, list(members)] = True
+    size = M.sum(axis=1)
+    rank = np.argsort(-size, kind="stable")
+    order = np.lexsort(~M[rank][::-1])
+    pos = np.empty(m, np.int64)
+    pos[order] = np.arange(m)
+    lo = np.where(M, pos[None, :], m).min(axis=1)
+    hi = np.where(M, pos[None, :], -1).max(axis=1) + 1
+    if np.any(hi - lo != size):
+        return None
+    return order, lo, hi
+
+
+def _near_tight(Wf, p, qs, order, lo, hi):
+    """The pairs (i, j), i < j, of the m vertices whose dual slack W_ij - p_i - p_j + sum of q over the sets holding
+    both cannot be shown positive in floating point, as two index arrays: the pairs the certificate must settle exactly.
+
+    With the sets laid out as intervals of order, the sets holding the vertices at positions a < b are those with
+    lo <= a and hi - 1 >= b, so the sum of their q is a two-dimensional cumulative sum of q placed at (lo, hi - 1).
+    Each slack is a floating sum of at most 2m + len(qs) + 3 nonzero terms through additions, whose error is at most
+    gamma_k times the sum of the terms' magnitudes, gamma_k = k u / (1 - k u), u = 2^-53 (Higham, "Accuracy and
+    Stability of Numerical Algorithms", 2nd ed., SIAM 2002, section 4.2); the screen doubles that bound and adds
+    k times the smallest subnormal for underflow. A pair whose computed slack exceeds the bound has positive exact
+    slack; every other pair, a NaN included, is returned. That is a floating-point filter in front of an exact
+    test (Shewchuk, "Adaptive precision floating-point arithmetic and fast robust geometric predicates", Discrete
+    and Computational Geometry 18 (1997) 305-363)."""
+    m = len(p)
+    q = np.asarray(qs, dtype=float)
+    G = np.zeros((m, m))
+    Ga = np.zeros((m, m))
+    np.add.at(G, (lo, hi - 1), q)
+    np.add.at(Ga, (lo, hi - 1), np.abs(q))
+    C = np.cumsum(np.cumsum(G, axis=0)[:, ::-1], axis=1)[:, ::-1]
+    Ca = np.cumsum(np.cumsum(Ga, axis=0)[:, ::-1], axis=1)[:, ::-1]
+    P = p[order]
+    Wp = Wf[np.ix_(order, order)]
+    with np.errstate(invalid="ignore", over="ignore"):
+        S = Wp - P[:, None] - P[None, :] + C
+        A = np.abs(Wp) + np.abs(P)[:, None] + np.abs(P)[None, :] + Ca
+        k = 2 * m + len(q) + 8
+        u = 2.0 ** -53
+        bound = 2.0 * (k * u / (1.0 - k * u)) * A + k * 2.0 ** -1074
+        uncertain = ~(S > bound)
+    a, b = np.nonzero(np.triu(uncertain, 1))
+    return order[a], order[b]
+
+
 def check_certificate(W, result):
     """The largest violation, in exact arithmetic, of the conditions that prove result's pairing a minimum-cost one:
     the pairing covers every market once (all but one when n is odd); every dual of an odd set is >= 0; every pair of
     markets (and of a market and the dummy, for odd n, at cost 0) has p_i + p_j - sum of q_B over the odd sets
     containing both <= W_ij; and sum p - sum floor(|B| / 2) q_B equals the pairing's cost. Returns 0 for a proof,
-    a positive number otherwise, and infinity when the pairing is not a matching of the required size."""
+    a positive number otherwise, and infinity when the pairing is not a matching of the required size or an odd set
+    is not a set of distinct vertices.
+
+    The pair conditions are screened in floating point (:func:`_near_tight`) and only the pairs the screen cannot
+    clear are evaluated in rational arithmetic, so the result is the exact one at a cost near one floating pass over
+    the pairs. When the odd sets cannot be laid out as intervals (they cross), every pair is evaluated exactly."""
     W = np.asarray(W, dtype=float)
     n = len(W)
     m = n + n % 2
@@ -592,25 +658,30 @@ def check_certificate(W, result):
         return float("inf")
     if n % 2 and (result["unmatched"] in covered or not 0 <= result["unmatched"] < n):
         return float("inf")
-    F = Fraction
-    p = [F(float(x)) for x in result["p"]]
-    if len(p) != m:
+    p = np.asarray(result["p"], dtype=float)
+    if p.shape != (m,):
         return float("inf")
-    worst = F(0)
-    cross = [[F(0)] * m for _ in range(m)]
-    obj = sum(p)
-    for members, q in result["blossoms"]:
-        q = F(float(q))
-        worst = max(worst, -q)
-        obj -= (len(members) // 2) * q
-        for a in members:
-            for b in members:
-                if a != b:
-                    cross[a][b] += q
-    for i in range(m):
-        for j in range(i + 1, m):
-            w = F(float(W[i, j])) if j < n else F(0)
-            worst = max(worst, p[i] + p[j] - cross[i][j] - w)
+    family = [tuple(int(v) for v in members) for members, _ in result["blossoms"]]
+    qs = [float(q) for _, q in result["blossoms"]]
+    if any(len(set(mem)) != len(mem) or any(not 0 <= v < m for v in mem) for mem in family):
+        return float("inf")
+    F = Fraction
+    worst = max([F(0)] + [-F(q) for q in qs])
+    obj = sum((F(float(x)) for x in p), F(0)) - sum(((len(mem) // 2) * F(q) for mem, q in zip(family, qs)), F(0))
     cost = sum((F(float(W[i, j])) for i, j in pairs), F(0))
     worst = max(worst, abs(obj - cost))
+    Wf = np.zeros((m, m))
+    Wf[:n, :n] = W
+    np.fill_diagonal(Wf, 0.0)
+    layout = _interval_order(family, m)
+    if layout is None:
+        ii, jj = np.triu_indices(m, 1)
+    else:
+        ii, jj = _near_tight(Wf, p, qs, *layout)
+    M = np.zeros((len(family), m), dtype=bool)
+    for b, mem in enumerate(family):
+        M[b, list(mem)] = True
+    for i, j in zip(ii.tolist(), jj.tolist()):
+        cross = sum((F(qs[b]) for b in np.nonzero(M[:, i] & M[:, j])[0].tolist()), F(0))
+        worst = max(worst, F(p[i]) + F(p[j]) - cross - F(Wf[i, j]))
     return float(worst)
