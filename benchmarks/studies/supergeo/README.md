@@ -650,8 +650,16 @@ index points per market), so which one a run returned mattered.
 The heuristic now runs a fixed number of steps, max(10, N // 2) by default, from
 a seed (`heuristic_steps`, `seed`; the result records the steps that ran). Three
 default runs on the 180-market panel, the third with three busy threads
-competing for the machine, returned the same design (cost 0.825493, 90 steps,
-24.1 to 24.2 s against 17.7 s with the time budget). A run that needs search
+competing for the machine, returned the same design (cost 0.825493, 90 steps).
+In one session, alone, both arms run twice with every step timed, the time
+budget took 21.7 and 22.2 s (82 and 84 steps) and the step budget 22.8 and
+23.4 s: the 90 steps cost 1.1 to 1.5 s more, as documented (about N / 20 s
+against N / 24 s). An earlier comparison, 24.1 s against the 17.7 s of the
+table above, was across sessions: the root column generation, with identical
+code and work (13 pricing scans, 16 LP solves), took 9.7 s in the earlier session
+and 13.6 to 18.0 s in the later one (the old commit's root just as slow), and
+the 120-market root moved from 2.3 to 2.6 s to 3.5 to 3.9 s, a slower host by
+about 1.5 times. Timings in this README compare arms within one session. A run that needs search
 stages on several threads still depends on thread timing (workers=None makes it
 reproducible).
 
