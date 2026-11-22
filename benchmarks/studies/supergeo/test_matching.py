@@ -431,3 +431,15 @@ def test_the_screen_returns_every_pair_without_positive_exact_slack(seed, m, k, 
     ii, jj = matching._near_tight(Wf, p, qs, order, lo, hi)
     got = {tuple(sorted(e)) for e in zip(ii.tolist(), jj.tolist())}
     assert all(e in got for e, s in _exact_slacks(Wf, p, family, qs).items() if s <= 0)
+
+
+def test_a_crossing_family_is_checked_on_every_pair():
+    """Unit: with the crossing sets {0, 1, 2}, {2, 3, 4}, {0, 4, 5} (duals 0) the check cannot lay the sets out and
+    evaluates every pair exactly. The pair (0, 1) is violated by 5 (W_01 = -5, all duals 0), the largest violation:
+    the objective is off by 3 and every other pair has slack 1."""
+    W = np.ones((6, 6)); np.fill_diagonal(W, 0.0)
+    W[0, 1] = W[1, 0] = -5.0
+    r = dict(pairs=[(0, 1), (2, 3), (4, 5)], unmatched=None, cost=-3.0, p=np.zeros(6),
+             blossoms=[((0, 1, 2), 0.0), ((2, 3, 4), 0.0), ((0, 4, 5), 0.0)], tolerance=0.0)
+    assert matching._interval_order([mem for mem, _ in r["blossoms"]], 6) is None
+    assert _oracle_check(W, r) == 5.0 and matching.check_certificate(W, r) == 5.0
