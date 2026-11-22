@@ -20,9 +20,8 @@ def safe_window(z, pi, lo, hi, theta, cap=50_000_000):
     M = float(np.max(np.abs(z))); P = float(np.max(np.abs(pi)))
     wmax = float(max(pi.max(), 0.0) + max(np.sort(pi)[-2:].sum(), pi.max(), 0.0))
     slack_r2 = 8 * mx.U * (abs(theta) + 6 * P) + 2 * mx.U * abs(wmax); slack_v = 16 * mx.U * 4 * M
-    _, k = mx._window_safe(hv, ha, hb, hsa, hsb, hw, order, lo, hi, float(theta), wmax, slack_r2, slack_v, 0)
-    if k > cap: raise MemoryError(f"{k} > cap")
-    rows, k = mx._window_safe(hv, ha, hb, hsa, hsb, hw, order, lo, hi, float(theta), wmax, slack_r2, slack_v, k)
+    rows = mx._window_safe_par(hv, ha, hb, hsa, hsb, hw, order, lo, hi, float(theta), wmax, slack_r2, slack_v)
+    if len(rows) > cap: raise MemoryError(f"{len(rows)} > cap")
     n1 = len(z) + 1
     key = (((rows[:, 0] + 1) * n1 + rows[:, 1] + 1) * n1 + rows[:, 2] + 1) * n1 + rows[:, 3] + 1
     return rows[np.unique(key, return_index=True)[1]]

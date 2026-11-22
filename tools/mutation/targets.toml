@@ -18455,3 +18455,64 @@ timeout = 900.0
   find = "        return status, int(nodes), [np.array([j for j in r if j >= 0], np.int64) for r in found]"
   replace = "        return status, int(nodes), [np.array(r, np.int64) for r in found]"
   models = "a recorded cover returned with its -1 padding, read by the caller as the last row"
+
+[[target]]
+name = "supergeo-exactnb-filter"
+module-path = "benchmarks/studies/supergeo/exactnb.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_exactnb.py -q -p no:cacheprovider -x -k \"within_its_bound or members2 or outside_the_error_model\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-filter-bound-without-the-square"
+  find = "    bnd = 16.0 * 2.0 ** -53 * (A * A + P + abs(tau) + abs(theta))"
+  replace = "    bnd = 16.0 * 2.0 ** -53 * (P + abs(tau) + abs(theta))"
+  models = "the error bound without the rounding of the squared split sums, the largest term: near ties are decided by a float whose sign can be wrong"
+
+  [[target.mutant]]
+  id = "undecided-rows-decided-by-the-float"
+  find = "        else:\n            out[r] = member2(z, pi, rows[r], k, theta, tau, strict)"
+  replace = "        else:\n            out[r] = v <= 0"
+  models = "rows within the error bound decided by the float's sign instead of the exact test"
+
+  [[target.mutant]]
+  id = "the-filter-decisions-swapped"
+  find = "        if v > b:\n            out[r] = False"
+  replace = "        if v > b:\n            out[r] = True"
+  models = "a row whose float value is certainly above the threshold kept as a member"
+
+  [[target.mutant]]
+  id = "the-filter-range-guard-dropped"
+  find = "    if not (2.0 ** -400 <= A <= 2.0 ** 400):\n        return 0.0, np.inf"
+  replace = "    if False:\n        return 0.0, np.inf"
+  models = "the filter trusted outside the range where its relative error model holds"
+
+  [[target.mutant]]
+  id = "the-filter-forgets-the-parity-dual"
+  find = "    if k % 2 == 1:\n        v -= tau\n    v -= theta"
+  replace = "    v -= theta"
+  models = "odd groups' float value without the parity dual: decided against a reduced cost the exact test does not use"
+
+[[target]]
+name = "supergeo-window-par"
+module-path = "benchmarks/studies/supergeo/mitm_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_mitm_exact.py -q -p no:cacheprovider -x -k \"parallel_window\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-last-half-not-counted"
+  find = "    for L in prange(m):\n        cnt[L] = _window_half("
+  replace = "    for L in prange(m - 1):\n        cnt[L] = _window_half("
+  models = "the count pass skips the last left half, so its rows are never filled"
+
+  [[target.mutant]]
+  id = "a-half-filled-at-the-next-offset"
+  find = "            _window_half(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v, sv, L, out,\n                         off[L], True)"
+  replace = "            _window_half(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v, sv, L, out,\n                         max(off[L] - 1, 0), True)"
+  models = "a half's rows written one row early, over the end of the previous half's: rows lost and the last row of the array left at -1"
+
+  [[target.mutant]]
+  id = "the-half-size-test-dropped"
+  find = "        size = nl + nr\n        if size < lo or size > hi:\n            continue\n        if c <= a or (d >= 0 and d <= a):\n            continue\n        if c == b or (d >= 0 and d == b):\n            continue\n        if not ((b >= 0 and hsb[L] == -1) or hsa[R] == -1 or (d >= 0 and hsb[R] == -1)):\n            continue\n        if fill:"
+  replace = "        size = nl + nr\n        if c <= a or (d >= 0 and d <= a):\n            continue\n        if c == b or (d >= 0 and d == b):\n            continue\n        if not ((b >= 0 and hsb[L] == -1) or hsa[R] == -1 or (d >= 0 and hsb[R] == -1)):\n            continue\n        if fill:"
+  models = "the parallel window without the group-size test: it emits groups of the wrong size that the serial window does not"
+
