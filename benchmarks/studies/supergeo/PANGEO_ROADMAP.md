@@ -50,6 +50,36 @@ From Trimmed Match Design:
 7. Rerandomization with balance checks; optional geo exclusion (optimal subset
    pairing with pseudo geos); Trimmed Match as the outlier-robust estimator.
 
+## Solver options (decided 2026-11-22)
+
+The author's decisions on PANGEO's solver options, which phases 2 to 4 build
+against:
+
+1. Shape. PANGEO takes TBR's shape: `search: "exact" | "heuristic"`, with
+   `exact_gap` and `exact_time_limit`. Behind `"exact"` the library chooses the
+   method, closed form first (CLAUDE.md invariant 8): the sorted pairing, then
+   the blossom matcher, then the certified staged search. The solver
+   diagnostics' `path` records which ran. A search stopped by the time limit
+   returns its incumbent and the proven gap. The heuristic is the search's
+   starting incumbent; with a stated gap there is no case for returning it as
+   the answer, and phase 4 measures whether `"heuristic"` keeps a reason to
+   exist at all.
+2. `fast` and `mip_backend` are deprecated when the shape lands: accepted for
+   one release with a warning that maps them onto it, then removed.
+   `mip_backend="cvxpy"` maps to nothing. A cross-check route for tests and
+   benchmarks stays as a private helper, not an option.
+3. No HiGHS. The goal is a PANGEO with no `highspy` (and no cvxpy) dependency.
+   The study already has the parts: `lpsx.py` (a warm-started dual simplex in
+   numba) for the column-generation master, whose bound stays valid whatever
+   LP solver produced the duals because the certificate re-checks it in exact
+   arithmetic, and the exact-cover search (`exactnb`, `verify_nb`) for the
+   final proof, which `certify_staged` already uses in place of the MIP. The
+   gate for `lpsx`: the same bound as HiGHS on the study's master problems at
+   comparable time, the presolve-failure fixture included.
+4. Pairs under `fast=True` stay on the clustering heuristic for now
+   (jgreathouse9/mlsynth#1115 moved only the exact path); they move with the
+   shape in item 1.
+
 ## Phases
 
 ### Phase 0: measure PANGEO as it is (no code change)
