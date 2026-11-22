@@ -4,7 +4,7 @@ from fractions import Fraction
 import numpy as np
 import pytest
 from hypothesis import given, settings, strategies as st, HealthCheck
-from . import matching
+from mlsynth.utils.pangeo_helpers import matching
 
 
 def _brute(W):

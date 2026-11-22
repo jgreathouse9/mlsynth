@@ -21,8 +21,24 @@ returns. Costs that are integers, small enough that every sum of them is exact i
 certificate; other costs give one exact to rounding, with the tolerance stated on the result.
 """
 from fractions import Fraction
+
 import numpy as np
-from numba import njit
+
+try:  # numba is the optional ``fast`` extra; without it the same code runs as Python
+    from numba import njit
+    AVAILABLE = True
+except ImportError:  # pragma: no cover - the suite runs with numba installed
+    AVAILABLE = False
+
+    def njit(*args, **kwargs):
+        if args and callable(args[0]):
+            return args[0]
+        return lambda f: f
+
+#: Compiled code is cached on disk only under this module name: a cache written under one
+#: import name fails to load under another (see tbr_helpers.design.exact.fastfloor).
+CANONICAL_NAME = "mlsynth.utils.pangeo_helpers.matching"
+_CACHE = __name__ == CANONICAL_NAME
 
 # rows of the integer state
 MATE, INB, BPAR, BBASE, LABEL, LABU, LABV, NCH, BESTU, BESTV, BLN, BLOK = range(12)
@@ -31,12 +47,12 @@ MATE, INB, BPAR, BBASE, LABEL, LABU, LABV, NCH, BESTU, BESTV, BLN, BLOK = range(
 CH, EX, EY, BLU, BLV = range(5)
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _slack(W, dual, i, j):
     return dual[i] + dual[j] - 2.0 * W[i, j]
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _leaves(b, m, A, I, out, stack):
     k = 0
     top = 1
@@ -54,7 +70,7 @@ def _leaves(b, m, A, I, out, stack):
     return k
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _assign(w, t, p, m, A, I, Q, CNT, buf, stack):
     """Label the top-level blossom of vertex w with t (1 = S, 2 = T) through the edge (p, w), p outside. A T label
     labels the mate of the blossom's base S in turn. S blossoms' vertices go on the scan queue."""
@@ -78,7 +94,7 @@ def _assign(w, t, p, m, A, I, Q, CNT, buf, stack):
         w, t, p = I[MATE, base], 1, base
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _scan(v, w, I, path):
     """Trace from the S vertices v and w back toward their trees' roots, alternately. Returns the base vertex of
     the first blossom both paths reach (a new blossom closes there), or -1 (different trees: an augmenting path)."""
@@ -103,7 +119,7 @@ def _scan(v, w, I, path):
     return base
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _add_blossom(base, v, w, W, m, A, I, dual, Q, CNT, FREE, buf, stack, side, bt):
     """Close the blossom formed by the tight edge (v, w) between two S blossoms of one tree, whose paths meet at
     the blossom of vertex base. Its children run from the base's blossom down the v side, across (v, w), and up the
@@ -204,7 +220,7 @@ def _add_blossom(base, v, w, W, m, A, I, dual, Q, CNT, FREE, buf, stack, side, b
     I[BLOK, b] = 1
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _free_blossom(b, I, dual, FREE, CNT):
     I[LABEL, b] = 0
     I[BBASE, b] = -1
@@ -220,7 +236,7 @@ def _free_blossom(b, I, dual, FREE, CNT):
     CNT[1] += 1
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _expand(b0, endstage, m, A, I, dual, Q, CNT, FREE, buf, stack, tasks, eps):
     """Dissolve blossom b0 into its children. At the end of a stage, children that are blossoms with zero dual are
     dissolved too. Inside a stage b0 is a T blossom whose dual reached zero: the children on the even path from the
@@ -297,7 +313,7 @@ def _expand(b0, endstage, m, A, I, dual, Q, CNT, FREE, buf, stack, tasks, eps):
         _free_blossom(b, I, dual, FREE, CNT)
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _augment_blossom(b0, v0, m, A, I, tasks):
     """Make vertex v0 the base of blossom b0: flip the matching along the even path inside it from v0's child to
     the base, recursively in the children it crosses, and rotate the children so v0's child comes first."""
@@ -355,7 +371,7 @@ def _augment_blossom(b0, v0, m, A, I, tasks):
         I[BBASE, b] = v
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _augment(v, w, m, A, I, tasks):
     """Augment along the path through the tight edge (v, w) between the roots of two trees."""
     for side in range(2):
@@ -377,7 +393,7 @@ def _augment(v, w, m, A, I, tasks):
             s, j = s2, j2
 
 
-@njit(cache=True)
+@njit(cache=_CACHE)
 def _solve(W, eps):
     """Maximum-weight perfect matching on the complete graph of an even number m of vertices, weights W (the
     diagonal is not read). Duals are kept doubled: the constraint on an edge (i, j) is y_i + y_j + sum of z_B over
