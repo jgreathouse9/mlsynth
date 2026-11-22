@@ -18948,3 +18948,69 @@ timeout = 900.0
   find = "    I[LABEL, b] = 1\n    I[LABU, b] = I[LABU, bb]"
   replace = "    I[LABEL, b] = 2\n    I[LABU, b] = I[LABU, bb]"
   models = "a blossom closed from S vertices labelled T"
+
+[[target]]
+name = "supergeo-matching-check"
+module-path = "benchmarks/studies/supergeo/matching.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_matching.py -q -p no:cacheprovider -x -k \"certificate or oracle or laminar or crossing or rounding or not_sets or near_tight or brute or wrong or expanded or equal or negative\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-dual-sum-read-the-wrong-way"
+  find = "    C = np.cumsum(np.cumsum(G, axis=0)[:, ::-1], axis=1)[:, ::-1]"
+  replace = "    C = np.cumsum(np.cumsum(G, axis=0), axis=1)"
+  models = "the odd-set duals summed over sets ending before the pair, not those spanning it, so violated pairs are screened out as slack"
+
+  [[target.mutant]]
+  id = "the-screen-without-a-rounding-bound"
+  find = "        uncertain = ~(S > bound)"
+  replace = "        uncertain = ~(S > 0.0)"
+  models = "a pair cleared on a positive floating slack alone, so a violation that rounding turns positive is never settled exactly"
+
+  [[target.mutant]]
+  id = "the-bound-without-the-term-count"
+  find = "        bound = 2.0 * (k * u / (1.0 - k * u)) * A + k * 2.0 ** -1074"
+  replace = "        bound = 2.0 * u * A + 2.0 ** -1074"
+  models = "the rounding bound of one operation used for a sum of up to 2m + |B| + 3 terms"
+
+  [[target.mutant]]
+  id = "the-smallest-set-the-leading-key"
+  find = "    order = np.lexsort(~M[rank][::-1])"
+  replace = "    order = np.lexsort(~M[rank])"
+  models = "the vertices sorted with the smallest set most significant, which scatters the members of the larger sets"
+
+  [[target.mutant]]
+  id = "an-interval-one-short"
+  find = "    hi = np.where(M, pos[None, :], -1).max(axis=1) + 1"
+  replace = "    hi = np.where(M, pos[None, :], -1).max(axis=1)"
+  models = "each set's interval ending one position early, so its last member is not counted as inside it"
+
+  [[target.mutant]]
+  id = "crossing-sets-taken-as-intervals"
+  find = "    if np.any(hi - lo != size):"
+  replace = "    if False:"
+  models = "a crossing family laid out as if every set were an interval, so the dual sums of the screen are wrong"
+
+  [[target.mutant]]
+  id = "the-near-tight-pairs-never-settled"
+  find = "    for i, j in zip(ii.tolist(), jj.tolist()):"
+  replace = "    for i, j in zip(ii.tolist()[:0], jj.tolist()):"
+  models = "the pairs the screen cannot clear dropped instead of settled in exact arithmetic"
+
+  [[target.mutant]]
+  id = "the-odd-set-duals-left-out-of-the-pair"
+  find = "        worst = max(worst, F(p[i]) + F(p[j]) - cross - F(Wf[i, j]))"
+  replace = "        worst = max(worst, F(p[i]) + F(p[j]) - F(Wf[i, j]))"
+  models = "the exact slack of a pair computed without the duals of the odd sets holding it"
+
+  [[target.mutant]]
+  id = "malformed-sets-accepted"
+  find = "    if any(len(set(mem)) != len(mem) or any(not 0 <= v < m for v in mem) for mem in family):"
+  replace = "    if False:"
+  models = "an odd set with a repeated vertex or a vertex outside the markets used as if it were a set of them"
+
+  [[target.mutant]]
+  id = "a-crossing-family-checked-on-some-pairs"
+  find = "        ii, jj = np.triu_indices(m, 1)"
+  replace = "        ii, jj = np.triu_indices(m, 2)"
+  models = "with crossing sets, the pairs of consecutive vertices left out of the exact check"

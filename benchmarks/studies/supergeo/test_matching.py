@@ -335,15 +335,29 @@ def test_the_check_equals_the_exact_oracle(seed, n, kind, tamper):
 
 
 def test_a_violation_hidden_by_rounding_is_found():
-    """Unit: p_0 + p_2 = 2^53 + 0.5 rounds to 2^53 = W_02 in floating point, so a floating check sees the pair (0, 2)
-    tight; in exact arithmetic it is violated by 0.5. Every other condition holds (the objective included), so the
-    check reports 0.5 only if it settles that pair exactly."""
+    """Unit: the odd set {0, 2, 3} (q = 1/2) puts markets 0 and 2 first in the screen's order, which computes the
+    slack of (0, 2) as (W_02 - p_0) - p_2 + q. W_02 - p_0 = 2^53 + 1.25 rounds to 2^53 + 2 (the spacing there is 2),
+    so the computed slack is +0.5 while the exact one is -0.25: the pair is violated by 1/4. Every other condition
+    holds (the objective included), so the check reports 1/4 only if its rounding bound sends that pair to exact
+    arithmetic."""
     B = 2.0 ** 53
-    W = np.array([[0, 0, B, B], [0, 0, 0, 0], [B, 0, 0, 0.5], [B, 0, 0.5, 0]])
-    r = dict(pairs=[(0, 1), (2, 3)], unmatched=None, cost=0.5, p=np.array([B, -B, 0.5, 0.0]), blossoms=[],
-             tolerance=0.0)
-    assert _oracle_check(W, r) == 0.5
-    assert matching.check_certificate(W, r) == 0.5
+    W = np.array([[0, 0, B, 0], [0, 0, 2 * B, 2], [B, 2 * B, 0, B + 2], [0, 2, B + 2, 0]])
+    r = dict(pairs=[(0, 1), (2, 3)], unmatched=None, cost=B + 2, p=np.array([-1.25, 1.25, B + 2, 0.5]),
+             blossoms=[((0, 2, 3), 0.5)], tolerance=0.0)
+    order, lo, hi = matching._interval_order([(0, 2, 3)], 4)
+    assert order.tolist()[:2] == [0, 2]
+    assert (W[0, 2] - r["p"][0]) - r["p"][2] + 0.5 == 0.5           # the floating slack, as the screen computes it
+    assert _oracle_check(W, r) == 0.25
+    assert matching.check_certificate(W, r) == 0.25
+
+
+def test_odd_sets_that_are_not_sets_of_vertices_are_rejected():
+    """Failure: an odd set with a repeated vertex, or a vertex outside the m markets (and dummy), is not a set the
+    certificate can use; the check returns infinity, the value for a malformed certificate."""
+    W = _sym(np.random.default_rng(9), 6, 0, 10)
+    out = matching.min_weight_matching(W)
+    for bad in [(0, 0, 1), (0, 1, 6), (-1, 0, 1)]:
+        assert matching.check_certificate(W, dict(out, blossoms=list(out["blossoms"]) + [(bad, 0.0)])) == float("inf")
 
 
 def test_only_the_near_tight_pairs_are_settled_exactly():
