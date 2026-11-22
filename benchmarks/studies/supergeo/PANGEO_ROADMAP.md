@@ -553,6 +553,65 @@ Multiple Displays", IEEE Transactions on Visualization and Computer Graphics
   stated rate; on the phase 0 panels, the held-out MDE of designs on the selected
   covariates against designs on the outcome alone and on all covariates.
 
+### Phase 5d: blocked designs under a grouped factor model
+
+The model, for market i in cluster c(i), with a primary KPI and secondary ones
+of the same form:
+
+    Y_it(0) = alpha_i + lambda_c(i)' F_t + beta_c(i)' W_c(i),t + eps_it,
+
+F_t latent common factors, W_c,t observed cluster-level series such as weather
+(heat, rain), and loadings and sensitivities shared within a cluster: the
+grouped linear factor structure of Liao, Shi and Zheng that LEXSCM's and
+SYNDES's examples already simulate.
+
+- What a pair's difference carries. Two markets in one cluster share lambda,
+  beta and W, so F and W cancel in their difference and only alpha_a - alpha_b
+  and noise remain: the test window's factors and weather, unknown at design
+  time, cannot enter the comparison. Two markets in different clusters carry
+  (lambda_c - lambda_c')' F_t and the weather terms, a variance of
+  (lambda_c - lambda_c')' Sigma_F (lambda_c - lambda_c') plus its weather
+  analogue: a distance in several dimensions.
+- The design. Block on the clusters; within a cluster the remaining imbalance is
+  the scalar alpha_i, so Bai's result (phase 5b) applies block by block: sort
+  each cluster on its level or prognostic index and pair neighbours, one closed
+  form per cluster (CLAUDE.md invariant 8). A cluster with an odd count leaves
+  one market; the leftovers are paired across clusters at the loading-distance
+  cost, a matching in several dimensions solved by the blossom matcher, or left
+  out (the odd case of the pairs path). The global minimum-weight matching on the
+  full cost does both at once, since pairs within a cluster cost almost nothing;
+  the closed form applies exactly when every cluster is even. The supergeo
+  study's groups within regions (`certify_staged`'s region constraint) is the
+  same blocking for Q >= 2.
+- Weather, twice. At design time the cluster-level series define or sharpen the
+  clusters (weather is regional), and a market's estimated sensitivity beta can
+  enter its index. At analysis time the test window's weather is observed and
+  not affected by treatment, so it enters the DiD/ADID as a control and absorbs
+  a shock the design could not see; this differs from the regression adjustment
+  of baseline covariates that Bai (Section V) finds does not recover what
+  matching gains.
+- Several KPIs. The blocking does not depend on the KPI: shared factors and
+  weather cancel within a cluster for every KPI at once. The within-cluster index
+  does: the primary KPI's index, or matched sets of four on the baselines of all
+  KPIs (Bai, Section V.C, where pairing on one outcome did not help another).
+- The clusters are checked, not assumed. Clusters from geography (census
+  divisions, weather zones) and clusters estimated from co-movement (grouped
+  fixed effects, Bonhomme and Manresa, Econometrica 83(3), 2015; a grouped
+  factor model, Ando and Bai) both earn their blocks through phase 5c's
+  permutation test: the partition separates the held-out outcome beyond random
+  partitions of the same sizes. Estimated clusters are fitted to the pre-period
+  and the test is what keeps them from overfitting it.
+- Inference. Bai's optimality assumes independent units; under the factor model
+  units in a cluster are dependent through F and W. Pairing within clusters
+  removes that dependence from the pair differences, but with few clusters the
+  randomization test permutes within blocks and the variance is checked by
+  simulation.
+- Acceptance: on panels simulated from the model with planted clusters, weather
+  and loadings, the blocked design's held-out MDE (phase 5) against the
+  unblocked sorted design, the trajectory objective and the matcher on the full
+  cost; the permutation test recovers the planted partition and rejects a random
+  one; the analysis with weather as a control against the analysis without it.
+
 ### Phase 6: Trimmed Match as an analysis estimator
 
 A separate estimator, own branch: the trimmed ratio estimator of Chen and Au
@@ -727,8 +786,8 @@ pairs to keep. Neither repairs a design after a market is lost.
 Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 0c (the general solver against the closed form on pairs: heuristic stopping, odd-set cuts, the matching oracles), then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5's
 closed form and backtest can start after phase 1 and run beside 2 to 4; its
 Trimmed Match simulations follow phase 6, and phase 6b follows phase 6. The Trimmed Match benchmark (phase 7)
-lands with phase 6. Phases 5b and 5c follow phase 5's held-out MDE, which is
-their measurement; 5b's inference change and its citation of the pairs path can
+lands with phase 6. Phases 5b, 5c and 5d follow phase 5's held-out MDE, which
+is their measurement, and 5d uses 5c's test on its clusters; 5b's inference change and its citation of the pairs path can
 land any time. The rest of phase 7 after each phase lands. Phase 8 is open:
 its measurement can run any time after phase 0b, and any design work waits on
 phase 5's variance.
