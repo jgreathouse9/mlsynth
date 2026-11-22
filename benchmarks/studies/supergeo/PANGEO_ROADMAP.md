@@ -107,6 +107,28 @@ research buys (time, scale, proven optimality), with the objective held fixed.
   `fast=True` and for bad group sizes, mutants for the score (sums, no delta,
   the group cap).
 
+Two steps, simplest first:
+
+- 0b-1, pairs. Groups of exactly two (PANGEO's Q = 1), the objective above,
+  solved by the cvxpy and HiGHS MIP. Pairs are not a partitioning problem: with
+  the paper's scalar objective the optimal pairing pairs neighbours in sorted
+  order (for sorted a <= b <= c <= d the crossing pairing costs at least
+  (b - a)^2 + (d - c)^2 since each difference only grows, and the nested one
+  (d - a)^2 + (c - b)^2 >= (b - a)^2 + (d - c)^2; an exchange argument extends
+  it to n), with an O(n) dynamic program choosing the market left out when n is
+  odd; with any per-pair cost (trajectories, PANGEO's DiD score) it is a minimum
+  weight perfect matching, polynomial (Edmonds' blossom algorithm). The MIP's
+  design must equal the sorted pairing: an exact oracle for the new objective and
+  the cvxpy and HiGHS path. Trimmed Match Design is a pairs design, so this step
+  is also cross-validated against google/trimmed_match's pairing on its example
+  data (phase 7), the one external reference the comparison has.
+- 0b-2, groups of 2 to 4, any split: the case that contains number
+  partitioning, and the base against which phases 1 to 4 are measured.
+
+The comparison then has three arms: pairs (polynomial), groups of 2 to 4 by the
+MIP, groups of 2 to 4 by the study's certificate; it shows what supergeos buy
+over pairs before it shows what the research buys over the MIP.
+
 Own branch, library code; lands before phase 1.
 
 ### Phase 1: harden the exact-cover MIP (`pangeo_helpers/mip.py`)
