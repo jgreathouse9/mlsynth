@@ -8,6 +8,10 @@ Two answers to "which k pairs" (roadmap, the matching section):
   neighbour pairs in sorted order chosen by a dynamic program (``sorted_k_pairs``); for any cost, the blossom
   matcher with n - 2k dummy markets joined to every market at cost 0 (``matched_k_pairs``).
 
+A design built on them (``design_excluding``) takes the number of pairs to exclude, and markets excluded by hand,
+and refuses an exclusion that leaves no design: one that excludes every pair, more pairs than the markets form, or
+so many markets that fewer than ``min_pairs`` pairs (or none) can form.
+
 The tests check each against brute force over every k-matching, the two exact methods against each other on the
 cases they share (CLAUDE.md invariant 8), the cardinality-optimal cost never above the nested one, the two equal
 at k = 0 and k = n // 2, an instance where they differ, and the failures.
@@ -165,3 +169,164 @@ def test_nested_trim_rejects_pairs_that_are_not_a_matching():
     """Failure: nested trimming starts from a pairing; repeated markets raise ValueError."""
     with pytest.raises(ValueError, match="matching"):
         exclusion.nested_trim(_sym(np.random.default_rng(1), 4), [(0, 1), (1, 2)])
+
+
+# --- a design after exclusion -------------------------------------------------------------------------------------
+
+def _check_design(d, n, excluded, kept):
+    """The design keeps ``kept`` disjoint pairs, none touching a market excluded by hand, and reports every other
+    market as excluded."""
+    pairs = d["pairs"]
+    used = sorted(v for p in pairs for v in p)
+    assert _is_k_matching(pairs, n, kept)
+    assert not set(used) & set(excluded)
+    assert sorted(d["excluded_units"]) == sorted(set(range(n)) - set(used))
+    assert set(excluded) <= set(d["excluded_units"])
+
+
+def test_a_design_excluding_one_pair():
+    """Smoke: totals 0, 2, 3, 5 with one pair excluded. Re-pairing keeps markets 1 and 2 (totals 2 and 3, cost 1),
+    the best single pair. Nested trimming keeps one pair of the full pairing, whose two pairs tie at cost 4, and
+    the tie goes to the first in sorted order: markets 0 and 1."""
+    z = np.array([0.0, 2.0, 3.0, 5.0])
+    opt = exclusion.design_excluding(totals=z, drop_pairs=1)
+    assert opt["pairs"] == [(1, 2)] and opt["cost"] == 1.0 and opt["excluded_units"] == [0, 3]
+    nested = exclusion.design_excluding(totals=z, drop_pairs=1, method="nested")
+    assert nested["pairs"] == [(0, 1)] and nested["cost"] == 4.0 and nested["excluded_units"] == [2, 3]
+
+
+def test_no_exclusion_is_the_full_optimal_pairing():
+    """Unit: dropping no pairs gives the full optimal pairing under both methods, from totals and from costs."""
+    z = np.random.default_rng(3).lognormal(0, 1, 10)
+    W = (z[:, None] - z[None, :]) ** 2
+    full = exclusion.sorted_k_pairs(z)[0][-1]
+    for kw in (dict(totals=z), dict(costs=W)):
+        for method in ("optimal", "nested"):
+            d = exclusion.design_excluding(**kw, method=method)
+            _check_design(d, 10, [], 5)
+            assert d["cost"] == pytest.approx(full, rel=1e-12)
+
+
+def test_markets_excluded_by_hand_are_never_paired():
+    """Unit: markets excluded by hand are left out before pairing, and an odd remainder leaves one more out."""
+    z = np.arange(9, dtype=float) ** 2
+    d = exclusion.design_excluding(totals=z, excluded_units=[0, 4])
+    _check_design(d, 9, [0, 4], 3)
+    assert len(d["excluded_units"]) == 3
+
+
+@settings(max_examples=150, deadline=None)
+@given(seed=st.integers(0, 10 ** 6), n=st.integers(0, 9), data=st.data())
+def test_a_design_exists_exactly_when_enough_pairs_remain(seed, n, data):
+    """Property, over up to 9 markets, any markets excluded by hand, any number of pairs dropped (past every pair
+    included) and min_pairs from 1 to 3: the design raises ValueError exactly when fewer than min_pairs pairs
+    remain, and otherwise keeps (n' // 2 - drop) pairs of the n' markets left, the re-paired ones at the brute-force
+    optimum over those markets and the nested ones at no lower cost."""
+    rng = np.random.default_rng(seed)
+    W = _sym(rng, n)
+    excluded = sorted(data.draw(st.sets(st.integers(0, n - 1), max_size=n))) if n else []
+    drop = data.draw(st.integers(0, n // 2 + 2))
+    min_pairs = data.draw(st.integers(1, 3))
+    rest = [i for i in range(n) if i not in excluded]
+    kept = len(rest) // 2 - drop
+    if kept < min_pairs:
+        with pytest.raises(ValueError, match="pair"):
+            exclusion.design_excluding(costs=W, drop_pairs=drop, excluded_units=excluded, min_pairs=min_pairs)
+        return
+    opt = exclusion.design_excluding(costs=W, drop_pairs=drop, excluded_units=excluded, min_pairs=min_pairs)
+    nested = exclusion.design_excluding(costs=W, drop_pairs=drop, excluded_units=excluded, min_pairs=min_pairs,
+                                        method="nested")
+    for d in (opt, nested):
+        _check_design(d, n, excluded, kept)
+        assert d["cost"] == pytest.approx(_cost(W, d["pairs"]))
+    sub = W[np.ix_(rest, rest)]
+    assert opt["cost"] == pytest.approx(_brute_k(sub, kept), rel=1e-9, abs=1e-9)
+    assert nested["cost"] >= opt["cost"] - 1e-9
+
+
+# --- an exclusion that leaves no design ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("method", ["optimal", "nested"])
+@pytest.mark.parametrize("kw", [dict(totals=np.arange(8.0)), dict(costs=(np.arange(8.0)[:, None] -
+                                                                         np.arange(8.0)[None, :]) ** 2)])
+def test_excluding_every_pair_is_refused(method, kw):
+    """Failure: 8 markets form 4 pairs; excluding all 4 leaves no design, and the error says so and names both
+    counts."""
+    with pytest.raises(ValueError, match=r"every pair.*4 of 4|4 of 4.*every pair"):
+        exclusion.design_excluding(**kw, drop_pairs=4, method=method)
+
+
+def test_excluding_more_pairs_than_the_markets_form_is_refused():
+    """Failure: 8 markets form 4 pairs; excluding 6 is refused with both counts named."""
+    with pytest.raises(ValueError, match=r"6 pairs.*only 4"):
+        exclusion.design_excluding(totals=np.arange(8.0), drop_pairs=6)
+
+
+def test_excluding_below_min_pairs_is_refused():
+    """Failure: 8 markets, 2 pairs dropped, leave 2 pairs, fewer than min_pairs = 3; at min_pairs = 2 the same
+    exclusion is a design (the boundary)."""
+    with pytest.raises(ValueError, match=r"leaves 2 pairs.*min_pairs=3"):
+        exclusion.design_excluding(totals=np.arange(8.0), drop_pairs=2, min_pairs=3)
+    d = exclusion.design_excluding(totals=np.arange(8.0), drop_pairs=2, min_pairs=2)
+    _check_design(d, 8, [], 2)
+
+
+@pytest.mark.parametrize("excluded", [list(range(6)), [0, 1, 2, 3, 4]])
+def test_excluding_so_many_markets_that_no_pair_forms_is_refused(excluded):
+    """Failure: of 6 markets, excluding all 6, or 5, leaves none or one, and no pair can form."""
+    with pytest.raises(ValueError, match="no pair"):
+        exclusion.design_excluding(totals=np.arange(6.0), excluded_units=excluded)
+
+
+def test_excluding_markets_then_every_remaining_pair_is_refused():
+    """Failure: excluding 1 of 6 markets leaves 5, which form 2 pairs; dropping both excludes every pair."""
+    with pytest.raises(ValueError, match=r"every pair.*2 of 2|2 of 2.*every pair"):
+        exclusion.design_excluding(totals=np.arange(6.0), excluded_units=[5], drop_pairs=2)
+
+
+def test_excluding_so_many_markets_that_too_few_pairs_form_is_refused():
+    """Failure: excluding 3 of 8 markets leaves 5, which form 2 pairs, fewer than min_pairs = 3, before any pair
+    is dropped."""
+    with pytest.raises(ValueError, match=r"5 markets.*2 pairs.*min_pairs=3"):
+        exclusion.design_excluding(totals=np.arange(8.0), excluded_units=[0, 1, 2], min_pairs=3)
+
+
+def test_an_empty_panel_has_no_design():
+    """Edge: no markets, and one market, form no pair."""
+    for z in (np.zeros(0), np.array([1.0])):
+        with pytest.raises(ValueError, match="no pair"):
+            exclusion.design_excluding(totals=z)
+
+
+@pytest.mark.parametrize("kw, match", [
+    (dict(drop_pairs=-1), "drop_pairs"),
+    (dict(drop_pairs=1.5), "drop_pairs"),
+    (dict(drop_pairs=True), "drop_pairs"),
+    (dict(min_pairs=0), "min_pairs"),
+    (dict(min_pairs=True), "min_pairs"),
+    (dict(excluded_units=[1, 1]), "excluded_units"),
+    (dict(excluded_units=[8]), "excluded_units"),
+    (dict(excluded_units=[-1]), "excluded_units"),
+    (dict(excluded_units=[True]), "excluded_units"),
+    (dict(excluded_units=[0.5]), "excluded_units"),
+    (dict(method="greedy"), "method"),
+])
+def test_invalid_arguments_are_rejected(kw, match):
+    """Failure: each malformed argument raises ValueError naming it."""
+    with pytest.raises(ValueError, match=match):
+        exclusion.design_excluding(totals=np.arange(8.0), **kw)
+
+
+def test_costs_or_totals_exactly_one():
+    """Failure: the design reads either a cost matrix or scalar totals, not both and not neither; a cost matrix that
+    is not square and symmetric is refused."""
+    z = np.arange(4.0)
+    W = (z[:, None] - z[None, :]) ** 2
+    with pytest.raises(ValueError, match="one of"):
+        exclusion.design_excluding()
+    with pytest.raises(ValueError, match="one of"):
+        exclusion.design_excluding(costs=W, totals=z)
+    with pytest.raises(ValueError, match="square|symmetric"):
+        exclusion.design_excluding(costs=np.triu(W))
+    with pytest.raises(ValueError, match="square"):
+        exclusion.design_excluding(costs=np.zeros((3, 4)))
