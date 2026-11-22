@@ -18564,3 +18564,33 @@ timeout = 900.0
   replace = "            incumbent, _, trace = lns.lns_dp(z, incumbent, seconds=max(1.0, n / 24), seed=seed, verbose=False)"
   models = "the default heuristic stopped by the clock again: the design depends on the machine's load"
 
+[[target]]
+name = "supergeo-certify-region"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"region\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "regions-not-separated"
+  find = "        idx = np.flatnonzero(labels == lab)"
+  replace = "        idx = np.arange(n)"
+  models = "every region's certificate run on all the markets: groups cross regions and markets repeat"
+
+  [[target.mutant]]
+  id = "the-absolute-gap-given-to-every-region"
+  find = "        out = certify_staged(z0[idx], lo, hi, incumbent=inc, abs_gap=abs_gap * len(idx) / n, **kw)"
+  replace = "        out = certify_staged(z0[idx], lo, hi, incumbent=inc, abs_gap=abs_gap, **kw)"
+  models = "each region allowed the whole absolute gap, so the regions' gaps add up to more than the one claimed"
+
+  [[target.mutant]]
+  id = "a-region-too-small-not-caught"
+  find = "        if len(idx) < lo:"
+  replace = "        if len(idx) < 1:"
+  models = "a region with a single market sent to the certificate, which has no design for it"
+
+  [[target.mutant]]
+  id = "the-bound-from-the-largest-region"
+  find = "    LBp = sum(r[\"lb_proved_exact\"] for r in regions)"
+  replace = "    LBp = max(r[\"lb_proved_exact\"] for r in regions)"
+  models = "the proven lower bound taken from one region instead of the sum, so the proven gap overstates what remains"
+

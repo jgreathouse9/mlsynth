@@ -173,7 +173,8 @@ def _screen_rows(z, pi, tau, lo, S, m, UB, rows):
 
 
 def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps="auto", keep=0.5, workers="auto",
-                   gap=0.0, abs_gap=0.0, max_group_cost=None, heuristic_steps="auto", seed=0, verbose=False):
+                   gap=0.0, abs_gap=0.0, max_group_cost=None, heuristic_steps="auto", seed=0, region=None,
+                   verbose=False):
     """The certificate with the elimination redone at every better incumbent and no MIP.
 
     After the root and the exact bound, each stage runs the exact elimination at the incumbent's exact cost and the
@@ -230,6 +231,13 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
     sigma, noise adds |g| sigma^2 to the expected cost of a group g, N sigma^2 to any design's, whatever its
     groups; d = 0.01 N sigma^2 asks for a design within 1% of what noise alone does to the objective.
 
+    region: one label per market. Only groups whose markets share a label are allowed (groups within a region,
+    which keeps a supergeo's markets under common local conditions such as weather), so the problem separates into
+    one certificate per region, each on its own markets (:func:`_by_region`). The design's cost and its proven
+    lower bound are the regions' sums; a relative gap g holds for the sum when it holds in every region, and the
+    absolute gap d is shared out in proportion to the regions' sizes. A region with fewer than `lo` markets has no
+    design, and the result proves that. The result adds `regions`, one summary per region.
+
     max_group_cost: a balance standard t, in the units of the objective: only groups whose imbalance
     (2 Z_A - Z_G)^2 is at most t may be used, so no group of the design is badly matched however good the total.
     Groups above t leave the survivors by the same exact test as the elimination (:func:`.exactnb.members2` with
@@ -246,6 +254,16 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
     up), the proven lower bound `lb_proved` (and `lb_proved_exact`),
     `feasible`, and `standard` (None, or the threshold, whether the design meets it and its largest group cost)."""
     n = len(z0); odd = n % 2 == 1
+    if region is not None:
+        labels = np.asarray(region, dtype=object)
+        if labels.ndim != 1 or len(labels) != n or any(v is None for v in labels):
+            raise ValueError(f"region must give one label per market ({n}), not {region!r}")
+        if isinstance(abs_gap, bool) or not isinstance(abs_gap, (int, float)) or not math.isfinite(abs_gap) or abs_gap < 0:
+            raise ValueError(f"abs_gap must be a finite number >= 0, not {abs_gap!r}")
+        return _by_region(z0, lo, hi, labels, incumbent, abs_gap, max_group_cost,
+                          dict(heuristic_seconds=heuristic_seconds, caps=caps, keep=keep, workers=workers, gap=gap,
+                               max_group_cost=max_group_cost, heuristic_steps=heuristic_steps, seed=seed,
+                               verbose=verbose))
     if workers == "auto":
         workers = min(4, os.cpu_count() or 1)
     elif workers is not None and (not isinstance(workers, int) or workers < 1):
@@ -411,6 +429,62 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
                 lb_proved=down(lb_proved / S_), lb_proved_exact=lb_proved / S_,
                 feasible=True, standard=std, heuristic_steps=steps_run, seed=seed, t_cg=t_cg,
                 t=time.perf_counter() - t0, design=design)
+
+
+def _by_region(z0, lo, hi, labels, incumbent, abs_gap, max_group_cost, kw):
+    """certify_staged with groups confined to regions: one certificate per region, on its markets, the absolute
+    gap shared in proportion to the regions' sizes; the results added up. Regions in sorted order of label."""
+    t0 = time.perf_counter()
+    z0 = np.asarray(z0, float); n = len(z0)
+    try:
+        order = sorted(set(labels.tolist()))
+    except TypeError:
+        order = sorted(set(labels.tolist()), key=repr)
+    if incumbent is not None and any(len({labels[int(v)] for v in g}) > 1 for g in incumbent):
+        raise ValueError("the incumbent has a group across regions")
+    def no_design(proof, proved, regions):
+        return dict(n=n, scale=None, lb=None, opt=None, lb_exact=None, opt_exact=None, negative_columns=None,
+                    proved=proved, stages=[], verify_nodes=0, proof=proof, gap=float(kw["gap"]), gap_proved=None,
+                    abs_gap=abs_gap, abs_gap_proved=None, lb_proved=None, lb_proved_exact=None, feasible=False,
+                    standard=None if max_group_cost is None else dict(max_group_cost=max_group_cost, met=False,
+                                                                     max_group=None),
+                    heuristic_steps=None, seed=kw["seed"], t_cg=0.0, t=time.perf_counter() - t0, design=None,
+                    regions=regions)
+    regions, design = [], []
+    for lab in order:
+        idx = np.flatnonzero(labels == lab)
+        if len(idx) < lo:
+            return no_design(f"no design: region {lab!r} has {len(idx)} market(s), fewer than {lo}", True, regions)
+        inc = None
+        if incumbent is not None:
+            pos = {int(g): j for j, g in enumerate(idx)}
+            inc = [tuple(pos[int(v)] for v in g) for g in incumbent if int(g[0]) in pos]
+        out = certify_staged(z0[idx], lo, hi, incumbent=inc, abs_gap=abs_gap * len(idx) / n, **kw)
+        regions.append(dict(label=lab, n=len(idx), proved=out["proved"], feasible=out["feasible"], proof=out["proof"],
+                            opt_exact=out["opt_exact"], lb_exact=out["lb_exact"], lb_proved_exact=out["lb_proved_exact"],
+                            stages=out["stages"], verify_nodes=out["verify_nodes"],
+                            heuristic_steps=out["heuristic_steps"], negative_columns=out["negative_columns"],
+                            t_cg=out["t_cg"], standard=out["standard"]))
+        if not out["feasible"]:
+            return no_design(f"no design in region {lab!r}: {out['proof']}", out["proved"], regions)
+        design += [tuple(int(idx[j]) for j in g) for g in out["design"]]
+    UB = sum(r["opt_exact"] for r in regions); LB = sum(r["lb_exact"] for r in regions)
+    LBp = sum(r["lb_proved_exact"] for r in regions)
+    proved = all(r["proved"] for r in regions)
+    std = None
+    if max_group_cost is not None:
+        std = dict(max_group_cost=max_group_cost, met=all(r["standard"]["met"] for r in regions),
+                   max_group=max(r["standard"]["max_group"] for r in regions))
+    steps = [r["heuristic_steps"] for r in regions]
+    return dict(n=n, scale=None, lb=down(LB), opt=float(UB), lb_exact=LB, opt_exact=UB,
+                negative_columns=sum(r["negative_columns"] for r in regions), proved=proved,
+                stages=[dict(s, region=r["label"]) for r in regions for s in r["stages"]],
+                verify_nodes=sum(r["verify_nodes"] for r in regions),
+                proof=("by region: " + "; ".join(f"{r['label']!r} {r['proof']}" for r in regions)),
+                gap=float(kw["gap"]), gap_proved=up((UB - LBp) / UB) if UB > 0 else 0.0, abs_gap=abs_gap,
+                abs_gap_proved=up(UB - LBp), lb_proved=down(LBp), lb_proved_exact=LBp, feasible=True, standard=std,
+                heuristic_steps=None if any(v is None for v in steps) else sum(steps), seed=kw["seed"],
+                t_cg=sum(r["t_cg"] for r in regions), t=time.perf_counter() - t0, design=design, regions=regions)
 
 
 def verify_over_survivors(z, pi, tau, lo, m, cand, OPT, node_limit=5_000_000):

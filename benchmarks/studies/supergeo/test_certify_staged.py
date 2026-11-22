@@ -171,7 +171,7 @@ def test_the_window_is_built_once_for_the_stages(monkeypatch):
 
 # --- a stated optimality gap ------------------------------------------------------------------------------------------
 
-def _exact_brute(z, t=None):
+def _exact_brute(z, t=None, region=None):
     """The exact optimum (a Fraction) over every partition into groups of 2 to 4, by recursion on the lowest market;
     with t, over partitions whose every group costs at most t (None when there is none)."""
     from itertools import combinations
@@ -188,6 +188,8 @@ def _exact_brute(z, t=None):
                 g = (i,) + others
                 left = U - set(g)
                 if len(left) == 1:
+                    continue
+                if region is not None and len(set(region[list(g)])) > 1:
                     continue
                 c = mx.exact_rc(z, zeros, g)
                 if t is not None and c > Fraction(t):
@@ -578,3 +580,62 @@ def test_bad_heuristic_budgets_are_rejected():
                dict(seed=-1), dict(seed=1.5)):
         with pytest.raises(ValueError):
             ce.certify_staged(np.arange(1.0, 9.0), **kw)
+
+
+# --- groups within regions ---------------------------------------------------------------------------------------------
+
+@settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 11), kind=st.integers(0, 3), k=st.integers(1, 3),
+       gap=st.sampled_from([0.0, 0.05]), f=st.sampled_from([0.0, 0.3]))
+def test_regions_against_brute_force(seed, n, kind, k, gap, f):
+    """With region labels only groups within one region are allowed. The certificate proves each region on its own
+    and adds them: its design keeps every group inside a region, and it is within max(g UB, d) of the exact
+    brute-force optimum over within-region designs (or proves there is none)."""
+    rng = np.random.default_rng(seed)
+    z = np.asarray(test_bcp.gen(rng, n, kind), float)
+    region = rng.integers(0, k, n)
+    want = _exact_brute(z, region=region)
+    d = float(f * float(want)) if want is not None else 0.0
+    out = ce.certify_staged(z, region=region, gap=gap, abs_gap=d, heuristic_seconds=0.0)
+    assert out["proved"], out["proof"]
+    if want is None:
+        assert out["feasible"] is False and out["design"] is None
+        return
+    assert all(len(set(region[list(g)])) == 1 for g in out["design"])
+    assert sorted(i for g in out["design"] for i in g) == list(range(n))
+    allow = max(Fraction(gap) * out["opt_exact"], Fraction(d))
+    assert want <= out["opt_exact"] <= want + allow
+    assert out["lb_proved_exact"] <= want and out["opt_exact"] - out["lb_proved_exact"] <= allow
+
+
+def test_one_region_is_the_unconstrained_problem():
+    z = list(test_bcp._subsets(16, 3))[1]
+    free = ce.certify_staged(z, heuristic_seconds=0.0)
+    one = ce.certify_staged(z, heuristic_seconds=0.0, region=np.zeros(16, int))
+    assert one["proved"] and one["opt_exact"] == free["opt_exact"] and len(one["regions"]) == 1
+
+
+def test_each_region_is_certified_on_its_own():
+    """Two regions of eight: two certificates, each on its own markets, whose values add up to the result's."""
+    z = np.asarray(list(test_bcp._subsets(16, 3))[1], float); region = np.array([0] * 8 + [1] * 8)
+    out = ce.certify_staged(z, heuristic_seconds=0.0, region=region)
+    assert [r["n"] for r in out["regions"]] == [8, 8]
+    assert sum(r["opt_exact"] for r in out["regions"]) == out["opt_exact"]
+    assert sum(r["lb_proved_exact"] for r in out["regions"]) == out["lb_proved_exact"]
+    for r, lab in zip(out["regions"], (0, 1)):
+        alone = ce.certify_staged(z[region == lab], heuristic_seconds=0.0)
+        assert r["label"] == lab and r["opt_exact"] == alone["opt_exact"]
+
+
+def test_a_region_too_small_to_group_is_infeasible():
+    z = np.arange(1.0, 10.0); region = np.array([0] * 8 + [1])
+    out = ce.certify_staged(z, heuristic_seconds=0.0, region=region)
+    assert out["proved"] and out["feasible"] is False and out["design"] is None
+    assert "fewer than 2" in out["proof"]
+
+
+def test_bad_regions_are_rejected():
+    z = np.arange(1.0, 9.0)
+    for r in (np.zeros(7), np.zeros((8, 1)), [0, 0, 0, 0, 1, 1, 1, None]):
+        with pytest.raises(ValueError):
+            ce.certify_staged(z, region=r)
