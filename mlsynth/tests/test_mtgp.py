@@ -142,3 +142,129 @@ def test_missing_numpyro_raises(monkeypatch):
     with pytest.raises(MlsynthEstimationError):
         MTGP({"df": _gp_panel(), "outcome": "y", "treat": "treat",
               "unitid": "unit", "time": "t", **_FAST}).fit()
+
+
+# --------------------------------------------------------------------------- #
+# the draw-count contract: n_samples is per chain
+# --------------------------------------------------------------------------- #
+# The config described n_samples as "per chain (total, across chains)", and the
+# sampler asked NumPyro for ceil(n_samples / n_chains) per chain: 250 at the
+# defaults, against the Stan reference's 1000 per chain (iter = warmup +
+# n_samples). BFSC had the same defect (jgreathouse9/mlsynth#1109), where split
+# R-hat on a quarter of the draws exceeded 1.1 on some CI runners. A fake backend
+# records what the sampler is asked for, so these tests need no NumPyro.
+from hypothesis import HealthCheck, given, settings, strategies as st  # noqa: E402
+
+
+class _FakeBackend:
+    """Stands in for (jax, jnp, numpyro, dist, MCMC, NUTS, diagnostics): records the
+    arguments the sampler receives and returns constant draws of the shape asked for.
+    Its split R-hat asserts at least 4 draws per chain, as NumPyro's does."""
+
+    def __init__(self, T, draws_override=None):
+        self.calls, self.T, self.draws_override = {}, T, draws_override
+        outer = self
+
+        class _Key:
+            @staticmethod
+            def PRNGKey(seed):
+                outer.calls["seed"] = seed
+                return seed
+
+        class _Jax:
+            random = _Key
+
+        class _NUTS:
+            def __init__(self, model, target_accept_prob, max_tree_depth):
+                outer.calls.update(target_accept=target_accept_prob, max_tree_depth=max_tree_depth)
+
+        class _MCMC:
+            def __init__(self, kernel, num_warmup, num_samples, num_chains, progress_bar):
+                outer.calls.update(num_warmup=num_warmup, num_samples=num_samples, num_chains=num_chains)
+
+            def run(self, key, extra_fields=()):
+                pass
+
+            def _shape(self):
+                c, s = outer.calls["num_chains"], outer.calls["num_samples"]
+                return c, (outer.draws_override if outer.draws_override is not None else s)
+
+            def get_samples(self, group_by_chain=False):
+                c, s = self._shape()
+                if group_by_chain:
+                    return {"cf": np.zeros((c, s, outer.T)), "sigman": np.ones((c, s))}
+                return {"lengthscale_f": np.ones(c * s), "lengthscale_global": np.ones(c * s)}
+
+            def get_extra_fields(self):
+                return {"accept_prob": np.full(3, 0.9), "diverging": np.zeros(3, bool)}
+
+        class _Diagnostics:
+            @staticmethod
+            def split_gelman_rubin(x):
+                x = np.asarray(x)
+                assert x.ndim >= 2 and x.shape[1] >= 4
+                return np.ones(x.shape[2:])
+
+        self.modules = (_Jax, np, None, None, _MCMC, _NUTS, _Diagnostics)
+
+    def __call__(self):
+        return self.modules
+
+
+def _run(monkeypatch, n_samples, n_chains, n_warmup=7, seed=3, target_accept=0.9, max_tree_depth=10,
+         draws_override=None, T=12, D=5):
+    from mlsynth.utils.mtgp_helpers import model as mtgp_model
+    fake = _FakeBackend(T, draws_override)
+    monkeypatch.setattr(mtgp_model, "_import_backend", fake)
+    Y = np.random.default_rng(0).normal(size=(T, D))
+    out = mtgp_model.run_mtgp(Y, np.ones((T, D)), 8, 0, n_factors=2, n_warmup=n_warmup, n_samples=n_samples,
+                              n_chains=n_chains, target_accept=target_accept, max_tree_depth=max_tree_depth,
+                              seed=seed)
+    return fake.calls, out
+
+
+def test_the_reproduction_four_chains_of_1000_draws_each(monkeypatch):
+    """The defaults and mtgp_california's settings (1000 warm-up, 1000 samples, 4 chains): the
+    sampler is asked for 1000 draws per chain, as the Stan reference draws, and returns 4,000
+    counterfactual draws, not 250 per chain."""
+    calls, out = _run(monkeypatch, n_samples=1000, n_chains=4, n_warmup=1000)
+    assert calls["num_samples"] == 1000 and calls["num_chains"] == 4
+    assert out["counterfactual"].shape == (4000, 12)
+
+
+@pytest.mark.parametrize("n_samples, n_chains", [(1, 2), (2, 2), (3, 4), (1, 7)])
+def test_too_few_draws_per_chain_for_r_hat_report_nan(monkeypatch, n_samples, n_chains):
+    """Edge: split R-hat needs at least 4 draws per chain. With fewer the draws are still
+    returned (n_samples per chain) and max_rhat is NaN, not a crash."""
+    calls, out = _run(monkeypatch, n_samples=n_samples, n_chains=n_chains)
+    assert calls["num_samples"] == n_samples
+    assert out["counterfactual"].shape[0] == n_samples * n_chains and np.isnan(out["max_rhat"])
+
+
+def test_one_chain_has_no_r_hat(monkeypatch):
+    calls, out = _run(monkeypatch, n_samples=10, n_chains=1)
+    assert out["counterfactual"].shape[0] == 10 and np.isnan(out["max_rhat"])
+
+
+@settings(max_examples=80, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(n_samples=st.integers(1, 60), n_chains=st.integers(1, 6), n_warmup=st.integers(1, 50),
+       seed=st.integers(0, 2**31 - 1), target_accept=st.floats(0.05, 0.99), max_tree_depth=st.integers(1, 15))
+def test_every_setting_reaches_the_sampler(monkeypatch, n_samples, n_chains, n_warmup, seed, target_accept,
+                                           max_tree_depth):
+    """Property, over every sampler argument: NumPyro receives n_samples draws per chain,
+    n_chains chains, n_warmup warm-up steps, the seed, the target acceptance and the maximum
+    tree depth as given; the result holds n_samples * n_chains draws; R-hat is reported
+    exactly when it is defined (two or more chains of four or more draws)."""
+    calls, out = _run(monkeypatch, n_samples=n_samples, n_chains=n_chains, n_warmup=n_warmup, seed=seed,
+                      target_accept=target_accept, max_tree_depth=max_tree_depth)
+    assert calls == dict(seed=seed, target_accept=target_accept, max_tree_depth=max_tree_depth,
+                         num_warmup=n_warmup, num_samples=n_samples, num_chains=n_chains)
+    assert out["counterfactual"].shape[0] == n_samples * n_chains == out["sigma"].shape[0]
+    assert np.isnan(out["max_rhat"]) == (n_chains < 2 or n_samples < 4)
+
+
+def test_a_short_draw_from_the_sampler_is_reported(monkeypatch):
+    """Failure: the result checks its own draw count. A backend that returns fewer draws
+    per chain than asked raises a translated MlsynthEstimationError."""
+    with pytest.raises(MlsynthEstimationError, match="draws"):
+        _run(monkeypatch, n_samples=20, n_chains=2, draws_override=19)

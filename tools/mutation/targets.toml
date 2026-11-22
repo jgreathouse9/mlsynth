@@ -19200,3 +19200,63 @@ timeout = 600.0
   find = "    if cf_g.shape[:2] != (n_chains, per_chain) or sig_g.shape != (n_chains, per_chain):"
   replace = "    if False:"
   models = "a sampler that returns fewer draws than asked passes unreported"
+
+[[target]]
+name = "mtgp-draws"
+module-path = "mlsynth/utils/mtgp_helpers/model.py"
+test-command = "python -m pytest mlsynth/tests/test_mtgp.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-draws-divided-among-the-chains"
+  find = "    per_chain = int(n_samples)"
+  replace = "    per_chain = max(2, int(np.ceil(n_samples / n_chains)))"
+  models = "n_samples read as a total across chains, a quarter of the Stan reference's draws per chain at 4 chains"
+
+  [[target.mutant]]
+  id = "the-draws-not-forwarded"
+  find = "num_warmup=n_warmup, num_samples=per_chain, num_chains=n_chains,"
+  replace = "num_warmup=n_warmup, num_samples=1000, num_chains=n_chains,"
+  models = "the sampler run at a fixed 1000 draws per chain whatever n_samples asks"
+
+  [[target.mutant]]
+  id = "the-chains-not-forwarded"
+  find = "num_warmup=n_warmup, num_samples=per_chain, num_chains=n_chains,"
+  replace = "num_warmup=n_warmup, num_samples=per_chain, num_chains=4,"
+  models = "the sampler run on 4 chains whatever n_chains asks"
+
+  [[target.mutant]]
+  id = "the-warmup-not-forwarded"
+  find = "num_warmup=n_warmup, num_samples=per_chain, num_chains=n_chains,"
+  replace = "num_warmup=1000, num_samples=per_chain, num_chains=n_chains,"
+  models = "the warm-up fixed at 1000 whatever n_warmup asks"
+
+  [[target.mutant]]
+  id = "the-target-acceptance-not-forwarded"
+  find = "NUTS(model, target_accept_prob=target_accept,"
+  replace = "NUTS(model, target_accept_prob=0.9,"
+  models = "NUTS's target acceptance fixed at the default whatever target_accept asks"
+
+  [[target.mutant]]
+  id = "the-tree-depth-not-forwarded"
+  find = "                     max_tree_depth=max_tree_depth),"
+  replace = "                     max_tree_depth=13),"
+  models = "NUTS's maximum tree depth fixed at 13 whatever max_tree_depth asks"
+
+  [[target.mutant]]
+  id = "the-seed-not-forwarded"
+  find = "jax.random.PRNGKey(int(seed))"
+  replace = "jax.random.PRNGKey(0)"
+  models = "every fit drawn from seed 0 whatever seed asks"
+
+  [[target.mutant]]
+  id = "r-hat-on-chains-too-short-to-split"
+  find = "    if n_chains >= 2 and per_chain >= 4:"
+  replace = "    if n_chains >= 2 and per_chain >= 2:"
+  models = "split R-hat called on chains of 2 or 3 draws, an uncaught AssertionError from NumPyro"
+
+  [[target.mutant]]
+  id = "the-draw-count-not-checked"
+  find = "    if cf_g.shape[:2] != (n_chains, per_chain) or sig_g.shape != (n_chains, per_chain):"
+  replace = "    if False:"
+  models = "a sampler that returns fewer draws than asked passes unreported"
