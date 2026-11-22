@@ -637,6 +637,30 @@ the heuristic's changes the variance of the treated-minus-control comparison by
 about one part in 60,000, so gaps below its cost do not bear on the experiment;
 the run at d = 0.001 was stopped for that reason, not for the time.
 
+### A reproducible design
+
+Three runs of the certificate on that panel gave three designs, all within the
+gap: the heuristic was seeded but stopped on the clock, so the steps it
+completed depended on the machine's speed and load, and with the gap proved from
+the heuristic's design that design is the result. Three designs certified as
+equivalent tracked the population differently after the balanced weeks (mean
+gap of the treated from the population, weeks 240 to 353: -0.56, +0.60 and -0.79
+index points per market), so which one a run returned mattered.
+
+The heuristic now runs a fixed number of steps, max(10, N // 2) by default, from
+a seed (`heuristic_steps`, `seed`; the result records the steps that ran). Three
+default runs on the 180-market panel, the third with three busy threads
+competing for the machine, returned the same design (cost 0.825493, 90 steps,
+24.1 to 24.2 s against 17.7 s with the time budget). A run that needs search
+stages on several threads still depends on thread timing (workers=None makes it
+reproducible).
+
+A deterministic replacement was measured and rejected: the best partition into
+runs of consecutive markets by size (a one-pass dynamic program) costs 70 to
+1,000 times the heuristic's design on four of five panels (50-state 263.7
+against 0.22; similar-sized 120: 691 against 0.47), because good supergeos join
+large and small markets against medium ones.
+
 ## 210 markets
 
 On the 210-market instance (`n210_duals.json`), from the best design found (the
