@@ -18663,8 +18663,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-schedule-not-given-to-the-regions"
-  find = "                               deterministic=deterministic, verbose=verbose))"
-  replace = "                               deterministic=False, verbose=verbose))"
+  find = "                               deterministic=deterministic, verbose=verbose, heuristic_patience=heuristic_patience))"
+  replace = "                               deterministic=False, verbose=verbose, heuristic_patience=heuristic_patience))"
   models = "each region's certificate run on the dynamic schedule whatever was asked"
 
   [[target.mutant]]
@@ -18675,8 +18675,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-dynamic-schedule-by-default"
-  find = "                   deterministic=True, verbose=False):"
-  replace = "                   deterministic=False, verbose=False):"
+  find = "                   deterministic=True, verbose=False, heuristic_patience=\"auto\"):"
+  replace = "                   deterministic=False, verbose=False, heuristic_patience=\"auto\"):"
   models = "the certificate's threads on the dynamic schedule unless asked, so a default run's design depends on thread timing"
 
 [[target]]
