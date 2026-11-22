@@ -17,8 +17,8 @@ tolerances are set for that spread. Requires the ``[bayes]`` optional dependency
 n_samples is draws per chain: 4 chains of 500. Until the fix of 2026-11-22 BFSC
 drew n_samples / n_chains per chain (125 here), and split R-hat on 125
 autocorrelated draws exceeded the 1.1 band on some runners from noise alone; over
-seeds 0 to 7 on one machine max R-hat was 1.034 to 1.102 at 125 draws per chain;
-at 500 per chain seeds 0 and 1 gave 1.016 and 1.016.
+seeds 0 to 7 on one machine max R-hat was 1.034 to 1.102 at 125 draws per chain
+(1.037 to 1.114 with the warm-up doubled) and 1.009 to 1.017 at 500.
 
 Provenance: Pinkney (2021), arXiv:2103.16244, Section 2.1 + appendix Stan;
 Abadie & Gardeazabal (2003) / Abadie, Diamond & Hainmueller (2015) for the data
