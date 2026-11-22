@@ -220,8 +220,9 @@ def test_markets_excluded_by_hand_are_never_paired():
 def test_a_design_exists_exactly_when_enough_pairs_remain(seed, n, data):
     """Property, over up to 9 markets, any markets excluded by hand, any number of pairs dropped (past every pair
     included) and min_pairs from 1 to 3: the design raises ValueError exactly when fewer than min_pairs pairs
-    remain, and otherwise keeps (n' // 2 - drop) pairs of the n' markets left, the re-paired ones at the brute-force
-    optimum over those markets and the nested ones at no lower cost."""
+    remain, and otherwise keeps (n' // 2 - drop) pairs of the n' markets left: the re-paired ones at the brute-force
+    optimum over those markets, the nested ones at no lower cost, and those the cheapest pairs of a full pairing at
+    the brute-force optimum."""
     rng = np.random.default_rng(seed)
     W = _sym(rng, n)
     excluded = sorted(data.draw(st.sets(st.integers(0, n - 1), max_size=n))) if n else []
@@ -242,6 +243,12 @@ def test_a_design_exists_exactly_when_enough_pairs_remain(seed, n, data):
     sub = W[np.ix_(rest, rest)]
     assert opt["cost"] == pytest.approx(_brute_k(sub, kept), rel=1e-9, abs=1e-9)
     assert nested["cost"] >= opt["cost"] - 1e-9
+    full = nested["full_pairing"]
+    assert opt["full_pairing"] is None
+    assert _cost(W, full) == pytest.approx(_brute_k(sub, len(rest) // 2), rel=1e-9, abs=1e-9)
+    assert set(nested["pairs"]) <= set(full)
+    worst_kept = max(W[a, b] for a, b in nested["pairs"])
+    assert all(W[a, b] >= worst_kept for a, b in set(full) - set(nested["pairs"]))
 
 
 # --- an exclusion that leaves no design ---------------------------------------------------------------------------
@@ -330,3 +337,20 @@ def test_costs_or_totals_exactly_one():
         exclusion.design_excluding(costs=np.triu(W))
     with pytest.raises(ValueError, match="square"):
         exclusion.design_excluding(costs=np.zeros((3, 4)))
+
+
+def test_nonfinite_inputs_and_pairs_outside_the_matrix_are_rejected():
+    """Failure: an infinite cost, a NaN total, a matrix of totals, a pair of a market with itself (a market in two
+    pairs) and a pair past the matrix each raise ValueError naming the fault."""
+    W = _sym(np.random.default_rng(2), 4)
+    W[0, 1] = W[1, 0] = np.inf
+    with pytest.raises(ValueError, match="finite"):
+        exclusion.matched_k_pairs(W, 1)
+    for z in (np.array([0.0, np.nan, 1.0, 2.0]), np.zeros((2, 2))):
+        with pytest.raises(ValueError, match="finite vector"):
+            exclusion.design_excluding(totals=z)
+    with pytest.raises(ValueError, match="appears in two pairs"):
+        exclusion.nested_trim(_sym(np.random.default_rng(1), 4), [(1, 1)])
+    for bad in ([(0, 4)], [(-1, 2)]):
+        with pytest.raises(ValueError, match="matching of the 4 markets"):
+            exclusion.nested_trim(_sym(np.random.default_rng(1), 4), bad)
