@@ -127,8 +127,9 @@ def comparison() -> dict:
 
 
 # Cross-validated live against the authors' replication-package Stan on the shipped
-# California APPS panel (CA treated 2007, n_factors=5, 1000 warmup / 1000 draws, 4
-# chains, adapt_delta 0.9). Both engines see the identical pop.mean()/pop noise
+# California APPS panel (CA treated 2007, n_factors=5, 1000 warmup / 1000 draws per
+# chain, 4 chains, adapt_delta 0.9; until 2026-11-22 the NumPyro side drew a quarter of
+# those per chain). Both engines see the identical pop.mean()/pop noise
 # scaling, so the counterfactual matches cell-for-cell; tolerances bracket the
 # Monte-Carlo error between two independent NUTS runs (the /replicate port matched
 # corr 0.99993, ATT -1.029 vs -1.031, length-scales within ~2%).

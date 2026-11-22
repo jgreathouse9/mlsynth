@@ -34,7 +34,10 @@ Cross-validation -- cell for cell
 
 Both samplers use the same rank-5 coregionalization, squared-exponential time
 kernels for the global trend and the factors, population-scaled Gaussian noise,
-and matched NUTS budgets. The posterior counterfactual of California agrees:
+and the same NUTS settings: 1000 warm-up and 1000 draws per chain, 4 chains. Until
+2026-11-22 the NumPyro side drew ``n_samples / n_chains`` per chain, a quarter of the
+Stan run's draws, so the agreement below was measured with NumPyro on the smaller
+budget. The posterior counterfactual of California agrees:
 
 .. list-table::
    :header-rows: 1
