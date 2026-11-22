@@ -110,7 +110,7 @@ def run_bfsc(
         numpyro.sample("y_tr_post", dist.Normal(mean[n_pre:, 0], sigma))  # masked/imputed
         numpyro.deterministic("cf", mean[:, 0] * y_sd[0] + y_mu[0])
 
-    per_chain = max(2, int(np.ceil(n_samples / n_chains)))
+    per_chain = int(n_samples)                                # the config's contract: draws per chain
     mcmc = MCMC(NUTS(model, target_accept_prob=target_accept),
                 num_warmup=n_warmup, num_samples=per_chain, num_chains=n_chains,
                 progress_bar=progress)
@@ -120,13 +120,19 @@ def run_bfsc(
     grouped = mcmc.get_samples(group_by_chain=True)
     cf_g = np.asarray(grouped["cf"])                          # (chains, per_chain, T)
     sig_g = np.asarray(grouped["sigma"])
+    if cf_g.shape[:2] != (n_chains, per_chain) or sig_g.shape != (n_chains, per_chain):
+        raise MlsynthEstimationError(
+            f"BFSC asked NumPyro for {n_chains} chains of {per_chain} draws and received "
+            f"{cf_g.shape[0]} chains of {cf_g.shape[1]} draws.")
     cf = cf_g.reshape(-1, T)
     sig = sig_g.reshape(-1)
     extra = mcmc.get_extra_fields()
     accept = float(np.mean(np.asarray(extra.get("accept_prob", np.nan))))
     n_div = int(np.sum(np.asarray(extra.get("diverging", 0))))
-    # r-hat on the identified quantities (counterfactual + sigma); needs >= 2 chains
-    if n_chains >= 2:
+    # split r-hat (Gelman, Carlin, Stern, Dunson, Vehtari and Rubin, "Bayesian Data Analysis", 3rd ed., 2013,
+    # section 11.4) on the identified quantities (counterfactual + sigma). Each chain is split in two halves, so it
+    # needs two or more chains of four or more draws; otherwise it is undefined and reported as NaN.
+    if n_chains >= 2 and per_chain >= 4:
         rhat_cf = np.asarray(diagnostics.split_gelman_rubin(cf_g))
         rhat_s = float(diagnostics.split_gelman_rubin(sig_g[..., None])[0])
         max_rhat = float(np.nanmax(np.append(rhat_cf, rhat_s)))
