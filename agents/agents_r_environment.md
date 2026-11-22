@@ -101,6 +101,38 @@ the `codeload` tarball idiom, which worked in the environment it was authored in
 was blocked in this session — if it fails on the fetch, swap the `curl … codeload …`
 body of `inst()` for the `git clone` + `checkout` form above. The SHAs are the same.
 
+## Stan references (rstan): BFSC and MTGP
+
+`bfsc_prop99` and `mtgp_california` run the authors' Stan programs live through
+`rstan` (`benchmarks/reference/bfsc_stan.py`, `benchmarks/reference/mtgp_stan.py`).
+Everything they need is in apt, but three things go wrong in order if only `rstan`
+is installed, each a skip with a different message:
+
+1. `there is no package called 'data.table'`: the reference scripts load it.
+2. `Boost not found; call install.packages('BH')`: `--no-install-recommends` drops
+   the C++ header packages rstan compiles a model against (BH, RcppEigen,
+   StanHeaders, RcppParallel). Name them.
+3. The same `Boost not found` after `r-cran-bh` is installed: Ubuntu's `r-cran-bh`
+   ships no headers (it depends on the system Boost in `/usr/include/boost`), and
+   rstan checks for `system.file("include", package = "BH")`. Give it an `include`
+   directory that points at the system headers.
+
+```bash
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+  r-base r-base-dev build-essential libboost-dev \
+  r-cran-rstan r-cran-stanheaders r-cran-bh r-cran-rcppeigen r-cran-rcppparallel \
+  r-cran-data.table
+mkdir -p /usr/lib/R/site-library/BH/include
+ln -sfn /usr/include/boost /usr/lib/R/site-library/BH/include/boost
+# check: a model compiles and samples
+Rscript -e 'suppressMessages(library(rstan)); m <- stan_model(model_code = "parameters{real y;} model{y ~ normal(0,1);}"); f <- sampling(m, chains = 1, iter = 200, refresh = 0); cat("rstan OK\n")'
+```
+
+On noble this gives R 4.3.3, rstan 2.32.5, StanHeaders 2.32.5, BH 1.84.0 and
+data.table 1.14.10. The cases need the Python side's `mlsynth[bayes]` (NumPyro)
+too; a virtual environment with `jax==0.10.2 jaxlib==0.10.2 numpyro==0.22.0`
+matches the versions CI resolved on 2026-11-22.
+
 ## Step 3 — dumping intermediates from the reference (for seam-level TDD)
 
 The whole point of a live R install is to compare the Python port against the
