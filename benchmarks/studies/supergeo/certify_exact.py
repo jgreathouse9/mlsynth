@@ -194,7 +194,8 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
     markets, so about N / 20 s), with `seed` its random seed. A step budget makes the design a function of the
     inputs and the seed. heuristic_seconds, when given, replaces the step budget with a time budget ("auto" being
     max(1, N / 24), the earlier default); the design then depends on the machine's speed and load (three runs at
-    180 markets gave three different designs). 0 for either skips the heuristic. With search stages on several
+    180 markets gave three different designs). 0 for either skips the heuristic. The result's heuristic_steps
+    is the number of steps that ran. With search stages on several
     threads the incumbent each stage finds depends on thread timing, so a run that needs stages is reproducible
     with workers=None.
     workers: threads for every stage's search (:func:`.verify_nb.verify` and :func:`.verify_nb.verify_rows`), None
@@ -282,12 +283,12 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
         o = [int(v) for v in np.argsort(z)]
         incumbent = ([tuple(o[i:i + 2]) for i in range(0, n - 3, 2)] + [tuple(o[-3:])]) if odd else [tuple(o[i:i + 2]) for i in range(0, n, 2)]
         if heuristic_seconds is not None:
-            if heuristic_seconds > 0:
-                incumbent, _, _ = lns.lns_dp(z, incumbent, seconds=heuristic_seconds, seed=seed, verbose=False)
-            steps_run = None                        # a time budget: the number of steps is the machine's
+            if heuristic_seconds > 0:                # a time budget: the number of steps is the machine's
+                incumbent, _, trace = lns.lns_dp(z, incumbent, seconds=heuristic_seconds, seed=seed, verbose=False)
+                steps_run = len(trace) - 1
         elif heuristic_steps > 0:
-            incumbent, _, _ = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed, verbose=False)
-            steps_run = int(heuristic_steps)
+            incumbent, _, trace = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed, verbose=False)
+            steps_run = len(trace) - 1              # the steps that ran, read from the search's own trace
     design = [tuple(sorted(int(v) for v in g)) for g in incumbent]
     zeros = np.zeros(n)
     def exact_cost(d):

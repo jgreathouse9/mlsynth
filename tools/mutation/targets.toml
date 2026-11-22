@@ -18548,8 +18548,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-certificate-seed-not-passed"
-  find = "            incumbent, _, _ = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed, verbose=False)"
-  replace = "            incumbent, _, _ = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), verbose=False)"
+  find = "            incumbent, _, trace = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed, verbose=False)"
+  replace = "            incumbent, _, trace = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), verbose=False)"
   models = "the certificate's seed recorded on the result but never given to the heuristic"
 
   [[target.mutant]]
@@ -18560,7 +18560,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-default-heuristic-on-the-clock"
-  find = "            incumbent, _, _ = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed, verbose=False)"
-  replace = "            incumbent, _, _ = lns.lns_dp(z, incumbent, seconds=max(1.0, n / 24), seed=seed, verbose=False)"
+  find = "            incumbent, _, trace = lns.lns_dp(z, incumbent, steps=int(heuristic_steps), seed=seed, verbose=False)"
+  replace = "            incumbent, _, trace = lns.lns_dp(z, incumbent, seconds=max(1.0, n / 24), seed=seed, verbose=False)"
   models = "the default heuristic stopped by the clock again: the design depends on the machine's load"
 
