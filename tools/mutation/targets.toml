@@ -18753,8 +18753,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-q-sweep-on-the-automatic-backend"
-  find = "        mip_backend=mip_backend,\n    )\n    sweep, results"
-  replace = "    )\n    sweep, results"
+  find = "        mip_backend=mip_backend, assignment_seed=assignment_seed,\n    )\n    sweep, results"
+  replace = "        assignment_seed=assignment_seed,\n    )\n    sweep, results"
   models = "automatic Q selection designing every Q on the automatic backend whatever was configured"
 
   [[target.mutant]]
@@ -19260,3 +19260,129 @@ timeout = 600.0
   find = "    if cf_g.shape[:2] != (n_chains, per_chain) or sig_g.shape != (n_chains, per_chain):"
   replace = "    if False:"
   models = "a sampler that returns fewer draws than asked passes unreported"
+
+[[target]]
+name = "pangeo-assignment"
+module-path = "mlsynth/utils/pangeo_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_assignment.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-coins-never-flipped"
+  find = "    return [rng.integers(0, 2, size=int(k)).astype(bool) for k in sizes]"
+  replace = "    return [np.ones(int(k), dtype=bool) for k in sizes]"
+  models = "the half holding each pair's first unit treated in every pair, the deterministic labelling the coin replaces"
+
+  [[target.mutant]]
+  id = "one-coin-for-every-pair"
+  find = "    return [rng.integers(0, 2, size=int(k)).astype(bool) for k in sizes]"
+  replace = "    return [np.full(int(k), bool(rng.integers(0, 2))) for k in sizes]"
+  models = "one coin per arm applied to all its pairs, so the 2^K assignments the sign-flip test enumerates are not equally likely"
+
+  [[target.mutant]]
+  id = "a-fresh-stream-per-arm"
+  find = "    return [rng.integers(0, 2, size=int(k)).astype(bool) for k in sizes]"
+  replace = "    return [np.random.default_rng(seed).integers(0, 2, size=int(k)).astype(bool) for k in sizes]"
+  models = "every arm dealt the same coin sequence, so arms of equal size are labelled alike"
+
+  [[target.mutant]]
+  id = "the-coins-unseeded"
+  find = "    rng = np.random.default_rng(seed)"
+  replace = "    rng = np.random.default_rng()"
+  models = "the coins drawn from fresh entropy, so an analysis run cannot reproduce the labels the experiment ran"
+
+  [[target.mutant]]
+  id = "the-coin-not-applied"
+  find = "        pairs = [_build_pair(_orient(p, coin), Y, unit_names, T0, cov,"
+  replace = "        pairs = [_build_pair(p, Y, unit_names, T0, cov,"
+  models = "the coin recorded on the pair but the solver's orientation kept, so the flag and the labels disagree"
+
+  [[target.mutant]]
+  id = "the-coin-not-recorded"
+  find = "                             first_half_treated=bool(coin))"
+  replace = "                             first_half_treated=True)"
+  models = "the labels drawn but the pair's flag left at its default"
+
+  [[target.mutant]]
+  id = "the-orientation-inverted"
+  find = "    if first_in_a != bool(first_half_treated):"
+  replace = "    if first_in_a == bool(first_half_treated):"
+  models = "heads treating the other half, so the flag says the opposite of the labels"
+
+  [[target.mutant]]
+  id = "the-pairs-in-solver-order"
+  find = "        chosen_by_arm[arm] = sorted(chosen, key=lambda c: int(np.min(c[\"members\"])))"
+  replace = "        chosen_by_arm[arm] = chosen"
+  models = "the k-th coin given to the solver's k-th pair, so the same seed labels a pair differently when the solver's order changes"
+
+  [[target.mutant]]
+  id = "the-seed-not-on-the-result"
+  find = "        power=power,\n        assignment_seed=assignment_seed,\n    )"
+  replace = "        power=power,\n    )"
+  models = "the result silent on the seed that labelled it"
+
+  [[target.mutant]]
+  id = "a-bool-or-out-of-range-seed-accepted-by-the-pipeline"
+  find = "    if isinstance(seed, bool) or not isinstance(seed, (int, np.integer)) or not 0 <= int(seed) < 2 ** 63:"
+  replace = "    if not isinstance(seed, (int, np.integer)):"
+  models = "run_pangeo taking True, a negative seed or one past 2^63 - 1"
+
+  [[target.mutant]]
+  id = "the-seed-not-checked-by-the-pipeline"
+  find = "    assignment_seed = _check_seed(assignment_seed)"
+  replace = "    assignment_seed = assignment_seed"
+  models = "run_pangeo passing a bad seed to the generator, which fails or coerces it"
+
+  [[target.mutant]]
+  id = "the-seed-not-given-to-automatic-q"
+  find = "            q_selection=q_selection, q_min_pairs=q_min_pairs,\n            mip_backend=mip_backend, assignment_seed=assignment_seed,"
+  replace = "            q_selection=q_selection, q_min_pairs=q_min_pairs,\n            mip_backend=mip_backend,"
+  models = "automatic Q designing with seed 0 whatever the caller asked"
+
+  [[target.mutant]]
+  id = "the-seed-not-given-to-the-automatic-sweep"
+  find = "        mip_backend=mip_backend, assignment_seed=assignment_seed,\n    )\n    sweep, results = _sweep_designs("
+  replace = "        mip_backend=mip_backend,\n    )\n    sweep, results = _sweep_designs("
+  models = "automatic Q's candidate designs drawn with seed 0, so the returned design's labels ignore the seed"
+
+  [[target.mutant]]
+  id = "the-seed-not-given-to-the-diagnostic-sweep"
+  find = "            mip_backend=mip_backend, assignment_seed=assignment_seed,\n        )\n        metadata[\"q_sweep\"]"
+  replace = "            mip_backend=mip_backend,\n        )\n        metadata[\"q_sweep\"]"
+  models = "the fixed-Q fit's diagnostic sweep designed with seed 0, so its row for the fitted Q disagrees with the fit"
+
+[[target]]
+name = "pangeo-assignment-config"
+module-path = "mlsynth/utils/pangeo_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_assignment.py -q -p no:cacheprovider -x -k \"seed or default\""
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "a-bool-seed-accepted"
+  find = "        if isinstance(v, bool) or not isinstance(v, (int, np.integer)) or not 0 <= int(v) < 2 ** 63:"
+  replace = "        if not isinstance(v, (int, np.integer)) or not 0 <= int(v) < 2 ** 63:"
+  models = "assignment_seed=True accepted as seed 1"
+
+  [[target.mutant]]
+  id = "an-out-of-range-seed-accepted"
+  find = "        if isinstance(v, bool) or not isinstance(v, (int, np.integer)) or not 0 <= int(v) < 2 ** 63:"
+  replace = "        if isinstance(v, bool) or not isinstance(v, (int, np.integer)):"
+  models = "a negative seed, or one past 2^63 - 1, accepted by the config"
+
+  [[target.mutant]]
+  id = "the-default-seed-unset"
+  find = "    assignment_seed: int = Field(\n        default=0,"
+  replace = "    assignment_seed: int = Field(\n        default=1,"
+  models = "a default other than the documented 0"
+
+[[target]]
+name = "pangeo-assignment-estimator"
+module-path = "mlsynth/estimators/pangeo.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_assignment.py -q -p no:cacheprovider -x -k \"estimator or analysis or smoke\""
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-estimator-drops-the-seed"
+  find = "                assignment_seed=self.config.assignment_seed,\n"
+  replace = "                assignment_seed=0,\n"
+  models = "PANGEO designing with seed 0 whatever assignment_seed says"

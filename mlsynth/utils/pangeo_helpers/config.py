@@ -7,8 +7,9 @@ Co-located with the helper package; re-exported from
 from __future__ import annotations
 
 from typing import Dict, List, Literal, Optional, Union
+import numpy as np
 import pandas as pd
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class PANGEOConfig(BaseModel):
@@ -101,6 +102,14 @@ class PANGEOConfig(BaseModel):
                     "floor per Q) so the chosen Q can be audited against the "
                     "Pareto/1-SE alternatives. No effect in auto-Q mode, where "
                     "the sweep is always produced.")
+    assignment_seed: int = Field(
+        default=0,
+        description="Seed of the fair coin drawn in each supergeo pair to "
+                    "decide which half is treated (Chen et al. 2023, "
+                    "arXiv:2301.12044, section 3): an integer from 0 to "
+                    "2^63 - 1. Fixed by default, so an analysis run with "
+                    "post_col labels the pairs as the design run did; set a "
+                    "different seed for a different draw.")
     fast: bool = Field(
         default=True,
         description="Partition solver. Default (True) uses the OSD-style fast "
@@ -198,6 +207,14 @@ class PANGEOConfig(BaseModel):
         description="Plot treatment vs control aggregate trajectories per arm.")
     save: Union[bool, str] = Field(
         default=False, description="Save the plot (True or a filename base).")
+
+    @field_validator("assignment_seed", mode="before")
+    @classmethod
+    def _seed_is_an_integer(cls, v):
+        """The coins' seed: an integer (not a bool) from 0 to 2^63 - 1."""
+        if isinstance(v, bool) or not isinstance(v, (int, np.integer)) or not 0 <= int(v) < 2 ** 63:
+            raise ValueError(f"assignment_seed must be an integer from 0 to 2^63 - 1, not {v!r}")
+        return int(v)
 
     @model_validator(mode="after")
     def _supergeo_total_scope(self) -> "PANGEOConfig":
