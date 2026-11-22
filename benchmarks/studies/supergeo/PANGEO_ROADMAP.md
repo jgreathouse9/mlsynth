@@ -190,10 +190,33 @@ analysis of a finished experiment.
   purposes only"), a C++ core with a Python wrapper built by bazel, tested with
   Python 3.7. Its estimator is `trimmed_match.estimator.TrimmedMatch`, taking the
   per-pair `delta_response` and `delta_spend` (treatment minus control), with
-  `Report(confidence=...)` returning the estimate and the interval. Its design
-  package is described as preliminary and demonstrated in a notebook; its entry
-  points are to be read from the package source before the design benchmark is
-  written.
+  `Report(confidence=...)` returning the estimate and the interval. At commit
+  0be855234ee3a589eaddc8b945e2a0d924ad8791 (2023-06-01) the package also holds:
+  - design: `design/trimmed_match_design.py`, `TrimmedMatchGeoXDesign`, with
+    `create_geo_pairs(use_cross_validation=True)` and
+    `report_candidate_designs(budget_list, iroas_list, use_cross_validation,
+    num_simulations, max_trim_rate, estimator)`, which returns the RMSE of the
+    iROAS estimate for each budget, hypothesized iROAS and number of pairs, with
+    the experiment's response, spend and share of total cost;
+  - power: `design/matched_pairs_rmse.py`, `MatchedPairsRMSE(geox_type,
+    geo_pairs_eval_data, budget, hypothesized_iroas, base_seed)` and its
+    `report(num_simulations, max_trim_rate)`, with `GeoXType.GO_DARK` among the
+    experiment types;
+  - assignment: `design/geo_assignment.py`, `generate_balanced_random_assignment`
+    (rerandomization with balance checks), `binomial_sign_test`,
+    `trimmed_match_aa_test`, and `representativeness_test`, whose proxy for a
+    representative assignment is a minimum response and a minimum number of geos
+    in each group and a maximum share of either group's response in its largest
+    geo;
+  - post-analysis: `post_analysis/trimmed_match_post_analysis.py`
+    (`prepare_data_for_post_analysis`, `calculate_experiment_results`);
+  - data: `example_datasets/example_data_for_design.csv` (174 geos, daily
+    response and cost over 364 days of 2020),
+    `example_data_for_post_analysis.csv` (114 geos in 57 assigned pairs),
+    `example_geo_pairs.csv` (172 geos: 67 treatment, 67 control, 38 filtered,
+    the design's geo exclusion), and `simulation_script.py` (seeded simulated
+    design and post-analysis datasets);
+  - its own tests (`estimator_test.py`, `design/tests/`, `post_analysis/tests/`).
 - Trimming and supergeos: Chen et al. (2023, section 4) show trimming poorly
   matched pairs can bias the estimate under heterogeneous iROAS, and that the
   supergeo design does not introduce that bias; the estimator reports how many
@@ -203,10 +226,10 @@ analysis of a finished experiment.
 ### Phase 7: benchmarks and docs (separate workstream)
 
 - `benchmarks/cases/trimmed_match.py`, cross-validation against the reference
-  implementation: the estimate, the trimming and the interval on fixed inputs
-  (the README's toy example, simulated pairs, pairs from a public panel) match
-  google/trimmed_match, following the benchmarks' existing pattern for pinned
-  references. A pinned installer (`benchmarks/reference/install_trimmed_match.sh`)
+  implementation: the estimate, the trimming and the interval on the README's
+  toy example, on `example_data_for_post_analysis.csv` and on datasets from
+  `simulation_script.py` at fixed seeds match google/trimmed_match, following the
+  benchmarks' existing pattern for pinned references. A pinned installer (`benchmarks/reference/install_trimmed_match.sh`)
   builds the reference at a fixed commit (head at the time of writing:
   0be855234ee3a589eaddc8b945e2a0d924ad8791) into its own virtual environment,
   since it is tested with Python 3.7 and builds a C++ core with bazel while
@@ -217,8 +240,16 @@ analysis of a finished experiment.
   versions) and the cell-by-cell comparison. Building that environment is the
   first task, and the installer pins every dependency.
 - `benchmarks/cases/pangeo_power.py`: the closed-form variance against
-  simulation, and the power analysis against the reference design package's
-  RMSE on the same pairs and windows, once its entry points are confirmed.
+  simulation, and the power analysis against `MatchedPairsRMSE` and
+  `report_candidate_designs` on the same pairs, evaluation window, budgets and
+  hypothesized iROAS (`example_data_for_design.csv` and `example_geo_pairs.csv`),
+  go-dark and heavy-up.
+- `benchmarks/cases/pangeo_vs_tmd.py`: on `example_data_for_design.csv`, 174
+  public geos, the certified supergeo design against the reference's
+  cross-validated pairs, compared on held-out RMSE of the iROAS estimate at the
+  same budget; a public panel for the supergeo study's own measurements.
+- The datasets are Apache 2.0 and are read from the pinned clone at run time,
+  with the commit recorded in the provenance.
 - `benchmarks/cases/pangeo_certificate.py`: certified optima on fixed panels.
 - `docs/replications/` pages for each, and the PANGEO docs page's Verification
   pointer, solver section and power-analysis section.
