@@ -197,6 +197,28 @@ trajectory objectives) can replace the enumeration and the MIP. With an odd
 number of markets no perfect matching exists: one market is dropped or put in a
 triple, as Trimmed Match drops its largest geo; the choice is stated and tested.
 
+Which market to drop has an exact answer. Kaibel and Walter ("A note on matchings
+constructed during Edmonds' weighted perfect matching algorithm",
+arXiv:1703.09505, 2017; known earlier as an exercise in Lawler, "Combinatorial
+Optimization: Networks and Matroids", 1976) prove that every matching Edmonds'
+weighted perfect matching algorithm builds is of minimum weight among the
+matchings of its cardinality, under mild restrictions on the algorithm's
+choices. Run on an odd number of markets, the algorithm ends at a maximum
+matching that is of minimum weight among maximum matchings: the optimal market
+to leave out, with no auxiliary graph of doubled size. For supergeo_total the
+same answer is a scan of the sorted order: with market i left out, the rest pair
+as neighbours, so the cost is a prefix sum below i plus a suffix sum above it,
+and only even positions i qualify. Trimmed Match's drop of the largest geo is
+one point of that scan, compared against its minimum.
+
+The same result covers pair exclusion. Trimmed Match's designs drop pairs in a
+nested sequence, the worst pair each time; the matchings of Edmonds' algorithm
+give, for each number of pairs k, the k pairs of least total cost. Those are not
+nested in general (an augmenting path changes pairs already formed), so the two
+answer different questions: the nested sequence keeps one pairing and trims it,
+the cardinality-optimal one re-pairs at each k. The comparison on the 174 geos
+reports both costs at every k.
+
 ### Phase 1: harden the exact-cover MIP (`pangeo_helpers/mip.py`)
 
 - Relative and absolute MIP gap 0 (or a stated tolerance, reported).
