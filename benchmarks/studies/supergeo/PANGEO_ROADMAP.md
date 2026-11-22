@@ -466,6 +466,152 @@ is evaluated on decides whether the number means anything.
   study on held-out windows showing whether the cross-validated choices beat the
   in-sample ones in RMSE.
 
+### Phase 5b: designs on a prognostic index (Bai 2022)
+
+Bai, "Optimality of Matched-Pair Designs in Randomized Controlled Trials",
+American Economic Review 112(12) (2022) 3911-3940.
+
+- The result. Among stratified randomizations that treat each unit with
+  probability one half, the MSE of the difference in means (conditional on the
+  covariates) is minimised by ordering the units by the index
+  g(x) = E[Y(1) + Y(0) | X = x] and pairing neighbours (Theorem 1), at any sample
+  size and with heterogeneous effects. The ex post bias variance is
+  (1/4n^2) sum over pairs of (g_a - g_b)^2, minimised by sorting (the
+  Hardy-Littlewood-Polya rearrangement inequality, his Lemma B.1); any
+  stratification is a mixture of matched-pair designs (Lemma 2), so larger strata
+  never do better. With one covariate on which g is monotone, sorting on that
+  covariate is optimal (Theorem 2).
+- What it says about the pairs path. `supergeo_total`'s pair cost, the squared
+  difference of estimation-window totals, is that variance with the pre-period
+  total in place of g: the closed form of jgreathouse9/mlsynth#1115 is Bai's
+  "MP base" design, and Theorems 1 and 2 are its citation (added to `pairs.py`
+  and the docs page on the odd-case branch).
+- A prognostic objective. The index is unknown, and with homogeneous effects its
+  order is the order of E[Y(0) | X] (his eq. 9), which auxiliary data can
+  estimate. In a geo panel the history is that data: fit a held-out late window
+  of the pre-period on earlier windows and covariates, cross-validated (Trimmed
+  Match Design's evaluation-window rule), and pair on the fitted index. One
+  scalar per market again, so the design is a sort (CLAUDE.md invariant 8).
+  Acceptance: the held-out MDE (phase 5) against `supergeo_total` and the
+  covariate-penalty designs, on the phase 0 panels and on simulated panels where
+  the index is planted.
+- Inference. PANGEO's matched-pair SE is the "matched pairs" form, which is
+  conservative unless effects are homogeneous (his Remark 6). The adjusted
+  variance of Bai, Romano and Shaikh ("Inference in Experiments with Matched
+  Pairs", JASA 2021; Bai's eqs. 13-14) adds a correction from adjacent pairs of
+  pairs and is consistent; it needs the pairs in index order, which a sorted
+  design provides. Test-first in `effects.py`, with the size of the test checked
+  by simulation.
+- Several covariates. In Bai's simulations on ten AEJ: Applied RCTs (Table 2,
+  ratios to no stratification): pairs on the baseline outcome alone gave MSE
+  0.762 and a test of size 4.8% at 5%; Mahalanobis pairs on all covariates gave
+  MSE 0.549 but a size of 2.3%, the pairs too far apart for the asymptotics; sets
+  of four on the same distance (pair, then pair the pairs by midpoints) restored
+  the size to 5.1% at MSE 0.695. Regression adjustment after the fact did not
+  recover what matching gained. If the covariate path stays, it matches in sets
+  of four for inference.
+- Limits. Bai's units are i.i.d. and assigned one at a time, the estimator is the
+  difference in means, and the sample is even. A supergeo (Q >= 2) assigns
+  several geos together, outside his Assumption 1, so nothing here says whether
+  supergeos help; PANGEO's analysis is a DiD; geo panels are small and uneven in
+  size. The results transfer most directly to Q = 1.
+
+### Phase 5c: choosing the covariates by permutation (Anand and Talbot 2015)
+
+Anand and Talbot, "Automatic Selection of Partitioning Variables for Small
+Multiple Displays", IEEE Transactions on Visualization and Computer Graphics
+(VIS 2015).
+
+- The method. A candidate partitioning variable is scored by a statistic
+  computed on each partition it induces, against the same statistic on random
+  partitions of the same sizes (a randomized permutation test; Good,
+  "Permutation Tests", Springer 2000). Each partition gets a z-score against its
+  permutation null, with Chebyshev's inequality as the conservative bound when
+  the observed value lies outside the simulated range, and the variable scores
+  the largest |z|. Their criteria map onto the design problem: informative (the
+  partitions differ from random ones), well supported (small partitions widen the
+  null, so chance patterns score low) and parsimonious (more partitions widen it
+  too).
+- Use in PANGEO. Bai's index is unknown and his simulations show that covariates
+  added without regard to their predictive power cost inference; the study found
+  the pretest optimum overfits. A covariate (or a region variable for phase 6b
+  and the study's groups within regions) enters the index, the blocking or the
+  regions only if partitioning the markets by it separates the held-out
+  pre-period outcome, or its residual on the outcome-only index, beyond what
+  random partitions of the same sizes do. The statistic is the between-partition
+  variance of that outcome; continuous covariates are binned as the paper does
+  (equal-count bins), with the binning held fixed across permutations.
+- Their stated limits (section 5), each with an answer here: correlated
+  candidates both score high, so selection is sequential, each candidate scored
+  on the residual after those already chosen; the Chebyshev bound is
+  conservative, so with enough permutations the empirical p-value is reported
+  instead; the maximum over partitions favours one strong partition, which suits
+  a variable that isolates one group of markets but is compared against the mean
+  |z| in the measurement.
+- Acceptance: on simulated panels with planted predictive and irrelevant
+  covariates, the selection keeps the planted ones and drops the rest at the
+  stated rate; on the phase 0 panels, the held-out MDE of designs on the selected
+  covariates against designs on the outcome alone and on all covariates.
+
+### Phase 5d: blocked designs under a grouped factor model
+
+The model, for market i in cluster c(i), with a primary KPI and secondary ones
+of the same form:
+
+    Y_it(0) = alpha_i + lambda_c(i)' F_t + beta_c(i)' W_c(i),t + eps_it,
+
+F_t latent common factors, W_c,t observed cluster-level series such as weather
+(heat, rain), and loadings and sensitivities shared within a cluster: the
+grouped linear factor structure of Liao, Shi and Zheng that LEXSCM's and
+SYNDES's examples already simulate.
+
+- What a pair's difference carries. Two markets in one cluster share lambda,
+  beta and W, so F and W cancel in their difference and only alpha_a - alpha_b
+  and noise remain: the test window's factors and weather, unknown at design
+  time, cannot enter the comparison. Two markets in different clusters carry
+  (lambda_c - lambda_c')' F_t and the weather terms, a variance of
+  (lambda_c - lambda_c')' Sigma_F (lambda_c - lambda_c') plus its weather
+  analogue: a distance in several dimensions.
+- The design. Block on the clusters; within a cluster the remaining imbalance is
+  the scalar alpha_i, so Bai's result (phase 5b) applies block by block: sort
+  each cluster on its level or prognostic index and pair neighbours, one closed
+  form per cluster (CLAUDE.md invariant 8). A cluster with an odd count leaves
+  one market; the leftovers are paired across clusters at the loading-distance
+  cost, a matching in several dimensions solved by the blossom matcher, or left
+  out (the odd case of the pairs path). The global minimum-weight matching on the
+  full cost does both at once, since pairs within a cluster cost almost nothing;
+  the closed form applies exactly when every cluster is even. The supergeo
+  study's groups within regions (`certify_staged`'s region constraint) is the
+  same blocking for Q >= 2.
+- Weather, twice. At design time the cluster-level series define or sharpen the
+  clusters (weather is regional), and a market's estimated sensitivity beta can
+  enter its index. At analysis time the test window's weather is observed and
+  not affected by treatment, so it enters the DiD/ADID as a control and absorbs
+  a shock the design could not see; this differs from the regression adjustment
+  of baseline covariates that Bai (Section V) finds does not recover what
+  matching gains.
+- Several KPIs. The blocking does not depend on the KPI: shared factors and
+  weather cancel within a cluster for every KPI at once. The within-cluster index
+  does: the primary KPI's index, or matched sets of four on the baselines of all
+  KPIs (Bai, Section V.C, where pairing on one outcome did not help another).
+- The clusters are checked, not assumed. Clusters from geography (census
+  divisions, weather zones) and clusters estimated from co-movement (grouped
+  fixed effects, Bonhomme and Manresa, Econometrica 83(3), 2015; a grouped
+  factor model, Ando and Bai) both earn their blocks through phase 5c's
+  permutation test: the partition separates the held-out outcome beyond random
+  partitions of the same sizes. Estimated clusters are fitted to the pre-period
+  and the test is what keeps them from overfitting it.
+- Inference. Bai's optimality assumes independent units; under the factor model
+  units in a cluster are dependent through F and W. Pairing within clusters
+  removes that dependence from the pair differences, but with few clusters the
+  randomization test permutes within blocks and the variance is checked by
+  simulation.
+- Acceptance: on panels simulated from the model with planted clusters, weather
+  and loadings, the blocked design's held-out MDE (phase 5) against the
+  unblocked sorted design, the trajectory objective and the matcher on the full
+  cost; the permutation test recovers the planted partition and rejects a random
+  one; the analysis with weather as a control against the analysis without it.
+
 ### Phase 6: Trimmed Match as an analysis estimator
 
 A separate estimator, own branch: the trimmed ratio estimator of Chen and Au
@@ -640,7 +786,9 @@ pairs to keep. Neither repairs a design after a market is lost.
 Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 0c (the general solver against the closed form on pairs: heuristic stopping, odd-set cuts, the matching oracles), then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5's
 closed form and backtest can start after phase 1 and run beside 2 to 4; its
 Trimmed Match simulations follow phase 6, and phase 6b follows phase 6. The Trimmed Match benchmark (phase 7)
-lands with phase 6. The rest of phase 7 after each phase lands. Phase 8 is open:
+lands with phase 6. Phases 5b, 5c and 5d follow phase 5's held-out MDE, which
+is their measurement, and 5d uses 5c's test on its clusters; 5b's inference change and its citation of the pairs path can
+land any time. The rest of phase 7 after each phase lands. Phase 8 is open:
 its measurement can run any time after phase 0b, and any design work waits on
 phase 5's variance.
 
