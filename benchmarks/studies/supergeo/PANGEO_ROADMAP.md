@@ -131,6 +131,72 @@ over pairs before it shows what the research buys over the MIP.
 
 Own branch, library code; lands before phase 1.
 
+### Phase 0c: the general solver on the closed-form case
+
+With pairs (groups of exactly two) the paper's objective has a closed form: the
+markets paired as neighbours in sorted order of their totals are optimal (an
+exchange argument: for sorted a <= b <= c <= d the crossing pairing costs at least
+(b - a)^2 + (d - c)^2, since each difference only grows, and the nested one
+(d - a)^2 + (c - b)^2 >= (b - a)^2 + (d - c)^2). With any other per-pair cost
+(trajectories, PANGEO's DiD score) pairs are a minimum weight perfect matching,
+polynomial. Pairs are therefore the instance on which the general machinery's
+overhead can be measured against a known answer and its known cost, before the
+roadmap continues.
+
+Measured on google/trimmed_match's 174 example geos (totals over 2020-01-01 to
+2020-12-01), pairs only, one session, all at the exact optimum:
+
+| route | time |
+| --- | --- |
+| sorting (Trimmed Match's create_geo_pairs) | 0.04 s |
+| PANGEO, supergeo_total, cvxpy and HiGHS MIP over 15,051 candidate pairs | 0.76 to 1.24 s (MIP 0.48 to 0.80 s) |
+| the study's certificate, lo = hi = 2, defaults | 5.89 to 7.33 s, of which the heuristic 5.4 to 5.7 s |
+| the same, heuristic off | 0.37 to 0.41 s (root 0.21 s; proof 8,742 nodes) |
+
+The default heuristic runs a fixed N/2 steps (87) although the sorted start is
+already optimal; the proof itself is cheap because the start is optimal, and the
+root bound is 0.32 of the optimum. Three steps, each general, each measured on
+the known-answer families below and on groups of 2 to 4 so the hard case does
+not slow:
+
+1. Stop the heuristic when it stops paying: after k steps without improvement,
+   or once the bound proves the gap asked for, counted in steps so the design
+   stays a function of the inputs and the seed. On pairs it stops at once; on
+   the 180-market panel the fixed budget was a third of the run, and on the 174
+   geos with groups of 2 to 4 it took 7.4 s.
+2. Tighten the bound with odd-set (blossom) inequalities. With pairs the master
+   is the perfect matching LP, and Edmonds' blossom inequalities make it exact;
+   Chandrasekaran, Vegh and Vempala ("The cutting plane method is polynomial for
+   perfect matchings", Math. Oper. Res. 41 (2016) 23-48,
+   doi:10.1287/moor.2015.0714) show the cutting plane loop converges in
+   polynomial time when (a) violated blossoms are read off the odd cycles in the
+   support of the half-integral LP solutions (no Padberg-Rao separation needed
+   while solutions stay half-integral) and (b) only the cuts with positive duals
+   are kept, a laminar family. Blossom inequalities have Chvatal rank 1, so the
+   study's rank-1 Chvatal-Gomory cuts on 3 to 5 rows (rank1.py) are small
+   blossoms already, and the parity cut for odd N is the blossom on the whole set;
+   odd-cycle separation extends them to odd sets of any size, and pricing
+   subtracts the duals of the cuts a group crosses. Target: the pairs bound equal
+   to the optimum at the root, so the certificate ends without a search. Open
+   question: how far such cuts lift the bound with groups of 2 to 4, where a
+   triple covers an odd set and the argument weakens.
+3. Profile what remains: the root LP's warm start and the initial pool.
+
+Known-answer families for every claim: pairs against sorting at 20 to 1,000
+markets; pairs with trajectory costs against an exact minimum weight perfect
+matching, from Blossom VI (Arkhipov and Kolmogorov, "Blossom VI: A practical
+minimum weight perfect matching algorithm", arXiv:2604.20351, 2026; C++ at
+github.com/Paul566/blossom-vi, nearly linear in practice on every family they
+tested, faster than Blossom V where Blossom V is superlinear; built in a pinned
+environment like the Trimmed Match reference) or networkx's Edmonds
+implementation at a few hundred markets; groups of 2 to 4 with planted optima.
+
+PANGEO side: with Q = 1 every objective is a minimum weight perfect matching, so
+an exact matching (sorting for supergeo_total; Blossom VI or Edmonds for the
+trajectory objectives) can replace the enumeration and the MIP. With an odd
+number of markets no perfect matching exists: one market is dropped or put in a
+triple, as Trimmed Match drops its largest geo; the choice is stated and tested.
+
 ### Phase 1: harden the exact-cover MIP (`pangeo_helpers/mip.py`)
 
 - Relative and absolute MIP gap 0 (or a stated tolerance, reported).
@@ -445,7 +511,7 @@ same supergeos.
 
 ## Order and dependencies
 
-Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5's
+Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 0c (the general solver against the closed form on pairs: heuristic stopping, odd-set cuts, the matching oracles), then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5's
 closed form and backtest can start after phase 1 and run beside 2 to 4; its
 Trimmed Match simulations follow phase 6, and phase 6b follows phase 6. The Trimmed Match benchmark (phase 7)
 lands with phase 6. The rest of phase 7 after each phase lands.
