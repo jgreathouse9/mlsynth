@@ -28,6 +28,11 @@ from mlsynth.utils.pangeo_helpers import mip as pmip
 from mlsynth.utils.pangeo_helpers import prepare_pangeo_inputs, run_pangeo
 from mlsynth.utils.pangeo_helpers.parallelism import best_split
 
+# The cross-version CI jobs do not install highspy; its cases run where it is.
+HAS_HIGHSPY = pmip._highspy_available()
+BACKENDS = ["cvxpy", "highspy"] if HAS_HIGHSPY else ["cvxpy"]
+needs_highspy = pytest.mark.skipif(not HAS_HIGHSPY, reason="highspy is not installed")
+
 
 def _long(Y: np.ndarray) -> pd.DataFrame:
     """A one-arm long panel from a units x periods matrix."""
@@ -126,7 +131,7 @@ class TestAgainstTheOracle:
     @settings(max_examples=40, deadline=None,
               suppress_health_check=[HealthCheck.too_slow])
     @given(seed=st.integers(0, 10**9), half=st.integers(1, 7),
-           T=st.integers(2, 12), backend=st.sampled_from(["cvxpy", "highspy"]))
+           T=st.integers(2, 12), backend=st.sampled_from(BACKENDS))
     def test_the_mip_reaches_the_sorted_pairing(self, seed, half, T, backend):
         """Every unit is in exactly one pair, and the design's cost is the
         sorted pairing's, within HiGHS's default gap; the sorted pairing is
@@ -183,9 +188,10 @@ class TestAgainstTheOracle:
 # ----------------------------------------------------------------------
 
 class TestBackend:
-    @pytest.mark.parametrize("backend, used", [("cvxpy", "cvxpy"),
-                                               ("highspy", "highspy"),
-                                               ("auto", "highspy")])
+    @pytest.mark.parametrize("backend, used", [
+        ("cvxpy", "cvxpy"),
+        pytest.param("highspy", "highspy", marks=needs_highspy),
+        ("auto", "highspy" if HAS_HIGHSPY else "cvxpy")])
     def test_the_backend_asked_for_is_the_one_used(self, backend, used,
                                                    monkeypatch):
         calls = []
@@ -211,6 +217,7 @@ class TestBackend:
             _design(np.random.default_rng(2).normal(100, 10, (4, 6)),
                     backend="highspy")
 
+    @needs_highspy
     def test_cvxpy_and_highspy_agree(self):
         Y = np.random.default_rng(3).lognormal(4, 0.5, (8, 10))
         _, a = _design(Y, backend="cvxpy")
