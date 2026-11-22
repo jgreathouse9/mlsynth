@@ -180,7 +180,41 @@ not slow:
    to the optimum at the root, so the certificate ends without a search. Open
    question: how far such cuts lift the bound with groups of 2 to 4, where a
    triple covers an odd set and the argument weakens.
-3. Profile what remains: the root LP's warm start and the initial pool.
+
+   Which cuts the pricing can carry. The master's columns are generated, so a
+   cut is robust or non-robust in the sense of Uchoa, Pessoa and Moreno
+   ("Optimizing with Column Generation: Advanced Branch-Cut-and-Price
+   Algorithms", Part I, Cadernos do LOGIS 2024(3), section 4.3): a cut stated on
+   the markets (the rows) gives a new group a coefficient that depends only on
+   how many of the cut's markets it covers, and the scan prices it cheaply; a cut
+   stated on the groups (the columns) needs the pricing to decide a new group's
+   coefficient from the groups already in the cut. Borndörfer ("Aspects of Set
+   Packing, Partitioning, and Covering", dissertation, TU Berlin, 1998, section
+   3.3) separates clique, odd-cycle and aggregated odd-cycle inequalities on the
+   fractional intersection graph for set partitioning; those are facets of the
+   set packing polytope whatever the group sizes, and they are stated on columns,
+   so in this master they are non-robust in the costly way. The rank-1 cut with
+   multiplier 1/2 on an odd set S of markets is the bridge: a group's
+   coefficient is floor(|group ∩ S| / 2), which for pairs is Edmonds' blossom
+   inequality on S, and for groups of 2 to 4 its generalisation, priced from a
+   count. Step 2 is therefore the study's rank-1 cuts (3 to 5 markets) extended
+   to odd sets of any size, separated from the odd cycles of the LP solution as
+   in Chandrasekaran-Vegh-Vempala, with limited memory to keep pricing cheap
+   (Pecin, Pessoa, Poggi and Uchoa, "Improved branch-cut-and-price for capacitated
+   vehicle routing", Math. Program. Comput. 9 (2017) 61-100). Borndörfer's
+   preprocessing (section 3.2) lists the reductions beside it: reduced cost
+   fixing (3.2.11), which the exact elimination already performs, and dominated
+   columns and probing, which it does not. Rasmussen ("Optimisation-Based
+   Solution Methods for Set Partitioning Models", dissertation, DTU, 2011,
+   section 2.5) gives the conditions under which the set partitioning LP is
+   integral (balanced and perfect matrices); the pairs master meets none of
+   them, which is why its root bound is 0.32 of the optimum without odd-set cuts.
+3. Profile what remains: the root LP's warm start and the initial pool. The
+   bound at every column generation iteration, z_RM + (N / lo) c* (Uchoa, Pessoa
+   and Moreno, Theorem 2.8, pp. 29-30; it is the bound `_exact_bound` already
+   computes at convergence), says when further pricing rounds stop moving the
+   bound, the test for stopping the root early. Farley's bound (their p. 181)
+   needs equal column costs and does not apply.
 
 Known-answer families for every claim: pairs against sorting at 20 to 1,000
 markets; pairs with trajectory costs against an exact minimum weight perfect
