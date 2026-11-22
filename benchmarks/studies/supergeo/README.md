@@ -547,6 +547,36 @@ design costs 160 times less than the heuristic's, its groups' halves differing
 by 0.0097 median spacings (rms over 32 groups), and the bound (at least 0)
 proves it within d with no exact stage.
 
+### 120 markets: capped stages on threads, one window
+
+Every step of the certificate at 120 markets, timed alone (lognormal panel with
+gap 1e-6; similar-sized panel with absolute gap 0.01), before and after two
+changes: the capped stages run on the threads of the exact stage
+(`verify_rows(..., workers=)`), and one safe window serves the bound and the
+first stage, built at a threshold guessed from the floating-point minimum
+reduced cost (the stage builds its own when the exact one is above the guess).
+
+| step | lognormal before | lognormal after | similar-sized before | after |
+| --- | --- | --- | --- | --- |
+| capped searches | 49.5 s | 10.3 s | 19.9 s | 2.2 s |
+| safe window | 44.9 s (2 builds) | 27.7 s (1) | 0.3 s | 0.6 s (2) |
+| exact screen | 14.8 s | 13.8 s | 0.4 s | 0.3 s |
+| heuristic | 5.0 s | 5.0 s | 5.1 s | 5.0 s |
+| root column generation | 2.5 s | 2.5 s | 2.6 s | 2.5 s |
+| total | 117.6 s | 60.2 s | 28.5 s | 10.8 s |
+
+On the captured first capped stage (563,453 rows, 300,000 nodes) one thread
+took 21.0 s and four 6.1 s. Branching on the lowest uncovered market instead of
+the market with the fewest fitting groups ran 17 to 35 times faster per node and
+found no cover within the cap: it loses the early test for a market with no
+fitting group, so the branching stays. On the similar-sized panel the guess fell
+short and a second window was built, at 0.6 s in all.
+
+What remains: on the lognormal panel the window (one thread, two passes over the
+halves: count, then fill) and its exact screen (two passes over the same rows,
+the bound's test and the stage's) are 69% of the run; on the similar-sized
+panel the fixed heuristic budget (N / 24 s) is 46%.
+
 ## 210 markets
 
 On the 210-market instance (`n210_duals.json`), from the best design found (the

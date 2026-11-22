@@ -521,11 +521,29 @@ def test_a_guess_below_the_stage_threshold_builds_a_second_window(monkeypatch):
 
 def test_a_negative_guess_still_covers_the_bound(monkeypatch):
     """A threshold guess below 0 is raised to 0, where the window holds every column with a negative reduced cost,
-    so the exact bound is unchanged."""
-    z = list(test_bcp._subsets(16, 3))[1]
+    so the exact bound is unchanged. On this instance 4 columns have a negative reduced cost (m = -5.7e-13), which a
+    window built below 0 misses."""
+    z = list(test_bcp._subsets(12, 6))[2]
     kw = dict(incumbent=test_bcp._sorted_pairs(z), heuristic_seconds=0.0, caps=(200,))
     ref = ce.certify_staged(z, **kw)
+    assert ref["negative_columns"] > 0
     monkeypatch.setattr(ce, "_window_threshold", lambda *a, **k: -1e6)
     out = ce.certify_staged(z, **kw)
     assert out["lb_exact"] == ref["lb_exact"] and out["negative_columns"] == ref["negative_columns"]
     assert out["opt_exact"] == ref["opt_exact"]
+
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(6, 12), kind=st.integers(0, 3), shift=st.floats(0.01, 0.5),
+       f=st.floats(0.0, 1.0))
+def test_the_window_guess_is_at_or_above_the_stage_threshold(seed, n, kind, shift, f):
+    """With every market's dual raised (the bound holds for any duals), the minimum reduced cost m is clearly
+    negative; the guessed window threshold is still at or above the first stage's exact threshold
+    T - S - (N / lo - 1) m, so one window serves both."""
+    z, pi, tau, S, m = _stage_inputs(test_bcp.gen(np.random.default_rng(seed), n, kind))
+    pi2 = pi + shift * (np.median(np.abs(pi)) + 1.0)
+    m2, S2, LB2, neg2 = ce._exact_bound(z, pi2, tau, 2, 4)
+    assert m2 < -1e-6                                         # the cushion alone does not cover it
+    T = LB2 + (abs(LB2) + 1) * Fraction(f)
+    th = ce.up(T - S2 - (Fraction(n, 2) - 1) * m2)
+    assert ce._window_threshold(z, pi2, tau, 2, 4, S2, T) >= th
