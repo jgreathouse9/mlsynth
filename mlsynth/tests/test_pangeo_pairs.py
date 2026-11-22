@@ -238,10 +238,17 @@ def test_an_odd_arm_is_reported(objective):
         _design(_panel(10, 5), objective=objective)
 
 
-def test_too_few_pairs_for_min_pairs_is_reported():
-    """Failure: an arm of 6 gives 3 pairs; min_pairs 4 raises MlsynthEstimationError."""
+@pytest.mark.parametrize("objective", ["supergeo_total", "ss_res"])
+def test_too_few_pairs_for_min_pairs_is_reported(objective):
+    """Failure: an arm of 6 gives 3 pairs; min_pairs 4 raises MlsynthEstimationError on either path."""
     with pytest.raises(MlsynthEstimationError, match="min_pairs"):
-        _design(_panel(11, 6), objective="supergeo_total", min_pairs=4)
+        _design(_panel(11, 6), objective=objective, min_pairs=4)
+
+
+def test_an_empty_arm_gives_no_pairs():
+    """Edge: solve_pairs on no units reports that zero pairs fall short of min_pairs."""
+    with pytest.raises(MlsynthEstimationError, match="min_pairs"):
+        ppairs.solve_pairs([], np.arange(0), totals=np.zeros(0))
 
 
 def test_solve_pairs_rejects_a_missing_candidate():

@@ -46,8 +46,7 @@ def sorted_pairing(z: Sequence[float]) -> List[Tuple[int, int]]:
 
 
 def _check_arm(n: int, min_pairs: int) -> None:
-    if n < 2:
-        raise MlsynthEstimationError("PANGEO: no admissible supergeo pairs (need >= 2 units per arm).")
+    """An odd arm has no cover by pairs, and an arm of n units gives n / 2 pairs (an empty arm none)."""
     if n % 2:
         raise MlsynthEstimationError(
             f"PANGEO: pairs (max_supergeo_size=1) need an even number of units in each arm; this arm has {n}, "
@@ -67,8 +66,8 @@ def solve_pairs(candidates: Optional[List[dict]], unit_indices: np.ndarray, *,
     totals; ``candidates`` is not read. Without ``totals``, ``candidates`` must hold every pair of the arm's units
     with its score, and the pairs are the blossom matcher's, with its certificate on the diagnostics.
 
-    Raises MlsynthEstimationError for an arm of fewer than 2 units, an odd arm, an arm too small for
-    ``min_pairs``, and a candidate list missing a pair's score.
+    Raises MlsynthEstimationError for an odd arm, an arm too small for ``min_pairs`` (an empty one included),
+    and a candidate list missing a pair's score.
     """
     unit_indices = np.asarray(unit_indices)
     n = len(unit_indices)

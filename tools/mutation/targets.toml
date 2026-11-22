@@ -18747,8 +18747,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-backend-not-passed-to-the-mip"
-  find = "                backend=mip_backend)"
-  replace = "                backend=\"auto\")"
+  find = "                    return_diagnostics=True, backend=mip_backend)"
+  replace = "                    return_diagnostics=True, backend=\"auto\")"
   models = "the design's MIP solved on the automatic backend whatever was configured"
 
   [[target.mutant]]
@@ -19260,3 +19260,111 @@ timeout = 600.0
   find = "    if cf_g.shape[:2] != (n_chains, per_chain) or sig_g.shape != (n_chains, per_chain):"
   replace = "    if False:"
   models = "a sampler that returns fewer draws than asked passes unreported"
+
+[[target]]
+name = "pangeo-pairs"
+module-path = "mlsynth/utils/pangeo_helpers/pairs.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_pairs.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-totals-not-sorted"
+  find = "    order = np.lexsort((np.arange(len(z)), z))"
+  replace = "    order = np.arange(len(z))"
+  models = "units paired in panel order, not in order of their totals"
+
+  [[target.mutant]]
+  id = "the-pairs-not-neighbours"
+  find = "    return [tuple(sorted((int(order[k]), int(order[k + 1])))) for k in range(0, len(z), 2)]"
+  replace = "    return [tuple(sorted((int(order[k]), int(order[k + len(z) // 2])))) for k in range(len(z) // 2)]"
+  models = "the k-th smallest total paired with the k-th of the upper half, a sorted pairing that is not the neighbours'"
+
+  [[target.mutant]]
+  id = "an-odd-count-sorted"
+  find = "    if len(z) % 2:"
+  replace = "    if False:"
+  models = "the closed form run on an odd count, which leaves the largest total unpaired without saying so"
+
+  [[target.mutant]]
+  id = "the-score-not-squared"
+  find = "            chosen.append({\"members\": np.array([unit_indices[a], unit_indices[b]]), \"score\": d * d,"
+  replace = "            chosen.append({\"members\": np.array([unit_indices[a], unit_indices[b]]), \"score\": abs(d),"
+  models = "the closed form's pairs scored by |difference|, so its objective value is not the paper's"
+
+  [[target.mutant]]
+  id = "both-halves-one-unit"
+  find = "                           \"side_b\": np.array([unit_indices[b]], dtype=int)})"
+  replace = "                           \"side_b\": np.array([unit_indices[a]], dtype=int)})"
+  models = "a pair's control half built from its treated unit"
+
+  [[target.mutant]]
+  id = "an-odd-arm-not-reported"
+  find = "    if n % 2:"
+  replace = "    if False:"
+  models = "an odd arm passed to the solvers, which leave a unit out or fail with a ValueError, not the estimation error"
+
+  [[target.mutant]]
+  id = "min-pairs-not-checked"
+  find = "    if n // 2 < min_pairs:"
+  replace = "    if False:"
+  models = "a design with fewer pairs than min_pairs returned"
+
+  [[target.mutant]]
+  id = "a-missing-pair-not-reported"
+  find = "        if not np.isfinite(W).all():"
+  replace = "        if False:"
+  models = "a candidate list without every pair handed to the matcher, which fails on the infinite cost instead of naming it"
+
+[[target]]
+name = "pangeo-pairs-routing"
+module-path = "mlsynth/utils/pangeo_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_pairs.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "an-explicit-backend-overridden"
+  find = "    pairs_path = (not fast) and max_supergeo_size == 1 and mip_backend == \"auto\""
+  replace = "    pairs_path = (not fast) and max_supergeo_size == 1"
+  models = "mip_backend highspy or cvxpy ignored at Q = 1"
+
+  [[target.mutant]]
+  id = "larger-supergeos-sent-to-the-matcher"
+  find = "    pairs_path = (not fast) and max_supergeo_size == 1 and mip_backend == \"auto\""
+  replace = "    pairs_path = (not fast) and mip_backend == \"auto\""
+  models = "Q >= 2 groups handed to the pairs path"
+
+  [[target.mutant]]
+  id = "the-closed-form-with-covariates"
+  find = "    closed_form = pairs_path and objective == \"supergeo_total\" and cov is None"
+  replace = "    closed_form = pairs_path and objective == \"supergeo_total\""
+  models = "the sorted pairing used when a covariate penalty breaks its condition, so the covariates are ignored"
+
+  [[target.mutant]]
+  id = "the-closed-form-for-every-objective"
+  find = "    closed_form = pairs_path and objective == \"supergeo_total\" and cov is None"
+  replace = "    closed_form = pairs_path and cov is None"
+  models = "the trajectory objectives sorted by totals, which optimises the wrong cost"
+
+  [[target.mutant]]
+  id = "the-totals-over-the-whole-pre-period"
+  find = "            Ypre = Y[:, e_idx]"
+  replace = "            Ypre = Y"
+  models = "the closed form's totals summed over the blank window too, not over the estimation window the objective uses"
+
+  [[target.mutant]]
+  id = "min-pairs-not-given-to-the-closed-form"
+  find = "                None, idx, totals=totals, min_pairs=min_pairs)"
+  replace = "                None, idx, totals=totals)"
+  models = "min_pairs ignored on the closed-form path"
+
+  [[target.mutant]]
+  id = "min-pairs-not-given-to-the-matcher"
+  find = "                    candidates, idx, min_pairs=min_pairs)"
+  replace = "                    candidates, idx)"
+  models = "min_pairs ignored on the matcher path"
+
+  [[target.mutant]]
+  id = "the-solver-label-not-updated"
+  find = "                   if fast else \"sorted pairing (closed form)\" if closed_form"
+  replace = "                   if fast else \"cvxpy/HiGHS set-partitioning MIP\" if closed_form"
+  models = "metadata naming the MIP for a design the closed form made"
