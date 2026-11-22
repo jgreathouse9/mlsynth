@@ -199,9 +199,10 @@ triple, as Trimmed Match drops its largest geo; the choice is stated and tested.
 
 Which market to drop has an exact answer. Kaibel and Walter ("A note on matchings
 constructed during Edmonds' weighted perfect matching algorithm",
-arXiv:1703.09505, 2017; known earlier as an exercise in Lawler, "Combinatorial
-Optimization: Networks and Matroids", 1976) prove that every matching Edmonds'
-weighted perfect matching algorithm builds is of minimum weight among the
+arXiv:1703.09505, 2017; earlier Lawler, "Combinatorial Optimization: Networks
+and Matroids", Holt, Rinehart and Winston, 1976, chapter 6, problem 8.2, p. 247,
+with the bipartite case proved in chapter 5, section 8, p. 205) prove that every
+matching Edmonds' weighted perfect matching algorithm builds is of minimum weight among the
 matchings of its cardinality, under mild restrictions on the algorithm's
 choices. Run on an odd number of markets, the algorithm ends at a maximum
 matching that is of minimum weight among maximum matchings: the optimal market
