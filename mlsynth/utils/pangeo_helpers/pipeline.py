@@ -15,6 +15,7 @@ import numpy as np
 
 from .fast_partition import fast_partition
 from .mip import solve_partition
+from .pairs import solve_pairs
 from .parallelism import (
     _wavg,
     enumerate_candidate_pairs,
@@ -258,12 +259,24 @@ def run_pangeo(
         cw = covariate_weights or {}
         cov_w = np.array([float(cw.get(name, 1.0)) for name in cov_names])
 
+    # Pairs on the exact path are a minimum-weight perfect matching: solved in
+    # closed form (sorted totals) for the paper's objective without covariates,
+    # by the blossom matcher for every other cost; an explicit MIP backend
+    # keeps the MIP (pairs.py; CLAUDE.md invariant 8, closed forms first).
+    pairs_path = (not fast) and max_supergeo_size == 1 and mip_backend == "auto"
+    closed_form = pairs_path and objective == "supergeo_total" and cov is None
+
     arm_designs = {}
     assignment = {}
     solver_diagnostics = {}
     chosen_by_arm = {}
     for arm, idx in inputs.arm_units.items():
-        if fast:
+        if closed_form:
+            Ypre = Y[:, e_idx]
+            totals = np.array([float(Ypre[[u]].sum()) for u in idx])
+            chosen, solver_diagnostics[arm] = solve_pairs(
+                None, idx, totals=totals, min_pairs=min_pairs)
+        elif fast:
             # OSD-style heuristic: cluster into size-bounded groups + split,
             # skipping the O(n^{2Q}) enumeration and the exact-cover MIP.
             chosen, solver_diagnostics[arm] = fast_partition(
@@ -280,9 +293,13 @@ def run_pangeo(
                 cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
                 unit_weights=uw,
             )
-            chosen, solver_diagnostics[arm] = solve_partition(
-                candidates, idx, min_pairs=min_pairs, return_diagnostics=True,
-                backend=mip_backend)
+            if pairs_path:
+                chosen, solver_diagnostics[arm] = solve_pairs(
+                    candidates, idx, min_pairs=min_pairs)
+            else:
+                chosen, solver_diagnostics[arm] = solve_partition(
+                    candidates, idx, min_pairs=min_pairs,
+                    return_diagnostics=True, backend=mip_backend)
         # Pairs in a canonical order (by first unit) so the k-th coin goes to
         # the same pair whatever order the solver returned them in.
         chosen_by_arm[arm] = sorted(chosen, key=lambda c: int(np.min(c["members"])))
@@ -325,7 +342,9 @@ def run_pangeo(
         "max_supergeo_size": max_supergeo_size,
         "T_pre": T0,
         "solver": ("OSD-style fast partition (PCA clustering + per-group split)"
-                   if fast else "cvxpy/HiGHS set-partitioning MIP"),
+                   if fast else "sorted pairing (closed form)" if closed_form
+                   else "Edmonds blossom matching" if pairs_path
+                   else "cvxpy/HiGHS set-partitioning MIP"),
         "fast_candidates": fast_candidates if fast else None,
         "solver_diagnostics": solver_diagnostics,
         "objective": objective,

@@ -812,7 +812,8 @@ good groups mix sizes.
 
 A design of pairs costs the sum of its pairs' costs, so the best pairing of n
 markets is a minimum-weight perfect matching on the complete graph of markets
-(Edmonds 1965). `matching.py` is the primal-dual blossom algorithm in its
+(Edmonds 1965). `mlsynth/utils/pangeo_helpers/matching.py` (written here,
+now PANGEO's pairs path) is the primal-dual blossom algorithm in its
 O(n^3) form, in Numba, written from Lawler (1976, chapter 6) and Galil (1986,
 section 3). It is a clean-room implementation: Blossom VI (Kolmogorov 2009) and
 networkx served only as reference solvers to compare answers against, and no
@@ -902,7 +903,7 @@ skipped); the pricing window's six are killed except "split check removed"
 (equivalent: membership is decided exactly) and "no rounding margin" (not shown
 observable in 8,900 targeted cases; the proof needs the margin).
 
-The matcher (`test_matching.py`) is checked against brute force over every
+The matcher (`mlsynth/tests/test_pangeo_matching.py`) is checked against brute force over every
 matching for up to 11 markets with an exact certificate, the sorted pairing
 for the scalar cost, and networkx where it is installed; the fast certificate
 check against the direct rational check on solved and tampered certificates.

@@ -269,19 +269,26 @@ def test_the_q_sweep_designs_use_the_seed():
     assert _mean_program_mde(other) != pytest.approx(_mean_program_mde(res), rel=1e-12)
 
 
-def test_the_labels_do_not_depend_on_the_solvers_order(monkeypatch):
+@pytest.mark.parametrize("solver, kw", [("solve_partition", {"mip_backend": "cvxpy"}),
+                                         ("solve_pairs", {"objective": "ss_res"}),
+                                         ("solve_pairs", {"objective": "supergeo_total"})])
+def test_the_labels_do_not_depend_on_the_solvers_order(monkeypatch, solver, kw):
     """Unit: the coins go to the pairs in order of their first unit, so a solver that returns the same pairs in
-    the reverse order gets the same labels from the same seed."""
+    the reverse order gets the same labels from the same seed. Each route a Q = 1 exact design can take is
+    reversed in turn: the MIP, the blossom matcher and the closed form."""
     from mlsynth.utils.pangeo_helpers import pipeline
     Y = _panel(11, 12)
-    _, want = _design(Y, seed=6, fast=False)
-    real = pipeline.solve_partition
+    _, want = _design(Y, seed=6, fast=False, **kw)
+    real = getattr(pipeline, solver)
+    calls = []
 
     def reversed_solver(*args, **kwargs):
         chosen, diag = real(*args, **kwargs)
+        calls.append(solver)
         return list(reversed(chosen)), diag
 
-    monkeypatch.setattr(pipeline, "solve_partition", reversed_solver)
-    _, got = _design(Y, seed=6, fast=False)
+    monkeypatch.setattr(pipeline, solver, reversed_solver)
+    _, got = _design(Y, seed=6, fast=False, **kw)
+    assert calls == [solver]
     assert _pairs(got) == _pairs(want) and _labels(got) == _labels(want)
     assert len({lab for lab in _labels(want).values()}) > 1
