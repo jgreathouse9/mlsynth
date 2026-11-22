@@ -605,6 +605,38 @@ is the capped searches (39%), the window (27%, of which the de-duplication of th
 24 million emitted rows is 2.2 s) and the fixed heuristic budget (21%); on the
 similar-sized panel the heuristic is 53%.
 
+### 180 markets of a simulated weekly panel
+
+A simulated panel of 180 markets over 354 weeks, with the time-series structure of
+an index-valued weekly panel: level near 100 (unit levels' sd 16), unit trends
+(sd 19 points over the panel), seasonality at 35% of each series' variance whose
+amplitude and phase differ by region (two regions, 30% and 70% of the markets:
+amplitude 5.6 against 3.7, peak at 260 and 208 degrees), five persistent common
+factors (variance shares 0.23, 0.16, 0.13, 0.06; lag-1 autocorrelation 0.89), and
+AR(1) idiosyncratic noise (sd 3.8, coefficient 0.59) with Student-t innovations
+(kurtosis of weekly changes 6.0, 2.2 moves beyond 4 sd per 1,000 unit-weeks).
+Units are drawn jointly by a variance-corrected smoothed bootstrap and the factors
+are AR(13) paths. The design input is each market's total over four weeks
+(mean 405.7, sd 58.9).
+
+The noise of a market's four-week total has sd 11.65 index points, 16.8 median
+spacings between market totals, so noise adds N sigma^2 = 51,030 squared spacings
+to any design's expected cost. The 7.5 s heuristic's design costs 0.82, 1.6e-5
+of that.
+
+| absolute gap d | time | design's cost | stages |
+| --- | --- | --- | --- |
+| 0.01 N sigma^2 (510) | 17.7 s | 0.82 | none |
+| 0.001 N sigma^2 (51) | 17.7 s | 0.82 | none |
+| 0.01 | 27.0 s | 0.0067 | one capped stage, 556,395 survivors |
+| 0.001 | stopped after 10 minutes | | |
+
+Any gap set from the noise is proved at once: the 17.7 s are root column
+generation (9.7 s) and the heuristic's fixed budget (7.5 s). A design better than
+the heuristic's changes the variance of the treated-minus-control comparison by
+about one part in 60,000, so gaps below its cost do not bear on the experiment;
+the run at d = 0.001 was stopped for that reason, not for the time.
+
 ## 210 markets
 
 On the 210-market instance (`n210_duals.json`), from the best design found (the
