@@ -267,3 +267,21 @@ def test_the_q_sweep_designs_use_the_seed():
     assert row["mean_program_mde_pct"] == pytest.approx(_mean_program_mde(res), rel=1e-12)
     _, other = _design(Y, seed=0, compute_power=True)
     assert _mean_program_mde(other) != pytest.approx(_mean_program_mde(res), rel=1e-12)
+
+
+def test_the_labels_do_not_depend_on_the_solvers_order(monkeypatch):
+    """Unit: the coins go to the pairs in order of their first unit, so a solver that returns the same pairs in
+    the reverse order gets the same labels from the same seed."""
+    from mlsynth.utils.pangeo_helpers import pipeline
+    Y = _panel(11, 12)
+    _, want = _design(Y, seed=6, fast=False)
+    real = pipeline.solve_partition
+
+    def reversed_solver(*args, **kwargs):
+        chosen, diag = real(*args, **kwargs)
+        return list(reversed(chosen)), diag
+
+    monkeypatch.setattr(pipeline, "solve_partition", reversed_solver)
+    _, got = _design(Y, seed=6, fast=False)
+    assert _pairs(got) == _pairs(want) and _labels(got) == _labels(want)
+    assert len({lab for lab in _labels(want).values()}) > 1
