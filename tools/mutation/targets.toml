@@ -18530,8 +18530,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-search-unseeded"
-  find = "        raise ValueError(f\"steps must be a non-negative integer or None, not {steps!r}\")\n    rng = np.random.default_rng(seed)"
-  replace = "        raise ValueError(f\"steps must be a non-negative integer or None, not {steps!r}\")\n    rng = np.random.default_rng()"
+  find = "        raise ValueError(f\"target must be a finite number or None, not {target!r}\")\n    rng = np.random.default_rng(seed)"
+  replace = "        raise ValueError(f\"target must be a finite number or None, not {target!r}\")\n    rng = np.random.default_rng()"
   models = "the seed accepted and ignored: the same inputs give a different design each run"
 
   [[target.mutant]]
