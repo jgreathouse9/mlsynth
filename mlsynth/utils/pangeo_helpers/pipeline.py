@@ -574,7 +574,7 @@ def _auto_select_q(
         power_alpha=power_alpha, power_post_periods=power_post_periods,
         att_augment=att_augment, att_trend=att_trend,
         mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,
-            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
+        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
     )
     sweep, results = _sweep_designs(
         inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)

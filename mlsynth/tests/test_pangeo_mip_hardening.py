@@ -287,12 +287,17 @@ def test_paths_without_a_mip_report_nothing(panel):
 
 
 def test_the_automatic_q_keeps_its_design_s_reports(panel):
-    res = _fit(panel, max_supergeo_size=None, fast=False)
+    """Unit: with Q chosen automatically the gaps reach every design in the sweep, and the chosen design keeps its
+    reports (none when the chosen Q is 1, the pairs path)."""
+    res = _fit(panel, max_supergeo_size=None, fast=False, mip_rel_gap=0.05)
     q = res.max_supergeo_size
     if q == 1:
         assert res.mip_reports == {}
     else:
         assert set(res.mip_reports) == {"A", "B"}
+        assert all(r.requested_rel_gap == 0.05 for r in res.mip_reports.values())
+    swept = _fit(panel, max_supergeo_size=2, fast=False, mip_rel_gap=0.05, compute_q_sweep=True)
+    assert all(r.requested_rel_gap == 0.05 for r in swept.mip_reports.values())
 
 
 @pytest.mark.parametrize("bad", [dict(mip_rel_gap=-0.1), dict(mip_rel_gap=1.0), dict(mip_rel_gap=float("nan")),
