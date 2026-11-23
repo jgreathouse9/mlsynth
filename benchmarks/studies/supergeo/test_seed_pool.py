@@ -175,14 +175,14 @@ def test_a_window_past_the_cap_stops_the_seed(monkeypatch):
     bound. Seeding only starts column generation; it is never needed for the result."""
     z = np.asarray(test_bcp.gen(np.random.default_rng(5), 12, 1), float)
     zs, s0, pi0, tau0 = ce._root(z, 2, 4)
-    monkeypatch.setattr(ce, "WINDOW_CAP", 30)
+    monkeypatch.setattr(ce, "WINDOW_CAP", 300)   # 227 rows at g / 10 fit, 938 at g do not
     rows, theta = ce._cheap_groups(z, 2, 4, 400)
     assert 0 < len(rows) < 400
     groups = _all_groups(12)
     assert _as_set(rows) == {c for c in groups if _cost(z, c) <= theta}
     nxt = ce._spacing2(z) * 10.0 ** (int(round(np.log10(theta / ce._spacing2(z)))) + 1) if len(rows) else None
     if nxt is not None:
-        assert int(ce.mx._window_counts(*ce._window_args(z, np.zeros(12), 2, 4, nxt)).sum()) > 30
+        assert int(ce.mx._window_counts(*ce._window_args(z, np.zeros(12), 2, 4, nxt)).sum()) > 300
     zs, s1, pi1, tau1 = ce._root(z, 2, 4)
     assert (pi1.sum() + tau1) / s1 == pytest.approx((pi0.sum() + tau0) / s0, rel=1e-9, abs=1e-9)
 
