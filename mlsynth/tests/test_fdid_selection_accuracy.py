@@ -182,3 +182,119 @@ def test_no_finite_donor_is_reported():
     X[0, :] = np.nan
     with pytest.raises(ValueError, match="All-NaN slice encountered"):
         forward_did_select(y, X, 8, list(range(3)))
+
+
+# --- one step's candidate costs, on both paths (fused kernel and numpy), against exact arithmetic ---
+
+from mlsynth.utils.fdid_helpers import estimation as est  # noqa: E402
+
+
+def _step(y, X, T0, sel, fused):
+    """One search step from the k donors ``sel``: the remaining rows' (ids, ss, lo, up) and the exact costs."""
+    yp, Xp = y[:T0], X[:T0]
+    y_c = est._centred(yp)
+    xr, ids, nx, mx = est._donor_rows(Xp, np.ones(X.shape[1], dtype=bool))
+    order = [j for j in range(X.shape[1]) if j not in sel] + list(sel)   # the remaining rows in front
+    xr, ids, nx, mx = xr[order], ids[order], nx[order], mx[order]
+    k = len(sel)
+    n = X.shape[1] - k
+    S_c = xr[n:].sum(axis=0) if k else np.zeros(T0)
+    ny = float(np.sqrt(y_c @ y_c)) * (1.0 + est._gamma(T0 + 3))
+    ss, lo, up = est._candidate_costs(y_c, S_c, xr, nx, mx, n, 1.0 / (k + 1), ny, float(nx[n:].sum()), k,
+                                      fused=fused)
+    pool = est._ExactPool(yp, Xp)
+    exact = [pool.ss(list(sel) + [int(j)]) for j in ids[:n]]
+    return ids[:n], ss, lo, up, exact
+
+
+@pytest.mark.parametrize("fused", [True, False])
+@pytest.mark.parametrize("seed", range(4))
+def test_each_candidates_exact_cost_lies_within_its_bounds(fused, seed):
+    """Unit: on a pool whose best fits leave a residual 1e-9 of the treated unit's spread, each remaining
+    candidate's exact residual sum of squares lies within its bounds, the computed one between them, on the fused
+    and the numpy path alike."""
+    y, X = _pool(seed, 9, 24, 1e6, 1e8, 1e-3)
+    for sel in ([], [0], [0, 1]):
+        _, ss, lo, up, exact = _step(y, X, 20, sel, fused)
+        for s, a, b, e in zip(ss, lo, up, exact):
+            assert Fr(float(a)) <= e <= Fr(float(b))
+            assert a <= s <= b
+
+
+@settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**6), N=st.integers(2, 7), T0=st.integers(3, 12), F=st.sampled_from([0.0, 1e4, 1e8]),
+       LEV=st.sampled_from([0.0, 1e6, 1e10]), EPS=st.sampled_from([1e-6, 1e-3, 1.0]), k=st.integers(0, 3),
+       fused=st.booleans())
+def test_property_the_bounds_enclose_the_exact_cost(seed, N, T0, F, LEV, EPS, k, fused):
+    """Property: over common factors to 1e8, levels to 1e10 and noise down to 1e-6, every candidate's exact cost
+    lies within its bounds, at every number of donors already chosen, on either path."""
+    y, X = _pool(seed, N, T0 + 2, F, LEV, EPS)
+    sel = list(range(min(k, N - 1)))
+    _, ss, lo, up, exact = _step(y, X, T0, sel, fused)
+    for s, a, b, e in zip(ss, lo, up, exact):
+        assert Fr(float(a)) <= e <= Fr(float(b))
+        assert a <= s <= b
+
+
+def test_the_bounds_have_power_on_an_ill_conditioned_step():
+    """Unit: the bounds are not loose by construction. On a step whose residual is 1e-9 of the parts it is formed
+    from, the computed costs err by more than the rounding of the final sum alone, so a bound that counted only
+    that would exclude the exact cost; the bounds here enclose it."""
+    y, X = _pool(2, 9, 24, 1e8, 1e9, 1e-4)
+    _, ss, lo, up, exact = _step(y, X, 20, [0, 1], True)
+    g_s = Fr(est._gamma(26))
+    assert any(abs(Fr(float(s)) - e) > g_s * e for s, e in zip(ss, exact))
+    assert all(Fr(float(a)) <= e <= Fr(float(b)) for a, b, e in zip(lo, up, exact))
+
+
+@pytest.mark.parametrize("fused", [True, False])
+def test_both_paths_select_exactly(monkeypatch, fused):
+    """Smoke: the search makes the exact selection with the fused kernel and without it, as when numba is absent."""
+    monkeypatch.setattr(est, "_FUSED", fused)
+    y, X = _pairs(0, 12, 30, 1e8, 1e9, 1e-3, 1e-11)
+    seq, out = _run(y, X, 24)
+    ex_seq, _, ex_opt, _ = _exact(y, X, 24)
+    assert seq == ex_seq and out["selected_controls"] == ex_opt
+
+
+def test_the_kernel_is_the_sum_of_squared_residuals():
+    """Unit: on integers, where every operation is exact, the fused kernel returns sum_t (b_t - c x_jt)^2 for the
+    first n rows and leaves the rest alone."""
+    xr = np.array([[1.0, 2.0, 3.0], [4.0, -2.0, 0.0], [7.0, 7.0, 7.0]])
+    b = np.array([1.0, 0.0, -1.0])
+    out = np.full(3, -1.0)
+    est._ss_rows(xr, b, 0.5, 2, out)
+    assert out.tolist() == [(1 - .5) ** 2 + 1 + (-1 - 1.5) ** 2, (1 - 2) ** 2 + 1 + 1, -1.0]
+
+
+@pytest.mark.parametrize("LEV", [1e10, 1e11])
+def test_the_r2_path_is_accurate_at_large_levels(LEV):
+    """Unit: ss_tot about a mean computed in one pass errs by T0 times the mean's error squared, 1e-4 relative at
+    levels of 1e10 over noise of 1e-4; with the corrected second pass the R^2 path stays within 1e-6 of the exact
+    one, relative to 1 - R^2."""
+    y, X = _pool(5, 6, 26, 0.0, LEV, 1e-4)
+    seq, out = _run(y, X, 22)
+    ex_seq, path, _, sst = _exact(y, X, 22)
+    assert seq == ex_seq
+    for got, ssr in zip(out["R2_at_each_step"], path):
+        r2 = 1 - ssr / sst
+        assert abs(Fr(float(got)) - r2) <= Fr(1e-6) * (1 - r2) + _ULP1
+
+
+def test_steps_tied_within_rounding_keep_the_first_maximising_prefix():
+    """Unit: two steps whose R^2 tie in exact arithmetic (the second donor duplicates the first, so the mean does
+    not move) but whose rounded values favour the later step keep the shorter prefix, as exact arithmetic and
+    which.max keep it."""
+    rng = np.random.default_rng(3)
+    base = rng.standard_normal(10) * 1e3 + 1e6
+    X = np.column_stack([base, base, base + rng.standard_normal(10) * 50])
+    y = base + rng.standard_normal(10)
+    pool = est._ExactPool(y[:8], X[:8])
+    sst = float(sum(v * v for v in [Fr(float(t)) - sum(Fr(float(s)) for s in y[:8]) / 8 for t in y[:8]]))
+    ss = [float(pool.ss([0])), float(pool.ss([0, 1])), float(pool.ss([0, 1, 2]))]
+    r2 = 1.0 - np.array(ss) / sst
+    r2[1] = np.nextafter(r2[0], 2.0)                      # the rounding favours the later step
+    lo = np.array(ss) * (1 - 1e-12)
+    up = np.array(ss) * (1 + 1e-12)
+    kept, path = est._choose_optimal_subset([0, 1, 2], r2, lo, up, pool)
+    assert kept == [0] and len(path) == 1
