@@ -126,3 +126,44 @@ def test_the_root_is_the_same_by_either_route(monkeypatch):
         monkeypatch.undo()
         assert np.array_equal(a[0], b[0]) and a[1] == b[1]
         assert np.array_equal(a[2], b[2]) and a[3] == b[3]
+
+
+# --- boundaries the random cases do not reach --------------------------------------------------------------------------
+
+def test_a_group_exactly_at_the_threshold_is_kept():
+    """Edge: equal totals in pairs with zero duals give groups whose reduced cost is exactly 0; at threshold 0 the scan
+    keeps them, and so does the window."""
+    z = np.array([1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 5.0, 7.0])
+    pi = np.zeros(8)
+    want = _scan(z, pi, 0.0, 2, 4, 0.0, False)
+    assert (want[2] == 0.0).any()
+    got = ce._price_window(z, pi, 0.0, 2, 4, 0.0, False)
+    assert all(np.array_equal(np.asarray(a), np.asarray(b)) for a, b in zip(want, got))
+
+
+@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 14), kind=st.integers(0, 3), limits=st.sampled_from(LIMITS),
+       scale=st.sampled_from([1e-3, 1.0, 30.0]))
+def test_the_full_count_sums_every_size(seed, n, kind, limits, scale):
+    """Property: with no limit, _window_rows is the sum over every size from lo to hi of the window kernel's counts at
+    that size's threshold, the parity credit included for odd sizes."""
+    from . import mitm_exact as mx
+    lo, hi = limits
+    z, pi = _instance(seed, n, kind, scale)
+    odd = n % 2 == 1
+    tau = 0.5 if odd else 0.0
+    want = sum(int(mx._window_counts(*ce._window_args(z, pi, k, k, 0.0 + (tau if odd and k % 2 else 0.0))).sum())
+               for k in range(lo, hi + 1))
+    assert ce._window_rows(z, pi, tau, lo, hi, 0.0, odd) == want
+
+
+def test_a_count_that_meets_its_limit_after_one_block_keeps_counting():
+    """Unit: on 30 markets (1,800 halves, two blocks of 1,024), a limit equal to the first block's count is not yet
+    exceeded, so the count goes on and returns the full total, above the limit."""
+    from . import mitm_exact as mx
+    z, pi = _instance(7, 30, 2, 30.0)
+    args = ce._window_args(z, pi, 4, 4, 0.0)
+    cnt = mx._window_counts(*args)
+    first, full = int(cnt[:1024].sum()), int(cnt.sum())
+    assert 0 < first < full
+    assert int(mx._window_counts_capped(*args, first)) == full
