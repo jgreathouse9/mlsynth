@@ -9,12 +9,12 @@ in the last MIP; that MIP's optimum is HiGHS's, on the computed costs, to its to
 Scoring. A split of a group into halves A and B has gap :math:`g = \\bar Y_A - \\bar Y_B = \\sum_i c_i y_i`, with
 :math:`c_i = u_i / U_A` on A and :math:`-u_i / U_B` on B (:math:`u` the unit weights, :math:`U` their sums over a half).
 Its cost is the residual sum of squares of fitting a level to that gap,
-:math:`\\min_\\delta \\|g - \\delta\\mathbf 1\\|^2` (weighted: :math:`\\min_\\delta \\sum_t w_t (g_t - \\delta)^2`), a least
-squares problem, and it is computed the way least squares problems are solved. Each unit's level is removed first (the two-pass algorithm: Bjorck, "Numerical
-Methods in Matrix Computations", Springer, 2015, eqs. 2.1.28 to 2.1.31; Chan, Golub and LeVeque, "Algorithms for
-computing the sample variance", Amer. Statist. 37 (1983) 241-247), the split's gap is formed directly from the centred
-paths, its level is removed again, and its squares are summed. The cost is never formed as :math:`c^\\top A^\\top A c`
-from the cross-product matrix: that is the method of normal equations, whose error grows with the square of the
+:math:`\\min_\\delta \\|g - \\delta\\mathbf 1\\|^2` (weighted: :math:`\\min_\\delta \\sum_t w_t (g_t - \\delta)^2`), a
+least squares problem, and it is computed the way least squares problems are solved. Each unit's level is removed
+first (the two-pass algorithm: Bjorck, "Numerical Methods in Matrix Computations", Springer, 2015, eqs. 2.1.28 to
+2.1.31; Chan, Golub and LeVeque, "Algorithms for computing the sample variance", Amer. Statist. 37 (1983) 241-247),
+the split's gap is formed directly from the centred paths, its level is removed again, and its squares are summed.
+The cost is never formed as :math:`c^\\top A^\\top A c` from the cross-product matrix: that is the method of normal equations, whose error grows with the square of the
 conditioning (Golub and Van Loan, "Matrix Computations", 4th ed., sections 5.3.2 and 5.3.7; Bjorck, "Numerical Methods
 for Least Squares Problems", SIAM, 1996, section 2.2.1). On panels whose units share a large common factor and run
 nearly parallel in clusters, it gave the costs that decide the design relative errors near 0.4, some negative, and a
