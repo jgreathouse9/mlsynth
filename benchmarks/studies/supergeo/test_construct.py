@@ -374,3 +374,28 @@ def test_a_step_without_a_cheaper_repair_leaves_the_design_alone():
     start = [(0, 5), (1, 9), (2, 12), (3, 14), (4, 6, 7, 8), (10, 11, 13, 15)]
     design, trace = cn.repair(z, start, steps=6, seed=0, k0=3, k_max=4)
     assert design == sorted(start) and all(v == 0.0 for v in trace)
+
+
+def test_a_dearer_cover_from_the_solver_is_refused(monkeypatch):
+    """Unit: the repair keeps a solver's cover only when it costs less than the freed groups. With the node limit a
+    solver can stop at a feasible cover dearer than that; here the stub returns the dearest exact cover of the
+    columns. On totals 0, 1, 1.2 and 2.2 the design (0, 1), (2, 3) costs 1 + 1 = 2, every column costs less than 2,
+    and the cover (0, 2), (1, 3) costs 1.44 + 1.44 = 2.88."""
+    z = np.array([0.0, 1.0, 1.2, 2.2])
+
+    class Res:
+        pass
+
+    def dearest(C, constraints, integrality, bounds, options):
+        A = constraints.A.toarray(); best, x = -1.0, None
+        for r in range(1, A.shape[1] + 1):
+            for cols in itertools.combinations(range(A.shape[1]), r):
+                if np.allclose(A[:, cols].sum(1), 1.0) and C[list(cols)].sum() > best:
+                    best = C[list(cols)].sum(); x = np.zeros(A.shape[1]); x[list(cols)] = 1.0
+        out = Res(); out.x = x; out.fun = best
+        return out
+
+    monkeypatch.setattr(cn, "milp", dearest)
+    design, trace = cn.repair(z, [(0, 1), (2, 3)], steps=1, seed=0, k0=2, k_max=2)
+    assert design == [(0, 1), (2, 3)]
+    assert trace == [pytest.approx(2.0), pytest.approx(2.0)]
