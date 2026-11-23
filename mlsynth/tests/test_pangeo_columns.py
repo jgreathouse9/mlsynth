@@ -480,20 +480,23 @@ def test_a_costlier_later_design_does_not_replace_the_best(monkeypatch):
     later MIP's dual bound, which holds every design cheaper than it, is the one reported."""
     monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
     monkeypatch.setattr(columns, "FIRST_MIN", 1)
-    Y = _panel(12, 12, 15)
+    Y = _panel(3, 12, 15)
     idx = np.arange(12)
     calls = []
+    seed_cost = []
 
     def stub(cands, ix, **kw):
         chosen, d = mip.solve_partition(cands, ix, **kw)
         calls.append(d["objective_value"])
         if len(calls) == 2:
             seed = [c for c in cands if tuple(int(u) for u in c["members"]) in set(columns.seed_partition(12))]
-            d = dict(d, objective_value=float(sum(c["score"] for c in seed)), dual_bound=1e-6)
+            seed_cost.append(float(sum(c["score"] for c in seed)))
+            d = dict(d, objective_value=seed_cost[0], dual_bound=1e-6)
             return seed, d
         return chosen, d
 
     chosen, d = columns.solve_exact(idx, Y, 2, solve=stub)
+    assert calls[0] < seed_cost[0]          # the later design is dearer, so keeping it would show
     assert len(calls) == 2 and d["mip_solves"] == 2
     assert d["objective_value"] == pytest.approx(calls[0])
     assert d["objective_value"] == pytest.approx(sum(c["score"] for c in chosen))
