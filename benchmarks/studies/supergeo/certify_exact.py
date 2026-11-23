@@ -79,7 +79,7 @@ def _root(z0, lo, hi):
             # a power of 4, so z * sqrt(f) = z * 2^k is exact: the certificate is for the original data
             k = int(round(math.log(n / lp, 4))); f = 4.0 ** k
             z = z * 2.0 ** k; scale *= f; score = {c: dive._sc(z, c) for c in score}; continue
-        rows, s_, rc, _ = (parity.scan(z, pi, tau, lo, hi, -1e-9 * max(1.0, lp), 5_000_000) if odd
+        rows, s_, rc, _ = (parity.scan(z, pi, tau, lo, hi, -1e-9 * max(1.0, lp), 5_000_000, with_min=False) if odd
                            else sg._scan(z, pi, lo, hi, -1e-9 * max(1.0, lp), 5_000_000)[:4])
         new = 0
         for t in np.argsort(rc)[:2000]:
