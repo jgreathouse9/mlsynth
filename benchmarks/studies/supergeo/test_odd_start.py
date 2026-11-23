@@ -4,8 +4,10 @@ With groups of 2 to 4 and an odd N a design holds an odd number of triples. A tr
 so it balances only where one total is near the sum of two others. The sorted start put its triple on the three
 largest markets; on markets of similar size that triple costs about a market's total squared (658,491 of a start
 costing 660,085 on a simulated 235-market panel), the heuristic left 160,540 of it in one triple, and the safe
-window built from that incumbent needed 1.1e9 rows. The start now places the triple where it balances
-(``ce._start``), and the window refuses before it allocates (``ce.safe_window``).
+window built from that incumbent needed 1.1e9 rows. The start is now the best design of one triple and pairs
+(``ce._start``): for a fixed triple the rest pair as sorted neighbours (the exchange argument), so the start is the
+minimum over every triple of its cost plus the sorted pairing of the rest. The window refuses before it allocates
+(``ce.safe_window``).
 """
 from itertools import combinations
 
@@ -51,15 +53,18 @@ def test_the_triple_goes_where_it_balances():
 
 @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(seed=st.integers(0, 10 ** 9), m=st.integers(1, 6), kind=st.integers(0, 3))
-def test_the_odd_start_is_no_dearer_than_either_baseline(seed, m, kind):
-    """Property, over odd counts from 3 to 13 and the study's four generators: the start is a design of one triple
-    and pairs, costing no more than the sorted start (the triple at the top) or the cheapest triple with the rest
-    paired as sorted neighbours."""
+def test_the_odd_start_is_the_best_design_of_one_triple_and_pairs(seed, m, kind):
+    """Property, over odd counts from 3 to 13 and the study's four generators (integer totals with many ties among
+    them): the start is a design of one triple and pairs whose cost equals the least, over every triple, of the
+    triple's cost plus the sorted pairing of the rest; so it is never dearer than the sorted start (the triple at the
+    top) or than the cheapest triple with the rest sorted."""
     n = 2 * m + 1
     z = test_bcp.gen(np.random.default_rng(seed), n, kind)
     s = ce._start(z, 2, 4)
     assert _is_design(s, n) and sum(len(g) == 3 for g in s) == 1 and all(len(g) <= 3 for g in s)
     c = _cost(z, s)
+    best = min(_cost(z, _sorted_rest(z, t)) for t in combinations(range(n), 3))
+    assert c == pytest.approx(best, rel=1e-12, abs=1e-12)
     assert c <= _cost(z, test_bcp._sorted_pairs(z)) * (1 + 1e-12) + 1e-12
     assert c <= _cost(z, _sorted_rest(z, _cheapest_triple(z))) * (1 + 1e-12) + 1e-12
 
@@ -67,18 +72,31 @@ def test_the_odd_start_is_no_dearer_than_either_baseline(seed, m, kind):
 @settings(max_examples=100, deadline=None)
 @given(seed=st.integers(0, 10 ** 9), m=st.integers(1, 6))
 def test_the_start_holds_the_cheapest_triple_on_similar_markets(seed, m):
-    """Property: on markets of similar size, where every triple but those balancing near a doubled total is
-    expensive, the start's triple costs no more than the cheapest triple's cost plus the start's pairs (so it is
-    never a triple far from balance), checked against brute force over every triple."""
+    """Property: on markets in [100, 110] with one in [200, 220], a triple without the large market costs at least
+    90^2 and so does the large market in a pair, while a triple holding it costs at most 20^2 plus at most 10^2 per
+    pair. The start's triple holds the large market, and costs no more than the whole design built on the cheapest
+    triple (brute force over every triple). The start's triple need not be the cheapest one: a dearer triple can
+    leave a cheaper pairing (seed 94: 13.9 against 1.19, cheaper in total)."""
     rng = np.random.default_rng(seed)
     n = 2 * m + 1
     z = np.concatenate((rng.uniform(100, 110, n - 1), [rng.uniform(200, 220)]))
     s = ce._start(z, 2, 4)
     tri = [g for g in s if len(g) == 3][0]
-    best = dive._sc(z, _cheapest_triple(z))
-    pairs = _cost(z, [g for g in s if len(g) == 2])
-    assert dive._sc(z, tuple(tri)) <= best + pairs + 1e-9
     assert n - 1 in tri
+    assert dive._sc(z, tuple(tri)) <= _cost(z, _sorted_rest(z, _cheapest_triple(z))) + 1e-9
+
+
+@settings(max_examples=150, deadline=None)
+@given(seed=st.integers(0, 10 ** 9), m=st.integers(1, 5))
+def test_the_odd_start_on_totals_of_either_sign(seed, m):
+    """Property: on totals of either sign (a centred panel), where the best singleton of a triple need not be its
+    largest market, the start still equals the brute-force best design of one triple and pairs."""
+    n = 2 * m + 1
+    z = np.random.default_rng(seed).normal(0, 10, n)
+    s = ce._start(z, 2, 4)
+    assert _is_design(s, n)
+    best = min(_cost(z, _sorted_rest(z, t)) for t in combinations(range(n), 3))
+    assert _cost(z, s) == pytest.approx(best, rel=1e-12, abs=1e-12)
 
 
 def test_an_even_count_keeps_the_sorted_pairs():
