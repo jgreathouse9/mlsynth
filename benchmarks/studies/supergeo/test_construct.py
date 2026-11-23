@@ -187,3 +187,27 @@ def test_equal_totals_cost_nothing():
     z = np.full(10, 7.0)
     design, cost = cn.construct(z, anneal_steps=1000, repair_steps=2, seed=0)
     assert _is_partition(design, 10) and cost == 0.0
+
+
+def test_an_odd_group_is_never_freed():
+    """Unit: the repair frees only groups of even size. An odd count's triple is the root bound's own column (the
+    cheapest triple) and dominates the design's cost, so drawing the dearest group by cost freed it at almost every
+    step, every group of the freed markets then cost less than the freed total, and the partitioning MIP had about
+    100,000 columns: 100 s a step on 121 markets with no improvement. Freed markets can still form a triple."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(6), 41, 1), float)
+    start, _, _ = cn.pairing_design(z, steps=20_000, seed=0)
+    triple = [g for g in start if len(g) == 3]
+    assert len(triple) == 1
+    seen = []
+    orig = cn._groups_below
+
+    def spy(z_, F, lo, hi, cur):
+        seen.append(set(int(v) for v in F))
+        return orig(z_, F, lo, hi, cur)
+
+    cn._groups_below = spy
+    try:
+        cn.repair(z, start, steps=6, seed=0, k0=3, k_max=3)
+    finally:
+        cn._groups_below = orig
+    assert seen and all(not (set(triple[0]) & F) for F in seen)
