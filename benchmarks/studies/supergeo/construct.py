@@ -196,7 +196,8 @@ def _groups_below(z, F, lo, hi, cur):
     return out, cost
 
 
-def repair(z, design, steps, seed=0, k0=10, k_max=15, patience=5, node_limit=300, lo=2, hi=4, with_k=False):
+def repair(z, design, steps, seed=0, k0=10, k_max=15, patience=5, node_limit=300, lo=2, hi=4, with_k=False,
+           target=None):
     """Repair by exact set partitioning over many groups at once. Each step frees k groups of even size, the dearest
     one drawn with weight cost * u^(1/4), u uniform, and k - 1 others uniformly. Groups of odd size are never freed:
     an odd count's triple is the root bound's own column and dominates the design's cost, and freeing it let every
@@ -205,6 +206,7 @@ def repair(z, design, steps, seed=0, k0=10, k_max=15, patience=5, node_limit=300
     whose cost is below the freed groups' total is a column (a dearer one cannot be in a cheaper repair), and HiGHS
     solves the partitioning MIP with a node limit, so the result depends on the inputs and the seed only. A cheaper
     repair replaces the freed groups; after `patience` steps in a row without one, k grows by one up to k_max.
+    target: stop at the first cost at or below it (a start at or below it takes no step).
     Returns (design, trace of costs, the start first and one entry per step[, the k of each step])."""
     _check_int("steps", steps, 0); _check_int("seed", seed, 0); _check_int("k0", k0, 1)
     _check_int("k_max", k_max, k0); _check_int("patience", patience, 1); _check_int("node_limit", node_limit, 1)
@@ -216,6 +218,8 @@ def repair(z, design, steps, seed=0, k0=10, k_max=15, patience=5, node_limit=300
     gc = [dive._sc(z, g) for g in design]
     trace = [float(sum(gc))]; ks = []; k = k0; fails = 0
     for _ in range(steps):
+        if target is not None and trace[-1] <= target:
+            break
         ks.append(k)
         even = [i for i, g in enumerate(design) if len(g) % 2 == 0]
         if not even:

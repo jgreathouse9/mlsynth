@@ -252,16 +252,35 @@ def test_auto_leaves_small_panels_to_the_heuristic():
 
 
 def test_auto_runs_on_a_large_panel_that_misses_the_gap(monkeypatch):
-    """Unit: at CONSTRUCT_MIN markets and up, with the heuristic short of the gap, construct="auto" runs the
-    constructor (pairing_design and repair are stubbed to the start, so only the decision is measured)."""
+    """Unit: at CONSTRUCT_MIN markets and up, with the start short of the gap, construct="auto" runs the
+    constructor. The stubs return the start and then stop the certificate, so only the decision is measured."""
     calls = []
-    monkeypatch.setattr(cn, "pairing_design", lambda z, steps, seed: (calls.append("anneal") or (
-        ce._start(z, 2, 4), _cost(z, ce._start(z, 2, 4)), _cost(z, ce._start(z, 2, 4)))))
-    monkeypatch.setattr(cn, "repair", lambda z, d, steps, seed, target=None: (calls.append("repair") or
-                                                                             (sorted(d), [_cost(z, d)])))
+
+    class Stop(Exception):
+        pass
+
+    def anneal(z, steps, seed):
+        calls.append("anneal"); s = ce._start(z, 2, 4)
+        return s, _cost(z, s), _cost(z, s)
+
+    def repair(z, d, steps, seed, target=None):
+        calls.append("repair"); raise Stop
+
+    monkeypatch.setattr(cn, "pairing_design", anneal)
+    monkeypatch.setattr(cn, "repair", repair)
     z = np.random.default_rng(0).normal(400.0, 60.0, ce.CONSTRUCT_MIN)
-    out = ce.certify_staged(z, heuristic_steps=0, abs_gap=1e-12, caps=(1,), workers=None)
-    assert calls == ["anneal", "repair"] and out["construct"]["ran"]
+    with pytest.raises(Stop):
+        ce.certify_staged(z, heuristic_steps=0, abs_gap=1e-12)
+    assert calls == ["anneal", "repair"]
+    calls.clear()
+    with pytest.raises(Stop):
+        ce.certify_staged(z, heuristic_steps=0, abs_gap=1e-12, construct=True)
+    out = None
+    try:
+        out = ce.certify_staged(z[:-1], heuristic_steps=0, abs_gap=1e9)
+    except Stop:                                          # pragma: no cover - the gap is met by the start
+        pytest.fail("the constructor ran with the gap already met")
+    assert out["construct"] is None
 
 
 def test_the_constructor_does_not_run_once_the_heuristic_meets_the_gap():
