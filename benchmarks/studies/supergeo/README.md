@@ -677,6 +677,38 @@ Root column generation is 71 to 73 s of each run, against 9.7 s at 180 markets
 (phase 0c's third step profiles it). The bound is the cheapest triple's cost and
 nothing more, so a gap below the heuristic's design needs a search.
 
+### The root's master LP, kept
+
+The root solved its master LP from scratch at every column generation iteration
+(scipy's `linprog`, a new HiGHS model each time): 13.5 s of a 42.7 s root at 235
+markets, 5.5 s of 13.2 s at 180. `_Master` keeps one HiGHS model for the root,
+appends each iteration's columns, replaces the costs when the root rescales, and
+re-solves from the last basis.
+
+The choice of simplex decides whether keeping the model pays. Appended columns
+leave the basis primal feasible but not dual feasible, and HiGHS's default is the
+dual simplex, which first repairs dual feasibility. One solve at 235 markets, after
+2,000 new columns at 22,699:
+
+| solve | time | simplex iterations |
+| --- | --- | --- |
+| from scratch (`linprog`) | 0.72 s | 2,003 |
+| kept model, dual simplex | 2.11 s | 5,659 |
+| kept model, primal simplex | 0.47 s | 1,751 |
+| kept model, primal, 6 new columns | 0.023 s | 69 |
+
+Presolve on or off changed the from-scratch solve by less than its run-to-run
+spread. With the primal simplex:
+
+| markets | master, from scratch | master, kept | root, from scratch | root, kept |
+| --- | --- | --- | --- | --- |
+| 180 | 5.5 s | 1.6 s | 13.2 s | 9.9 s |
+| 235 | 13.5 s | 3.2 s | 42.7 s | 33.9 s |
+
+The LP value and the bound in the original units are the same (1.78035386 at
+235); the duals can differ, since the master is degenerate, so the root's path and
+its rescale can differ (scale 64 against 256 at 235, the same bound).
+
 ### A reproducible design
 
 Three runs of the certificate on that panel gave three designs, all within the
