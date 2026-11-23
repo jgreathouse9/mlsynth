@@ -263,11 +263,15 @@ any step picks.
    \qquad
    R^2_\ell = 1 - \frac{\mathrm{SSR}_\ell}{\mathrm{ss}_{\text{tot}}}.
 
-   Every candidate's residual is one column of the matrix
-   :math:`(\widetilde{\mathbf{y}} - \mathbf{S}^{(k)}/(k+1))\mathbf{1}^\top -
-   \widetilde{\mathbf{X}}_{\mathcal{R}}/(k+1)`, formed in one broadcast; its
-   level is removed again and its squares are summed, column by column. A step
-   costs :math:`O(T_0|\mathcal{R}|)`.
+   Each step forms :math:`\mathbf{b} = \widetilde{\mathbf{y}} -
+   \mathbf{S}^{(k)}/(k+1)` once, then every remaining candidate's residual
+   :math:`\mathbf{b} - \widetilde{\mathbf{x}}_\ell/(k+1)` and its sum of
+   squares, with the donors stored as rows and the remaining ones kept in
+   front. Both parts are centred, by the corrected two-pass algorithm (Chan,
+   Golub and LeVeque, *The American Statistician* 37, 1983), so each
+   residual's own mean :math:`\bar e_\ell` is of the order of its rounding;
+   it is bounded, not removed by another pass. A step costs
+   :math:`O(T_0|\mathcal{R}|)`.
 
 3. The residual is formed, not expanded. Expanding :math:`\mathrm{SSR}_\ell`
    into :math:`\mathrm{ss}_{\text{tot}} + \|\cdot\|^2 - 2\,\text{cross}` costs
@@ -279,6 +283,11 @@ any step picks.
    factor of :math:`10^6` the expanded form's :math:`R^2` path erred by up to
    :math:`1.2\times 10^{-4}` of :math:`1 - R^2`, and with near-duplicate donors
    at a factor of :math:`10^8` one pick differed from the exact one.
+   The two forms are of the same order, and the expanded one reads the donors
+   once per step in a single matrix-vector product where the residual form
+   reads them three times. Timed single-threaded on a random-walk pool with
+   :math:`T_0 = 100`, a full search took 0.005 s against 0.014 s at 200 donors
+   and 0.08 s against 0.23 s at 1,500, with the same donors kept.
 
 4. Each pick is the one exact arithmetic makes. Every candidate's
    :math:`\mathrm{SSR}` carries a lower and an upper bound on its exact value,

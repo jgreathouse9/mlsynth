@@ -133,19 +133,28 @@ def _gamma(k: int) -> float:
     return k * _U / (1.0 - k * _U) * (1.0 + 4.0 * _U)
 
 
-def _ss_bounds(ss, e_r, rbar, g_s, g_mu):
+def _ss_bounds(ss, e_r, d, g_s):
     """Rigorous lower and upper bounds on the exact residual sums of squares behind the computed ``ss``.
 
-    ``e_r`` bounds the 2-norm of each residual's error before its level is removed: the error of a sum of k terms,
-    of the scaling by 1 / (k + 1) and of the centred data, at most gamma_{k+8} (||y_c|| + c (sum ||x_p|| + ||x_j||))
-    (Rump 2010, Theorem 2.1). Removing the level is an orthogonal projection, which does not lengthen that error; the
-    computed mean and the sum of squares carry gamma_{T0+2} and gamma_{T0+6}. ``rbar`` bounds each computed residual's
-    norm. The bounds assume no underflow, the theorem's condition."""
+    ``ss`` is the computed sum of squares of each computed residual E, whose level was removed from its parts (the
+    treated series and every donor are centred) and not from E itself. ``e_r`` bounds the 2-norm of the error of
+    P E, P the centring projection, against the exact centred residual: the error of a sum of k terms, of the scaling
+    by 1 / (k + 1), of the centred data and of forming E, at most gamma_{k+10} (||y_c|| + c (sum ||x_p|| + ||x_j||))
+    (Rump 2010, Theorem 2.1); P is orthogonal and does not lengthen it. ``d`` bounds sqrt(T0) |mean(E)|, by which
+    ||E|| can exceed ||P E||, since ||P E||^2 = ||E||^2 - T0 mean(E)^2. The sum of squares carries gamma_{T0+6}.
+    The bounds assume no underflow, the theorem's condition."""
     q_up = np.sqrt(ss / (1.0 - g_s))
-    q_lo = np.sqrt(np.maximum(ss / (1.0 + g_s) - (g_mu * rbar) ** 2, 0.0))
+    q_lo = np.sqrt(ss / (1.0 + g_s)) - d
     lo = np.maximum(q_lo - e_r, 0.0) ** 2 * (1.0 - 8.0 * _U)
     up = (q_up + e_r) ** 2 * (1.0 + 8.0 * _U)
     return lo, up
+
+
+def _mean_bound(R: np.ndarray) -> np.ndarray:
+    """An upper bound on |exact mean| of each row of ``R``: the computed row sum's magnitude plus its error
+    gamma_{T-1} sum |r_t| (Rump 2010, Theorem 2.1), over T, inflated past the rounding of this bound itself."""
+    T = R.shape[-1]
+    return (np.abs(R.sum(axis=-1)) + _gamma(T + 1) * np.abs(R).sum(axis=-1)) / T * (1.0 + 8.0 * _U)
 
 
 class _ExactPool:
@@ -480,63 +489,80 @@ def forward_did_select(
     else:
         adid_unavailable = None
 
-    # --- the forward search (module docstring of _ExactPool) ---
+    # --- the forward search ---
     # Adding donor j to k already-selected donors gives the candidate average (S + x_j) / (k + 1), and the step's
     # cost is the residual sum of squares of the DID fit, ||P(y - (S + x_j) / (k + 1))||^2 with P the centring
-    # projection. It is formed directly from the centred data: the residual matrix of every candidate, its level
-    # removed again, its squares summed. That is O(N T0) per step, the order of the one matrix-vector product the
-    # expanded form ss_tot + ss_X - 2 cross needed, without its cancellation (CLAUDE.md invariant 9).
-    x_c = np.where(finite_donor, X_pre - X_pre.mean(axis=0), 0.0)   # (T0, N) centred donors: the two-pass algorithm
-    nx = np.sqrt(np.einsum("tj,tj->j", x_c, x_c)) * (1.0 + _gamma(T0 + 3))
+    # projection. It is formed directly from the centred data, not expanded into ss_tot + ss_X - 2 cross (CLAUDE.md
+    # invariant 9): b = y_c - S_c / (k + 1) once per step, then every remaining candidate's residual
+    # b - x_j / (k + 1) and its sum of squares. Donors are rows, the remaining ones kept in front, so a step reads
+    # (N - k) T0 doubles, the order of the one matrix-vector product the expanded form needed. The parts are centred
+    # by the corrected two-pass algorithm, so each residual's own mean is of the order of its rounding and is bounded
+    # (:func:`_ss_bounds`), not removed by another pass.
+    xr = np.ascontiguousarray((X_pre - X_pre.mean(axis=0)).T[finite_donor])   # (n, T0) centred donors, as rows
+    xr -= xr.mean(axis=1, keepdims=True)                                       # the corrected second pass
+    ids = np.flatnonzero(finite_donor)                                         # row -> donor index
+    nx = np.sqrt(np.einsum("jt,jt->j", xr, xr)) * (1.0 + _gamma(T0 + 3))      # bounds on ||x_j||
+    mx = _mean_bound(xr)                                                       # bounds on |mean(x_j)|
     ny = float(np.sqrt(y_c @ y_c)) * (1.0 + _gamma(T0 + 3))
-    g_s, g_mu = _gamma(T0 + 6), _gamma(T0 + 2)
+    g_s, rt = _gamma(T0 + 6), np.sqrt(T0) * (1.0 + 4.0 * _U)
     exact = _ExactPool(treated_pre, X_pre)
 
     S_c = np.zeros(T0, dtype=float)               # centred running sum of selected
     s_norm = 0.0                                  # sum of the selected donors' norm bounds
     run_sum_pre = np.zeros(T0, dtype=float)       # uncentred running sum (verbose)
+    E = np.empty_like(xr)
 
     selected: List[int] = []
     path_ss = np.empty(n_steps, dtype=float)
     path_lo = np.empty(n_steps, dtype=float)
     path_up = np.empty(n_steps, dtype=float)
-    remaining_mask = finite_donor.copy()
     intermediary_results = [] if verbose else None
 
     for it in range(n_steps):
         k = len(selected)
+        n = n_steps - k                             # remaining candidates, rows 0..n-1
         c = 1.0 / (k + 1)
-        E = (y_c - c * S_c)[:, None] - c * x_c      # (T0, N) every candidate's residual
-        E -= E.mean(axis=0)                         # the fitted level removed again
-        ss = np.einsum("tj,tj->j", E, E)
-        lo, up = _ss_bounds(ss, _gamma(k + 8) * (ny + c * (s_norm + nx)), ny + c * (s_norm + nx), g_s, g_mu)
-        ss[~remaining_mask] = np.inf
-        lo[~remaining_mask] = np.inf
-        best_idx = int(np.argmin(ss))               # first-tie argmin = first-tie argmax of R^2
-        tied = np.flatnonzero(lo <= up[best_idx])
+        b = y_c - c * S_c
+        b -= b.mean()
+        Ev = E[:n]
+        np.multiply(xr[:n], -c, out=Ev)
+        Ev += b                                     # every remaining candidate's residual
+        ss = np.einsum("jt,jt->j", Ev, Ev)
+        nb = float(np.sqrt(b @ b)) * (1.0 + _gamma(T0 + 3))
+        # sqrt(T0) |mean(E_j)| <= sqrt(T0) (|mean b| + c |mean x_j|) + gamma_2 (||b|| + c ||x_j||): E's rounding
+        d = (rt * (_mean_bound(b[None, :])[0] + c * mx[:n]) + _gamma(2) * (nb + c * nx[:n])) * (1.0 + 8.0 * _U)
+        lo, up = _ss_bounds(ss, _gamma(k + 10) * (ny + c * (s_norm + nx[:n])), d, g_s)
+        row = int(np.argmin(ss))
+        tied = np.flatnonzero(lo <= up[row])
         if tied.size > 1:
             # candidates the rounding cannot separate: decided in exact arithmetic, ties to the first index
-            best_idx, exact_ss = exact.argmin([selected + [int(j)] for j in tied], tied)
-            lo[best_idx] = up[best_idx] = ss[best_idx] = exact_ss
-        r2_all = 1.0 - ss / ss_tot
-        best_r2 = float(r2_all[best_idx])
+            tied = tied[np.argsort(ids[tied])]
+            best_idx, exact_ss = exact.argmin([selected + [int(ids[j])] for j in tied], ids[tied])
+            row = int(np.flatnonzero(ids[:n] == best_idx)[0])
+            lo[row] = up[row] = ss[row] = exact_ss
+        elif tied.size == 0:  # pragma: no cover - lo[row] <= ss[row] <= up[row] puts row in tied; a NaN cost aside
+            raise MlsynthEstimationError("FDID: a candidate's residual sum of squares is not finite.")
+        best_idx = int(ids[row])
+        best_r2 = float(1.0 - ss[row] / ss_tot)
 
         if verbose:
-            remaining_idx = np.where(remaining_mask)[0]
+            order = np.argsort(ids[:n])
             _record_verbose_step(
                 intermediary_results=intermediary_results,
                 it=it, best_idx=best_idx, best_r2=best_r2,
-                r2_cand=r2_all[remaining_idx],
+                r2_cand=1.0 - ss[order] / ss_tot,
                 selected=selected + [best_idx], donor_names=donor_names,
                 current_mean_pre=(run_sum_pre + X_pre[:, best_idx]) / (k + 1), k=k,
             )
 
         selected.append(best_idx)
-        path_ss[it], path_lo[it], path_up[it] = ss[best_idx], lo[best_idx], up[best_idx]
-        remaining_mask[best_idx] = False
-        S_c = S_c + x_c[:, best_idx]
-        s_norm += float(nx[best_idx])
+        path_ss[it], path_lo[it], path_up[it] = ss[row], lo[row], up[row]
+        S_c = S_c + xr[row]
+        s_norm += float(nx[row])
         run_sum_pre = run_sum_pre + X_pre[:, best_idx]
+        last = n - 1                                # the chosen row leaves the front block
+        for a in (xr, nx, mx, ids):
+            a[[row, last]] = a[[last, row]]
 
     R2_path = 1.0 - path_ss / ss_tot
     optimal_idxs, R2_path = _choose_optimal_subset(selected, R2_path, path_lo, path_up, exact)

@@ -3021,6 +3021,72 @@ timeout = 300.0
   models = "the shipped statistic until 2026-09. Li's Proposition 2.1 gives sqrt(T2) * ATT / sqrt(Omega_1 + Omega_2), and this module's se is sqrt(Omega_1 + Omega_2) / sqrt(T2), so the statistic is att / se and the extra factor is applied twice. On Li's own Hong Kong panel the reported figure was 22.65 where her MATLAB prints 5.49, a factor of sqrt(17). Nothing else moved: the CI and the p-value are built from att / se directly and matched her throughout, so the result carried a test statistic and a p-value that disagreed -- on a borderline panel, p = 0.216 beside a statistic implying p = 0.000092. The mutant is invisible to any check that rebuilds the statistic from att and att_se instead of reading the field, which is what benchmarks/cases/fdid_normality_mc.py does"
 
 [[target]]
+name = "fdid-selection-accuracy"
+module-path = "mlsynth/utils/fdid_helpers/estimation.py"
+test-command = "python -m pytest mlsynth/tests/test_fdid_selection_accuracy.py mlsynth/tests/test_fdid.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-residual-sum-is-expanded-again"
+  find = '        ss = np.einsum("jt,jt->j", Ev, Ev)'
+  replace = '        ss = (b @ b) - 2.0 * c * (xr[:n] @ b) + c * c * np.einsum("jt,jt->j", xr[:n], xr[:n])'
+  models = "the shipped form until 2026-11: ||b - c x_j||^2 expanded into ||b||^2 - 2 c b'x_j + c^2 ||x_j||^2, the normal-equations form whose error grows with the square of the conditioning (Golub and Van Loan section 5.3.7). On pools with a common factor of 1e6 its R^2 path erred by up to 1.2e-4 of 1 - R^2, and with near-duplicate donors at 1e8 it picked donor 1 where exact arithmetic picks donor 0"
+
+  [[target.mutant]]
+  id = "overlapping-candidates-are-not-recomputed"
+  find = "        if tied.size > 1:\n            # candidates the rounding cannot separate"
+  replace = "        if False:\n            # candidates the rounding cannot separate"
+  models = "the pick taken from the rounded costs alone: candidates whose bounds overlap are never decided in exact arithmetic, so a near-tie goes to whichever the rounding favours and an exact tie to whichever row the compaction left first, not the first donor index as which.max breaks it"
+
+  [[target.mutant]]
+  id = "ties-follow-row-order-not-donor-index"
+  find = "            tied = tied[np.argsort(ids[tied])]\n"
+  replace = ""
+  models = "exact ties broken by row position: the compaction swaps each chosen row with the last remaining one, so after a few steps row order is not donor order, and two identical donors tie to whichever the swaps left first"
+
+  [[target.mutant]]
+  id = "the-exact-pick-does-not-move-the-row"
+  find = "            row = int(np.flatnonzero(ids[:n] == best_idx)[0])\n"
+  replace = ""
+  models = "the exact pick recorded under the rounded leader's row: the step reports one donor's cost, adds another's path to the running sum and removes a third from the pool"
+
+  [[target.mutant]]
+  id = "the-optimal-prefix-is-not-certified"
+  find = "        if tied.size > 1:\n            best_iter, _ = exact.argmin("
+  replace = "        if False:\n            best_iter, _ = exact.argmin("
+  models = "the number of donors kept read off the rounded R^2 path, so steps whose R^2 tie within rounding keep the prefix the rounding favours, not the first maximising step exact arithmetic keeps"
+
+  [[target.mutant]]
+  id = "the-treated-series-is-centred-in-one-pass"
+  find = "    c = v - v.mean()\n    return c - c.mean()"
+  replace = "    c = v - v.mean()\n    return c"
+  models = "ss_tot about a computed mean, which exceeds the exact one by T0 times the mean's error squared: about 1e-6 relative at levels of 1e9 over noise of 1e-4, an R^2 error the path test bounds at 1e-6 of 1 - R^2"
+
+  [[target.mutant]]
+  id = "a-donor-with-a-nan-is-a-candidate"
+  find = "    finite_donor = np.isfinite(X_pre).all(axis=0)"
+  replace = "    finite_donor = np.ones(X_pre.shape[1], dtype=bool)"
+  models = "the NaN donor left in the pool: its cost is NaN, the search on main ended by re-selecting a chosen donor at R^2 = -inf, and here the overlap test sees no candidate"
+
+  [[target.mutant]]
+  id = "the-chosen-row-stays-in-the-pool"
+  find = "        for a in (xr, nx, mx, ids):"
+  replace = "        for a in ():"
+  models = "the compaction skipped: the chosen donor's row stays among the first n - 1, so it is a candidate again and the last remaining donor is never one"
+
+  [[target.mutant]]
+  id = "the-swap-leaves-the-labels-behind"
+  find = "        for a in (xr, nx, mx, ids):"
+  replace = "        for a in (xr, nx, mx):"
+  models = "rows and labels out of step after the first swap: every later pick is reported under another donor's index"
+
+  [[target.mutant]]
+  id = "no-rounding-error-on-the-residual"
+  find = "_ss_bounds(ss, _gamma(k + 10) * (ny + c * (s_norm + nx[:n])), d, g_s)"
+  replace = "_ss_bounds(ss, 0.0 * (ny + c * (s_norm + nx[:n])), d, g_s)"
+  models = "bounds that count only the rounding of the final sum of squares and not that of the residual: near-duplicate candidates whose residuals differ by less than their own rounding look separated, and the rounded leader is taken without the exact recompute"
+
+[[target]]
 name = "weight-solver"
 module-path = "mlsynth/utils/weights/solve.py"
 test-command = "python -m pytest mlsynth/tests/test_weights_solver.py mlsynth/tests/test_weight_identification.py -q -p no:cacheprovider"
