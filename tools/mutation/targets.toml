@@ -18747,8 +18747,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-backend-not-passed-to-the-mip"
-  find = "                    return_diagnostics=True, backend=mip_backend,"
-  replace = "                    return_diagnostics=True, backend=\"auto\","
+  find = "                unit_weights=uw, min_pairs=min_pairs, backend=mip_backend,"
+  replace = "                unit_weights=uw, min_pairs=min_pairs, backend=\"auto\","
   models = "the design's MIP solved on the automatic backend whatever was configured"
 
   [[target.mutant]]
@@ -19365,8 +19365,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "min-pairs-not-given-to-the-matcher"
-  find = "                    candidates, idx, min_pairs=min_pairs)"
-  replace = "                    candidates, idx)"
+  find = "                candidates, idx, min_pairs=min_pairs)"
+  replace = "                candidates, idx)"
   models = "min_pairs ignored on the matcher path"
 
   [[target.mutant]]
@@ -20331,8 +20331,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-gaps-not-passed-to-the-mip"
-  find = "                    mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap)\n"
-  replace = "                    )\n"
+  find = "                mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,\n                solve=solve_partition)\n"
+  replace = "                solve=solve_partition)\n"
   models = "the config's gaps stopping at the pipeline"
 
   [[target.mutant]]
@@ -20364,3 +20364,214 @@ timeout = 600.0
   find = "                mip_rel_gap=self.mip_rel_gap,\n                mip_abs_gap=self.mip_abs_gap,\n"
   replace = "                mip_abs_gap=self.mip_abs_gap,\n"
   models = "the config's relative gap never reaching the design"
+
+[[target]]
+name = "pangeo-columns-score"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_columns.py -q -p no:cacheprovider -x -W ignore -k \"score or r2 or weighted or objective or count or finite or ties or columns_are\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "half-a-not-normalised"
+  find = "                    c[p] = u[g[p]] / UA\n"
+  replace = "                    c[p] = u[g[p]]\n"
+  models = "half A's unit weights not divided by their sum, so the gap is a weighted total, not a weighted mean"
+
+  [[target.mutant]]
+  id = "r2-not-divided"
+  find = "                        s = s / st\n"
+  replace = "                        s = s\n"
+  models = "the r2 objective scored as the residual SS, without the scale of half A"
+
+  [[target.mutant]]
+  id = "covariates-ignored"
+  find = "            if has_cov:\n"
+  replace = "            if False:\n"
+  models = "the covariate imbalance term left out of every group's cost"
+
+  [[target.mutant]]
+  id = "weighted-centred-plainly"
+  find = "    if objective == \"weighted\":\n        w = np.asarray"
+  replace = "    if False:\n        w = np.asarray"
+  models = "the weighted objective scored with the plain centring, the recency weights dropped"
+
+  [[target.mutant]]
+  id = "a-half-over-q"
+  find = "        if m - size_a > Q:\n"
+  replace = "        if m - size_a > Q + 1:\n"
+  models = "splits admitted whose half B has Q + 1 units"
+
+  [[target.mutant]]
+  id = "supergeo-total-sum"
+  find = "                        d -= tot[g[p]]\n"
+  replace = "                        d += tot[g[p]]\n"
+  models = "the supergeo_total cost taken on the sum of the halves' totals, not their difference"
+
+  [[target.mutant]]
+  id = "unit-weights-ignored"
+  find = "    u = np.ones(n) if unit_weights is None else np.asarray(unit_weights, dtype=float)[idx]\n"
+  replace = "    u = np.ones(n)\n"
+  models = "the unit weights dropped, every supergeo a plain mean"
+
+  [[target.mutant]]
+  id = "arm-rows-not-taken"
+  find = "    Y = np.asarray(Ypre, dtype=float)[idx]\n"
+  replace = "    Y = np.asarray(Ypre, dtype=float)[:n]\n"
+  models = "the first n rows of the panel scored in place of the arm's rows"
+
+  [[target.mutant]]
+  id = "no-column-cap"
+  find = "    if N > MAX_COLUMNS:\n"
+  replace = "    if False:\n"
+  models = "an arm too large to score allocated anyway, with no message naming the fast path"
+
+  [[target.mutant]]
+  id = "non-finite-kept"
+  find = "    finite = np.isfinite(cost)\n"
+  replace = "    finite = np.ones(cost.size, dtype=bool)\n"
+  models = "groups of NaN cost handed to the MIP, where the enumeration drops them"
+
+[[target]]
+name = "pangeo-columns-bound"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_columns.py -q -p no:cacheprovider -x -W ignore -k \"index or feasible or seed or min_groups or lagrangian or root or cut or no_design\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "column-index-without-size-offset"
+  find = "    index = sum(comb(n, k) for k in range(2, m))\n"
+  replace = "    index = 0\n"
+  models = "a group's row taken as its rank within its size, ignoring the smaller groups before it"
+
+  [[target.mutant]]
+  id = "odd-arm-at-q1-feasible"
+  find = "    return n >= 2 and not (max_size == 1 and n % 2) and min_pairs <= n // 2\n"
+  replace = "    return n >= 2 and min_pairs <= n // 2\n"
+  models = "an odd arm in pairs only called feasible"
+
+  [[target.mutant]]
+  id = "min-pairs-off-by-one"
+  find = "    return n >= 2 and not (max_size == 1 and n % 2) and min_pairs <= n // 2\n"
+  replace = "    return n >= 2 and not (max_size == 1 and n % 2) and min_pairs <= n // 2 + 1\n"
+  models = "one group more than any design has called feasible"
+
+  [[target.mutant]]
+  id = "min-groups-rounded-down"
+  find = "    return max(int(min_pairs), -(-n // (2 * max_size)))\n"
+  replace = "    return max(int(min_pairs), n // (2 * max_size))\n"
+  models = "the cardinality cut's right-hand side rounded down, the cut lost when 2Q does not divide n"
+
+  [[target.mutant]]
+  id = "bound-without-negative-reduced-costs"
+  find = "    return float(np.sum(pi) + sigma * k + np.minimum(rc, 0.0).sum()), rc\n"
+  replace = "    return float(np.sum(pi) + sigma * k), rc\n"
+  models = "the Lagrangian bound off the LP optimum missing the groups of negative reduced cost, so it can exceed the optimum and exclude a group of the optimal design"
+
+  [[target.mutant]]
+  id = "sigma-not-clipped"
+  find = "    sigma = max(float(sigma), 0.0)\n"
+  replace = "    sigma = float(sigma)\n"
+  models = "a negative dual on the >= row used in the bound, which is then no bound"
+
+  [[target.mutant]]
+  id = "one-round-of-column-generation"
+  find = "        if entering.size == 0:\n"
+  replace = "        if True:\n"
+  models = "column generation stopped after the first LP, the bound taken from the seed pool's duals"
+
+  [[target.mutant]]
+  id = "duals-left-scaled"
+  find = "    pi, sigma = pi / scale, sigma / scale\n"
+  replace = "    pi, sigma = pi, sigma\n"
+  models = "the LP's duals reported in the scaled units of the costs"
+
+  [[target.mutant]]
+  id = "the-cut-row-empty"
+  find = "A_ub=-np.ones((1, cols.size)), b_ub=[-float(k)],"
+  replace = "A_ub=-np.ones((1, cols.size)), b_ub=[0.0],"
+  models = "the cardinality row stated with right-hand side 0, so the LP has no cut"
+
+  [[target.mutant]]
+  id = "cut-dual-sign"
+  find = "    return np.asarray(res.eqlin.marginals, dtype=float), -float(res.ineqlin.marginals[0]), float(res.fun)\n"
+  replace = "    return np.asarray(res.eqlin.marginals, dtype=float), float(res.ineqlin.marginals[0]), float(res.fun)\n"
+  models = "scipy's marginal of the <= row taken as the dual of the >= row without its sign"
+
+[[target]]
+name = "pangeo-columns-solve"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_columns.py -q -p no:cacheprovider -x -W ignore -k \"optimum or eliminated or poor or cardinality or backend or gap or tiny or identical or no_design or errors or costlier or smoke\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "every-column-kept"
+  find = "        keep = np.union1d(np.flatnonzero(rc <= delta + tol), seed)\n"
+  replace = "        keep = np.arange(len(pool))\n"
+  models = "every group handed to the MIP, the elimination skipped"
+
+  [[target.mutant]]
+  id = "no-proof-solve"
+  find = "        delta = z - L\n"
+  replace = "        break\n"
+  models = "the first restricted MIP's design returned without the solve over every group within z - L of the bound"
+
+  [[target.mutant]]
+  id = "seed-design-left-out"
+  find = "        keep = np.union1d(np.flatnonzero(rc <= delta + tol), seed)\n"
+  replace = "        keep = np.flatnonzero(rc <= delta + tol)\n"
+  models = "a first MIP without the seed design's groups, which can hold no design"
+
+  [[target.mutant]]
+  id = "cut-not-in-the-mip"
+  find = "        chosen, d = solve(pool.candidates(keep), idx, min_pairs=k, **kw)\n"
+  replace = "        chosen, d = solve(pool.candidates(keep), idx, min_pairs=min_pairs, **kw)\n"
+  models = "the cardinality row left out of the MIP"
+
+  [[target.mutant]]
+  id = "gaps-not-passed"
+  find = "    kw = dict(return_diagnostics=True, backend=backend, mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap)\n"
+  replace = "    kw = dict(return_diagnostics=True, backend=backend)\n"
+  models = "the requested gaps not given to the MIPs"
+
+  [[target.mutant]]
+  id = "later-design-always-kept"
+  find = "        if best is None or d[\"objective_value\"] < best[1][\"objective_value\"]:\n"
+  replace = "        if True:\n"
+  models = "a dearer design from the later MIP replacing the cheaper one"
+
+  [[target.mutant]]
+  id = "first-mips-bound-reported"
+  find = "        d[\"dual_bound\"] = last[\"dual_bound\"]\n"
+  replace = "        pass\n"
+  models = "the dual bound of a MIP over fewer groups reported, which bounds only that MIP"
+
+[[target]]
+name = "pangeo-columns-pipeline"
+module-path = "mlsynth/utils/pangeo_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_columns.py -q -p no:cacheprovider -x -W ignore -k \"pipeline or report\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "pipeline-solve-not-passed"
+  find = "                solve=solve_partition)\n"
+  replace = "                solve=None)\n"
+  models = "the restricted MIPs solved past pipeline.solve_partition, so a backend patch there does not reach them"
+
+
+[[target]]
+name = "pangeo-columns-report"
+module-path = "mlsynth/utils/pangeo_helpers/structures.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_columns.py -q -p no:cacheprovider -x -W ignore -k \"pipeline or report\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "report-without-columns"
+  find = "            columns_scored=d.get(\"columns_scored\"),\n"
+  replace = "            columns_scored=None,\n"
+  models = "the report dropping the count of groups scored"
+
+  [[target.mutant]]
+  id = "report-without-bound"
+  find = "            lagrangian_bound=d.get(\"lagrangian_bound\"),\n"
+  replace = "            lagrangian_bound=None,\n"
+  models = "the report dropping the root bound"

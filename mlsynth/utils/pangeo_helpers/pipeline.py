@@ -15,11 +15,11 @@ from typing import Dict, Optional, Sequence
 import numpy as np
 
 from .fast_partition import fast_partition
+from .columns import score_columns, solve_exact
 from .mip import solve_partition
 from .pairs import solve_pairs
 from .parallelism import (
     _wavg,
-    enumerate_candidate_pairs,
     gap_variance,
     parallelism_r2,
 )
@@ -304,23 +304,27 @@ def run_pangeo(
                 unit_weights=uw, n_candidates=fast_candidates,
                 min_pairs=min_pairs, seed=0, return_diagnostics=True,
             )
-        else:
-            candidates = enumerate_candidate_pairs(
+        elif pairs_path:
+            candidates = score_columns(
                 idx, Y[:, e_idx], max_supergeo_size,
                 objective=objective, weights=weights,
                 cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
                 unit_weights=uw,
-            )
-            if pairs_path:
-                chosen, solver_diagnostics[arm] = solve_pairs(
-                    candidates, idx, min_pairs=min_pairs)
-            else:
-                chosen, solver_diagnostics[arm] = solve_partition(
-                    candidates, idx, min_pairs=min_pairs,
-                    return_diagnostics=True, backend=mip_backend,
-                    mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap)
-                mip_reports[arm] = MipSolveReport.from_diagnostics(
-                    solver_diagnostics[arm])
+            ).candidates()
+            chosen, solver_diagnostics[arm] = solve_pairs(
+                candidates, idx, min_pairs=min_pairs)
+        else:
+            # Every group scored in compiled code; the MIP sees only the
+            # groups the root LP's Lagrangian bound cannot exclude (columns.py).
+            chosen, solver_diagnostics[arm] = solve_exact(
+                idx, Y[:, e_idx], max_supergeo_size,
+                objective=objective, weights=weights,
+                cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
+                unit_weights=uw, min_pairs=min_pairs, backend=mip_backend,
+                mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,
+                solve=solve_partition)
+            mip_reports[arm] = MipSolveReport.from_diagnostics(
+                solver_diagnostics[arm])
         # Pairs in a canonical order (by first unit) so the k-th coin goes to
         # the same pair whatever order the solver returned them in.
         chosen_by_arm[arm] = sorted(chosen, key=lambda c: int(np.min(c["members"])))

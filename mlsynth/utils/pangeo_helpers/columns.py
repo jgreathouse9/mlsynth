@@ -1,0 +1,468 @@
+"""PANGEO's exact design without handing every candidate group to the MIP.
+
+The exact program (:mod:`.mip`) chooses an exact cover of an arm's units by groups of 2 to 2Q units, each group
+costing its best split (:func:`.parallelism.best_split`). There are :math:`\\sum_{m=2}^{2Q}\\binom{n}{m}` groups. This
+module scores all of them in compiled code, bounds the optimum from below by the root linear program, and gives the
+MIP only the groups that bound cannot rule out. The design is the full MIP's optimum.
+
+Scoring. A split of a group into halves A and B has gap :math:`g = \\bar Y_A - \\bar Y_B = Y^\\top c`, with
+:math:`c_i = u_i / U_A` on A and :math:`-u_i / U_B` on B (:math:`u` the unit weights, :math:`U` their sums over a half).
+Each cost is then a quadratic form in :math:`c`: the level-removed residual sum of squares is :math:`c^\\top G c` with
+:math:`G = Y M Y^\\top` and :math:`M = I - \\mathbf 1\\mathbf 1^\\top / T` the centring matrix; the weighted one has
+:math:`M = D_w - w w^\\top / W`; the covariate term is :math:`c^\\top C\\,\\mathrm{diag}(\\omega / s^2) C^\\top c`; and
+the R^2 denominator is :math:`a^\\top G a` with :math:`a` the A part of :math:`c`. The Gram matrices are formed once per
+arm, so a split costs :math:`O(m^2)` operations, not :math:`O(mT)`. FDID's forward selection uses the same device: the
+fit of every candidate comes from shared cross-products (Li, "Frontiers: A simple forward difference-in-differences
+method", Marketing Science 43 (2024) 267-279; :mod:`mlsynth.utils.fdid_helpers`). The supergeo_total cost is the
+square of a difference of totals (Chen, Doudchenko, Jiang, Stein and Ying, arXiv:2301.12044, eq. 3). Groups come out
+in the enumeration's order, by size and then lexicographically, and splits are tried in
+:func:`.parallelism.best_split`'s order with the first minimum kept; splits that tie in exact arithmetic are separated
+by rounding, which differs between the two computations.
+
+Bound. Let :math:`\\pi` be duals for the cover rows and :math:`\\sigma \\ge 0` one for the row
+:math:`\\sum_G x_G \\ge k`. For every design :math:`x`, :math:`c^\\top x = \\pi^\\top \\mathbf 1 + \\sigma k +
+\\sum_G \\bar c_G x_G + \\sigma(\\mathbf 1^\\top x - k)` with reduced costs :math:`\\bar c_G = c_G - \\sum_{i \\in G}
+\\pi_i - \\sigma`, so
+
+.. math::
+
+   c^\\top x \\;\\ge\\; L + \\max(\\bar c_H, 0) \\quad\\text{for every group } H \\text{ in } x,\\qquad
+   L = \\pi^\\top \\mathbf 1 + \\sigma k + \\sum_G \\min(\\bar c_G, 0),
+
+for any duals: the Lagrangian bound of the set-partitioning program with :math:`x \\in [0, 1]` (Geoffrion,
+"Lagrangean relaxation for integer programming", Math. Programming Study 2 (1974) 82-114; Lubbecke and Desrosiers,
+"Selected topics in column generation", Oper. Res. 53 (2005) 1007-1023, section 2.1). A group with
+:math:`\\bar c_H > z - L` is in no design cheaper than :math:`z`, which is reduced-cost fixing (Nemhauser and Wolsey,
+"Integer and Combinatorial Optimization", Wiley, 1988, section II.1.4). The duals come from the root LP, solved by
+column generation over the scored groups. The row :math:`\\sum_G x_G \\ge k` holds with
+:math:`k = \\max(\\kappa_{\\min}, \\lceil n / 2Q \\rceil)`: summing the cover rows with multiplier :math:`1/2Q` gives
+:math:`\\sum_G (|G| / 2Q) x_G = n / 2Q`, and rounding up both sides is a Chvatal-Gomory cut (Chvatal, "Edmonds
+polytopes and a hierarchy of combinatorial problems", Discrete Math. 4 (1973) 305-337). When 2Q does not divide n
+the LP without it covers the arm with :math:`n / 2Q` of the cheap largest groups; on 20 units at Q = 3 the cut
+raised the bound from 0.796 to 1.086 against the optimum 1.393, and the MIP proof ran 2.4 times faster with the row
+in it.
+
+Search. The first MIP takes the groups of least reduced cost (``FIRST_PER_UNIT`` per unit, at least ``FIRST_MIN``)
+and the groups of a fixed design (:func:`seed_partition`), so it has a design. Its optimum :math:`z` is the answer
+when every group left out has :math:`\\bar c > z - L`; otherwise the MIP is solved once more over every group with
+:math:`\\bar c \\le z - L`, which holds every design cheaper than :math:`z`. Two MIPs at most.
+"""
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass
+from math import comb
+from typing import Callable, List, Optional, Sequence, Tuple
+
+import numpy as np
+import scipy.sparse as sp
+from scipy.optimize import linprog
+
+from ...exceptions import MlsynthEstimationError
+from . import mip
+
+try:  # numba is the optional ``fast`` extra; without it the same code runs as Python
+    from numba import njit
+except ImportError:  # pragma: no cover - the suite runs with numba installed
+    def njit(*args, **kwargs):
+        if args and callable(args[0]):
+            return args[0]
+        return lambda f: f
+
+#: Compiled code is cached on disk only under this module name: a cache written under one
+#: import name fails to load under another (see tbr_helpers.design.exact.fastfloor).
+CANONICAL_NAME = "mlsynth.utils.pangeo_helpers.columns"
+_CACHE = __name__ == CANONICAL_NAME
+
+#: The most groups scored for one arm: 20 million groups of six take about 0.7 GB.
+MAX_COLUMNS = 20_000_000
+#: The first MIP's groups: this many per unit, and at least FIRST_MIN.
+FIRST_PER_UNIT = 10
+FIRST_MIN = 200
+#: Column generation starts from the seed design and the cheapest SEED_PER_UNIT * n groups, and adds at most
+#: BATCH_PER_UNIT * n groups a round.
+SEED_PER_UNIT = 3
+BATCH_PER_UNIT = 5
+#: Reduced costs within this share of the largest cost count as zero.
+_RTOL = 1e-9
+_EPS = 1e-12
+_OBJECTIVES = {"ss_res": 0, "r2": 1, "weighted": 2, "supergeo_total": 3}
+
+
+@dataclass(frozen=True)
+class ColumnPool:
+    """Every group of an arm with its best split.
+
+    Attributes
+    ----------
+    unit_indices : np.ndarray
+        The arm's units (rows of the panel).
+    members : np.ndarray
+        ``(N, min(2Q, n))`` positions into ``unit_indices``, ascending, padded with -1.
+    cost : np.ndarray
+        Length-N best-split costs.
+    side_a : np.ndarray
+        Length-N bit masks over a row's positions: bit p set when position p is in half A.
+    complete : bool
+        True when every group's cost is finite; a group with a non-finite cost is dropped, as the enumeration drops
+        it, and the pool then no longer holds every group at :func:`column_index`.
+    """
+
+    unit_indices: np.ndarray
+    members: np.ndarray
+    cost: np.ndarray
+    side_a: np.ndarray
+    complete: bool
+
+    def __len__(self) -> int:
+        return int(self.cost.size)
+
+    def candidates(self, rows: Optional[Sequence[int]] = None) -> List[dict]:
+        """The groups as :func:`.parallelism.enumerate_candidate_pairs` returns them, all of them or ``rows``."""
+        rows = range(len(self)) if rows is None else rows
+        out = []
+        for j in rows:
+            pos = self.members[j][self.members[j] >= 0]
+            mask = int(self.side_a[j])
+            in_a = np.array([(mask >> p) & 1 for p in range(pos.size)], dtype=bool)
+            units = self.unit_indices[pos]
+            out.append({"members": units, "score": float(self.cost[j]),
+                        "side_a": units[in_a].astype(int), "side_b": units[~in_a].astype(int)})
+        return out
+
+
+@dataclass(frozen=True)
+class RootLP:
+    """The root LP over every group, solved by column generation.
+
+    Attributes
+    ----------
+    pi : np.ndarray
+        Duals of the cover rows.
+    sigma : float
+        Dual of the row ``sum(x) >= k``, at least 0.
+    reduced_costs : np.ndarray
+        Every group's reduced cost at those duals.
+    bound : float
+        The Lagrangian bound at those duals (a lower bound on every design's cost).
+    lp_value : float
+        The LP optimum over the groups generated.
+    rounds : int
+        LPs solved.
+    pool_size : int
+        Groups in the last LP.
+    """
+
+    pi: np.ndarray
+    sigma: float
+    reduced_costs: np.ndarray
+    bound: float
+    lp_value: float
+    rounds: int
+    pool_size: int
+
+
+def count_columns(n: int, max_size: int) -> int:
+    """The number of groups of 2 to min(2Q, n) units out of n."""
+    return sum(comb(n, m) for m in range(2, min(2 * max_size, n) + 1))
+
+
+def column_index(group: Sequence[int], n: int) -> int:
+    """The row of a group (ascending positions) in a complete pool of n units: the groups of fewer units first, then
+    the lexicographic rank among groups of its size (the combinatorial number system; Knuth, "The Art of Computer
+    Programming", vol. 4A, section 7.2.1.3)."""
+    m = len(group)
+    index = sum(comb(n, k) for k in range(2, m))
+    prev = -1
+    for i, g in enumerate(group):
+        for j in range(prev + 1, g):
+            index += comb(n - 1 - j, m - 1 - i)
+        prev = g
+    return index
+
+
+def feasible(n: int, max_size: int, min_pairs: int) -> bool:
+    """Whether an exact cover with at least ``min_pairs`` groups exists: n >= 2, n even when Q = 1 (every group is a
+    pair), and min_pairs <= n // 2, the most groups a design can have."""
+    return n >= 2 and not (max_size == 1 and n % 2) and min_pairs <= n // 2
+
+
+def seed_partition(n: int) -> List[Tuple[int, ...]]:
+    """A design with n // 2 groups when one exists: consecutive pairs, the last three units a triple when n is odd."""
+    pairs = [(i, i + 1) for i in range(0, n - 3 if n % 2 else n, 2)]
+    return pairs + ([(n - 3, n - 2, n - 1)] if n % 2 else [])
+
+
+def min_groups(n: int, max_size: int, min_pairs: int) -> int:
+    """The fewest groups a design can have: ``min_pairs``, and ceil(n / 2Q) since no group exceeds 2Q units."""
+    return max(int(min_pairs), -(-n // (2 * max_size)))
+
+
+@njit(cache=_CACHE)
+def _score_group(g, m, Q, obj, G, G0, K, has_cov, u, tot, c, a, sel):
+    best = np.inf
+    best_mask = 0
+    for size_a in range(1, min(Q, m - 1) + 1):
+        if m - size_a > Q:
+            continue
+        k = size_a - 1                       # half A is position 0 and k of positions 1..m-1, lexicographic
+        for j in range(k):
+            sel[j] = j + 1
+        while True:
+            mask = 1
+            for j in range(k):
+                mask |= 1 << sel[j]
+            UA = 0.0
+            UB = 0.0
+            for p in range(m):
+                if (mask >> p) & 1:
+                    UA += u[g[p]]
+                else:
+                    UB += u[g[p]]
+            for p in range(m):
+                if (mask >> p) & 1:
+                    c[p] = u[g[p]] / UA
+                    a[p] = c[p]
+                else:
+                    c[p] = -u[g[p]] / UB
+                    a[p] = 0.0
+            if obj == 3:
+                d = 0.0
+                for p in range(m):
+                    if (mask >> p) & 1:
+                        d += tot[g[p]]
+                    else:
+                        d -= tot[g[p]]
+                s = d * d
+            else:
+                s = 0.0
+                for p in range(m):
+                    for q in range(m):
+                        s += c[p] * c[q] * G[g[p], g[q]]
+                if obj == 1:
+                    st = 0.0
+                    for p in range(m):
+                        for q in range(m):
+                            st += a[p] * a[q] * G0[g[p], g[q]]
+                    if st > 1e-12:
+                        s = s / st
+            if has_cov:
+                for p in range(m):
+                    for q in range(m):
+                        s += c[p] * c[q] * K[g[p], g[q]]
+            if s < best:
+                best = s
+                best_mask = mask
+            j = k - 1
+            while j >= 0 and sel[j] == m - k + j:
+                j -= 1
+            if j < 0:
+                break
+            sel[j] += 1
+            for i in range(j + 1, k):
+                sel[i] = sel[i - 1] + 1
+    return best, best_mask
+
+
+@njit(cache=_CACHE)
+def _score_all(n, Q, obj, G, G0, K, has_cov, u, tot, N):
+    hi = min(2 * Q, n)
+    width = max(hi, 1)
+    members = np.full((N, width), -1, np.int32)
+    cost = np.empty(N)
+    side_a = np.zeros(N, np.int32)
+    g = np.empty(width, np.int64)
+    c = np.empty(width)
+    a = np.empty(width)
+    sel = np.empty(width, np.int64)
+    r = 0
+    for m in range(2, hi + 1):
+        for j in range(m):
+            g[j] = j
+        while True:
+            s, mk = _score_group(g, m, Q, obj, G, G0, K, has_cov, u, tot, c, a, sel)
+            for j in range(m):
+                members[r, j] = g[j]
+            cost[r] = s
+            side_a[r] = mk
+            r += 1
+            j = m - 1
+            while j >= 0 and g[j] == n - m + j:
+                j -= 1
+            if j < 0:
+                break
+            g[j] += 1
+            for i in range(j + 1, m):
+                g[i] = g[i - 1] + 1
+    return members, cost, side_a
+
+
+def _grams(Y, objective, weights, cov, cov_scales, cov_weights):
+    """The quadratic forms of the module docstring, over the arm's rows."""
+    n = Y.shape[0]
+    Yc = Y - Y.mean(axis=1, keepdims=True)
+    G0 = Yc @ Yc.T
+    if objective == "weighted":
+        w = np.asarray(weights, dtype=float)
+        Yw = Y @ w
+        G = (Y * w) @ Y.T - np.outer(Yw, Yw) / max(float(w.sum()), _EPS)
+    else:
+        G = G0
+    if cov is None:
+        return G, G0, np.zeros((n, n)), False
+    cw = np.ones(cov.shape[1]) if cov_weights is None else np.asarray(cov_weights, dtype=float)
+    K = (cov * (cw / np.asarray(cov_scales, dtype=float) ** 2)) @ cov.T
+    return G, G0, K, True
+
+
+def score_columns(
+    unit_indices, Ypre: np.ndarray, max_size: int, objective: str = "ss_res",
+    weights: Optional[np.ndarray] = None, cov: Optional[np.ndarray] = None,
+    cov_scales: Optional[np.ndarray] = None, cov_weights: Optional[np.ndarray] = None,
+    unit_weights: Optional[np.ndarray] = None,
+) -> ColumnPool:
+    """Every group of 2 to 2Q of ``unit_indices`` with its best split and cost, as
+    :func:`.parallelism.enumerate_candidate_pairs` scores them. The arguments are that function's; ``Ypre``,
+    ``cov`` and ``unit_weights`` are indexed by panel row."""
+    if objective not in _OBJECTIVES:
+        raise ValueError(f"Unknown objective {objective!r}; expected one of {sorted(_OBJECTIVES)}.")
+    if objective == "weighted" and weights is None:
+        raise ValueError("objective='weighted' requires weights.")
+    idx = np.asarray(unit_indices, dtype=int)
+    n = idx.size
+    N = count_columns(n, max_size)
+    if N > MAX_COLUMNS:
+        raise MlsynthEstimationError(
+            f"PANGEO: {n} units at max_supergeo_size={max_size} make {N:,} candidate groups, more than the "
+            f"{MAX_COLUMNS:,} the exact design scores; use fast=True or a smaller max_supergeo_size.")
+    Y = np.asarray(Ypre, dtype=float)[idx]
+    G, G0, K, has_cov = _grams(Y, objective, weights, None if cov is None else np.asarray(cov, float)[idx],
+                               cov_scales, cov_weights)
+    u = np.ones(n) if unit_weights is None else np.asarray(unit_weights, dtype=float)[idx]
+    members, cost, side_a = _score_all(n, int(max_size), _OBJECTIVES[objective], G, G0, K, has_cov, u,
+                                       Y.sum(axis=1), N)
+    finite = np.isfinite(cost)
+    if not finite.all():
+        members, cost, side_a = members[finite], cost[finite], side_a[finite]
+    return ColumnPool(idx, members, cost, side_a, bool(finite.all()))
+
+
+def _reduced_costs(members: np.ndarray, cost: np.ndarray, pi: np.ndarray, sigma: float) -> np.ndarray:
+    pad = np.append(np.asarray(pi, dtype=float), 0.0)     # position -1 (padding) reads the 0
+    rc = cost - sigma
+    for j in range(members.shape[1]):
+        rc = rc - pad[members[:, j]]
+    return rc
+
+
+def lagrangian_bound(pool: ColumnPool, pi: np.ndarray, sigma: float, k: int) -> Tuple[float, np.ndarray]:
+    """The Lagrangian bound of the module docstring at duals ``pi`` and ``sigma`` (clipped at 0) for the row
+    ``sum(x) >= k``, and every group's reduced cost. A lower bound on every design's cost for any duals."""
+    sigma = max(float(sigma), 0.0)
+    rc = _reduced_costs(pool.members, pool.cost, pi, sigma)
+    return float(np.sum(pi) + sigma * k + np.minimum(rc, 0.0).sum()), rc
+
+
+def _master(pool: ColumnPool, cols: np.ndarray, cost: np.ndarray, n: int, k: int):
+    rows = pool.members[cols]
+    r, c = np.nonzero(rows >= 0)
+    A = sp.csr_matrix((np.ones(r.size), (rows[r, c], r)), shape=(n, cols.size))
+    res = linprog(cost[cols], A_eq=A, b_eq=np.ones(n), A_ub=-np.ones((1, cols.size)), b_ub=[-float(k)],
+                  bounds=(0, 1), method="highs")
+    if res.status != 0:  # pragma: no cover - the seed design is in every master, so it is feasible and bounded
+        raise MlsynthEstimationError(f"PANGEO: the root LP did not solve ({res.message}).")
+    return np.asarray(res.eqlin.marginals, dtype=float), -float(res.ineqlin.marginals[0]), float(res.fun)
+
+
+def root_lp(pool: ColumnPool, k: int) -> RootLP:
+    """The LP over every group with the row ``sum(x) >= k``, by column generation from the seed design and the
+    cheapest groups, adding the groups of most negative reduced cost each round until none is negative. The pool must
+    be complete and admit a design (:func:`feasible`). Costs are scaled by the power of two of
+    :func:`.mip._cost_scale`, since HiGHS's tolerances are absolute."""
+    n = pool.unit_indices.size
+    scale = mip._cost_scale(pool.cost)
+    cost = pool.cost * scale
+    tol = _RTOL * max(1.0, float(np.abs(cost).max()))
+    in_pool = np.zeros(len(pool), dtype=bool)
+    in_pool[[column_index(g, n) for g in seed_partition(n)]] = True
+    first = min(len(pool), SEED_PER_UNIT * n)
+    in_pool[np.argpartition(cost, first - 1)[:first]] = True
+    rounds = 0
+    while True:
+        cols = np.flatnonzero(in_pool)
+        pi, sigma, value = _master(pool, cols, cost, n, k)
+        rounds += 1
+        rc = _reduced_costs(pool.members, cost, pi, max(sigma, 0.0))
+        out = np.where(in_pool, np.inf, rc)
+        entering = np.flatnonzero(out < -tol)
+        if entering.size == 0:
+            break
+        take = min(entering.size, BATCH_PER_UNIT * n)
+        in_pool[entering[np.argsort(out[entering], kind="stable")[:take]]] = True
+    pi, sigma = pi / scale, sigma / scale
+    bound, rc = lagrangian_bound(pool, pi, sigma, k)
+    return RootLP(pi, max(sigma, 0.0), rc, bound, value / scale, rounds, int(cols.size))
+
+
+def solve_exact(
+    unit_indices, Ypre: np.ndarray, max_size: int, *, objective: str = "ss_res",
+    weights: Optional[np.ndarray] = None, cov: Optional[np.ndarray] = None,
+    cov_scales: Optional[np.ndarray] = None, cov_weights: Optional[np.ndarray] = None,
+    unit_weights: Optional[np.ndarray] = None, min_pairs: int = 1, backend: str = "auto",
+    mip_rel_gap: float = 0.0, mip_abs_gap: float = 0.0, solve: Optional[Callable] = None,
+):
+    """The exact-cover design of one arm: every group scored (:func:`score_columns`), the root bound
+    (:func:`root_lp`), and the MIP (``solve``, :func:`.mip.solve_partition` by default) over the groups the bound
+    cannot exclude, as in the module docstring. Returns ``(chosen, diagnostics)`` as ``solve_partition`` does, its
+    diagnostics with ``n_candidate_pairs`` and ``columns_scored`` (every group), ``columns_solved`` (the groups in the
+    last MIP), ``lagrangian_bound``, ``lp_value``, ``lp_rounds``, ``mip_solves``, ``score_seconds`` and
+    ``lp_seconds``; ``solve_seconds`` is the MIPs' total. An arm with no design, or with a group of non-finite cost,
+    goes to one MIP over every group, which reports it as it reports the full enumeration."""
+    solve = mip.solve_partition if solve is None else solve
+    kw = dict(return_diagnostics=True, backend=backend, mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap)
+    t0 = time.perf_counter()
+    pool = score_columns(unit_indices, Ypre, max_size, objective=objective, weights=weights, cov=cov,
+                         cov_scales=cov_scales, cov_weights=cov_weights, unit_weights=unit_weights)
+    idx = pool.unit_indices
+    n = idx.size
+    extra = dict(n_candidate_pairs=len(pool), columns_scored=len(pool), score_seconds=time.perf_counter() - t0)
+    if not (pool.complete and feasible(n, max_size, min_pairs)):
+        chosen, d = solve(pool.candidates(), idx, min_pairs=min_pairs, **kw)
+        # Not covered: a non-finite group holds a unit with a NaN path, which no design covers, so the
+        # MIP above raises; a panel whose groups overflow only in part would reach here.
+        d.update(extra, columns_solved=len(pool), lagrangian_bound=None,  # pragma: no cover
+                 lp_value=None, lp_rounds=0, mip_solves=1, lp_seconds=0.0)
+        return chosen, d  # pragma: no cover
+    k = min_groups(n, max_size, min_pairs)
+    t1 = time.perf_counter()
+    root = root_lp(pool, k)
+    lp_seconds = time.perf_counter() - t1
+    L, rc = root.bound, root.reduced_costs
+    seed = np.array([column_index(g, n) for g in seed_partition(n)])
+    first = min(len(pool), max(FIRST_MIN, FIRST_PER_UNIT * n))
+    delta = float(np.partition(rc, first - 1)[first - 1])
+    tol = _RTOL * max(1.0, abs(L), float(np.abs(pool.cost).max()))
+    best = last = None
+    solves, mip_seconds = 0, 0.0
+    while True:
+        keep = np.union1d(np.flatnonzero(rc <= delta + tol), seed)
+        chosen, d = solve(pool.candidates(keep), idx, min_pairs=k, **kw)
+        solves += 1
+        mip_seconds += float(d["solve_seconds"])
+        last = d
+        if best is None or d["objective_value"] < best[1]["objective_value"]:
+            best = (chosen, d)
+        z = best[1]["objective_value"]
+        if z - L <= delta + tol:
+            break
+        delta = z - L
+    chosen, d = best
+    d = dict(d)
+    if d is not last and last.get("dual_bound") is not None:
+        # the last MIP held every design cheaper than this one, so its bound bounds the optimum
+        d["dual_bound"] = last["dual_bound"]
+        d["mip_gap"] = (abs(z - last["dual_bound"]) / abs(z)) if z != 0 else last.get("mip_gap")
+    d.update(extra, columns_solved=int(keep.size), lagrangian_bound=float(L), lp_value=root.lp_value,
+             lp_rounds=root.rounds, mip_solves=solves, solve_seconds=mip_seconds, lp_seconds=lp_seconds,
+             objective_value=float(z), n_selected_pairs=len(chosen))
+    return chosen, d

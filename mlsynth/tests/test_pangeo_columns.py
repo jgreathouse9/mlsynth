@@ -321,7 +321,7 @@ def test_columns_are_eliminated():
     chosen, d = columns.solve_exact(idx, Y, 3)
     assert d["objective_value"] == pytest.approx(d_ref["objective_value"], rel=1e-9)
     assert d["n_candidate_pairs"] == columns.count_columns(16, 3)
-    assert d["n_columns_solved"] < d["n_candidate_pairs"] / 10
+    assert d["columns_solved"] < d["n_candidate_pairs"] / 10
     assert d["mip_solves"] >= 1 and d["lp_rounds"] >= 1
 
 
@@ -457,3 +457,44 @@ def test_the_report_fields_default_to_none():
     d["backend"] = d.get("backend", "highspy")
     rep = MipSolveReport.from_diagnostics(d)
     assert rep.columns_scored is None and rep.columns_solved is None and rep.lagrangian_bound is None
+
+
+def test_on_ties_the_split_attains_the_minimum():
+    """Unit: with duplicated units many splits tie in exact arithmetic, and rounding decides which one each
+    computation returns. The split returned costs the minimum, recomputed from its halves by split_cost."""
+    from mlsynth.utils.pangeo_helpers.parallelism import split_cost
+
+    base = _panel(8, 3, 10)
+    Y = np.vstack([base, base, base[:1]])
+    ref = enumerate_candidate_pairs(np.arange(7), Y, 3)
+    got = columns.score_columns(np.arange(7), Y, 3).candidates()
+    scale = float(np.abs(Y - Y.mean(axis=1, keepdims=True)).max()) ** 2
+    for g, r in zip(got, ref):
+        own = split_cost(Y[g["side_a"]].mean(axis=0), Y[g["side_b"]].mean(axis=0))
+        assert len(g["side_a"]) <= 3 and len(g["side_b"]) <= 3
+        assert own == pytest.approx(r["score"], abs=1e-12 * scale)
+
+
+def test_a_costlier_later_design_does_not_replace_the_best(monkeypatch):
+    """Unit: a later MIP that returns a dearer design (a gap lets it) leaves the cheaper design in place, and the
+    later MIP's dual bound, which holds every design cheaper than it, is the one reported."""
+    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
+    monkeypatch.setattr(columns, "FIRST_MIN", 1)
+    Y = _panel(12, 12, 15)
+    idx = np.arange(12)
+    calls = []
+
+    def stub(cands, ix, **kw):
+        chosen, d = mip.solve_partition(cands, ix, **kw)
+        calls.append(d["objective_value"])
+        if len(calls) == 2:
+            seed = [c for c in cands if tuple(int(u) for u in c["members"]) in set(columns.seed_partition(12))]
+            d = dict(d, objective_value=float(sum(c["score"] for c in seed)), dual_bound=1e-6)
+            return seed, d
+        return chosen, d
+
+    chosen, d = columns.solve_exact(idx, Y, 2, solve=stub)
+    assert len(calls) == 2 and d["mip_solves"] == 2
+    assert d["objective_value"] == pytest.approx(calls[0])
+    assert d["objective_value"] == pytest.approx(sum(c["score"] for c in chosen))
+    assert d["dual_bound"] == 1e-6
