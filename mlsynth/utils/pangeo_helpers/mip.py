@@ -33,6 +33,7 @@ retry, the gaps asked for and the proven gap are returned in the diagnostics.
 
 from __future__ import annotations
 
+import math
 import time
 from typing import List
 
@@ -142,6 +143,21 @@ def _check_gaps(mip_rel_gap, mip_abs_gap) -> None:
                 or not np.isfinite(v) or v < 0 or v >= top:
             bound = "in [0, 1)" if top == 1.0 else "finite and >= 0"
             raise MlsynthConfigError(f"{name} must be {bound}, not {v!r}.")
+
+
+def _cost_scale(cost) -> float:
+    """The power of two that puts the largest cost in [2^29, 2^30), 1 when every
+    cost is 0. HiGHS's feasibility and optimality tolerances are absolute, so
+    the costs' units decide what it can tell apart: the default-gap instance's
+    costs multiplied by 1e-12 gave a design 368 dearer than the optimum in the
+    original units, with both gaps at 0, and the same costs scaled into this
+    band gave the optimum at every scale from 1e-14 to 1e6. A power of two
+    multiplies exactly, so the minimizing design is unchanged."""
+    top = float(np.max(np.abs(np.asarray(cost, dtype=float)))) if len(cost) else 0.0
+    if top == 0.0 or not np.isfinite(top):
+        return 1.0
+    _, e = math.frexp(top)                    # top = m 2^e, 0.5 <= m < 1
+    return math.ldexp(1.0, 30 - e)
 
 
 def _run_highs(h):
@@ -254,6 +270,7 @@ def _solve_partition_highspy(
 
     pos = {int(u): j for j, u in enumerate(unit_indices)}
     cost = [float(p["score"]) for p in candidate_pairs]
+    scale = _cost_scale(cost)
     # Candidates covering each unit position (empty => that unit is uncoverable).
     cover: List[List[int]] = [[] for _ in range(n_units)]
     for c, pair in enumerate(candidate_pairs):
@@ -263,7 +280,7 @@ def _solve_partition_highspy(
     h = highspy.Highs()
     h.setOptionValue("output_flag", False)
     h.setOptionValue("mip_rel_gap", float(mip_rel_gap))
-    h.setOptionValue("mip_abs_gap", float(mip_abs_gap))
+    h.setOptionValue("mip_abs_gap", float(mip_abs_gap) * scale)   # in the scaled units
     x = h.addBinaries(n_cand)
     for i in range(n_units):
         cs = cover[i]
@@ -276,7 +293,7 @@ def _solve_partition_highspy(
     if min_pairs > 1:
         h.addConstr(sum(x[c] for c in range(n_cand)) >= min_pairs)
 
-    h.changeColsCost(n_cand, np.arange(n_cand, dtype=np.int32), np.asarray(cost, dtype=np.float64))
+    h.changeColsCost(n_cand, np.arange(n_cand, dtype=np.int32), np.asarray(cost, dtype=np.float64) * scale)
     h.changeObjectiveSense(highspy.ObjSense.kMinimize)
     t0 = time.perf_counter()
     status, retried = _run_highs(h)
@@ -307,7 +324,7 @@ def _solve_partition_highspy(
     diagnostics = {
         "path": "exact_mip",
         "n_candidate_pairs": int(n_cand),
-        "objective_value": float(h.getObjectiveValue()),
+        "objective_value": float(sum(p["score"] for p in chosen)),
         "status": "optimal",                          # kOptimal -> cvxpy's label
         "solve_seconds": float(solve_seconds),
         "n_selected_pairs": len(chosen),
@@ -317,7 +334,8 @@ def _solve_partition_highspy(
         "gap_enforced": True,
         "solver_name": "HiGHS",
         "mip_gap": _f(getattr(info, "mip_gap", None)),
-        "dual_bound": _f(getattr(info, "mip_dual_bound", None)),
+        "dual_bound": (None if getattr(info, "mip_dual_bound", None) is None
+                       else float(info.mip_dual_bound) / scale),
         "node_count": _f(getattr(info, "mip_node_count", None)),
         "simplex_iterations": _f(getattr(info, "simplex_iteration_count", None)),
     }
@@ -370,21 +388,22 @@ def _solve_partition_cvxpy(
         for u in pair["members"]:
             M[pos[int(u)], c] = 1.0
     cost = np.array([p["score"] for p in candidate_pairs], dtype=float)
+    scale = _cost_scale(cost)
 
     x = cp.Variable(n_cand, boolean=True)
     constraints = [M @ x == 1]                      # exact cover
     if min_pairs > 1:
         constraints.append(cp.sum(x) >= min_pairs)
-    problem = cp.Problem(cp.Minimize(cost @ x), constraints)
+    problem = cp.Problem(cp.Minimize((cost * scale) @ x), constraints)
     solver = _pick_milp_solver()
-    opts, enforced = _cvxpy_options(str(solver), mip_rel_gap, mip_abs_gap, presolve=True)
+    opts, enforced = _cvxpy_options(str(solver), mip_rel_gap, mip_abs_gap * scale, presolve=True)
     retried = False
     t0 = time.perf_counter()
     try:
         problem.solve(solver=solver, **opts)
         if problem.status != "optimal":
             retried = True
-            opts, _ = _cvxpy_options(str(solver), mip_rel_gap, mip_abs_gap, presolve=False)
+            opts, _ = _cvxpy_options(str(solver), mip_rel_gap, mip_abs_gap * scale, presolve=False)
             problem.solve(solver=solver, **opts)
     except cp.error.SolverError as exc:
         raise MlsynthEstimationError(
@@ -405,8 +424,7 @@ def _solve_partition_cvxpy(
         diagnostics = {
             "path": "exact_mip",
             "n_candidate_pairs": int(n_cand),
-            "objective_value": (float(problem.value)
-                                if problem.value is not None else float("nan")),
+            "objective_value": float(sum(p["score"] for p in chosen)),
             "status": problem.status,
             "solve_seconds": float(solve_seconds),
             "n_selected_pairs": len(chosen),
@@ -416,5 +434,7 @@ def _solve_partition_cvxpy(
             "gap_enforced": enforced,
             **stats,
         }
+        if diagnostics.get("dual_bound") is not None:
+            diagnostics["dual_bound"] = float(diagnostics["dual_bound"]) / scale
         return chosen, diagnostics
     return chosen
