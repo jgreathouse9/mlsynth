@@ -147,7 +147,16 @@ class MipSolveReport:
     node_count : float or None
         Branch-and-bound nodes, when reported.
     solve_seconds : float
-        Wall time of the solve, the retry included.
+        Wall time of the solve, the retry included; with groups left out by
+        the root bound, the total over the MIPs solved.
+    columns_scored : int or None
+        Candidate groups scored, every group of 2 to 2Q units, when the root
+        bound left groups out of the MIP (:mod:`.columns`); None otherwise.
+    columns_solved : int or None
+        Candidate groups in the last MIP: those whose reduced cost the
+        Lagrangian bound could not rule out, and a fixed design's groups.
+    lagrangian_bound : float or None
+        The root LP's Lagrangian bound, a lower bound on the optimum.
     """
 
     backend: str
@@ -162,6 +171,9 @@ class MipSolveReport:
     objective_value: float
     node_count: Optional[float]
     solve_seconds: float
+    columns_scored: Optional[int] = None
+    columns_solved: Optional[int] = None
+    lagrangian_bound: Optional[float] = None
 
     @classmethod
     def from_diagnostics(cls, d: Dict[str, Any]) -> "MipSolveReport":
@@ -176,6 +188,9 @@ class MipSolveReport:
             objective_value=float(d["objective_value"]),
             node_count=d.get("node_count"),
             solve_seconds=float(d["solve_seconds"]),
+            columns_scored=d.get("columns_scored"),
+            columns_solved=d.get("columns_solved"),
+            lagrangian_bound=d.get("lagrangian_bound"),
         )
 
 

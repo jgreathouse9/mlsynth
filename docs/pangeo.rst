@@ -402,6 +402,143 @@ assignment the experiment ran. Each pair's coin is on
 unit is treated) and the seed on ``results.assignment_seed``. These coins are
 the randomization the permutation test below inverts.
 
+Which pairs reach the MIP
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The family :math:`\mathcal F` grows like :math:`N^{2Q}`: 20 geos at
+:math:`Q=3` give 60,439 pairs. Handed all of them, HiGHS took 175 s on the
+seasonal panel below, of which its LP relaxation took 0.2 s. The exact path
+therefore reaches the optimum of :eq:`mip` in three steps
+(``mlsynth.utils.pangeo_helpers.columns``).
+
+#. Scoring. Every pair is scored at its best split in compiled code. The gap
+   of a split is a linear combination of its geos' paths,
+   :math:`g = \mathbf{Y}^{\top}\mathbf{c}` with :math:`c_i = u_i/U_A` on half
+   :math:`A` and :math:`-u_i/U_B` on half :math:`B` (:math:`u` the unit
+   weights), so each objective is a quadratic form in :math:`\mathbf{c}`. The
+   level-removed residual sum of squares is
+   :math:`\mathbf{c}^{\top}\mathbf{Y}\mathbf{M}\mathbf{Y}^{\top}\mathbf{c}` with
+   :math:`\mathbf{M}` the centring matrix, and the recency-weighted and
+   covariate terms are quadratic forms of the same kind. The Gram matrices are
+   formed once per arm, so a split costs a few dozen operations whatever the
+   window's length, the device FDID's forward selection uses (Li, 2023).
+#. Bound. The LP relaxation of :eq:`mip` is solved by column generation: it
+   starts from a few pairs and adds the pairs of negative reduced cost
+   :math:`\bar c_G = c_G - \sum_{i\in G}\pi_i - \sigma` until none is left,
+   with :math:`\pi_i` the dual of geo :math:`i`'s cover row and
+   :math:`\sigma\ge 0` that of the row
+   :math:`\mathbf 1^{\top}\mathbf{x}\ge k`. Here
+   :math:`k=\max(\kappa_{\min},\lceil N/2Q\rceil)`, the fewest pairs a design
+   can have, since no pair holds more than :math:`2Q` geos (a Chvatal-Gomory
+   cut). For every design :math:`\mathbf{x}` and every pair :math:`H` in it,
+
+   .. math::
+
+      \sum_G c_G x_G \;\ge\; L + \bar c_H,\qquad
+      L = \sum_i \pi_i + \sigma k + \sum_{G} \min(\bar c_G, 0),
+
+   whatever the duals (Geoffrion, 1974; Lubbecke and Desrosiers, 2005).
+#. Elimination. A pair with :math:`\bar c_G > z - L` is in no design cheaper
+   than :math:`z`, so the MIP needs only the pairs with
+   :math:`\bar c_G \le z - L` (reduced-cost fixing; Nemhauser and Wolsey, 1988,
+   section II.1.4). The first MIP takes the pairs of least reduced cost and a
+   fixed design's pairs. When the best design so far costs :math:`z` and a pair
+   left out has :math:`\bar c_G \le z - L`, the next MIP takes the pairs up to
+   the smaller of :math:`z - L` and the reduced cost of a set four times larger,
+   so a first design far above the optimum does not admit almost every pair at
+   once (at 24 geos it admitted 189,950 of 190,026, and the MIP took 795 s). The
+   search ends when every pair left out has :math:`\bar c_G > z - L`, or the MIP
+   has every pair.
+
+The LP bound is weak on this problem: on the seasonal panels below it lies 14
+to 33% under the optimum, and subset-row cuts (Jepsen, Petersen, Spoorendonk
+and Pisinger, 2008) moved the gap at 20 geos and :math:`Q=3` only from 42.8 to
+39.6%. When :math:`2Q` does not divide :math:`N`, the LP covers the arm with a
+fractional :math:`N/2Q` of the cheap largest pairs, and the cut on
+:math:`\mathbf 1^{\top}\mathbf{x}` halved that gap, to 22%. Even so, the last
+MIP holds at most one pair in twelve, and at 28 geos one in 137. One arm of the
+seasonal panel (``make_seasonal_sales_panel``, 60 periods, a 42-period
+estimation window), with the optimum the same in every row both paths ran:
+
+.. list-table::
+   :header-rows: 1
+
+   * - :math:`Q`
+     - geos
+     - pairs
+     - every pair to the MIP
+     - pairs in the last MIP
+     - this path
+   * - 2
+     - 16
+     - 2,500
+     - 0.65 s
+     - 208
+     - 0.15 s
+   * - 2
+     - 18
+     - 4,029
+     - 2.5 s
+     - 209
+     - 0.69 s
+   * - 2
+     - 20
+     - 6,175
+     - 2.9 s
+     - 210
+     - 0.63 s
+   * - 3
+     - 14
+     - 6,461
+     - 4.6 s
+     - 207
+     - 0.08 s
+   * - 3
+     - 16
+     - 14,876
+     - 40.2 s
+     - 208
+     - 0.16 s
+   * - 3
+     - 18
+     - 31,161
+     - 45.1 s
+     - 209
+     - 0.16 s
+   * - 3
+     - 20
+     - 60,439
+     - 175.8 s
+     - 643
+     - 5.2 s
+   * - 2
+     - 30
+     - 31,900
+     - not run
+     - 396
+     - 7.1 s
+   * - 3
+     - 24
+     - 190,026
+     - not run
+     - 1,100
+     - 23.1 s
+   * - 3
+     - 28
+     - 499,149
+     - not run
+     - 3,654
+     - 54.7 s
+
+The full path's time is enumeration in Python plus the MIP over every pair;
+HiGHS's time on it varies between runs (13 s and 40 s at 16 geos).
+
+``results.mip_reports`` records the pairs scored (``columns_scored``), the
+pairs in the last MIP (``columns_solved``) and the bound :math:`L`
+(``lagrangian_bound``); the per-arm diagnostics add the LP's rounds and value,
+the MIPs solved, and the seconds spent scoring, on the LP and in the MIPs. An
+arm larger than 20 million pairs raises and names ``fast=True``.
+
 Per-pair objectives
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -1084,6 +1221,22 @@ Method." *Marketing Science* 43(2):267-279.
 
 Li, K. T., & Van den Bulte, C. (2022). "Augmented Difference-in-Differences."
 *Marketing Science* 42(4):746-767.
+
+Geoffrion, A. M. (1974). "Lagrangean Relaxation for Integer Programming."
+*Mathematical Programming Study* 2:82-114.
+
+Lubbecke, M. E., & Desrosiers, J. (2005). "Selected Topics in Column
+Generation." *Operations Research* 53(6):1007-1023.
+
+Nemhauser, G. L., & Wolsey, L. A. (1988). *Integer and Combinatorial
+Optimization.* Wiley.
+
+Chvatal, V. (1973). "Edmonds Polytopes and a Hierarchy of Combinatorial
+Problems." *Discrete Mathematics* 4(4):305-337.
+
+Jepsen, M., Petersen, B., Spoorendonk, S., & Pisinger, D. (2008).
+"Subset-Row Inequalities Applied to the Vehicle-Routing Problem with Time
+Windows." *Operations Research* 56(2):497-511.
 
 Abadie, A., & Zhao, J. (2026). "Synthetic Controls for Experimental Design."
 *Working paper.*
