@@ -344,3 +344,33 @@ def test_the_constructor_needs_groups_of_four():
     z = np.asarray(test_bcp.gen(np.random.default_rng(9), 12, 1), float)
     out = ce.certify_staged(z, lo=2, hi=3, construct=True, heuristic_steps=0)
     assert out["proved"] and out["construct"] is None
+
+
+@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), m=st.integers(2, 11), lo=st.integers(2, 3), hi=st.integers(2, 4),
+       q=st.floats(0.0, 1.0))
+def test_the_columns_are_exactly_the_groups_cheaper_than_the_freed_total(seed, m, lo, hi, q):
+    """Property: _groups_below returns every group of lo..hi of the freed markets whose cost is below the total and
+    no other. A dearer group cannot be in a cheaper repair, and leaving the dearer ones in made a step at 235
+    markets run past 10 minutes (the mutant that keeps them timed out)."""
+    if lo > hi:
+        return
+    rng = np.random.default_rng(seed)
+    z = rng.normal(100.0, 20.0, 30)
+    F = np.sort(rng.choice(30, m, replace=False)).astype(np.int64)
+    groups = [c for k in range(lo, hi + 1) for c in itertools.combinations(F.tolist(), k)]
+    costs = sorted(dive._sc(z, c) for c in groups)
+    cur = float(np.quantile(costs, q)) if costs else 1.0
+    rows, cs = cn._groups_below(z, F, lo, hi, cur)
+    got = {tuple(int(v) for v in r if v >= 0) for r in rows}
+    assert got == {c for c in groups if dive._sc(z, c) < cur}
+    assert all(c < cur for c in cs)
+
+
+def test_a_step_without_a_cheaper_repair_leaves_the_design_alone():
+    """Unit: on equal totals every design costs 0, so no repair is cheaper and every step must leave the design as it
+    was; an equal-cost repair accepted would replace the freed groups with the MIP's own partition."""
+    z = np.full(16, 9.0)
+    start = [(0, 5), (1, 9), (2, 12), (3, 14), (4, 6, 7, 8), (10, 11, 13, 15)]
+    design, trace = cn.repair(z, start, steps=6, seed=0, k0=3, k_max=4)
+    assert design == sorted(start) and all(v == 0.0 for v in trace)
