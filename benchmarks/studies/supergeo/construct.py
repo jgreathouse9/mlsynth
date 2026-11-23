@@ -197,8 +197,11 @@ def _groups_below(z, F, lo, hi, cur):
 
 
 def repair(z, design, steps, seed=0, k0=10, k_max=15, patience=5, node_limit=300, lo=2, hi=4, with_k=False):
-    """Repair by exact set partitioning over many groups at once. Each step frees k groups, the dearest one drawn
-    with weight cost * u^(1/4), u uniform, and k - 1 others uniformly; every group of lo..hi of the freed markets
+    """Repair by exact set partitioning over many groups at once. Each step frees k groups of even size, the dearest
+    one drawn with weight cost * u^(1/4), u uniform, and k - 1 others uniformly. Groups of odd size are never freed:
+    an odd count's triple is the root bound's own column and dominates the design's cost, and freeing it let every
+    group of the freed markets in as a column (about 100,000 at 121 markets, 100 s a step); the freed markets can
+    still form triples. Every group of lo..hi of the freed markets
     whose cost is below the freed groups' total is a column (a dearer one cannot be in a cheaper repair), and HiGHS
     solves the partitioning MIP with a node limit, so the result depends on the inputs and the seed only. A cheaper
     repair replaces the freed groups; after `patience` steps in a row without one, k grows by one up to k_max.
@@ -213,10 +216,14 @@ def repair(z, design, steps, seed=0, k0=10, k_max=15, patience=5, node_limit=300
     gc = [dive._sc(z, g) for g in design]
     trace = [float(sum(gc))]; ks = []; k = k0; fails = 0
     for _ in range(steps):
-        kk = min(k, len(design)); ks.append(k)
-        w = np.array(gc) * rng.random(len(design)) ** 0.25
-        first = int(np.argmax(w))
-        others = [i for i in rng.permutation(len(design)).tolist() if i != first][:kk - 1]
+        ks.append(k)
+        even = [i for i, g in enumerate(design) if len(g) % 2 == 0]
+        if not even:
+            trace.append(trace[-1]); continue
+        kk = min(k, len(even))
+        w = np.array([gc[i] for i in even]) * rng.random(len(even)) ** 0.25
+        first = even[int(np.argmax(w))]
+        others = [even[i] for i in rng.permutation(len(even)).tolist() if even[i] != first][:kk - 1]
         pick = sorted([first] + others)
         cur = sum(gc[i] for i in pick)
         F = np.array(sorted(v for i in pick for v in design[i]), np.int64)
