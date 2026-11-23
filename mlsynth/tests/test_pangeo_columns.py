@@ -327,15 +327,42 @@ def test_columns_are_eliminated():
 
 def test_a_poor_first_design_is_followed_by_the_proof(monkeypatch):
     """Unit: with a first restricted MIP of only the seed partition's columns and the cheapest few, its design is
-    not the optimum; the second solve over every column within z - L of the bound finds it."""
+    not the optimum; the later solves over more columns find it."""
     monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
     monkeypatch.setattr(columns, "FIRST_MIN", 1)
     Y = _panel(12, 12, 15)
     idx = np.arange(12)
     _, d_ref = _reference(idx, Y, 2)
     _, d = columns.solve_exact(idx, Y, 2)
-    assert d["mip_solves"] == 2
+    assert d["mip_solves"] >= 2
     assert d["objective_value"] == pytest.approx(d_ref["objective_value"], rel=1e-9)
+
+
+def test_a_poor_first_design_does_not_open_every_group(monkeypatch):
+    """Unit: a first design far above the optimum makes z - L large; the next MIP takes at most GROWTH times as many
+    groups, so the last MIP holds at most GROWTH times the groups within z* - L of the bound (and the seed design's),
+    not every group within the first design's margin. Measured: 24 geos at Q = 3 handed 189,950 of 190,026 groups to
+    the second MIP, which took 795 s, when the first design came from little more than the seed design."""
+    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
+    monkeypatch.setattr(columns, "FIRST_MIN", 1)
+    Y = _panel(3, 12, 15)
+    idx = np.arange(12)
+    calls = []
+
+    def spy(cands, ix, **kw):
+        out = mip.solve_partition(cands, ix, **kw)
+        calls.append(out[1]["objective_value"])
+        return out
+
+    _, d = columns.solve_exact(idx, Y, 2, solve=spy)
+    pool = columns.score_columns(idx, Y, 2)
+    root = columns.root_lp(pool, columns.min_groups(12, 2, 1))
+    tol = 1e-9 * max(1.0, float(pool.cost.max()))
+    need = int((root.reduced_costs <= d["objective_value"] - root.bound + tol).sum())
+    first_margin = int((root.reduced_costs <= calls[0] - root.bound + tol).sum())
+    cap = columns.GROWTH * need + len(columns.seed_partition(12))
+    assert first_margin > cap                     # the first design's margin would break the cap
+    assert d["columns_solved"] <= cap
 
 
 def test_the_cardinality_cut_reaches_the_mip():
@@ -476,28 +503,30 @@ def test_on_ties_the_split_attains_the_minimum():
 
 
 def test_a_costlier_later_design_does_not_replace_the_best(monkeypatch):
-    """Unit: a later MIP that returns a dearer design (a gap lets it) leaves the cheaper design in place, and the
-    later MIP's dual bound, which holds every design cheaper than it, is the one reported."""
+    """Unit: a MIP that returns a dearer design than the best so far (a gap lets it) leaves the cheaper design in
+    place, and the last MIP's dual bound, which holds every design cheaper than the best, is the one reported. The
+    stub returns the seed design whenever the MIP does not improve on the best design so far."""
     monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
     monkeypatch.setattr(columns, "FIRST_MIN", 1)
     Y = _panel(3, 12, 15)
     idx = np.arange(12)
-    calls = []
-    seed_cost = []
+    real, returned = [], []
 
     def stub(cands, ix, **kw):
         chosen, d = mip.solve_partition(cands, ix, **kw)
-        calls.append(d["objective_value"])
-        if len(calls) == 2:
+        better = not real or d["objective_value"] < min(real) - 1e-9
+        real.append(d["objective_value"])
+        if not better:
             seed = [c for c in cands if tuple(int(u) for u in c["members"]) in set(columns.seed_partition(12))]
-            seed_cost.append(float(sum(c["score"] for c in seed)))
-            d = dict(d, objective_value=seed_cost[0], dual_bound=1e-6)
-            return seed, d
+            chosen = seed
+            d = dict(d, objective_value=float(sum(c["score"] for c in seed)), dual_bound=1e-6)
+        returned.append(d)
         return chosen, d
 
+    _, d_ref = _reference(idx, Y, 2)
     chosen, d = columns.solve_exact(idx, Y, 2, solve=stub)
-    assert calls[0] < seed_cost[0]          # the later design is dearer, so keeping it would show
-    assert len(calls) == 2 and d["mip_solves"] == 2
-    assert d["objective_value"] == pytest.approx(calls[0])
+    assert returned[-1]["objective_value"] > min(real)   # the last MIP returned the dearer design
+    assert d["objective_value"] == pytest.approx(d_ref["objective_value"], rel=1e-9)
     assert d["objective_value"] == pytest.approx(sum(c["score"] for c in chosen))
     assert d["dual_bound"] == 1e-6
+    assert d["mip_solves"] == len(returned)
