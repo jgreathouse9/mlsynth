@@ -266,13 +266,18 @@ def test_weighted_needs_valid_weights(weights):
 
 def test_reduced_costs_are_bounded_below_on_a_near_parallel_panel():
     """Unit: with small duals on a near-parallel panel, every group's reduced-cost bound is at most its exact reduced
-    cost. Reduced costs formed from the computed costs, which can lie above the exact ones by more than the rounding
-    of the subtraction, would leave a group of a cheaper design out of the MIP."""
-    n, T = 8, 16
-    Y = _clustered(2, n, T, LEV=1e10)
+    cost. Reduced costs formed from the computed costs, which here lie up to 4.5e-4 above the exact ones (a common
+    factor of 1e7 against noise of 1e-6, the problem's own conditioning), would leave a group of a cheaper design out of
+    the MIP."""
+    n, T = 8, 24
+    Y = _clustered(1, n, T, F=1e7, LEV=0.0, EPS=1e-6)
     pool = columns.score_columns(np.arange(n), Y, 2)
     pi = np.full(n, 1e-9)
     _, rc = columns.lagrangian_bound(pool, pi, 0.0, 2)
     P = Fr(1e-9)
-    for r, lo in zip(_rows(pool), rc):
-        assert Fr(float(lo)) <= _exact_group(Y, r, 2, "ss_res") - len(r) * P
+    above = 0
+    for r, c, lo in zip(_rows(pool), pool.cost, rc):
+        ex = _exact_group(Y, r, 2, "ss_res")
+        above += Fr(float(c)) > ex * (1 + Fr(1e-6))
+        assert Fr(float(lo)) <= ex - len(r) * P
+    assert above > 0                       # computed costs above the exact ones, so the test has power
