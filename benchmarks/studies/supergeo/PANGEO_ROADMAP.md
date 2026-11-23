@@ -239,6 +239,16 @@ not slow:
    section 2.5) gives the conditions under which the set partitioning LP is
    integral (balanced and perfect matrices); the pairs master meets none of
    them, which is why its root bound is 0.32 of the optimum without odd-set cuts.
+
+   Measured (study README, "Odd-set cuts"), and not built. Pairs: four cuts in
+   one round lift the 174 geos' bound from 0.32 of the optimum to the optimum.
+   Groups of 2 to 4: every odd-set cut closes the whole gap on 11 and 12 markets
+   and at least 0.71 of it on 13, so the family is strong; at 30 markets exact
+   separation by integer program closed 0.13 of the gap in 15 rounds and 253 s,
+   gaining about 0.4% a round by the end, on one instance. The cost is the
+   separation (a parity problem over groups of 3 and 4) and a pricing kernel for
+   cuts on sets of any size. The open question is answered for these sizes: the
+   cuts do not pay for groups of 2 to 4, and pairs need no bound.
 3. Profile what remains: the root LP's warm start and the initial pool. The
    bound at every column generation iteration, z_RM + (N / lo) c* (Uchoa, Pessoa
    and Moreno, Theorem 2.8, pp. 29-30; it is the bound `_exact_bound` already

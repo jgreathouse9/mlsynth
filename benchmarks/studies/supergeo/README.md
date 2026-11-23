@@ -1018,6 +1018,50 @@ in its spend over that larger change (Assumptions 1 and 4). The roadmap's phase
 `python -m benchmarks.studies.supergeo.exclusion_tm <example_data_for_design.csv>`
 prints both tables.
 
+## Odd-set cuts
+
+Phase 0c's second step (roadmap): the rank-1 cut with multiplier 1/2 on an odd
+set S of markets, sum over groups g of floor(|g ∩ S| / 2) x_g <= (|S| - 1) / 2. For
+pairs it is Edmonds' blossom inequality, and the blossom inequalities make the
+pairs LP exact. By the partition rows (sum_g |g ∩ S| x_g = |S|), the cut on an
+odd S is equivalent to
+
+    sum over groups g meeting S in an odd number of markets of x_g >= 1,
+
+so separating it is finding the odd S of least such weight: a minimum odd cut
+for pairs (polynomial, Padberg and Rao), a parity problem over hyperedges of 3
+and 4 markets otherwise.
+
+Measured with every group enumerated (no pricing), so the LP value is the bound:
+
+| instance | cuts | share of the root gap closed |
+| --- | --- | --- |
+| pairs, google/trimmed_match's 174 geos | 4, one round | all of it: 0.3175 of the optimum to the optimum |
+| groups of 2 to 4, 11 markets, every odd set (1,013) | all | 1.000 on each of 9 instances with a gap |
+| groups of 2 to 4, 12 markets, every odd set (2,036) | all | 1.000 on each of 12 |
+| groups of 2 to 4, 13 markets, every odd set (4,083) | all | median 1.000, least 0.714, over 11 |
+| groups of 2 to 4, 30 lognormal markets, components and odd cycles of the fractional support | 8, one round | 0.015, then none found |
+| the same, exact separation by integer program | 45 in 15 rounds, 253 s | 0.129 (0.208 to 0.310 of the optimum) |
+
+The small instances are the study's four generators (`test_bcp.gen`, seeds 0 to
+3); the 30-market instance is `lognormal(0, 1.3) * 100`, seed 1, optimum
+0.238836 proved by `certify_staged`. Two other 30-market instances gave no
+reading: uniform totals in [100, 110] (31 markets, seed 2), whose optimum
+`certify_staged` did not prove in 15 minutes, and integer totals in [1, 30]
+(seed 3), whose optimum is 0. The exact separation is the {0,1/2}-cut
+separation by integer program of Koster, Zymolka and Kutschka ("Algorithms to
+separate {0,1/2}-Chvatal-Gomory cuts", Algorithmica 55 (2009) 375-391), over the
+markets the fractional groups cover, three sets a round, 10 s per solve.
+
+The family is strong and its separation is the cost. On small instances the
+whole family closes the gap; at 30 markets the exact separation found violated
+cuts every round but each lifted the bound by about 0.4% of the gap by round 15,
+and the solves reached their time limit. Carrying the cuts into the certificate
+also needs a pricing kernel that subtracts the duals of cuts on sets of any size
+(the rank-1 kernel stores at most five markets a cut). On this evidence the cuts
+are not built for groups of 2 to 4. For pairs they close the gap at once, but
+PANGEO solves pairs by sorting or by the blossom matcher, which needs no bound.
+
 ## Tests
 
 `python -m pytest benchmarks/studies/supergeo -q`. Brute force over every
