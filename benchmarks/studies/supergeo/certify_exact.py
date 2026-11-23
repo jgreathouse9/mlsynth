@@ -51,7 +51,11 @@ def safe_window(z, pi, lo, hi, theta, cap=None):
     """Every group that can have rc <= theta: mitm_exact's widened window, de-duplicated. The rows are counted
     first, and a window of more than `cap` rows (WINDOW_CAP when None) raises WindowTooLarge before any is
     allocated."""
-    cap = WINDOW_CAP if cap is None else cap
+    return _build_window(z, pi, lo, hi, theta, WINDOW_CAP if cap is None else cap)
+
+
+def _build_window(z, pi, lo, hi, theta, cap):
+    """:func:`safe_window` with its cap given, for windows other than the stages' (the root's seed)."""
     args = _window_args(z, pi, lo, hi, theta)
     cnt = mx._window_counts(*args)
     total = int(cnt.sum())
@@ -76,9 +80,13 @@ def exact_rc_tau(z, pi, tau, g):
 
 
 #: The root prices by the safe window once its rows number at most the groups over WINDOW_RATIO. Measured on the
-#: simulated 235-market panel (study README): the window cost more than the scan at 28 groups per window row (2.46 s
-#: against 2.10 s) and less at 47 (1.24 s against 1.50 s); at 165 and above it took 0.07 to 0.48 s against 1.3 to 2.1.
-WINDOW_RATIO = 50
+#: simulated 235-market panel (study README), pricing alone: the window cost more than the scan at 28 groups per
+#: window row (2.46 s against 2.10 s) and less at 47 (1.24 s against 1.50 s); at 165 and above it took 0.07 to 0.48 s
+#: against 1.3 to 2.1. Counting a window near the limit costs as much again (2.9 s for 2.1 million rows), and from
+#: the seeded pool the first pricing's window lands there: the root took 6.85 s at a ratio of 50, 2.65 s at 200,
+#: 2.50 to 2.58 s at 400 and 1,000, 5.46 s with the scan alone; at 80, 121 and 180 markets 200 was within 0.05 s of
+#: the best.
+WINDOW_RATIO = 200
 
 
 def _price_scan(z, pi, tau, lo, hi, thresh, odd):
@@ -217,12 +225,79 @@ class _Master:
 ROOT_CAP = 1e10
 
 
+#: The root's first pool holds at least SEED_MULT * N of the cheapest groups (:func:`_seed_pool`). Measured on the
+#: simulated 235-market panel: 5 groups a market gave a 4.0 s root, 10 gave 7.7 s and 40 gave 8.5 s, against 26.1 s
+#: unseeded; at 51, 80, 121 and 180 markets 5 and 10 were within 0.3 s of each other.
+SEED_MULT = 5
+
+
+def _spacing2(z):
+    """The squared median spacing of the sorted totals, the scale of a near-balanced group's cost. When half or more
+    of the spacings are 0, the mean squared spacing; when every total is equal, 1."""
+    d = np.diff(np.sort(np.asarray(z, float)))
+    if len(d):
+        for g in (float(np.median(d)) ** 2, float(np.mean(d * d))):
+            if g > 0:
+                return g
+    return 1.0
+
+
+def _cheap_groups(z, lo, hi, K):
+    """The cheapest groups of lo..hi markets: every group of cost at most theta, for the least theta = g 10^e,
+    e = -12, -11, ..., g = :func:`_spacing2`, at which at least K groups qualify (every group when fewer than K
+    exist). The candidates at each theta are the window at zero duals, which holds every group of cost at most
+    theta (and, among large totals, a group within its rounding slack above); each is costed by the scan's
+    arithmetic. When the next theta's window would pass WINDOW_CAP rows, the groups at the last theta that fit,
+    fewer than K (theta -inf and no groups when the first is past it): the seed only starts column generation.
+    Returns (rows, sorted markets padded with -1; theta)."""
+    if K < 0:
+        raise ValueError(f"the number of groups must be at least 0, not {K}")
+    z = np.asarray(z, float); n = len(z)
+    if K == 0:
+        return np.zeros((0, 4), np.int32), 0.0
+    want = min(K, sum(math.comb(n, k) for k in range(lo, hi + 1)))
+    g = _spacing2(z); zero = np.zeros(n); e = -12
+    last = (np.zeros((0, 4), np.int32), -np.inf)
+    while True:
+        theta = g * 10.0 ** e
+        try:
+            W = _build_window(z, zero, lo, hi, theta, WINDOW_CAP)
+        except WindowTooLarge:
+            return last
+        keep = sg.scores(z, W) <= theta
+        if int(keep.sum()) >= want:
+            return W[keep], theta
+        last = (W[keep], theta)
+        e += 1
+
+
+def _seed_pool(z, lo, hi, mult=None):
+    """The root's first pool: the sorted neighbours' blocks (sg.initial_pool, which always holds a cover), the
+    starting design's groups (:func:`_start`) and the cheapest groups, at least mult * N of them
+    (:func:`_cheap_groups`; mult is SEED_MULT when None). Starting column generation from columns of a good primal
+    solution and from cheap columns is the standard initialization (Lubbecke and Desrosiers, "Selected Topics in
+    Column Generation", Operations Research 53(6), 2005, pp. 1007-1023). Here it puts the first LP near the optimum,
+    whose market duals are near 0 (every market sits in a group of four that balances almost exactly) and whose
+    parity dual, for an odd count, is the cheapest triple's cost: on the simulated 235-market panel the root took 5
+    pricings and 4.0 s against 17 and 26.1 s. Column generation still runs to convergence, so the bound is the same.
+    Returns the columns sorted, without repeats."""
+    mult = SEED_MULT if mult is None else mult
+    if mult < 0:
+        raise ValueError(f"mult must be at least 0, not {mult}")
+    z = np.asarray(z, float)
+    cols = set(sg.initial_pool(z, lo, hi))
+    cols |= {tuple(sorted(int(v) for v in g)) for g in _start(z, lo, hi)}
+    rows, _ = _cheap_groups(z, lo, hi, mult * len(z))
+    cols |= {tuple(int(v) for v in r if v >= 0) for r in rows}
+    return sorted(cols)
+
+
 def _root(z0, lo, hi):
-    """Column generation to convergence (floating point; its duals only need to be doubles).
-    Returns (z rescaled by a power of 4, the scale, pi, tau)."""
+    """Column generation to convergence (floating point; its duals only need to be doubles), from the seeded pool
+    (:func:`_seed_pool`). Returns (z rescaled by a power of 4, the scale, pi, tau)."""
     n = len(z0); odd = n % 2 == 1
     z = np.asarray(z0, float).copy(); scale = 1.0
-    cols = sg.initial_pool(z, lo, hi); score = {c: dive._sc(z, c) for c in cols}
+    cols = _seed_pool(z, lo, hi); score = {c: dive._sc(z, c) for c in cols}
     master = _Master(n, odd)
     while True:
         lp, pi, tau, x = master.solve(cols, np.array([score[c] for c in cols]))
