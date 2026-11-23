@@ -132,12 +132,14 @@ def _rows(pool):
 
 # --- the costs ------------------------------------------------------------------------------------------------------
 
+@pytest.mark.parametrize("LEV", [1e7, 1e10])
 @pytest.mark.parametrize("objective", ["ss_res", "r2", "weighted"])
-def test_near_parallel_costs_are_accurate(objective):
+def test_near_parallel_costs_are_accurate(objective, LEV):
     """Unit: on a near-parallel clustered panel every group's computed cost is within 1e-6 of its exact cost,
-    relative. The normal-equations form gave relative errors near 0.4 on the weighted objective here."""
+    relative. The normal-equations form gave relative errors near 0.4 on the weighted objective at levels 1e7; with
+    the levels left in the data (the one-pass form) levels of 1e10 cost about 1e-4."""
     n, T = 8, 16
-    Y = _clustered(0, n, T)
+    Y = _clustered(0, n, T, LEV=LEV)
     kw = _kw(objective, n, T, 0)
     pool = columns.score_columns(np.arange(n), Y, 2, objective=objective, **kw)
     for r, c in zip(_rows(pool), pool.cost):
@@ -242,11 +244,12 @@ def test_property_the_bound_and_the_reduced_costs_are_rigorous(seed, n, Q, k, sc
 
 
 def test_covariates_at_large_levels_are_accurate():
-    """Unit: covariates near 1e9 that differ by about 1 across units give the covariate term to 1e-6 relative; they
-    are centred over the arm first, which leaves every difference of means exact."""
+    """Unit: covariates near 1e13 that differ by about 1 across units give the cost to 1e-6 relative; they are
+    centred over the arm first, which leaves every difference of means exact. Uncentred, the differences of means
+    lose about 1e-3 to cancellation."""
     n, T = 6, 8
-    Y = np.random.default_rng(5).normal(size=(n, T)).cumsum(axis=1)
-    kw = dict(cov=1e9 + np.random.default_rng(6).normal(size=(n, 2)), cov_scales=np.array([1.0, 2.0]))
+    Y = 0.1 * np.random.default_rng(5).normal(size=(n, T)).cumsum(axis=1)
+    kw = dict(cov=1e13 + np.random.default_rng(6).normal(size=(n, 2)), cov_scales=np.array([1.0, 2.0]))
     pool = columns.score_columns(np.arange(n), Y, 2, **kw)
     for r, c in zip(_rows(pool), pool.cost):
         ex = _exact_group(Y, r, 2, "ss_res", **_oracle_kw(kw))
@@ -259,3 +262,17 @@ def test_weighted_needs_valid_weights(weights):
     with pytest.raises(ValueError, match="weights"):
         columns.score_columns(np.arange(4), np.random.default_rng(0).normal(size=(4, 8)), 2, objective="weighted",
                               weights=weights)
+
+
+def test_reduced_costs_are_bounded_below_on_a_near_parallel_panel():
+    """Unit: with small duals on a near-parallel panel, every group's reduced-cost bound is at most its exact reduced
+    cost. Reduced costs formed from the computed costs, which can lie above the exact ones by more than the rounding
+    of the subtraction, would leave a group of a cheaper design out of the MIP."""
+    n, T = 8, 16
+    Y = _clustered(2, n, T, LEV=1e10)
+    pool = columns.score_columns(np.arange(n), Y, 2)
+    pi = np.full(n, 1e-9)
+    _, rc = columns.lagrangian_bound(pool, pi, 0.0, 2)
+    P = Fr(1e-9)
+    for r, lo in zip(_rows(pool), rc):
+        assert Fr(float(lo)) <= _exact_group(Y, r, 2, "ss_res") - len(r) * P
