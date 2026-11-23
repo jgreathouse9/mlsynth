@@ -677,6 +677,73 @@ Root column generation is 71 to 73 s of each run, against 9.7 s at 180 markets
 (phase 0c's third step profiles it). The bound is the cheapest triple's cost and
 nothing more, so a gap below the heuristic's design needs a search.
 
+### The root's master LP, kept
+
+The root solved its master LP from scratch at every column generation iteration
+(scipy's `linprog`, a new HiGHS model each time): 13.5 s of a 42.7 s root at 235
+markets, 5.5 s of 13.2 s at 180. `_Master` keeps one HiGHS model for the root,
+appends each iteration's columns, replaces the costs when the root rescales, and
+re-solves from the last basis.
+
+The choice of simplex decides whether keeping the model pays. Appended columns
+leave the basis primal feasible but not dual feasible, and HiGHS's default is the
+dual simplex, which first repairs dual feasibility. One solve at 235 markets, after
+2,000 new columns at 22,699:
+
+| solve | time | simplex iterations |
+| --- | --- | --- |
+| from scratch (`linprog`) | 0.72 s | 2,003 |
+| kept model, dual simplex | 2.11 s | 5,659 |
+| kept model, primal simplex | 0.47 s | 1,751 |
+| kept model, primal, 6 new columns | 0.023 s | 69 |
+
+Presolve on or off changed the from-scratch solve by less than its run-to-run
+spread. With the primal simplex:
+
+| markets | master, from scratch | master, kept | root, from scratch | root, kept |
+| --- | --- | --- | --- | --- |
+| 180 | 5.5 s | 1.6 s | 13.2 s | 9.9 s |
+| 235 | 13.5 s | 3.2 s | 42.7 s | 33.9 s |
+
+The LP value and the bound in the original units are the same (1.78035386 at
+235); the duals can differ, since the master is degenerate, so the root's path and
+its rescale can differ (scale 64 against 256 at 235, the same bound).
+
+### Pricing from the window
+
+Each root iteration priced by scanning every group of 2 to 4 markets (89.4 million
+at 235) for a reduced cost below zero. The safe window lists the same groups
+without the scan: every group of a size whose reduced cost can be at or below a
+threshold, found by meet-in-the-middle over sorted half-sums. Its size depends on
+the duals. Early in column generation they are large and the window holds most of
+the groups; later it holds a few thousand. `_root_price` counts the window's rows
+first, without allocating them, and prices from the window when they number at
+most the groups over `WINDOW_RATIO` (50), from the scan otherwise. Both routes
+return the same arrays element for element (rows, scores, reduced costs, order),
+so the choice sets the time, never the columns or the bound.
+
+The ratio comes from timing both routes at each iteration of the 235-market root:
+at 28 groups per window row the window took 2.46 s against the scan's 2.10 s, at
+47 it took 1.24 s against 1.50 s, and from 165 up 0.07 to 0.48 s against 1.3 to
+2.1 s.
+
+The count stops once it passes the limit. It first counted the sizes smallest
+first and rebuilt the half-sums for each, 4.9 s over a root; groups of four
+dominate the window, so it now builds the half-sums once and counts from the
+largest size down, which usually passes the limit before a smaller size is
+counted (0.9 s).
+
+At 235 markets, steady state (numba compiled), one thread:
+
+| root | time | scan route | window route | count | master |
+| --- | --- | --- | --- | --- | --- |
+| scan only, master from scratch | 45.8 s | 30.1 s, 17 calls | | | 15.2 s |
+| window pricing, master from scratch | 32.0 s | 15.8 s, 8 calls | 1.0 s, 9 calls | 0.9 s | 13.7 s |
+| window pricing, master kept | 23.2 s | 15.2 s, 8 calls | 2.3 s, 9 calls | 1.2 s | 3.4 s |
+
+The bound is 1.78035386 on every row. The first eight iterations still scan, and
+the scan is now two thirds of the root.
+
 ### A reproducible design
 
 Three runs of the certificate on that panel gave three designs, all within the

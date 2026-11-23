@@ -11,6 +11,7 @@ import math, os, time
 from fractions import Fraction
 import numpy as np
 from numba import njit
+import highspy
 from . import sg, dive, lns, dsr, parity, mitm, mitm_exact as mx, exactnb as ex, verify_nb as vn
 
 
@@ -167,6 +168,51 @@ def _root_price(z, pi, tau, lo, hi, thresh, odd):
     return _price_scan(z, pi, tau, lo, hi, thresh, odd)
 
 
+class _Master:
+    """The root's master LP, kept across column generation: one HiGHS model with a row per market (= 1) and, for an
+    odd count, the parity row (the odd-sized columns sum to at least 1), columns appended as they are priced and
+    costs replaced when the root rescales. Each solve resumes the primal simplex from the last basis: appended
+    columns and rescaled costs leave the basis primal feasible, so the primal simplex continues where the dual
+    simplex, HiGHS's default, first repairs dual feasibility (on the simulated 235-market panel, 1,751 iterations
+    against 5,659 after 2,000 new columns, and 3.2 s for the root's 18 solves against 13.5 s for a fresh LP each
+    time). Returns what the cold masters did: (LP value, market duals, parity dual >= 0, primal solution)."""
+
+    def __init__(self, n, odd):
+        self.n, self.odd, self.k = n, odd, 0
+        self.costs = np.zeros(0)
+        h = highspy.Highs(); h.setOptionValue("output_flag", False); h.setOptionValue("threads", 1)
+        h.setOptionValue("simplex_strategy", 4)    # primal
+        nr = n + (1 if odd else 0)
+        lo = np.ones(nr); up = np.ones(nr)
+        if odd:
+            up[n] = np.inf
+        h.addRows(nr, lo, up, 0, np.zeros(0, np.int32), np.zeros(0, np.int32), np.zeros(0))
+        self.h = h
+
+    def solve(self, cols, costs):
+        """Solve with the columns `cols` (the earlier calls' columns first, in the same order) at `costs`."""
+        h, n, k = self.h, self.n, self.k
+        costs = np.asarray(costs, float)
+        if k and not np.array_equal(costs[:k], self.costs):
+            h.changeColsCost(k, np.arange(k, dtype=np.int32), costs[:k])
+        if len(cols) > k:
+            starts, idx = [], []
+            for c in cols[k:]:
+                starts.append(len(idx))
+                idx += list(c) + ([n] if self.odd and len(c) % 2 else [])
+            m = len(cols) - k
+            h.addCols(m, costs[k:], np.zeros(m), np.full(m, np.inf), len(idx), np.array(starts, np.int32),
+                      np.array(idx, np.int32), np.ones(len(idx)))
+        self.k, self.costs = len(cols), costs.copy()
+        st = sg.run_lp(h)
+        if st != "Optimal":
+            raise RuntimeError(f"the root's master LP was not solved: {st}")
+        sol = h.getSolution()
+        y = np.array(sol.row_dual)
+        tau = max(float(y[n]), 0.0) if self.odd else 0.0
+        return h.getInfo().objective_function_value, y[:n], tau, np.array(sol.col_value)
+
+
 #: The dearest column the root's rescale may produce (rank1._rescale_power's cap).
 ROOT_CAP = 1e10
 
@@ -177,9 +223,9 @@ def _root(z0, lo, hi):
     n = len(z0); odd = n % 2 == 1
     z = np.asarray(z0, float).copy(); scale = 1.0
     cols = sg.initial_pool(z, lo, hi); score = {c: dive._sc(z, c) for c in cols}
+    master = _Master(n, odd)
     while True:
-        if odd: lp, pi, tau, x = parity.master(cols, np.array([score[c] for c in cols]), n)
-        else: (lp, pi, x), tau = sg.master_lp(cols, np.array([score[c] for c in cols]), n), 0.0
+        lp, pi, tau, x = master.solve(cols, np.array([score[c] for c in cols]))
         if 0 < lp < 1e-2 * n:
             # a power of 4, so z * sqrt(f) = z * 2^k is exact: the certificate is for the original data. Capped so
             # the dearest column stays below ROOT_CAP (rank1._rescale_power's rule): an LP of 0 up to noise would

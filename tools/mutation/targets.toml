@@ -19974,3 +19974,45 @@ timeout = 600.0
   find = "        if limit >= 0 and total > limit:\n            return total"
   replace = "        if limit >= 0 and total >= limit:\n            return total"
   models = "a count that stops at the limit itself, below the true count of a window exactly at the limit"
+
+[[target]]
+name = "supergeo-warm-master"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_warm_master.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-rescale-not-applied"
+  find = "        if k and not np.array_equal(costs[:k], self.costs):"
+  replace = "        if False:"
+  models = "the kept model solving with the costs from before the root's rescale"
+
+  [[target.mutant]]
+  id = "odd-columns-off-the-parity-row"
+  find = "                idx += list(c) + ([n] if self.odd and len(c) % 2 else [])"
+  replace = "                idx += list(c)"
+  models = "appended odd-sized columns without their parity coefficient, so the parity row sees only none of them"
+
+  [[target.mutant]]
+  id = "the-parity-row-an-equality"
+  find = "        if odd:\n            up[n] = np.inf"
+  replace = "        if odd:\n            up[n] = 1.0"
+  models = "exactly one odd-sized column's worth of weight required, not at least one"
+
+  [[target.mutant]]
+  id = "the-parity-dual-negated"
+  find = "        tau = max(float(y[n]), 0.0) if self.odd else 0.0"
+  replace = "        tau = max(-float(y[n]), 0.0) if self.odd else 0.0"
+  models = "the parity row's dual read with the wrong sign"
+
+  [[target.mutant]]
+  id = "every-column-appended-again"
+  find = "        self.k, self.costs = len(cols), costs.copy()"
+  replace = "        self.k, self.costs = 0, costs[:0].copy()"
+  models = "the model forgetting which columns it holds, so each solve appends them all again"
+
+  [[target.mutant]]
+  id = "a-failed-solve-returned"
+  find = "        if st != \"Optimal\":\n            raise RuntimeError(f\"the root's master LP was not solved: {st}\")"
+  replace = "        if False:\n            raise RuntimeError(f\"the root's master LP was not solved: {st}\")"
+  models = "duals returned from a master that was not solved"
