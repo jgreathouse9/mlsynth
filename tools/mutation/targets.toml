@@ -19875,8 +19875,8 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "the-root-asks-for-the-minimum"
-  find = "5_000_000, with_min=False) if odd"
-  replace = "5_000_000, with_min=True) if odd"
+  find = "thresh, 5_000_000, with_min=False)[:3]"
+  replace = "thresh, 5_000_000, with_min=True)[:3]"
   models = "the odd root's scan computing the minimum reduced cost it discards, half the root's time at 235 markets"
 
 [[target]]
@@ -19896,6 +19896,84 @@ timeout = 300.0
   find = "    best = np.inf if with_min else None"
   replace = "    best = np.inf"
   models = "with_min=False returning inf as if it were the least reduced cost"
+
+[[target]]
+name = "supergeo-root-window-pricing"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_root_pricing.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-switch-reversed"
+  find = "    if _window_rows(z, pi, tau, lo, hi, thresh, odd, limit=limit) <= limit:"
+  replace = "    if _window_rows(z, pi, tau, lo, hi, thresh, odd, limit=limit) > limit:"
+  models = "the window taken when it is large and the scan when it is small"
+
+  [[target.mutant]]
+  id = "the-count-not-asked-to-stop"
+  find = "    if _window_rows(z, pi, tau, lo, hi, thresh, odd, limit=limit) <= limit:"
+  replace = "    if _window_rows(z, pi, tau, lo, hi, thresh, odd, limit=None) <= limit:"
+  models = "the window counted in full at every iteration, 3.6 s at the first on the 235-market panel"
+
+  [[target.mutant]]
+  id = "the-window-without-the-parity-credit"
+  find = "        off = tau if (odd and k % 2) else 0.0\n        W = safe_window(z, pi, k, k, thresh + off)"
+  replace = "        off = 0.0\n        W = safe_window(z, pi, k, k, thresh + off)"
+  models = "odd-sized groups priced without the parity dual, so the window misses columns the scan returns"
+
+  [[target.mutant]]
+  id = "the-window-in-the-wrong-order"
+  find = "    if not odd:                                     # the scan interleaves sizes: (i, j) before (i, j, k)"
+  replace = "    if False:                                       # the scan interleaves sizes: (i, j) before (i, j, k)"
+  models = "an even count's rows left in blocks by size, not the scan's interleaved order, so argsort breaks ties differently"
+
+  [[target.mutant]]
+  id = "the-boundary-group-dropped"
+  find = "        sc[t] = s; rc[t] = r; keep[t] = r <= thresh"
+  replace = "        sc[t] = s; rc[t] = r; keep[t] = r < thresh"
+  models = "a group at the threshold kept by the scan and dropped by the window"
+
+  [[target.mutant]]
+  id = "the-fourth-dual-not-subtracted"
+  find = "        if k >= 4:\n            r = r - pi[idx[3]]"
+  replace = "        if k >= 5:\n            r = r - pi[idx[3]]"
+  models = "a group of four priced without its fourth market's dual"
+
+  [[target.mutant]]
+  id = "the-halves-rebuilt-per-size"
+  find = "        total += int(mx._window_counts_capped(*_window_args(z, pi, k, k, thresh + off, base), rest))"
+  replace = "        total += int(mx._window_counts_capped(*_window_args(z, pi, k, k, thresh + off), rest))"
+  models = "the signed halves built and sorted again for every size of a count"
+
+  [[target.mutant]]
+  id = "the-capped-count-undercounts"
+  find = "    for k in range(hi, lo - 1, -1):\n        off = tau if (odd and k % 2) else 0.0\n        rest = -1 if limit is None else limit - total"
+  replace = "    for k in range(hi, hi - 1, -1):\n        off = tau if (odd and k % 2) else 0.0\n        rest = -1 if limit is None else limit - total"
+  models = "the row count over the largest size only, so a large window of smaller groups can pass for a small one"
+
+  [[target.mutant]]
+  id = "the-count-from-the-smallest-size"
+  find = "    for k in range(hi, lo - 1, -1):\n        off = tau if (odd and k % 2) else 0.0\n        rest = -1 if limit is None else limit - total"
+  replace = "    for k in range(lo, hi + 1):\n        off = tau if (odd and k % 2) else 0.0\n        rest = -1 if limit is None else limit - total"
+  models = "sizes counted from the smallest up, so the triples' rows are counted before the fours pass the limit"
+
+[[target]]
+name = "supergeo-window-counts-capped"
+module-path = "benchmarks/studies/supergeo/mitm_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_root_pricing.py -q -p no:cacheprovider -x -k \"capped or same_by_either or keeps_counting or sums_every_size\""
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-count-stops-at-the-limit"
+  find = "        if limit >= 0 and total > limit:\n            return total"
+  replace = "        if limit >= 0 and total > limit:\n            return limit"
+  models = "a count past its limit returned as the limit, so the switch takes a window larger than it allows"
+
+  [[target.mutant]]
+  id = "the-count-stops-early"
+  find = "        if limit >= 0 and total > limit:\n            return total"
+  replace = "        if limit >= 0 and total >= limit:\n            return total"
+  models = "a count that stops at the limit itself, below the true count of a window exactly at the limit"
 
 [[target]]
 name = "supergeo-warm-master"

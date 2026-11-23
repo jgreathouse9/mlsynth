@@ -159,6 +159,26 @@ def _window_counts(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r
 
 
 @njit(parallel=True, cache=True)
+def _window_counts_capped(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v, limit):
+    """The total of _window_counts, counted over the left halves in blocks of 1,024 (each block in parallel) and
+    stopped once it exceeds `limit` (a negative limit counts everything). The total returned is exact when it is at
+    most the limit, and above the limit otherwise: never below the true count."""
+    sv = hv[order]; m = hv.shape[0]
+    dummy = np.empty((0, 4), np.int64)
+    total = 0
+    for b0 in range(0, m, 1024):
+        b1 = min(m, b0 + 1024)
+        cnt = np.zeros(b1 - b0, np.int64)
+        for t in prange(b1 - b0):
+            cnt[t] = _window_half(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v, sv,
+                                  b0 + t, dummy, 0, False)
+        total += cnt.sum()
+        if limit >= 0 and total > limit:
+            return total
+    return total
+
+
+@njit(parallel=True, cache=True)
 def _window_fill(cnt, hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v):
     """The rows _window_counts counted, filled in parallel at offsets from the prefix sums of `cnt`."""
     sv = hv[order]; m = hv.shape[0]

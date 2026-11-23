@@ -29,14 +29,22 @@ class WindowTooLarge(MemoryError):
                          f"({self.rows * 32 / 2 ** 30:.2f} GiB)" + (f"; {detail}" if detail else ""))
 
 
-def _window_args(z, pi, lo, hi, theta):
-    """The arguments of mitm_exact's window kernels for the window at theta."""
+def _window_base(z, pi):
+    """What the window kernels need that depends only on the totals and duals: the signed halves, their order, the
+    largest total and dual, and the bound on a right half's duals."""
     hv, ha, hb, hsa, hsb, hw = mitm._halves(z, pi)
     order = np.argsort(hv, kind="stable")
     M = float(np.max(np.abs(z))); P = float(np.max(np.abs(pi)))
     wmax = float(max(pi.max(), 0.0) + max(np.sort(pi)[-2:].sum(), pi.max(), 0.0))
+    return (hv, ha, hb, hsa, hsb, hw, order), M, P, wmax
+
+
+def _window_args(z, pi, lo, hi, theta, base=None):
+    """The arguments of mitm_exact's window kernels for the window at theta (from `base`, :func:`_window_base`'s
+    result, when given)."""
+    halves, M, P, wmax = _window_base(z, pi) if base is None else base
     slack_r2 = 8 * mx.U * (abs(theta) + 6 * P) + 2 * mx.U * abs(wmax); slack_v = 16 * mx.U * 4 * M
-    return hv, ha, hb, hsa, hsb, hw, order, lo, hi, float(theta), wmax, slack_r2, slack_v
+    return (*halves, lo, hi, float(theta), wmax, slack_r2, slack_v)
 
 
 def safe_window(z, pi, lo, hi, theta, cap=None):
@@ -65,6 +73,99 @@ def down(F):
 
 def exact_rc_tau(z, pi, tau, g):
     return mx.exact_rc(z, pi, g) - (Fraction(tau) if len(g) % 2 else 0)
+
+
+#: The root prices by the safe window once its rows number at most the groups over WINDOW_RATIO. Measured on the
+#: simulated 235-market panel (study README): the window cost more than the scan at 28 groups per window row (2.46 s
+#: against 2.10 s) and less at 47 (1.24 s against 1.50 s); at 165 and above it took 0.07 to 0.48 s against 1.3 to 2.1.
+WINDOW_RATIO = 50
+
+
+def _price_scan(z, pi, tau, lo, hi, thresh, odd):
+    """Every group of lo..hi markets with reduced cost <= thresh by the brute-force scan, as (rows, scores, reduced
+    costs): parity.scan with an odd count (odd sizes credited tau, one block per size; without the minimum reduced
+    cost, a second full pass the root does not read), sg._scan otherwise."""
+    if odd:
+        return parity.scan(z, pi, tau, lo, hi, thresh, 5_000_000, with_min=False)[:3]
+    return sg._scan(z, pi, lo, hi, thresh, 5_000_000)[:3]
+
+
+@njit(cache=True)
+def _score_rows(z, pi, rows, thresh):
+    """The scan's arithmetic on given rows (sorted markets padded with -1): the group's score, its reduced cost as
+    score - pi[i] - pi[j] - ... in index order, and whether that is at most thresh."""
+    m = rows.shape[0]
+    keep = np.zeros(m, np.bool_); sc = np.empty(m); rc = np.empty(m)
+    idx = np.zeros(4, np.int64)
+    for t in range(m):
+        k = 0
+        for q in range(4):
+            idx[q] = rows[t, q] if rows[t, q] >= 0 else 0
+            if rows[t, q] >= 0:
+                k += 1
+        s = sg._score(z, idx, k)
+        r = s - pi[idx[0]] - pi[idx[1]]
+        if k >= 3:
+            r = r - pi[idx[2]]
+        if k >= 4:
+            r = r - pi[idx[3]]
+        sc[t] = s; rc[t] = r; keep[t] = r <= thresh
+    return keep, sc, rc
+
+
+def _price_window(z, pi, tau, lo, hi, thresh, odd):
+    """The same groups as :func:`_price_scan`, from the safe window: every group of a size that can have reduced
+    cost at or below the size's threshold (thresh, plus tau for an odd size with an odd count) is in it, each is
+    scored by the scan's arithmetic, and the rows are kept in the scan's order (by size, then lexicographically, for
+    an odd count; lexicographically with a shorter group before its extensions otherwise). The arrays equal the
+    scan's element for element."""
+    z = np.asarray(z, float); pi = np.asarray(pi, float)
+    out_r, out_s, out_rc = [], [], []
+    for k in range(lo, hi + 1):
+        off = tau if (odd and k % 2) else 0.0
+        W = safe_window(z, pi, k, k, thresh + off)
+        if len(W) == 0:
+            continue
+        keep, sc, rc = _score_rows(z, pi, W.astype(np.int64), thresh + off)
+        if keep.any():
+            out_r.append(W[keep]); out_s.append(sc[keep]); out_rc.append(rc[keep] - off)
+    if not out_r:
+        return np.zeros((0, 4), np.int32), np.zeros(0), np.zeros(0)
+    rows, sc, rc = np.vstack(out_r).astype(np.int32), np.concatenate(out_s), np.concatenate(out_rc)
+    if not odd:                                     # the scan interleaves sizes: (i, j) before (i, j, k)
+        order = np.lexsort(tuple(rows[:, c] for c in range(3, -1, -1)))
+        rows, sc, rc = rows[order], sc[order], rc[order]
+    return rows, sc, rc
+
+
+def _window_rows(z, pi, tau, lo, hi, thresh, odd, limit=None):
+    """The safe window's row count over sizes lo..hi at the thresholds of :func:`_price_window`, counted without
+    allocating; with a limit the count stops once past it, so the result is exact at or below the limit and above
+    it otherwise. The halves are built once, and the sizes are counted from the largest down: groups of four
+    dominate the window, so the limit is usually passed before a smaller size is counted (at the first root
+    iteration on the simulated 235-market panel, counting triples first took 2.6 s for rows the limit did not
+    need)."""
+    z = np.asarray(z, float); pi = np.asarray(pi, float)
+    base = _window_base(z, pi)
+    total = 0
+    for k in range(hi, lo - 1, -1):
+        off = tau if (odd and k % 2) else 0.0
+        rest = -1 if limit is None else limit - total
+        total += int(mx._window_counts_capped(*_window_args(z, pi, k, k, thresh + off, base), rest))
+        if limit is not None and total > limit:
+            break
+    return total
+
+
+def _root_price(z, pi, tau, lo, hi, thresh, odd):
+    """The root's pricing: the safe window when its rows number at most the groups of lo..hi over WINDOW_RATIO,
+    the brute-force scan otherwise. Both return the same arrays (:func:`_price_window`), so the choice sets the time,
+    never the columns."""
+    n = len(z)
+    limit = sum(math.comb(n, k) for k in range(lo, hi + 1)) // WINDOW_RATIO
+    if _window_rows(z, pi, tau, lo, hi, thresh, odd, limit=limit) <= limit:
+        return _price_window(z, pi, tau, lo, hi, thresh, odd)
+    return _price_scan(z, pi, tau, lo, hi, thresh, odd)
 
 
 class _Master:
@@ -135,8 +236,7 @@ def _root(z0, lo, hi):
             if k > 0:
                 f = 4.0 ** k
                 z = z * 2.0 ** k; scale *= f; score = {c: dive._sc(z, c) for c in score}; continue
-        rows, s_, rc, _ = (parity.scan(z, pi, tau, lo, hi, -1e-9 * max(1.0, lp), 5_000_000, with_min=False) if odd
-                           else sg._scan(z, pi, lo, hi, -1e-9 * max(1.0, lp), 5_000_000)[:4])
+        rows, s_, rc = _root_price(z, pi, tau, lo, hi, -1e-9 * max(1.0, lp), odd)
         new = 0
         for t in np.argsort(rc)[:2000]:
             c = tuple(int(v) for v in rows[t] if v >= 0)
