@@ -301,3 +301,12 @@ def test_a_bad_gap_is_refused_by_the_config(panel, bad):
     cfg = dict(df=panel, outcome="sales", arm="arm", unitid="unit", time="time", display_graphs=False, **bad)
     with pytest.raises(MlsynthConfigError):
         PANGEO(cfg)
+
+
+def test_an_infeasible_cover_on_cvxpy_names_the_retry():
+    """Failure: on the cvxpy path an arm with no exact cover is solved twice (the second time with presolve off) and
+    then raises MlsynthEstimationError naming the retry and the obstruction."""
+    cands = [dict(members=[0, 1], score=1.0, side_a=[0], side_b=[1]),
+             dict(members=[1, 2], score=1.0, side_a=[1], side_b=[2])]
+    with pytest.raises(MlsynthEstimationError, match="after a retry with presolve off.*(uncoverable|no exact cover)"):
+        mip.solve_partition(cands, np.arange(3), backend="cvxpy")
