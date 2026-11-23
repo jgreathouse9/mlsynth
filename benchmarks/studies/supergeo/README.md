@@ -709,6 +709,41 @@ The LP value and the bound in the original units are the same (1.78035386 at
 235); the duals can differ, since the master is degenerate, so the root's path and
 its rescale can differ (scale 64 against 256 at 235, the same bound).
 
+### Pricing from the window
+
+Each root iteration priced by scanning every group of 2 to 4 markets (89.4 million
+at 235) for a reduced cost below zero. The safe window lists the same groups
+without the scan: every group of a size whose reduced cost can be at or below a
+threshold, found by meet-in-the-middle over sorted half-sums. Its size depends on
+the duals. Early in column generation they are large and the window holds most of
+the groups; later it holds a few thousand. `_root_price` counts the window's rows
+first, without allocating them, and prices from the window when they number at
+most the groups over `WINDOW_RATIO` (50), from the scan otherwise. Both routes
+return the same arrays element for element (rows, scores, reduced costs, order),
+so the choice sets the time, never the columns or the bound.
+
+The ratio comes from timing both routes at each iteration of the 235-market root:
+at 28 groups per window row the window took 2.46 s against the scan's 2.10 s, at
+47 it took 1.24 s against 1.50 s, and from 165 up 0.07 to 0.48 s against 1.3 to
+2.1 s.
+
+The count stops once it passes the limit. It first counted the sizes smallest
+first and rebuilt the half-sums for each, 4.9 s over a root; groups of four
+dominate the window, so it now builds the half-sums once and counts from the
+largest size down, which usually passes the limit before a smaller size is
+counted (0.9 s).
+
+At 235 markets, steady state (numba compiled), one thread:
+
+| root | time | scan route | window route | count | master |
+| --- | --- | --- | --- | --- | --- |
+| scan only, master from scratch | 45.8 s | 30.1 s, 17 calls | | | 15.2 s |
+| window pricing, master from scratch | 32.0 s | 15.8 s, 8 calls | 1.0 s, 9 calls | 0.9 s | 13.7 s |
+| window pricing, master kept | 23.2 s | 15.2 s, 8 calls | 2.3 s, 9 calls | 1.2 s | 3.4 s |
+
+The bound is 1.78035386 on every row. The first eight iterations still scan, and
+the scan is now two thirds of the root.
+
 ### A reproducible design
 
 Three runs of the certificate on that panel gave three designs, all within the
