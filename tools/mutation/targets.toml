@@ -19857,8 +19857,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-cap-frozen-at-import"
-  find = "    cap = WINDOW_CAP if cap is None else cap"
-  replace = "    cap = 50_000_000 if cap is None else cap"
+  find = "    return _build_window(z, pi, lo, hi, theta, WINDOW_CAP if cap is None else cap)"
+  replace = "    return _build_window(z, pi, lo, hi, theta, 50_000_000 if cap is None else cap)"
   models = "the module cap read at definition, so a changed WINDOW_CAP is ignored"
 
   [[target.mutant]]
