@@ -25,7 +25,7 @@ from .parallelism import (
 )
 from .power import compute_pangeo_power
 from .setup import PangeoInputs
-from .structures import (ArmDesign, PangeoExcludedUnitWarning, PangeoResults,
+from .structures import (ArmDesign, MipSolveReport, PangeoExcludedUnitWarning, PangeoResults,
                          SupergeoPair)
 
 # Upper bound on Q for automatic selection (bounds the candidate-pair
@@ -166,6 +166,8 @@ def run_pangeo(
     q_min_pairs: int = 1,
     compute_q_sweep: bool = False,
     mip_backend: str = "auto",
+    mip_rel_gap: float = 0.0,
+    mip_abs_gap: float = 0.0,
     assignment_seed: int = 0,
 ) -> PangeoResults:
     """Design parallel supergeo pairs within each arm.
@@ -191,6 +193,9 @@ def run_pangeo(
     mip_backend : {"auto", "highspy", "cvxpy"}
         Backend of the exact-cover MIP (see
         :func:`mlsynth.utils.pangeo_helpers.mip.solve_partition`).
+    mip_rel_gap, mip_abs_gap : float
+        Relative and absolute gaps the exact-cover MIP must close, 0 by
+        default; each arm's solve is reported in ``results.mip_reports``.
     assignment_seed : int
         Seed of the fair coin drawn in each pair, after the pairs are chosen,
         to decide which half is treated (:func:`_coin_flips`). The pairs do
@@ -236,7 +241,8 @@ def run_pangeo(
             power_alpha=power_alpha, power_post_periods=power_post_periods,
             att_augment=att_augment, att_trend=att_trend,
             q_selection=q_selection, q_min_pairs=q_min_pairs,
-            mip_backend=mip_backend, assignment_seed=assignment_seed,
+            mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,
+            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
         )
     if max_supergeo_size < 1:
         from ...exceptions import MlsynthConfigError
@@ -280,6 +286,7 @@ def run_pangeo(
     arm_designs = {}
     assignment = {}
     solver_diagnostics = {}
+    mip_reports = {}
     chosen_by_arm = {}
     for arm, idx in inputs.arm_units.items():
         if closed_form:
@@ -310,7 +317,10 @@ def run_pangeo(
             else:
                 chosen, solver_diagnostics[arm] = solve_partition(
                     candidates, idx, min_pairs=min_pairs,
-                    return_diagnostics=True, backend=mip_backend)
+                    return_diagnostics=True, backend=mip_backend,
+                    mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap)
+                mip_reports[arm] = MipSolveReport.from_diagnostics(
+                    solver_diagnostics[arm])
         # Pairs in a canonical order (by first unit) so the k-th coin goes to
         # the same pair whatever order the solver returned them in.
         chosen_by_arm[arm] = sorted(chosen, key=lambda c: int(np.min(c["members"])))
@@ -390,7 +400,8 @@ def run_pangeo(
             covariate_weights=covariate_weights, power_target=power_target,
             power_alpha=power_alpha, power_post_periods=power_post_periods,
             att_augment=att_augment, att_trend=att_trend,
-            mip_backend=mip_backend, assignment_seed=assignment_seed,
+            mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,
+            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
         )
         metadata["q_sweep"], _ = _sweep_designs(
             inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)
@@ -406,6 +417,7 @@ def run_pangeo(
         power=power,
         assignment_seed=assignment_seed,
         excluded_units=[u for d in arm_designs.values() for u in d.excluded_units],
+        mip_reports=mip_reports,
     )
 
 
@@ -538,6 +550,8 @@ def _auto_select_q(
     q_selection: str = "mde_min",
     q_min_pairs: int = 1,
     mip_backend: str = "auto",
+    mip_rel_gap: float = 0.0,
+    mip_abs_gap: float = 0.0,
     assignment_seed: int = 0,
 ) -> PangeoResults:
     """Choose Q automatically from a sweep over feasible sizes.
@@ -559,7 +573,8 @@ def _auto_select_q(
         covariate_weights=covariate_weights, power_target=power_target,
         power_alpha=power_alpha, power_post_periods=power_post_periods,
         att_augment=att_augment, att_trend=att_trend,
-        mip_backend=mip_backend, assignment_seed=assignment_seed,
+        mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,
+            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
     )
     sweep, results = _sweep_designs(
         inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)

@@ -119,7 +119,9 @@ def _fixture_master():
     fx = json.loads(FIXTURE.read_text())
     cols = [tuple(c) for c in fx["cols"]]; costs = [float.fromhex(c) for c in fx["costs"]]
     cuts = [tuple(c) for c in fx["cuts"]]; n = fx["n"]; big = float.fromhex(fx["big"])
-    h = highspy.Highs(); h.setOptionValue("output_flag", False); h.setOptionValue("threads", 1)
+    # No "threads" option: HiGHS's scheduler is global, and asking for a thread count other than the one it was
+    # started with makes run() fail with the status "Not Set" once another test has solved first.
+    h = highspy.Highs(); h.setOptionValue("output_flag", False)
     C = len(cols); m = C + n; nr = n + len(cuts)
     lp = highspy.HighsLp(); lp.num_col_, lp.num_row_ = m, nr
     lp.col_cost_ = np.concatenate([np.asarray(costs, float), np.full(n, big)])
@@ -261,7 +263,7 @@ def _fit(panel, **kw):
 def test_the_solve_is_reported_on_the_result(panel):
     """Smoke: a MIP-path fit carries one MipSolveReport per arm, optimal with the gaps asked for and the proven gap,
     and the metadata carries the same diagnostics."""
-    res = _fit(panel, max_supergeo_size=2)
+    res = _fit(panel, max_supergeo_size=2, fast=False)
     assert set(res.mip_reports) == {"A", "B"}
     for arm, r in res.mip_reports.items():
         assert isinstance(r, MipSolveReport)
@@ -273,19 +275,19 @@ def test_the_solve_is_reported_on_the_result(panel):
 
 
 def test_a_stated_gap_reaches_the_solver_from_the_config(panel):
-    res = _fit(panel, max_supergeo_size=2, mip_rel_gap=0.05, mip_abs_gap=0.5)
+    res = _fit(panel, max_supergeo_size=2, fast=False, mip_rel_gap=0.05, mip_abs_gap=0.5)
     for r in res.mip_reports.values():
         assert r.requested_rel_gap == 0.05 and r.requested_abs_gap == 0.5
 
 
 def test_paths_without_a_mip_report_nothing(panel):
-    """Edge: the fast path and the pairs path solve no MIP and report none."""
-    assert _fit(panel, max_supergeo_size=2, fast=True).mip_reports == {}
-    assert _fit(panel, max_supergeo_size=1).mip_reports == {}
+    """Edge: the fast path (the default) and the pairs path solve no MIP and report none."""
+    assert _fit(panel, max_supergeo_size=2).mip_reports == {}
+    assert _fit(panel, max_supergeo_size=1, fast=False).mip_reports == {}
 
 
 def test_the_automatic_q_keeps_its_design_s_reports(panel):
-    res = _fit(panel, max_supergeo_size=None)
+    res = _fit(panel, max_supergeo_size=None, fast=False)
     q = res.max_supergeo_size
     if q == 1:
         assert res.mip_reports == {}

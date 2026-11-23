@@ -109,6 +109,76 @@ class ArmDesign:
     excluded_units: List[Any] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class MipSolveReport:
+    """How one arm's exact-cover MIP was solved.
+
+    HiGHS stops a MIP at its tolerance and reports "optimal" there, so the
+    design alone does not say how close to the optimum it is. The report
+    carries what the solver proved: the gaps asked for, whether the solver
+    could be given them, the status, whether the solve was repeated with
+    presolve off, and the proven gap and dual bound.
+
+    Attributes
+    ----------
+    backend : str
+        ``"highspy"`` or ``"cvxpy"``.
+    solver_name : str or None
+        The MIP solver that ran (HiGHS, SCIP, ...).
+    status : str
+        The final status (``"optimal"`` or ``"optimal_inaccurate"``; other
+        statuses raise).
+    presolve_retry : bool
+        True when the first solve was not optimal and was repeated once with
+        presolve off.
+    requested_rel_gap, requested_abs_gap : float
+        The relative and absolute gaps the solver was asked to close.
+    gap_enforced : bool
+        False when the solver cannot be given the gaps through cvxpy
+        (GLPK_MI, CBC); the design is then optimal only to that solver's own
+        tolerance.
+    proven_gap : float or None
+        The relative gap between the design's cost and the solver's dual
+        bound at the end, when the solver reports it.
+    dual_bound : float or None
+        The solver's lower bound on the optimum, when reported.
+    objective_value : float
+        The design's total cost.
+    node_count : float or None
+        Branch-and-bound nodes, when reported.
+    solve_seconds : float
+        Wall time of the solve, the retry included.
+    """
+
+    backend: str
+    solver_name: Optional[str]
+    status: str
+    presolve_retry: bool
+    requested_rel_gap: float
+    requested_abs_gap: float
+    gap_enforced: bool
+    proven_gap: Optional[float]
+    dual_bound: Optional[float]
+    objective_value: float
+    node_count: Optional[float]
+    solve_seconds: float
+
+    @classmethod
+    def from_diagnostics(cls, d: Dict[str, Any]) -> "MipSolveReport":
+        """From :func:`.mip.solve_partition`'s diagnostics."""
+        return cls(
+            backend=d["backend"], solver_name=d.get("solver_name"),
+            status=d["status"], presolve_retry=bool(d["presolve_retry"]),
+            requested_rel_gap=float(d["mip_rel_gap_requested"]),
+            requested_abs_gap=float(d["mip_abs_gap_requested"]),
+            gap_enforced=bool(d["gap_enforced"]), proven_gap=d.get("mip_gap"),
+            dual_bound=d.get("dual_bound"),
+            objective_value=float(d["objective_value"]),
+            node_count=d.get("node_count"),
+            solve_seconds=float(d["solve_seconds"]),
+        )
+
+
 class PangeoResults(DesignResult):
     """Top-level container returned by :meth:`mlsynth.PANGEO.fit`.
 
@@ -150,6 +220,10 @@ class PangeoResults(DesignResult):
     excluded_units : list
         Every arm's ``ArmDesign.excluded_units``, in arm order: the markets in
         no pair, absent from ``assignment``.
+    mip_reports : dict
+        ``{arm_label: MipSolveReport}`` for every arm designed by the
+        exact-cover MIP; empty when no arm was (the fast path, the pairs
+        path).
     """
 
     arm_designs: Dict[Any, ArmDesign] = Field(default_factory=dict)
@@ -158,6 +232,7 @@ class PangeoResults(DesignResult):
     effects: Optional[Any] = None  # PangeoEffects when post-period data given
     assignment_seed: Optional[int] = None
     excluded_units: List[Any] = Field(default_factory=list)
+    mip_reports: Dict[Any, MipSolveReport] = Field(default_factory=dict)
 
     class Config:
         arbitrary_types_allowed = True

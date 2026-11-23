@@ -149,6 +149,19 @@ class PANGEOConfig(BaseModel):
                     "'highspy' requires it; 'cvxpy' solves through cvxpy with "
                     "its first installed MILP solver (HiGHS by preference). "
                     "Both state the same program.")
+    mip_rel_gap: float = Field(
+        default=0.0, ge=0.0, lt=1.0, allow_inf_nan=False,
+        description="Relative gap the exact-cover MIP must close (fast=False, "
+                    "groups larger than pairs). 0, the default, solves to the "
+                    "optimum; HiGHS's own default of 1e-4 returned a design "
+                    "0.002% dearer than the optimum on a 20-market panel with "
+                    "one outlying market and reported it optimal. The gap "
+                    "asked for and the gap proven are on the result "
+                    "(mip_reports).")
+    mip_abs_gap: float = Field(
+        default=0.0, ge=0.0, allow_inf_nan=False,
+        description="Absolute gap the exact-cover MIP must close, in the "
+                    "objective's units; 0 by default.")
     recency_decay: float = Field(
         default=0.97, gt=0.0, le=1.0,
         description="Geometric recency-weight decay for objective='weighted' "
