@@ -25,6 +25,22 @@ from ...exceptions import MlsynthEstimationError
 from ..groupfit import MIN_WINDOW, fit_two_group
 from .inference import adid_inference, did_inference, hac_lag
 
+try:  # numba is the optional ``fast`` extra; without it each step runs the same arithmetic in numpy
+    from numba import njit
+    _FUSED = True
+except ImportError:  # pragma: no cover - the suite runs with numba installed
+    _FUSED = False
+
+    def njit(*args, **kwargs):
+        if args and callable(args[0]):
+            return args[0]
+        return lambda f: f
+
+#: Compiled code is cached on disk only under this module name: a cache written under one import name fails to load
+#: under another (see tbr_helpers.design.exact.fastfloor).
+CANONICAL_NAME = "mlsynth.utils.fdid_helpers.estimation"
+_CACHE = __name__ == CANONICAL_NAME
+
 
 def did_from_mean(
     treated: np.ndarray,
@@ -155,6 +171,71 @@ def _mean_bound(R: np.ndarray) -> np.ndarray:
     gamma_{T-1} sum |r_t| (Rump 2010, Theorem 2.1), over T, inflated past the rounding of this bound itself."""
     T = R.shape[-1]
     return (np.abs(R.sum(axis=-1)) + _gamma(T + 1) * np.abs(R).sum(axis=-1)) / T * (1.0 + 8.0 * _U)
+
+
+@njit(cache=_CACHE)
+def _costs(xc, nx, mx, b, c, n, e0, e1, d0, d1, d2, g_s, ss, lo, up):  # pragma: no cover - compiled; checked via callers
+    """The fused path of :func:`_candidate_costs`, for the first ``n`` donor columns of ``xc``.
+
+    ``ss[j] = sum_t (b_t - c x_tj)^2`` is accumulated period by period with the candidates innermost, so each residual
+    is squared as it is read and never stored, and the loop runs across candidates in SIMD lanes while each
+    candidate's own sum keeps the recursive order. That is the numpy path's arithmetic, two roundings per element and
+    a sum, so the same bounds hold; they are formed here per candidate, as in :func:`_ss_bounds`."""
+    T = b.shape[0]
+    for j in range(n):
+        ss[j] = 0.0
+    for t in range(T):
+        bt = b[t]
+        for j in range(n):
+            e = bt - c * xc[t, j]
+            ss[j] += e * e
+    for j in range(n):
+        e_r = e0 + e1 * nx[j]
+        d = (d0 + d1 * mx[j] + d2 * nx[j]) * (1.0 + 8.0 * _U)
+        q_lo = np.sqrt(ss[j] / (1.0 + g_s)) - d - e_r
+        lo[j] = (q_lo if q_lo > 0.0 else 0.0) ** 2 * (1.0 - 8.0 * _U)
+        up[j] = (np.sqrt(ss[j] / (1.0 - g_s)) + e_r) ** 2 * (1.0 + 8.0 * _U)
+
+
+def _donor_columns(X_pre: np.ndarray, finite_donor: np.ndarray):
+    """The finite donors' pre-periods as centred columns, by the corrected two-pass algorithm (Chan, Golub and LeVeque
+    1983), with their labels and bounds on each column's 2-norm and on the magnitude of its exact mean."""
+    xc = np.ascontiguousarray((X_pre - X_pre.mean(axis=0))[:, finite_donor])
+    xc -= xc.mean(axis=0)
+    T0 = xc.shape[0]
+    nx = np.sqrt(np.einsum("tj,tj->j", xc, xc)) * (1.0 + _gamma(T0 + 3))
+    return xc, np.flatnonzero(finite_donor), nx, _mean_bound(xc.T)
+
+
+def _candidate_costs(y_c, S_c, xc, nx, mx, n, c, ny, s_norm, k, fused=None):
+    """One step's costs for the ``n`` remaining donors, columns ``0..n-1`` of ``xc``: the computed residual sum of
+    squares of each candidate's fit and rigorous bounds on its exact value.
+
+    b = y_c - c S_c is formed and re-centred once; each candidate's residual is b - c x_j. Both parts are centred,
+    so the residual's own mean is of the order of its rounding, and is bounded, not removed: sqrt(T0) |mean(E_j)|
+    is at most sqrt(T0) (|mean b| + c |mean x_j|) plus E's own rounding, gamma_2 (||b|| + c ||x_j||). With numba the
+    work is one fused pass (:func:`_costs`); without it, three numpy passes over the block (scale, add, sum of
+    squares) and the same bounds."""
+    if fused is None:
+        fused = _FUSED
+    T0 = y_c.size
+    b = y_c - c * S_c
+    b -= b.mean()
+    nb = float(np.sqrt(b @ b)) * (1.0 + _gamma(T0 + 3))
+    rt = np.sqrt(T0) * (1.0 + 4.0 * _U)
+    g_r, g_2 = _gamma(k + 10), _gamma(2)
+    e0, e1 = g_r * (ny + c * s_norm), g_r * c
+    d0, d1, d2 = rt * float(_mean_bound(b[None, :])[0]) + g_2 * nb, rt * c, g_2 * c
+    g_s = _gamma(T0 + 6)
+    ss, lo, up = np.empty(n), np.empty(n), np.empty(n)
+    if fused:
+        _costs(xc, nx, mx, b, c, n, e0, e1, d0, d1, d2, g_s, ss, lo, up)
+        return ss, lo, up
+    E = b[:, None] - c * xc[:, :n]
+    ss = np.einsum("tj,tj->j", E, E)
+    d = (d0 + d1 * mx[:n] + d2 * nx[:n]) * (1.0 + 8.0 * _U)
+    lo, up = _ss_bounds(ss, e0 + e1 * nx[:n], d, g_s)
+    return ss, lo, up
 
 
 class _ExactPool:
@@ -494,23 +575,17 @@ def forward_did_select(
     # cost is the residual sum of squares of the DID fit, ||P(y - (S + x_j) / (k + 1))||^2 with P the centring
     # projection. It is formed directly from the centred data, not expanded into ss_tot + ss_X - 2 cross (CLAUDE.md
     # invariant 9): b = y_c - S_c / (k + 1) once per step, then every remaining candidate's residual
-    # b - x_j / (k + 1) and its sum of squares. Donors are rows, the remaining ones kept in front, so a step reads
-    # (N - k) T0 doubles, the order of the one matrix-vector product the expanded form needed. The parts are centred
+    # b - x_j / (k + 1) and its sum of squares. Donors are columns, the remaining ones kept in front, so a step reads
+    # (N - k) T0 doubles, the work of the one matrix-vector product the expanded form needed. The parts are centred
     # by the corrected two-pass algorithm, so each residual's own mean is of the order of its rounding and is bounded
-    # (:func:`_ss_bounds`), not removed by another pass.
-    xr = np.ascontiguousarray((X_pre - X_pre.mean(axis=0)).T[finite_donor])   # (n, T0) centred donors, as rows
-    xr -= xr.mean(axis=1, keepdims=True)                                       # the corrected second pass
-    ids = np.flatnonzero(finite_donor)                                         # row -> donor index
-    nx = np.sqrt(np.einsum("jt,jt->j", xr, xr)) * (1.0 + _gamma(T0 + 3))      # bounds on ||x_j||
-    mx = _mean_bound(xr)                                                       # bounds on |mean(x_j)|
+    # (:func:`_candidate_costs`), not removed by another pass. With numba the residual is squared as it is read.
+    xc, ids, nx, mx = _donor_columns(X_pre, finite_donor)                      # (T0, n) centred donors
     ny = float(np.sqrt(y_c @ y_c)) * (1.0 + _gamma(T0 + 3))
-    g_s, rt = _gamma(T0 + 6), np.sqrt(T0) * (1.0 + 4.0 * _U)
     exact = _ExactPool(treated_pre, X_pre)
 
     S_c = np.zeros(T0, dtype=float)               # centred running sum of selected
     s_norm = 0.0                                  # sum of the selected donors' norm bounds
     run_sum_pre = np.zeros(T0, dtype=float)       # uncentred running sum (verbose)
-    E = np.empty_like(xr)
 
     selected: List[int] = []
     path_ss = np.empty(n_steps, dtype=float)
@@ -522,16 +597,7 @@ def forward_did_select(
         k = len(selected)
         n = n_steps - k                             # remaining candidates, rows 0..n-1
         c = 1.0 / (k + 1)
-        b = y_c - c * S_c
-        b -= b.mean()
-        Ev = E[:n]
-        np.multiply(xr[:n], -c, out=Ev)
-        Ev += b                                     # every remaining candidate's residual
-        ss = np.einsum("jt,jt->j", Ev, Ev)
-        nb = float(np.sqrt(b @ b)) * (1.0 + _gamma(T0 + 3))
-        # sqrt(T0) |mean(E_j)| <= sqrt(T0) (|mean b| + c |mean x_j|) + gamma_2 (||b|| + c ||x_j||): E's rounding
-        d = (rt * (_mean_bound(b[None, :])[0] + c * mx[:n]) + _gamma(2) * (nb + c * nx[:n])) * (1.0 + 8.0 * _U)
-        lo, up = _ss_bounds(ss, _gamma(k + 10) * (ny + c * (s_norm + nx[:n])), d, g_s)
+        ss, lo, up = _candidate_costs(y_c, S_c, xc, nx, mx, n, c, ny, s_norm, k)
         row = int(np.argmin(ss))
         tied = np.flatnonzero(lo <= up[row])
         if tied.size > 1:
@@ -557,11 +623,12 @@ def forward_did_select(
 
         selected.append(best_idx)
         path_ss[it], path_lo[it], path_up[it] = ss[row], lo[row], up[row]
-        S_c = S_c + xr[row]
+        S_c = S_c + xc[:, row]
         s_norm += float(nx[row])
         run_sum_pre = run_sum_pre + X_pre[:, best_idx]
-        last = n - 1                                # the chosen row leaves the front block
-        for a in (xr, nx, mx, ids):
+        last = n - 1                                # the chosen column leaves the front block
+        xc[:, [row, last]] = xc[:, [last, row]]
+        for a in (nx, mx, ids):
             a[[row, last]] = a[[last, row]]
 
     R2_path = 1.0 - path_ss / ss_tot

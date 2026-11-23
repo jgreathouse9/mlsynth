@@ -193,14 +193,14 @@ def _step(y, X, T0, sel, fused):
     """One search step from the k donors ``sel``: the remaining rows' (ids, ss, lo, up) and the exact costs."""
     yp, Xp = y[:T0], X[:T0]
     y_c = est._centred(yp)
-    xr, ids, nx, mx = est._donor_rows(Xp, np.ones(X.shape[1], dtype=bool))
-    order = [j for j in range(X.shape[1]) if j not in sel] + list(sel)   # the remaining rows in front
-    xr, ids, nx, mx = xr[order], ids[order], nx[order], mx[order]
+    xc, ids, nx, mx = est._donor_columns(Xp, np.ones(X.shape[1], dtype=bool))
+    order = [j for j in range(X.shape[1]) if j not in sel] + list(sel)   # the remaining columns in front
+    xc, ids, nx, mx = np.ascontiguousarray(xc[:, order]), ids[order], nx[order], mx[order]
     k = len(sel)
     n = X.shape[1] - k
-    S_c = xr[n:].sum(axis=0) if k else np.zeros(T0)
+    S_c = xc[:, n:].sum(axis=1) if k else np.zeros(T0)
     ny = float(np.sqrt(y_c @ y_c)) * (1.0 + est._gamma(T0 + 3))
-    ss, lo, up = est._candidate_costs(y_c, S_c, xr, nx, mx, n, 1.0 / (k + 1), ny, float(nx[n:].sum()), k,
+    ss, lo, up = est._candidate_costs(y_c, S_c, xc, nx, mx, n, 1.0 / (k + 1), ny, float(nx[n:].sum()), k,
                                       fused=fused)
     pool = est._ExactPool(yp, Xp)
     exact = [pool.ss(list(sel) + [int(j)]) for j in ids[:n]]
@@ -258,13 +258,28 @@ def test_both_paths_select_exactly(monkeypatch, fused):
 
 
 def test_the_kernel_is_the_sum_of_squared_residuals():
-    """Unit: on integers, where every operation is exact, the fused kernel returns sum_t (b_t - c x_jt)^2 for the
-    first n rows and leaves the rest alone."""
-    xr = np.array([[1.0, 2.0, 3.0], [4.0, -2.0, 0.0], [7.0, 7.0, 7.0]])
+    """Unit: on integers, where every operation is exact, the fused kernel returns sum_t (b_t - c x_tj)^2 for the
+    first n donor columns, and with no error terms its bounds enclose that sum within a few roundings."""
+    xc = np.array([[1.0, 4.0, 7.0], [2.0, -2.0, 7.0], [3.0, 0.0, 7.0]])
     b = np.array([1.0, 0.0, -1.0])
-    out = np.full(3, -1.0)
-    est._ss_rows(xr, b, 0.5, 2, out)
-    assert out.tolist() == [(1 - .5) ** 2 + 1 + (-1 - 1.5) ** 2, (1 - 2) ** 2 + 1 + 1, -1.0]
+    ss, lo, up = np.full(3, -1.0), np.full(3, -1.0), np.full(3, -1.0)
+    z = np.zeros(3)
+    est._costs(xc, z, z, b, 0.5, 2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, ss, lo, up)
+    assert ss.tolist() == [(1 - .5) ** 2 + 1 + (-1 - 1.5) ** 2, (1 - 2) ** 2 + 1 + 1, -1.0]
+    assert np.all(lo[:2] <= ss[:2]) and np.all(ss[:2] <= up[:2])
+    assert np.all(up[:2] - lo[:2] <= 1e-14 * ss[:2])
+    assert lo[2] == up[2] == -1.0
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_the_fused_and_numpy_paths_agree(seed):
+    """Unit: the two paths do the same arithmetic, so their costs and bounds agree to a few roundings."""
+    y, X = _pool(seed, 9, 24, 1e6, 1e8, 1e-3)
+    for sel in ([], [0, 3]):
+        _, s1, l1, u1, _ = _step(y, X, 20, sel, True)
+        _, s0, l0, u0, _ = _step(y, X, 20, sel, False)
+        for got, want in ((s1, s0), (l1, l0), (u1, u0)):
+            assert np.allclose(got, want, rtol=1e-12, atol=0.0)
 
 
 @pytest.mark.parametrize("LEV", [1e10, 1e11])
