@@ -20100,3 +20100,9 @@ timeout = 300.0
   find = "            W = _build_window(z, zero, lo, hi, theta, WINDOW_CAP)"
   replace = "            W = safe_window(z, zero, lo, hi, theta)"
   models = "the seed building its windows through safe_window, counted as the stages' window"
+
+  [[target.mutant]]
+  id = "the-window-ratio-back-at-fifty"
+  find = "WINDOW_RATIO = 200"
+  replace = "WINDOW_RATIO = 50"
+  models = "the root taking a window of up to groups / 50 rows, which from the seeded pool cost 8.5 s where the scan took 1.7 s"

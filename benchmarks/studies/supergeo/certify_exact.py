@@ -80,9 +80,13 @@ def exact_rc_tau(z, pi, tau, g):
 
 
 #: The root prices by the safe window once its rows number at most the groups over WINDOW_RATIO. Measured on the
-#: simulated 235-market panel (study README): the window cost more than the scan at 28 groups per window row (2.46 s
-#: against 2.10 s) and less at 47 (1.24 s against 1.50 s); at 165 and above it took 0.07 to 0.48 s against 1.3 to 2.1.
-WINDOW_RATIO = 50
+#: simulated 235-market panel (study README), pricing alone: the window cost more than the scan at 28 groups per
+#: window row (2.46 s against 2.10 s) and less at 47 (1.24 s against 1.50 s); at 165 and above it took 0.07 to 0.48 s
+#: against 1.3 to 2.1. Counting a window near the limit costs as much again (2.9 s for 2.1 million rows), and from
+#: the seeded pool the first pricing's window lands there: the root took 6.85 s at a ratio of 50, 2.65 s at 200,
+#: 2.50 to 2.58 s at 400 and 1,000, 5.46 s with the scan alone; at 80, 121 and 180 markets 200 was within 0.05 s of
+#: the best.
+WINDOW_RATIO = 200
 
 
 def _price_scan(z, pi, tau, lo, hi, thresh, odd):
