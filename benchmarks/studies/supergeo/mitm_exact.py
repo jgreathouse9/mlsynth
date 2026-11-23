@@ -147,17 +147,21 @@ def _window_half(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2,
 
 
 @njit(parallel=True, cache=True)
-def _window_safe_par(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v):
-    """_window_safe on threads: each left half's rows counted in parallel, offsets from their prefix sums, and the
-    rows filled in parallel at those offsets. Every row of _window_safe, the same number (with repeats: a group is
-    emitted once per split that passes). At 120 markets (24,088,508 rows) 3.8 s against 14.5 s for the serial
-    count and fill."""
+def _window_counts(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v):
+    """The number of rows _window_safe emits for each left half, counted in parallel without allocating them."""
     sv = hv[order]; m = hv.shape[0]
     cnt = np.zeros(m, np.int64)
     dummy = np.empty((0, 4), np.int64)
     for L in prange(m):
         cnt[L] = _window_half(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v, sv, L,
                               dummy, 0, False)
+    return cnt
+
+
+@njit(parallel=True, cache=True)
+def _window_fill(cnt, hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v):
+    """The rows _window_counts counted, filled in parallel at offsets from the prefix sums of `cnt`."""
+    sv = hv[order]; m = hv.shape[0]
     off = np.zeros(m + 1, np.int64)
     for L in range(m):
         off[L + 1] = off[L] + cnt[L]
@@ -167,6 +171,16 @@ def _window_safe_par(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack
             _window_half(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v, sv, L, out,
                          off[L], True)
     return out
+
+
+@njit(parallel=True, cache=True)
+def _window_safe_par(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v):
+    """_window_safe on threads: each left half's rows counted in parallel (_window_counts), offsets from their prefix
+    sums, and the rows filled in parallel at those offsets (_window_fill). Every row of _window_safe, the same number
+    (with repeats: a group is emitted once per split that passes). At 120 markets (24,088,508 rows) 3.8 s against
+    14.5 s for the serial count and fill."""
+    cnt = _window_counts(hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v)
+    return _window_fill(cnt, hv, ha, hb, hsa, hsb, hw, order, lo, hi, theta, wmax, slack_r2, slack_v)
 
 
 def price_exact(z, pi, lo, hi, theta, cap=50_000_000, slack=True):

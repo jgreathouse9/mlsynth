@@ -10,18 +10,45 @@ columns, and it is not needed when the MIP's exact value equals the exact bound.
 import math, os, time
 from fractions import Fraction
 import numpy as np
+from numba import njit
 from . import sg, dive, lns, dsr, parity, mitm, mitm_exact as mx, exactnb as ex, verify_nb as vn
 
 
-def safe_window(z, pi, lo, hi, theta, cap=50_000_000):
-    """Every group that can have rc <= theta: mitm_exact's widened window, de-duplicated."""
+#: The most rows (before de-duplication) a safe window may hold: 50,000,000 rows of four int64 markets are 1.5 GiB.
+WINDOW_CAP = 50_000_000
+
+
+class WindowTooLarge(MemoryError):
+    """A safe window whose rows exceed the cap, refused before any row is allocated. `rows` is the number it needs
+    and `cap` the cap."""
+
+    def __init__(self, rows, cap, detail=""):
+        self.rows, self.cap = int(rows), int(cap)
+        super().__init__(f"the safe window needs {self.rows:,} rows, over the cap {self.cap:,} "
+                         f"({self.rows * 32 / 2 ** 30:.2f} GiB)" + (f"; {detail}" if detail else ""))
+
+
+def _window_args(z, pi, lo, hi, theta):
+    """The arguments of mitm_exact's window kernels for the window at theta."""
     hv, ha, hb, hsa, hsb, hw = mitm._halves(z, pi)
     order = np.argsort(hv, kind="stable")
     M = float(np.max(np.abs(z))); P = float(np.max(np.abs(pi)))
     wmax = float(max(pi.max(), 0.0) + max(np.sort(pi)[-2:].sum(), pi.max(), 0.0))
     slack_r2 = 8 * mx.U * (abs(theta) + 6 * P) + 2 * mx.U * abs(wmax); slack_v = 16 * mx.U * 4 * M
-    rows = mx._window_safe_par(hv, ha, hb, hsa, hsb, hw, order, lo, hi, float(theta), wmax, slack_r2, slack_v)
-    if len(rows) > cap: raise MemoryError(f"{len(rows)} > cap")
+    return hv, ha, hb, hsa, hsb, hw, order, lo, hi, float(theta), wmax, slack_r2, slack_v
+
+
+def safe_window(z, pi, lo, hi, theta, cap=None):
+    """Every group that can have rc <= theta: mitm_exact's widened window, de-duplicated. The rows are counted
+    first, and a window of more than `cap` rows (WINDOW_CAP when None) raises WindowTooLarge before any is
+    allocated."""
+    cap = WINDOW_CAP if cap is None else cap
+    args = _window_args(z, pi, lo, hi, theta)
+    cnt = mx._window_counts(*args)
+    total = int(cnt.sum())
+    if total > cap:
+        raise WindowTooLarge(total, cap)
+    rows = mx._window_fill(cnt, *args)
     n1 = len(z) + 1
     key = (((rows[:, 0] + 1) * n1 + rows[:, 1] + 1) * n1 + rows[:, 2] + 1) * n1 + rows[:, 3] + 1
     return rows[np.unique(key, return_index=True)[1]]
@@ -99,14 +126,72 @@ def _partition_exists(n, lo, hi):
     return any(k * lo <= n <= k * hi for k in range(1, n // lo + 1))
 
 
+@njit(cache=True)
+def _seg(s, PA, PB, x, y, carry):
+    """The cost of pairing sorted positions x..y-1 as consecutive neighbours after a dangling position `carry`
+    (-1 for none): (cost, the position left dangling or -1)."""
+    if x >= y:
+        return 0.0, carry
+    c = 0.0
+    if carry >= 0:
+        d = s[x] - s[carry]; c = d * d; x += 1
+    if x < y - 1:                                   # pairs (x, x+1), (x+2, x+3), ...: gaps D_i, i = x, x+2, ...
+        P = PA if x % 2 == 0 else PB
+        c += P[y - 1] - P[x]
+    return c, (y - 1 if (y - x) % 2 == 1 else -1)
+
+
+@njit(cache=True)
+def _best_triple(s):
+    """Over every triple p < q < r of sorted positions, the least of the triple's cost (the best split of one market
+    against two: min over x of (S - 2 s_x)^2) plus the cost of pairing the other positions as consecutive
+    neighbours. The rest is computed from prefix sums of the neighbour gaps D_i = (s_{i+1} - s_i)^2 split by the
+    parity of i, so each triple costs O(1) and the scan O(n^3). Returns (cost, p, q, r)."""
+    n = s.shape[0]
+    PA = np.zeros(n); PB = np.zeros(n)               # PA[k] = sum of D_i, i < k, i even; PB the same for odd i
+    for i in range(n - 1):
+        d = s[i + 1] - s[i]; d = d * d
+        PA[i + 1] = PA[i] + (d if i % 2 == 0 else 0.0)
+        PB[i + 1] = PB[i] + (d if i % 2 == 1 else 0.0)
+    best = np.inf; bp = bq = br = -1
+    for p in range(n):
+        for q in range(p + 1, n):
+            for r in range(q + 1, n):
+                S = s[p] + s[q] + s[r]
+                t = min((S - 2 * s[p]) ** 2, (S - 2 * s[q]) ** 2, (S - 2 * s[r]) ** 2)
+                if t >= best:
+                    continue
+                c1, k = _seg(s, PA, PB, 0, p, -1)
+                c2, k = _seg(s, PA, PB, p + 1, q, k)
+                c3, k = _seg(s, PA, PB, q + 1, r, k)
+                c4, k = _seg(s, PA, PB, r + 1, n, k)
+                c = t + c1 + c2 + c3 + c4
+                if c < best:
+                    best = c; bp = p; bq = q; br = r
+    return best, bp, bq, br
+
+
 def _start(z, lo, hi):
-    """The starting design: neighbours in sorted order. Pairs, with a triple at the top when n is odd, wherever
-    those fit the limits (the design every earlier run started from); otherwise the sorted markets cut into the
-    fewest blocks whose sizes, as equal as possible, lie in lo to hi."""
-    n = len(z); o = [int(v) for v in np.argsort(z)]
-    if lo == 2 and (n % 2 == 0 or hi >= 3):
-        return ([tuple(o[i:i + 2]) for i in range(0, n - 3, 2)] + [tuple(o[-3:])]) if n % 2 else \
-            [tuple(o[i:i + 2]) for i in range(0, n, 2)]
+    """The starting design. With an even count and lo = 2, the pairs of neighbours in sorted order, the optimal
+    design of pairs (the exchange argument of :mod:`mlsynth.utils.pangeo_helpers.pairs`).
+
+    With an odd count, lo = 2 and hi >= 3, the best design of one triple and pairs. For a fixed triple the other
+    markets pair best as sorted neighbours (the same exchange argument on the rest), so the best such design is the
+    least over every triple of the triple's cost plus that pairing's (:func:`_best_triple`, O(n^3)). A triple splits
+    one market against two and balances only where one total is near the sum of two others; on a simulated
+    235-market panel of similar markets the earlier start, the triple at the top of the order, cost 660,085 and the
+    best such design 1,359. It is a start, not an optimum: designs with groups of four or several triples can cost
+    less.
+
+    Otherwise the sorted markets cut into the fewest blocks whose sizes, as equal as possible, lie in lo to hi."""
+    n = len(z); o = [int(v) for v in np.argsort(z, kind="stable")]
+    if lo == 2 and n % 2 == 0:
+        return [tuple(o[i:i + 2]) for i in range(0, n, 2)]
+    if lo == 2 and hi >= 3:
+        s = np.asarray(z, float)[o]
+        _, p, q, r = _best_triple(s)
+        rest = [o[i] for i in range(n) if i not in (p, q, r)]
+        return [(o[p], o[q], o[r])] + [tuple(rest[i:i + 2]) for i in range(0, n - 3, 2)]
     k = next(k for k in range(1, n // lo + 1) if k * lo <= n <= k * hi)
     sizes = [n // k + (1 if i < n % k else 0) for i in range(k)]
     out, at = [], 0
@@ -427,7 +512,11 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
     S0 = sum(Fraction(float(p)) for p in pi) + Fraction(tau)
     T0 = UB - max(G * UB, D) if design is not None else UB
     thw = max(_window_threshold(z, pi, tau, lo, hi, S0, T0), 0.0)
-    shared = (safe_window(z, pi, lo, hi, thw + tau), thw)
+    try:
+        shared = (safe_window(z, pi, lo, hi, thw + tau), thw)
+    except WindowTooLarge as e:                     # the threshold grows with the incumbent's distance to the bound
+        raise WindowTooLarge(e.rows, e.cap, f"incumbent {float(UB) / scale:.6g}, bound {b / scale:.6g} "
+                             f"(the window's threshold is set by their gap)") from e
     m, S, LB, neg = _exact_bound(z, pi, tau, lo, hi, window=shared[0])
     def allowed(ub):                                # the gap in cost units: the larger of g ub and the absolute gap
         return max(G * ub, D)
