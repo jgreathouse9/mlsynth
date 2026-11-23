@@ -211,3 +211,98 @@ def test_an_odd_group_is_never_freed():
     finally:
         cn._groups_below = orig
     assert seen and all(not (set(triple[0]) & F) for F in seen)
+
+
+# --- the repair's target, and the constructor inside certify_staged -------------------------------------------------
+
+from . import certify_exact as ce  # noqa: E402
+
+
+def test_the_repair_stops_at_its_target():
+    """Unit: a start at or below the target takes no step; otherwise the repair stops at the first step at or below
+    it."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(3), 24, 1), float)
+    start, cost, _ = cn.pairing_design(z, steps=1000, seed=0)
+    d, trace = cn.repair(z, start, steps=50, seed=0, k0=2, k_max=4, target=cost)
+    assert trace == [pytest.approx(cost)] and d == sorted(start)
+    d, trace = cn.repair(z, start, steps=50, seed=0, k0=2, k_max=4, target=-1.0)
+    assert len(trace) == 51
+    full = trace
+    mid = full[len(full) // 2]
+    d, trace = cn.repair(z, start, steps=50, seed=0, k0=2, k_max=4, target=mid)
+    assert trace[-1] <= mid and all(v > mid for v in trace[:-1])
+
+
+@settings(max_examples=12, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(9, 14), kind=st.integers(0, 3))
+def test_the_certificate_is_the_same_with_the_constructor(seed, n, kind):
+    """Property: forcing the constructor changes the starting design, never the certified optimum."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(seed), n, kind), float)
+    a = ce.certify_staged(z, construct=False, heuristic_steps=0)
+    b = ce.certify_staged(z, construct=True, heuristic_steps=0, construct_steps=(2000, 3))
+    assert a["proved"] and b["proved"]
+    assert a["opt_exact"] == b["opt_exact"] and a["lb_exact"] == b["lb_exact"]
+    assert b["construct"] is None or b["construct"]["ran"]
+
+
+def test_auto_leaves_small_panels_to_the_heuristic():
+    z = np.asarray(test_bcp.gen(np.random.default_rng(1), 14, 1), float)
+    assert ce.CONSTRUCT_MIN > 14
+    assert ce.certify_staged(z, heuristic_steps=0)["construct"] is None
+
+
+def test_auto_runs_on_a_large_panel_that_misses_the_gap(monkeypatch):
+    """Unit: at CONSTRUCT_MIN markets and up, with the heuristic short of the gap, construct="auto" runs the
+    constructor (pairing_design and repair are stubbed to the start, so only the decision is measured)."""
+    calls = []
+    monkeypatch.setattr(cn, "pairing_design", lambda z, steps, seed: (calls.append("anneal") or (
+        ce._start(z, 2, 4), _cost(z, ce._start(z, 2, 4)), _cost(z, ce._start(z, 2, 4)))))
+    monkeypatch.setattr(cn, "repair", lambda z, d, steps, seed, target=None: (calls.append("repair") or
+                                                                             (sorted(d), [_cost(z, d)])))
+    z = np.random.default_rng(0).normal(400.0, 60.0, ce.CONSTRUCT_MIN)
+    out = ce.certify_staged(z, heuristic_steps=0, abs_gap=1e-12, caps=(1,), workers=None)
+    assert calls == ["anneal", "repair"] and out["construct"]["ran"]
+
+
+def test_the_constructor_does_not_run_once_the_heuristic_meets_the_gap():
+    z = np.asarray(test_bcp.gen(np.random.default_rng(2), 12, 1), float)
+    out = ce.certify_staged(z, construct=True, abs_gap=1e9)
+    assert out["heuristic_stop"] == "bound" and out["construct"] is None
+
+
+def test_a_cheaper_constructed_design_is_the_start(monkeypatch):
+    """Unit: when the constructed design costs less than the heuristic's, the certificate starts from it. Here the
+    constructor returns the optimum and the gap admits it but not the sorted start, so the certificate needs no stage
+    with it and one or more without it."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(5), 12, 1), float)
+    best = ce.certify_staged(z, construct=False)
+    opt = [tuple(g) for g in best["design"]]
+    start_cost = _cost(z, ce._start(z, 2, 4))
+    assert start_cost > best["opt"] + 1e-6
+    d = (best["opt"] + start_cost) / 2 - best["lb"]
+    without = ce.certify_staged(z, construct=False, heuristic_steps=0, abs_gap=d)
+    assert without["stages"]
+    monkeypatch.setattr(cn, "pairing_design", lambda z_, steps, seed: (opt, best["opt"], start_cost))
+    monkeypatch.setattr(cn, "repair", lambda z_, des, steps, seed, target=None: (sorted(des), [best["opt"]]))
+    out = ce.certify_staged(z, construct=True, heuristic_steps=0, abs_gap=d)
+    assert out["construct"]["used"] and out["stages"] == [] and out["proved"]
+
+
+@pytest.mark.parametrize("bad", ["yes", 1, None])
+def test_a_bad_construct_value_is_refused(bad):
+    z = np.arange(1.0, 13.0)
+    with pytest.raises(ValueError, match="construct"):
+        ce.certify_staged(z, construct=bad)
+
+
+@pytest.mark.parametrize("bad", [(1,), (-1, 3), (10, -2), "x", (1.5, 2)])
+def test_bad_construct_steps_are_refused(bad):
+    z = np.arange(1.0, 13.0)
+    with pytest.raises(ValueError, match="construct_steps"):
+        ce.certify_staged(z, construct_steps=bad)
+
+
+def test_regions_pass_the_constructor_setting_on():
+    z = np.asarray(test_bcp.gen(np.random.default_rng(8), 16, 1), float)
+    out = ce.certify_staged(z, region=[0] * 8 + [1] * 8, construct=False)
+    assert out["proved"]
