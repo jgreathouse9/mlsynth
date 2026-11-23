@@ -66,6 +66,10 @@ def exact_rc_tau(z, pi, tau, g):
     return mx.exact_rc(z, pi, g) - (Fraction(tau) if len(g) % 2 else 0)
 
 
+#: The dearest column the root's rescale may produce (rank1._rescale_power's cap).
+ROOT_CAP = 1e10
+
+
 def _root(z0, lo, hi):
     """Column generation to convergence (floating point; its duals only need to be doubles).
     Returns (z rescaled by a power of 4, the scale, pi, tau)."""
@@ -76,9 +80,15 @@ def _root(z0, lo, hi):
         if odd: lp, pi, tau, x = parity.master(cols, np.array([score[c] for c in cols]), n)
         else: (lp, pi, x), tau = sg.master_lp(cols, np.array([score[c] for c in cols]), n), 0.0
         if 0 < lp < 1e-2 * n:
-            # a power of 4, so z * sqrt(f) = z * 2^k is exact: the certificate is for the original data
-            k = int(round(math.log(n / lp, 4))); f = 4.0 ** k
-            z = z * 2.0 ** k; scale *= f; score = {c: dive._sc(z, c) for c in score}; continue
+            # a power of 4, so z * sqrt(f) = z * 2^k is exact: the certificate is for the original data. Capped so
+            # the dearest column stays below ROOT_CAP (rank1._rescale_power's rule): an LP of 0 up to noise would
+            # otherwise scale by 4^50, and float pricing on totals past 2^53 loses the bits that decide near-zero
+            # costs (seed 4327: totals at 1.6e16, a minimum reduced cost of -2 read for -18).
+            # lp > 0, so some column costs more than 0 and the dearest one is positive
+            k = min(int(round(math.log(n / lp, 4))), int(math.floor(math.log(ROOT_CAP / max(score.values()), 4))))
+            if k > 0:
+                f = 4.0 ** k
+                z = z * 2.0 ** k; scale *= f; score = {c: dive._sc(z, c) for c in score}; continue
         rows, s_, rc, _ = (parity.scan(z, pi, tau, lo, hi, -1e-9 * max(1.0, lp), 5_000_000) if odd
                            else sg._scan(z, pi, lo, hi, -1e-9 * max(1.0, lp), 5_000_000)[:4])
         new = 0
