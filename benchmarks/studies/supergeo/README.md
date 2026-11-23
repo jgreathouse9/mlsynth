@@ -795,6 +795,82 @@ Two candidates measured out:
   true duals: 4.92 s at a weight of 0.5 and 6.03 s at 0.9 against 4.02 s without;
   slower at 121 and 180 markets as well.
 
+### Constructing the design
+
+At 235 markets the bound is the cheapest triple's cost and the LP balances the
+other 232 markets to within 1e-6. A first-moment count of designs (Mertens, "The
+Easiest Hard Problem: Number Partitioning", 2003, Sec. V: the expected number of
+designs of cost at most eps, the groups' imbalances taken as independent) puts
+the optimum within about 1e-5 of the bound, and on subsamples of 31 to 51
+markets solved exactly the count predicted the optimum's distance from the bound
+to within a factor of 6. The design was the weak side: the heuristic stopped
+near 3.5, 1.7 above the bound, and the absolute gap 0.01 timed out.
+
+`construct.py` builds the design in two stages.
+
+- Annealing over pairings. A four balances when it splits into two pairs with
+  equal differences (a + d = b + c is a - b = c - d), so a design of fours and
+  pairs is a pairing plus a coupling of the pairs. For a fixed pairing the best
+  coupling is closed form: sort the pairs' absolute differences and couple
+  neighbours, a DP choosing which pairs stay alone (`couple`; crossing or nested
+  couples, and a lone pair inside a couple, never cost less, by exchange). The
+  annealer searches pairings, each move scored exactly. For an odd count the
+  cheapest triple is set aside first.
+- Wide repair. Each step frees 10 to 15 groups of even size, 40 to 60 markets,
+  and solves the set-partitioning MIP over every group of them that costs less
+  than the freed total (a dearer one cannot be in a cheaper repair), by HiGHS
+  with a node limit, so the result depends on the inputs and the seed only. After
+  five steps without a cheaper repair the freed set grows by one group (Maher
+  and Ronnberg, Mathematical Programming Computation 15, 2023: keep every column
+  over the freed rows, enlarge the freed set on failure).
+
+| markets | bound | lns_dp (default budget) | annealing, 2M moves | and 30 repair steps |
+| --- | --- | --- | --- | --- |
+| 121 (subset of the 235) | 66.041 | 66.572 (5 s) | 66.308 (4 s) | 66.055 (+156 s) |
+| 180 | 0.000 | 0.825 (9 s) | 0.233 (6 s) | 0.111 (+102 s) |
+| 235 | 1.780 | 3.466 (12 s) | 1.925 (10 s) | 1.875 (+216 s) |
+
+`certify_staged` runs the constructor (`construct="auto"`) from 100 markets up,
+when the heuristic's design misses the gap's target, and keeps the cheaper
+design; the repair stops at the target. A gap set from the noise is met by the
+heuristic and the constructor does not run. At 235 markets, default settings:
+
+| absolute gap | time | design | proved by |
+| --- | --- | --- | --- |
+| 0.01 N sigma^2 (652) | 13.9 s | 263.06 | the bound, no constructor |
+| 0.15 | 39.4 s | 1.92515 | the bound, from the annealed design |
+| 0.1 | 192.8 s | 1.78763 | one stage, from the repaired design (1.8929) |
+| 0.05 | 204.3 s | 1.78672 | one stage |
+| 0.01 | 262.0 s | 1.78388 | two stages |
+
+The bound is 1.78035 on every row. The design at 0.01 is 0.0035 above it.
+With the constructor's design as the incumbent the stage's window is small
+enough for the exact-cover search to find a design near the bound.
+
+Wrong turns:
+
+- Covers of the near-zero groups. With the duals at the optimum every group of
+  cost at most theta has reduced cost at most theta, and every market lies in
+  at least 6 groups of cost at most 1e-6; a design built only from them would
+  be within 59 theta of the bound. The study's exact-cover search (3 million
+  nodes at each theta from 1e-6 to 0.1), Knuth's Algorithm X with the
+  fewest-candidates rule (2 million nodes) and HiGHS (600 s at 1e-6, 1e-4 and
+  1e-3) found no cover. All costs are near 0, so the LP gives no direction.
+- Polishing the annealed design with lns_dp (18 markets at a time) took it from
+  1.9266 to 1.9247 in 1,000 steps. Near-optimal designs differ in many groups at
+  once (Mertens, Sec. V: the low-cost configurations are nearly independent), so
+  a repair needs many groups.
+- Freeing groups near one another in pair-difference order did worse than
+  random choice (0.082 against 0.045 above the triple after 10 minutes at a
+  node limit of 300), and a node limit of 2,000 did worse than 300 for random
+  choice (0.053).
+- The first repair drew the dearest group by cost, which was the triple at
+  almost every step: every group of the freed markets then cost less than the
+  freed total, the MIP had about 100,000 columns, and a step took 100 s on 121
+  markets with no improvement. Odd groups are now never freed.
+- Dual smoothing and the Lagrangian early stop, from the same papers, are in
+  "A seeded first pool".
+
 ### A reproducible design
 
 Three runs of the certificate on that panel gave three designs, all within the

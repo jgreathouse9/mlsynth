@@ -18675,8 +18675,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-schedule-not-given-to-the-regions"
-  find = "                               deterministic=deterministic, verbose=verbose, heuristic_patience=heuristic_patience))"
-  replace = "                               deterministic=False, verbose=verbose, heuristic_patience=heuristic_patience))"
+  find = "                               deterministic=deterministic, verbose=verbose, heuristic_patience=heuristic_patience,"
+  replace = "                               deterministic=False, verbose=verbose, heuristic_patience=heuristic_patience,"
   models = "each region's certificate run on the dynamic schedule whatever was asked"
 
   [[target.mutant]]
@@ -18687,8 +18687,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-dynamic-schedule-by-default"
-  find = "                   deterministic=True, verbose=False, heuristic_patience=\"auto\"):"
-  replace = "                   deterministic=False, verbose=False, heuristic_patience=\"auto\"):"
+  find = "                   deterministic=True, verbose=False, heuristic_patience=\"auto\", construct=\"auto\","
+  replace = "                   deterministic=False, verbose=False, heuristic_patience=\"auto\", construct=\"auto\","
   models = "the certificate's threads on the dynamic schedule unless asked, so a default run's design depends on thread timing"
 
 [[target]]
@@ -19101,8 +19101,8 @@ timeout = 1500.0
 
   [[target.mutant]]
   id = "the-regions-drop-the-patience"
-  find = "deterministic=deterministic, verbose=verbose, heuristic_patience=heuristic_patience))"
-  replace = "deterministic=deterministic, verbose=verbose))"
+  find = "                               deterministic=deterministic, verbose=verbose, heuristic_patience=heuristic_patience,\n                               construct=construct"
+  replace = "                               deterministic=deterministic, verbose=verbose,\n                               construct=construct"
   models = "a patience given with regions replaced by the default in every region"
 
   [[target.mutant]]
@@ -20106,3 +20106,117 @@ timeout = 300.0
   find = "WINDOW_RATIO = 200"
   replace = "WINDOW_RATIO = 50"
   models = "the root taking a window of up to groups / 50 rows, which from the seeded pool cost 8.5 s where the scan took 1.7 s"
+
+[[target]]
+name = "supergeo-construct"
+module-path = "benchmarks/studies/supergeo/construct.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_construct.py -q -p no:cacheprovider -x"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-coupling-never-couples"
+  find = "        f[i], take[i] = (a, 1) if a <= b else (b, 2)"
+  replace = "        f[i], take[i] = (a, 1)"
+  models = "every pair left alone, the fours never formed"
+
+  [[target.mutant]]
+  id = "the-coupling-unsorted"
+  find = "    o = np.argsort(d, kind=\"stable\"); s = d[o]"
+  replace = "    o = np.arange(m); s = d[o]"
+  models = "neighbours coupled in input order, not in sorted order, where the exchange argument does not hold"
+
+  [[target.mutant]]
+  id = "the-annealer-scores-unsorted"
+  find = "        d[i] = abs(s[P[i, 0]] - s[P[i, 1]])\n    d.sort()"
+  replace = "        d[i] = abs(s[P[i, 0]] - s[P[i, 1]])"
+  models = "the annealer minimising a coupling of unsorted differences, not couple's cost"
+
+  [[target.mutant]]
+  id = "a-rejected-move-not-undone"
+  find = "            P[p, 0] = a; P[p, 1] = b; P[q, 0] = c; P[q, 1] = d"
+  replace = "            pass"
+  models = "a rejected move kept, so the walk and its score part company"
+
+  [[target.mutant]]
+  id = "the-dearest-triple"
+  find = "                if c < best:\n                    best = c; bi = i; bj = j; bk = k"
+  replace = "                if c > best or best == np.inf:\n                    best = c; bi = i; bj = j; bk = k"
+  models = "a triple other than the cheapest one taken for an odd count"
+
+  [[target.mutant]]
+  id = "the-start-always-returned"
+  find = "    if cs <= cd:\n        return start, cs, cs"
+  replace = "    if True:\n        return start, cs, cs"
+  models = "the annealed design computed and discarded"
+
+  [[target.mutant]]
+  id = "a-dearer-repair-accepted"
+  find = "                if sum(nc) < cur:"
+  replace = "                if sum(nc) < cur + 1e9:"
+  models = "a repair accepted whether or not it costs less"
+
+  [[target.mutant]]
+  id = "the-freed-set-never-grows"
+  find = "                k += 1; fails = 0"
+  replace = "                fails = 0"
+  models = "k fixed at k0 whatever the failures"
+
+  [[target.mutant]]
+  id = "odd-groups-freed"
+  find = "        even = [i for i, g in enumerate(design) if len(g) % 2 == 0]"
+  replace = "        even = list(range(len(design)))"
+  models = "an odd count's triple freed, letting every group of the freed markets in as a column"
+
+  [[target.mutant]]
+  id = "the-target-ignored"
+  find = "        if target is not None and trace[-1] <= target:\n            break"
+  replace = "        if False:\n            break"
+  models = "the repair running its whole budget after meeting the gap"
+
+  [[target.mutant]]
+  id = "the-dearer-columns-kept"
+  find = "                    if c < cur:\n                        out.append((F[a], F[b], F[c3], F[d])); cost.append(c)"
+  replace = "                    if True:\n                        out.append((F[a], F[b], F[c3], F[d])); cost.append(c)"
+  models = "every four of the freed markets a column, the dearer ones included: the same repair in principle, a MIP too large to finish in practice"
+
+[[target]]
+name = "supergeo-construct-staged"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_construct.py -q -p no:cacheprovider -x -k \"certificate or auto or constructor or construct_value or construct_steps or regions or cheaper\""
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-constructor-never-built"
+  find = "        built = construct is True or (construct == \"auto\" and n >= CONSTRUCT_MIN)"
+  replace = "        built = False"
+  models = "construct accepted and never run"
+
+  [[target.mutant]]
+  id = "the-constructed-design-not-used"
+  find = "            if used:\n                incumbent = d2"
+  replace = "            if used:\n                pass"
+  models = "a cheaper constructed design recorded as used and the heuristic's kept"
+
+  [[target.mutant]]
+  id = "auto-never-reached"
+  find = "CONSTRUCT_MIN = 100"
+  replace = "CONSTRUCT_MIN = 10**9"
+  models = "the default never running the constructor"
+
+  [[target.mutant]]
+  id = "run-with-the-gap-met"
+  find = "        if cur > target:"
+  replace = "        if cur > -1.0:"
+  models = "the constructor run when the heuristic already met the gap"
+
+  [[target.mutant]]
+  id = "run-without-fours"
+  find = "    if built and lo == 2 and hi >= 4:"
+  replace = "    if built:"
+  models = "the coupling into fours applied to a design limited to groups of at most three"
+
+  [[target.mutant]]
+  id = "construct-value-unchecked"
+  find = "    if not (isinstance(construct, bool) or (isinstance(construct, str) and construct == \"auto\")):"
+  replace = "    if not (isinstance(construct, (bool, int)) or isinstance(construct, str)):"
+  models = "1 or 'yes' read as a setting"

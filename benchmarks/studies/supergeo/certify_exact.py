@@ -13,6 +13,7 @@ import numpy as np
 from numba import njit
 import highspy
 from . import sg, dive, lns, dsr, parity, mitm, mitm_exact as mx, exactnb as ex, verify_nb as vn
+from . import construct as cn
 
 
 #: The most rows (before de-duplication) a safe window may hold: 50,000,000 rows of four int64 markets are 1.5 GiB.
@@ -542,9 +543,19 @@ def _stop_reason(trace, patience, target):
     return "stall" if patience is not None and since >= patience else "budget"
 
 
+#: certify_staged runs the constructor (construct.py) by default from this many markets up, when the heuristic's design
+#: misses the requested gap. Measured against lns_dp's default budget (bound, lns_dp, annealing, annealing and 30
+#: repair steps): 121 markets 66.041, 66.572, 66.308, 66.055; 180 markets 0, 0.825, 0.233, 0.111; 235 markets 1.780,
+#: 3.466, 1.925, 1.875. Below it the exact search closes such gaps itself.
+CONSTRUCT_MIN = 100
+#: The constructor's default budget: annealing moves and repair steps (about 10 s and 3 to 7 s a step at 235 markets).
+CONSTRUCT_STEPS = (2_000_000, 20)
+
+
 def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps="auto", keep=0.5, workers="auto",
                    gap=0.0, abs_gap=0.0, max_group_cost=None, heuristic_steps="auto", seed=0, region=None,
-                   deterministic=True, verbose=False, heuristic_patience="auto"):
+                   deterministic=True, verbose=False, heuristic_patience="auto", construct="auto",
+                   construct_steps="auto"):
     """The certificate with the elimination redone at every better incumbent and no MIP.
 
     After the root and the exact bound, each stage runs the exact elimination at the incumbent's exact cost and the
@@ -639,13 +650,26 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
     geo experiments", arXiv:2105.07060, section 4.3: "too many balance checks may lead to very few or even no
     options").
 
+    construct: "auto", True or False. With groups of 2 to at least 4, no incumbent given and the heuristic's design
+    dearer than the gap's target, the design of :mod:`.construct` (annealing over pairings, then wide repair, stopped
+    at the target) replaces it when cheaper; "auto" does so from CONSTRUCT_MIN markets up, True at any size.
+    construct_steps: (annealing moves, repair steps), "auto" for CONSTRUCT_STEPS. The result's `construct` is None
+    when the constructor did not run, else its cost, whether its design was used and the steps that ran.
+
     Returns the keys of :func:`certify` that apply, with `proved`, `proof`, `stages` (one dict per stage), `gap`,
     the proven gap `gap_proved` (rounded up), `abs_gap` and the proven absolute gap `abs_gap_proved` (rounded
     up), the proven lower bound `lb_proved` (and `lb_proved_exact`),
     `feasible`, `standard` (None, or the threshold, whether the design meets it and its largest group cost),
-    `heuristic_steps`, `heuristic_stop`, `seed` and `deterministic`."""
+    `heuristic_steps`, `heuristic_stop`, `construct`, `seed` and `deterministic`."""
     n = len(z0); odd = n % 2 == 1
     _check_limits(lo, hi)
+    if not (isinstance(construct, bool) or (isinstance(construct, str) and construct == "auto")):
+        raise ValueError(f"construct must be True, False or 'auto', not {construct!r}")
+    if isinstance(construct_steps, str) and construct_steps == "auto":
+        construct_steps = CONSTRUCT_STEPS
+    elif (not isinstance(construct_steps, (tuple, list)) or len(construct_steps) != 2
+          or any(isinstance(v, bool) or not isinstance(v, (int, np.integer)) or v < 0 for v in construct_steps)):
+        raise ValueError(f"construct_steps must be two non-negative integers or 'auto', not {construct_steps!r}")
     if not isinstance(deterministic, bool):
         raise ValueError(f"deterministic must be True or False, not {deterministic!r}")
     if region is not None:
@@ -657,7 +681,8 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
         return _by_region(z0, lo, hi, labels, incumbent, abs_gap, max_group_cost,
                           dict(heuristic_seconds=heuristic_seconds, caps=caps, keep=keep, workers=workers, gap=gap,
                                max_group_cost=max_group_cost, heuristic_steps=heuristic_steps, seed=seed,
-                               deterministic=deterministic, verbose=verbose, heuristic_patience=heuristic_patience))
+                               deterministic=deterministic, verbose=verbose, heuristic_patience=heuristic_patience,
+                               construct=construct, construct_steps=construct_steps))
     if workers == "auto":
         workers = min(4, os.cpu_count() or 1)
     elif workers is not None and (not isinstance(workers, int) or workers < 1):
@@ -700,7 +725,7 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
                     proof=f"no design: {n} markets cannot be split into groups of {lo} to {hi}",
                     gap=float(G), gap_proved=None, abs_gap=abs_gap, abs_gap_proved=None, lb_proved=None,
                     lb_proved_exact=None, feasible=False, heuristic_steps=0, heuristic_stop=None, seed=seed,
-                    deterministic=deterministic,
+                    construct=None, deterministic=deterministic,
                     standard=None if max_group_cost is None else dict(max_group_cost=max_group_cost, met=False,
                                                                      max_group=None),
                     t_cg=0.0, t=time.perf_counter() - t0, design=None)
@@ -711,8 +736,10 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
     steps_run = 0; stop = None
     b = max(float(sum(pi)) + tau, 0.0)              # the root LP bound, in the rescaled units
     target = max(b / (1 - float(G)), b + abs_gap * scale)
+    built = None
     if incumbent is None:
         incumbent = _start(z, lo, hi)
+        built = construct is True or (construct == "auto" and n >= CONSTRUCT_MIN)
         if heuristic_seconds is not None:
             if heuristic_seconds > 0:                # a time budget: the number of steps is the machine's
                 incumbent, _, trace = lns.lns_dp(z, incumbent, lo=lo, hi=hi, seconds=heuristic_seconds, seed=seed,
@@ -723,6 +750,17 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
                                              verbose=False, patience=heuristic_patience, target=target)
             steps_run = len(trace) - 1              # the steps that ran, read from the search's own trace
             stop = _stop_reason(trace, heuristic_patience, target)
+    cons = None
+    if built and lo == 2 and hi >= 4:
+        cur = sum(dive._sc(z, tuple(sorted(int(v) for v in g))) for g in incumbent)
+        if cur > target:
+            d1, _, _ = cn.pairing_design(z, steps=int(construct_steps[0]), seed=seed)
+            d2, tr = cn.repair(z, d1, steps=int(construct_steps[1]), seed=seed, target=target)
+            used = tr[-1] < cur
+            if used:
+                incumbent = d2
+            cons = dict(ran=True, used=used, cost=tr[-1] / scale, anneal_steps=int(construct_steps[0]),
+                        repair_steps=len(tr) - 1)
     design = [tuple(sorted(int(v) for v in g)) for g in incumbent]
     zeros = np.zeros(n)
     def exact_cost(d):
@@ -824,6 +862,7 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
                            f"exact search stopped (status {stages[-1]['status']}) before a design met the standard"),
                     gap=float(G), gap_proved=None, abs_gap=abs_gap, abs_gap_proved=None, lb_proved=None,
                     lb_proved_exact=None, feasible=False, heuristic_steps=steps_run, heuristic_stop=stop, seed=seed,
+                    construct=cons,
                     deterministic=deterministic, standard=dict(max_group_cost=max_group_cost, met=False, max_group=None),
                     t_cg=t_cg, t=time.perf_counter() - t0, design=None)
     if UB == LB:
@@ -850,7 +889,7 @@ def certify_staged(z0, lo=2, hi=4, incumbent=None, heuristic_seconds=None, caps=
                 gap=float(G), gap_proved=up(gp), abs_gap=abs_gap, abs_gap_proved=up((UB - lb_proved) / S_),
                 lb_proved=down(lb_proved / S_), lb_proved_exact=lb_proved / S_,
                 feasible=True, standard=std, heuristic_steps=steps_run, heuristic_stop=stop, seed=seed,
-                deterministic=deterministic, t_cg=t_cg,
+                construct=cons, deterministic=deterministic, t_cg=t_cg,
                 t=time.perf_counter() - t0, design=design)
 
 
@@ -885,7 +924,7 @@ def _by_region(z0, lo, hi, labels, incumbent, abs_gap, max_group_cost, kw):
                     abs_gap=abs_gap, abs_gap_proved=None, lb_proved=None, lb_proved_exact=None, feasible=False,
                     standard=None if max_group_cost is None else dict(max_group_cost=max_group_cost, met=False,
                                                                      max_group=None),
-                    heuristic_steps=None, heuristic_stop=None, seed=kw["seed"],
+                    heuristic_steps=None, heuristic_stop=None, seed=kw["seed"], construct=None,
                     deterministic=kw["deterministic"], t_cg=0.0, t=time.perf_counter() - t0, design=None,
                     regions=regions)
     regions, design = [], []
@@ -903,7 +942,7 @@ def _by_region(z0, lo, hi, labels, incumbent, abs_gap, max_group_cost, kw):
                             opt_exact=out["opt_exact"], lb_exact=out["lb_exact"], lb_proved_exact=out["lb_proved_exact"],
                             stages=out["stages"], verify_nodes=out["verify_nodes"],
                             heuristic_steps=out["heuristic_steps"], heuristic_stop=out["heuristic_stop"],
-                            negative_columns=out["negative_columns"],
+                            construct=out["construct"], negative_columns=out["negative_columns"],
                             t_cg=out["t_cg"], standard=out["standard"]))
         if not out["feasible"]:
             return no_design(f"no design in region {lab!r}: {out['proof']}", out["proved"], regions)
@@ -924,7 +963,7 @@ def _by_region(z0, lo, hi, labels, incumbent, abs_gap, max_group_cost, kw):
                 gap=float(kw["gap"]), gap_proved=up((UB - LBp) / UB) if UB > 0 else 0.0, abs_gap=abs_gap,
                 abs_gap_proved=up(UB - LBp), lb_proved=down(LBp), lb_proved_exact=LBp, feasible=True, standard=std,
                 heuristic_steps=None if any(v is None for v in steps) else sum(steps), heuristic_stop=None,
-                seed=kw["seed"],
+                seed=kw["seed"], construct=[r["construct"] for r in regions],
                 deterministic=kw["deterministic"],
                 t_cg=sum(r["t_cg"] for r in regions), t=time.perf_counter() - t0, design=design, regions=regions)
 
