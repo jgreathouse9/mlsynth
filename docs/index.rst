@@ -382,6 +382,7 @@ measures that claim directly, which a reproduced number cannot.
    :caption: Utilities and internals
 
    compare
+   sensitivity
    truncated_history
    data
    helpers
