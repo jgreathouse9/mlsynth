@@ -206,3 +206,19 @@ def test_the_stages_window_is_not_the_seeds(monkeypatch):
     monkeypatch.setattr(ce, "safe_window", lambda *a, **k: calls.append(a[4]) or real(*a, **k))
     ce._cheap_groups(np.random.default_rng(1).normal(100.0, 10.0, 14), 2, 4, 70)
     assert calls == []
+
+
+def test_a_window_of_a_fiftieth_of_the_groups_is_priced_by_the_scan(monkeypatch):
+    """With the seeded pool the first pricing's window can hold most of groups / 50 rows: on the simulated
+    235-market panel 2.1 million of 2.5 million, whose count and pricing took 8.5 s against a 1.7 s scan. The root
+    takes the window only at groups / 200 rows or fewer, so a window of groups / 100 rows is priced by the scan."""
+    import math
+    monkeypatch.setattr(ce, "_window_rows", lambda z, pi, tau, lo, hi, thresh, odd, limit=None: rows)
+    monkeypatch.setattr(ce, "_price_window", lambda *a: "window")
+    monkeypatch.setattr(ce, "_price_scan", lambda *a: "scan")
+    z = np.arange(1.0, 41.0); pi = np.zeros(40)
+    groups = sum(math.comb(40, k) for k in (2, 3, 4))
+    rows = groups // 100
+    assert ce._root_price(z, pi, 0.0, 2, 4, 0.0, False) == "scan"
+    rows = groups // 200
+    assert ce._root_price(z, pi, 0.0, 2, 4, 0.0, False) == "window"
