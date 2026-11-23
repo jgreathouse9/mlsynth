@@ -153,3 +153,17 @@ def test_a_negative_count_is_refused():
         ce._seed_pool(z, 2, 4, mult=-1)
     with pytest.raises(ValueError, match="at least 0"):
         ce._cheap_groups(z, 2, 4, -3)
+
+
+def test_a_window_row_dearer_than_theta_is_not_seeded():
+    """The safe window is widened by a rounding slack of 64 u max|z| on a half's value, so among large totals it can
+    hold a group whose cost is just above theta: here the pair of 1e6 and 1e6 + 1 + 1e-9 costs 1 + 2e-9 against
+    theta = 1, and only the costed filter keeps it out. On smaller totals no window row was dearer than theta (400
+    random panels, four size ranges, sixteen thetas)."""
+    z = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 1e6, 1e6 + 1 + 1e-9])
+    assert ce._spacing2(z) == 1.0
+    window = _as_set(ce.safe_window(z, np.zeros(7), 2, 2, 1.0))
+    assert (5, 6) in window and _cost(z, (5, 6)) > 1.0
+    rows, theta = ce._cheap_groups(z, 2, 2, 4)
+    assert theta == 1.0
+    assert _as_set(rows) == {(0, 1), (1, 2), (2, 3), (3, 4)}
