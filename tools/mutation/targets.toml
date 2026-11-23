@@ -19764,3 +19764,27 @@ timeout = 900.0
   find = "        _warn_excluded(arm, design.n_units, design.excluded_units)"
   replace = "        pass"
   models = "automatic Q returning a design that leaves a market out without naming it"
+
+[[target]]
+name = "supergeo-root-rescale"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"window_guess or root_rescale or zero_root\""
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-rescale-uncapped"
+  find = "            k = min(int(round(math.log(n / lp, 4))), int(math.floor(math.log(ROOT_CAP / max(score.values()), 4))))"
+  replace = "            k = int(round(math.log(n / lp, 4)))"
+  models = "the root's rescale without a cap, which took the totals to 1.6e16 on an LP of 0 up to noise"
+
+  [[target.mutant]]
+  id = "the-cap-past-2-to-the-53"
+  find = "ROOT_CAP = 1e10\n"
+  replace = "ROOT_CAP = 1e40\n"
+  models = "a cap loose enough to admit totals past 2^53"
+
+  [[target.mutant]]
+  id = "a-rescale-by-4-to-the-0"
+  find = "            if k > 0:\n                f = 4.0 ** k"
+  replace = "            if k >= 0:\n                f = 4.0 ** k"
+  models = "a rescale by 4^0 repeated when the cap allows no further power, so the root never returns"
