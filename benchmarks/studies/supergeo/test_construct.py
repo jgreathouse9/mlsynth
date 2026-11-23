@@ -94,10 +94,12 @@ def test_the_pairing_design_is_a_partition_at_its_reported_cost(seed, n, kind, s
 
 
 def test_annealing_improves_on_sorted_neighbours():
-    """Unit: on 60 normal totals the annealed design costs less than half the sorted-neighbours start."""
+    """Unit: on 60 normal totals the annealed design costs under 5% of the sorted-neighbours start (measured 0.4% to
+    1.5% over seeds 0 to 3)."""
     z = np.random.default_rng(11).normal(400.0, 60.0, 60)
-    design, cost, start = cn.pairing_design(z, steps=200_000, seed=0)
-    assert cost < 0.5 * start
+    for sd in (0, 1):
+        design, cost, start = cn.pairing_design(z, steps=200_000, seed=sd)
+        assert cost < 0.05 * start
 
 
 @settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -132,7 +134,7 @@ def test_the_freed_set_grows_after_failures():
     z = np.asarray(test_bcp.gen(np.random.default_rng(2), 24, 1), float)
     start, _, _ = cn.pairing_design(z, steps=50_000, seed=0)
     design, trace, ks = cn.repair(z, start, steps=40, seed=0, k0=2, k_max=5, patience=3, with_k=True)
-    assert ks[0] == 2 and max(ks) <= 5
+    assert ks[0] == 2 and max(ks) == 5                    # grows to k_max (2, 3, 4, 5 on this panel) and stops
     assert all(b - a in (0, 1) for a, b in zip(ks, ks[1:]))
 
 
@@ -325,3 +327,20 @@ def test_regions_pass_the_constructor_setting_on():
     z = np.asarray(test_bcp.gen(np.random.default_rng(8), 16, 1), float)
     out = ce.certify_staged(z, region=[0] * 8 + [1] * 8, construct=False)
     assert out["proved"]
+
+
+@settings(max_examples=100, deadline=None)
+@given(seed=st.integers(0, 10**9), m=st.integers(1, 12))
+def test_the_annealers_score_is_the_coupling(seed, m):
+    """Property: the numba score the annealer minimises equals couple's cost on the same pairing."""
+    rng = np.random.default_rng(seed)
+    s = np.sort(rng.normal(100.0, 20.0, 2 * m))
+    P = rng.permutation(2 * m).reshape(m, 2).astype(np.int64)
+    assert cn._score(s, P) == pytest.approx(cn.couple(s[P[:, 0]] - s[P[:, 1]])[0], rel=1e-12, abs=1e-12)
+
+
+def test_the_constructor_needs_groups_of_four():
+    """Edge: with groups of at most three the coupling into fours does not apply, and construct=True does nothing."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(9), 12, 1), float)
+    out = ce.certify_staged(z, lo=2, hi=3, construct=True, heuristic_steps=0)
+    assert out["proved"] and out["construct"] is None
