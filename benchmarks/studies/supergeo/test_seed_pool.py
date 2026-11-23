@@ -167,3 +167,42 @@ def test_a_window_row_dearer_than_theta_is_not_seeded():
     rows, theta = ce._cheap_groups(z, 2, 2, 4)
     assert theta == 1.0
     assert _as_set(rows) == {(0, 1), (1, 2), (2, 3), (3, 4)}
+
+
+def test_a_window_past_the_cap_stops_the_seed(monkeypatch):
+    """Edge: when the next theta's window would pass WINDOW_CAP rows, the seed keeps the groups at the last theta
+    that fit (fewer than asked), still exactly those of cost at most theta, and the root runs from it to the same
+    bound. Seeding only starts column generation; it is never needed for the result."""
+    z = np.asarray(test_bcp.gen(np.random.default_rng(5), 12, 1), float)
+    zs, s0, pi0, tau0 = ce._root(z, 2, 4)
+    monkeypatch.setattr(ce, "WINDOW_CAP", 30)
+    rows, theta = ce._cheap_groups(z, 2, 4, 400)
+    assert 0 < len(rows) < 400
+    groups = _all_groups(12)
+    assert _as_set(rows) == {c for c in groups if _cost(z, c) <= theta}
+    nxt = ce._spacing2(z) * 10.0 ** (int(round(np.log10(theta / ce._spacing2(z)))) + 1) if len(rows) else None
+    if nxt is not None:
+        assert int(ce.mx._window_counts(*ce._window_args(z, np.zeros(12), 2, 4, nxt)).sum()) > 30
+    zs, s1, pi1, tau1 = ce._root(z, 2, 4)
+    assert (pi1.sum() + tau1) / s1 == pytest.approx((pi0.sum() + tau0) / s0, rel=1e-9, abs=1e-9)
+
+
+def test_the_first_window_past_the_cap_seeds_nothing(monkeypatch):
+    """Edge: when even the first theta's window passes the cap, no cheap group is seeded (theta is -inf, which no
+    group's cost is at or below) and the pool is the neighbours' blocks and the start."""
+    z = np.full(10, 5.0)                                  # every pair and four costs 0: all in the first window
+    monkeypatch.setattr(ce, "WINDOW_CAP", 3)
+    rows, theta = ce._cheap_groups(z, 2, 4, 50)
+    assert len(rows) == 0 and theta == -np.inf
+    assert ce._seed_pool(z, 2, 4) == sorted(set(sg.initial_pool(z, 2, 4))
+                                            | {tuple(sorted(g)) for g in ce._start(z, 2, 4)})
+
+
+def test_the_stages_window_is_not_the_seeds(monkeypatch):
+    """The seed builds its windows without safe_window, which stays the stages' window (one call for a root and its
+    stages, counted in test_certify_staged)."""
+    calls = []
+    real = ce.safe_window
+    monkeypatch.setattr(ce, "safe_window", lambda *a, **k: calls.append(a[4]) or real(*a, **k))
+    ce._cheap_groups(np.random.default_rng(1).normal(100.0, 10.0, 14), 2, 4, 70)
+    assert calls == []

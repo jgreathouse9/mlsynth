@@ -43,7 +43,11 @@ def safe_window(z, pi, lo, hi, theta, cap=None):
     """Every group that can have rc <= theta: mitm_exact's widened window, de-duplicated. The rows are counted
     first, and a window of more than `cap` rows (WINDOW_CAP when None) raises WindowTooLarge before any is
     allocated."""
-    cap = WINDOW_CAP if cap is None else cap
+    return _build_window(z, pi, lo, hi, theta, WINDOW_CAP if cap is None else cap)
+
+
+def _build_window(z, pi, lo, hi, theta, cap):
+    """:func:`safe_window` with its cap given, for windows other than the stages' (the root's seed)."""
     args = _window_args(z, pi, lo, hi, theta)
     cnt = mx._window_counts(*args)
     total = int(cnt.sum())
@@ -136,8 +140,11 @@ def _spacing2(z):
 def _cheap_groups(z, lo, hi, K):
     """The cheapest groups of lo..hi markets: every group of cost at most theta, for the least theta = g 10^e,
     e = -12, -11, ..., g = :func:`_spacing2`, at which at least K groups qualify (every group when fewer than K
-    exist). The candidates at each theta are the safe window at zero duals, which holds every group of cost at most
-    theta; each is costed by the scan's arithmetic. Returns (rows, sorted markets padded with -1; theta)."""
+    exist). The candidates at each theta are the window at zero duals, which holds every group of cost at most
+    theta (and, among large totals, a group within its rounding slack above); each is costed by the scan's
+    arithmetic. When the next theta's window would pass WINDOW_CAP rows, the groups at the last theta that fit,
+    fewer than K (theta -inf and no groups when the first is past it): the seed only starts column generation.
+    Returns (rows, sorted markets padded with -1; theta)."""
     if K < 0:
         raise ValueError(f"the number of groups must be at least 0, not {K}")
     z = np.asarray(z, float); n = len(z)
@@ -145,12 +152,17 @@ def _cheap_groups(z, lo, hi, K):
         return np.zeros((0, 4), np.int32), 0.0
     want = min(K, sum(math.comb(n, k) for k in range(lo, hi + 1)))
     g = _spacing2(z); zero = np.zeros(n); e = -12
+    last = (np.zeros((0, 4), np.int32), -np.inf)
     while True:
         theta = g * 10.0 ** e
-        W = safe_window(z, zero, lo, hi, theta)
+        try:
+            W = _build_window(z, zero, lo, hi, theta, WINDOW_CAP)
+        except WindowTooLarge:
+            return last
         keep = sg.scores(z, W) <= theta
         if int(keep.sum()) >= want:
             return W[keep], theta
+        last = (W[keep], theta)
         e += 1
 
 

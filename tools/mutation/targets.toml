@@ -20004,3 +20004,21 @@ timeout = 300.0
   find = "    if mult < 0:"
   replace = "    if mult < -1:"
   models = "a negative count accepted and read as no seed"
+
+  [[target.mutant]]
+  id = "the-cap-not-caught"
+  find = "        except WindowTooLarge:\n            return last"
+  replace = "        except ZeroDivisionError:\n            return last"
+  models = "a seed window past the cap raising out of the root, where the seed is only a start"
+
+  [[target.mutant]]
+  id = "the-last-fit-not-kept"
+  find = "        last = (W[keep], theta)"
+  replace = "        pass"
+  models = "a capped seed returning no groups instead of those at the last theta that fit"
+
+  [[target.mutant]]
+  id = "the-seed-through-the-stages-window"
+  find = "            W = _build_window(z, zero, lo, hi, theta, WINDOW_CAP)"
+  replace = "            W = safe_window(z, zero, lo, hi, theta)"
+  models = "the seed building its windows through safe_window, counted as the stages' window"
