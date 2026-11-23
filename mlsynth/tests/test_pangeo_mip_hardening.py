@@ -310,3 +310,52 @@ def test_an_infeasible_cover_on_cvxpy_names_the_retry():
              dict(members=[1, 2], score=1.0, side_a=[1], side_b=[2])]
     with pytest.raises(MlsynthEstimationError, match="after a retry with presolve off.*(uncoverable|no exact cover)"):
         mip.solve_partition(cands, np.arange(3), backend="cvxpy")
+
+
+# --- the cost scale ------------------------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("backend", ["highspy", "cvxpy"])
+@pytest.mark.parametrize("scale", [1e-14, 1e-12, 1e-6, 1e3, 1e6])
+def test_the_optimum_is_found_at_any_cost_scale(backend, scale):
+    """Unit: HiGHS's tolerances are absolute, so multiplying the default-gap instance's costs by 1e-12 made it return
+    a design 368 dearer in the original units (1e-14: 5,028,716 dearer), with both gaps at 0. The costs are scaled by
+    a power of two before the solve, so the design is the optimum at every scale, and the objective is reported in
+    the caller's units."""
+    cands = [dict(c, score=c["score"] * scale) for c in _candidates(DEFAULT_GAP_Z)]
+    chosen, d = mip.solve_partition(cands, np.arange(20), return_diagnostics=True, backend=backend)
+    assert _objective(chosen) == pytest.approx(DEFAULT_GAP_OPT * scale, rel=1e-12)
+    assert d["objective_value"] == pytest.approx(_objective(chosen), rel=1e-12)
+    assert d["dual_bound"] is None or d["dual_bound"] <= d["objective_value"] * (1 + 1e-9)
+
+
+@settings(max_examples=200, deadline=None)
+@given(c=st.lists(st.floats(0.0, 1e300, allow_nan=False, allow_subnormal=False), min_size=1, max_size=20))
+def test_the_cost_scale_is_a_power_of_two_into_the_band(c):
+    """Property: the factor is a power of two (exact in floating point), and the largest cost times it lies in
+    [2^29, 2^30); all-zero costs are left alone."""
+    import math
+    c = np.array(c)
+    f = mip._cost_scale(c)
+    m, e = math.frexp(f)
+    assert m == 0.5
+    if c.max() == 0.0:
+        assert f == 1.0
+    else:
+        assert 2.0 ** 29 <= c.max() * f < 2.0 ** 30
+
+
+def test_the_absolute_gap_is_scaled_with_the_costs(monkeypatch):
+    """Unit: the absolute gap is in the caller's units, so HiGHS is given it times the cost scale."""
+    import highspy
+    seen = {}
+    real = highspy.Highs.setOptionValue
+
+    def spy(self, name, value):
+        seen[name] = value
+        return real(self, name, value)
+
+    monkeypatch.setattr(highspy.Highs, "setOptionValue", spy)
+    cands = [dict(c, score=c["score"] * 1e-6) for c in _candidates(DEFAULT_GAP_Z[:8])]
+    f = mip._cost_scale(np.array([c["score"] for c in cands]))
+    mip.solve_partition(cands, np.arange(8), backend="highspy", mip_abs_gap=3.0)
+    assert seen["mip_abs_gap"] == 3.0 * f and seen["mip_rel_gap"] == 0.0
