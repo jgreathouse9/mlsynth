@@ -74,9 +74,10 @@ WINDOW_RATIO = 50
 
 def _price_scan(z, pi, tau, lo, hi, thresh, odd):
     """Every group of lo..hi markets with reduced cost <= thresh by the brute-force scan, as (rows, scores, reduced
-    costs): parity.scan with an odd count (odd sizes credited tau, one block per size), sg._scan otherwise."""
+    costs): parity.scan with an odd count (odd sizes credited tau, one block per size; without the minimum reduced
+    cost, a second full pass the root does not read), sg._scan otherwise."""
     if odd:
-        return parity.scan(z, pi, tau, lo, hi, thresh, 5_000_000)[:3]
+        return parity.scan(z, pi, tau, lo, hi, thresh, 5_000_000, with_min=False)[:3]
     return sg._scan(z, pi, lo, hi, thresh, 5_000_000)[:3]
 
 

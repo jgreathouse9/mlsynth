@@ -1104,6 +1104,49 @@ def test_a_root_bound_a_rounding_error_below_zero_still_stops_at_a_perfect_desig
     assert seen["target"] == 0.0 and loss == 0.0 and len(trace) - 1 < 16
 
 
+# --- the root's pricing scan -------------------------------------------------------------------------------------------
+
+def test_the_odd_root_does_not_compute_the_minimum_it_discards(monkeypatch):
+    """Unit: with an odd count the root prices through parity.scan, whose minimum reduced cost is a second full pass
+    over every group; the root never reads it, so it asks the scan not to compute it (on a simulated 235-market
+    panel the pass was half the root's 66 s)."""
+    from . import sg
+    def refuse(*a, **k):
+        raise AssertionError("the root computed a minimum reduced cost it discards")
+    monkeypatch.setattr(sg, "_min_rc", refuse)
+    z = test_bcp.gen(np.random.default_rng(1), 11, 2)
+    ce._root(z, 2, 4)
+
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.sampled_from([5, 7, 9, 11]), kind=st.integers(0, 3), tau=st.floats(0, 5))
+def test_the_scan_without_its_minimum_returns_the_same_columns(seed, n, kind, tau):
+    """Property: parity.scan with with_min=False returns the same rows, scores and reduced costs as with it, and no
+    minimum; with it, the minimum is the least reduced cost over every group of each size, odd sizes credited tau."""
+    from . import parity, sg
+    rng = np.random.default_rng(seed)
+    z = test_bcp.gen(rng, n, kind); pi = rng.normal(0, 1, n)
+    a = parity.scan(z, pi, tau, 2, 4, 0.0, 100_000)
+    b = parity.scan(z, pi, tau, 2, 4, 0.0, 100_000, with_min=False)
+    for x, y in zip(a[:3], b[:3]):
+        assert np.array_equal(x, y)
+    assert b[3] is None
+    want = min(float(sg._min_rc(z, pi, k, k)) - (tau if k % 2 else 0.0) for k in (2, 3, 4))
+    assert a[3] == want
+
+
+def test_the_root_is_unchanged_without_the_minimum(monkeypatch):
+    """Unit: the root's rescaled totals, scale and duals are the same whether or not the scan computes the minimum."""
+    from . import parity
+    z = test_bcp.gen(np.random.default_rng(4), 13, 2)
+    got = ce._root(z, 2, 4)
+    real = parity.scan
+    monkeypatch.setattr(parity, "scan", lambda *a, **k: real(*a[:7]))     # always with the minimum
+    want = ce._root(z, 2, 4)
+    assert np.array_equal(got[0], want[0]) and got[1] == want[1]
+    assert np.array_equal(got[2], want[2]) and got[3] == want[3]
+
+
 # --- the root's rescale ------------------------------------------------------------------------------------------------
 
 @settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])

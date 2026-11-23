@@ -24,15 +24,19 @@ def master(cols, costs, n):
     return r.fun, r.eqlin.marginals, -float(r.ineqlin.marginals[0]), r.x
 
 
-def scan(z, pi, tau, lo, hi, thresh, cap):
-    """Columns with reduced cost <= thresh, per size, odd sizes credited tau."""
-    out_r, out_s, out_rc, best = [], [], [], np.inf
+def scan(z, pi, tau, lo, hi, thresh, cap, with_min=True):
+    """Columns with reduced cost <= thresh, per size, odd sizes credited tau, and the least reduced cost over every
+    group (a second full pass, sg._min_rc). With with_min=False the pass is skipped and the minimum returned is None,
+    for a caller that does not read it."""
+    out_r, out_s, out_rc = [], [], []
+    best = np.inf if with_min else None
     for k in range(lo, hi + 1):
         off = tau if k % 2 else 0.0
         r, s, rc, m = sg._scan(z, pi, k, k, thresh + off, cap)
         if m:
             out_r.append(r); out_s.append(s); out_rc.append(rc - off)
-        best = min(best, float(sg._min_rc(z, pi, k, k)) - off)
+        if with_min:
+            best = min(best, float(sg._min_rc(z, pi, k, k)) - off)
     if not out_r:
         return np.zeros((0, 4), np.int64), np.zeros(0), np.zeros(0), best
     return np.vstack(out_r), np.concatenate(out_s), np.concatenate(out_rc), best
