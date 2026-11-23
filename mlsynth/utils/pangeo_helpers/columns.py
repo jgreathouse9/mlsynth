@@ -43,9 +43,12 @@ raised the bound from 0.796 to 1.086 against the optimum 1.393, and the MIP proo
 in it.
 
 Search. The first MIP takes the groups of least reduced cost (``FIRST_PER_UNIT`` per unit, at least ``FIRST_MIN``)
-and the groups of a fixed design (:func:`seed_partition`), so it has a design. Its optimum :math:`z` is the answer
-when every group left out has :math:`\\bar c > z - L`; otherwise the MIP is solved once more over every group with
-:math:`\\bar c \\le z - L`, which holds every design cheaper than :math:`z`. Two MIPs at most.
+and the groups of a fixed design (:func:`seed_partition`), so it has a design. The best design's cost :math:`z` is the
+optimum when every group left out has :math:`\\bar c > z - L`. Otherwise the next MIP takes the groups up to the
+smaller of :math:`z - L` and the reduced cost of the ``GROWTH``-times-larger set, so a first design far above the
+optimum does not admit almost every group at once: 24 geos at Q = 3 handed 189,950 of 190,026 groups to the second
+MIP, 795 s, when the margin went straight to :math:`z - L`. The search ends when the margin reaches :math:`z - L` or
+the MIP has every group.
 """
 from __future__ import annotations
 
@@ -79,6 +82,8 @@ MAX_COLUMNS = 20_000_000
 #: The first MIP's groups: this many per unit, and at least FIRST_MIN.
 FIRST_PER_UNIT = 10
 FIRST_MIN = 200
+#: A MIP that does not prove its design optimal is followed by one over at most GROWTH times as many groups.
+GROWTH = 4
 #: Column generation starts from the seed design and the cheapest SEED_PER_UNIT * n groups, and adds at most
 #: BATCH_PER_UNIT * n groups a round.
 SEED_PER_UNIT = 3
@@ -439,8 +444,8 @@ def solve_exact(
     lp_seconds = time.perf_counter() - t1
     L, rc = root.bound, root.reduced_costs
     seed = np.array([column_index(g, n) for g in seed_partition(n)])
-    first = min(len(pool), max(FIRST_MIN, FIRST_PER_UNIT * n))
-    delta = float(np.partition(rc, first - 1)[first - 1])
+    count = min(len(pool), max(FIRST_MIN, FIRST_PER_UNIT * n))
+    delta = float(np.partition(rc, count - 1)[count - 1])
     tol = _RTOL * max(1.0, abs(L), float(np.abs(pool.cost).max()))
     best = last = None
     solves, mip_seconds = 0, 0.0
@@ -453,9 +458,12 @@ def solve_exact(
         if best is None or d["objective_value"] < best[1]["objective_value"]:
             best = (chosen, d)
         z = best[1]["objective_value"]
-        if z - L <= delta + tol:
+        if z - L <= delta + tol or keep.size >= len(pool):
             break
-        delta = z - L
+        # at most GROWTH times the groups, and never past z - L: a first design far above the optimum would
+        # otherwise admit almost every group at once
+        count = min(len(pool), count * GROWTH)
+        delta = min(z - L, float(np.partition(rc, count - 1)[count - 1]))
     chosen, d = best
     d = dict(d)
     if d is not last and last.get("dual_bound") is not None:

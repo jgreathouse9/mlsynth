@@ -508,7 +508,7 @@ def test_a_costlier_later_design_does_not_replace_the_best(monkeypatch):
     stub returns the seed design whenever the MIP does not improve on the best design so far."""
     monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
     monkeypatch.setattr(columns, "FIRST_MIN", 1)
-    Y = _panel(3, 12, 15)
+    Y = _panel(26, 12, 15)                   # the optimum appears on the fourth MIP of five
     idx = np.arange(12)
     real, returned = [], []
 

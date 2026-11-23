@@ -20511,7 +20511,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "no-proof-solve"
-  find = "        delta = z - L\n"
+  find = "        count = min(len(pool), count * GROWTH)\n"
   replace = "        break\n"
   models = "the first restricted MIP's design returned without the solve over every group within z - L of the bound"
 
@@ -20544,6 +20544,18 @@ timeout = 900.0
   find = "        d[\"dual_bound\"] = last[\"dual_bound\"]\n"
   replace = "        pass\n"
   models = "the dual bound of a MIP over fewer groups reported, which bounds only that MIP"
+
+  [[target.mutant]]
+  id = "margin-jumps-to-z-minus-l"
+  find = "        delta = min(z - L, float(np.partition(rc, count - 1)[count - 1]))\n"
+  replace = "        delta = z - L\n"
+  models = "the next MIP given every group within the best design's margin at once: 24 geos at Q = 3 handed 189,950 of 190,026 groups to the second MIP, 795 s"
+
+  [[target.mutant]]
+  id = "no-stop-with-every-group-in"
+  find = "        if z - L <= delta + tol or keep.size >= len(pool):\n"
+  replace = "        if z - L <= delta + tol:\n"
+  models = "a MIP over every group not taken as the end of the search, so a margin past the dearest group loops"
 
 [[target]]
 name = "pangeo-columns-pipeline"
