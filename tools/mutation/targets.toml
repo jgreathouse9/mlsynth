@@ -20368,7 +20368,7 @@ timeout = 600.0
 [[target]]
 name = "pangeo-columns-score"
 module-path = "mlsynth/utils/pangeo_helpers/columns.py"
-test-command = "python -m pytest mlsynth/tests/test_pangeo_columns.py -q -p no:cacheprovider -x -W ignore -k \"score or r2 or weighted or objective or count or finite or ties or columns_are\""
+test-command = "python -m pytest mlsynth/tests/test_pangeo_columns.py -q -p no:cacheprovider -x -W ignore -k \"score or r2 or weighted or objective or count or finite or ties or columns_are or too_many\""
 timeout = 900.0
 
   [[target.mutant]]

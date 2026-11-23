@@ -12,6 +12,8 @@ Module layout:
 * :mod:`.parallelism` -- DiD pre-period gap-variance / R^2 scoring and
   admissible-pair enumeration.
 * :mod:`.mip` -- the cvxpy/HiGHS set-partitioning MIP.
+* :mod:`.columns` -- every candidate group scored in compiled code, the root
+  LP bound, and the groups it cannot exclude handed to the MIP.
 * :mod:`.setup` -- historical-panel ingestion + per-arm pools.
 * :mod:`.pipeline` -- :func:`run_pangeo` dispatcher.
 * :mod:`.simulation` -- seasonal factor-model sales generator.
