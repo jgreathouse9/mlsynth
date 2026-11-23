@@ -4,7 +4,7 @@ from fractions import Fraction
 import numpy as np
 import pandas as pd
 import pytest
-from hypothesis import given, settings, strategies as st, HealthCheck
+from hypothesis import example, given, settings, strategies as st, HealthCheck
 from . import certify_exact as ce, dive, test_bcp
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -541,6 +541,8 @@ def test_a_negative_guess_still_covers_the_bound(monkeypatch):
 @settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(seed=st.integers(0, 10**9), n=st.integers(6, 12), kind=st.integers(0, 3), shift=st.floats(0.01, 0.5),
        f=st.floats(0.0, 1.0))
+@example(seed=4327, n=12, kind=1, shift=0.5, f=0.0)   # root LP 0 up to noise: an uncapped rescale took the totals to
+#                                                       1.6e16, past 2^53, and the float minimum rc read -2 for -18
 def test_the_window_guess_is_at_or_above_the_stage_threshold(seed, n, kind, shift, f):
     """With every market's dual raised (the bound holds for any duals), the minimum reduced cost m is clearly
     negative; the guessed window threshold is still at or above the first stage's exact threshold
@@ -1143,3 +1145,28 @@ def test_the_root_is_unchanged_without_the_minimum(monkeypatch):
     want = ce._root(z, 2, 4)
     assert np.array_equal(got[0], want[0]) and got[1] == want[1]
     assert np.array_equal(got[2], want[2]) and got[3] == want[3]
+
+
+# --- the root's rescale ------------------------------------------------------------------------------------------------
+
+@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**9), n=st.integers(4, 12), kind=st.integers(0, 3))
+@example(seed=4327, n=12, kind=1)
+def test_the_root_rescale_keeps_the_dearest_column_below_the_cap(seed, n, kind):
+    """Property: the root rescales the totals by a power of 4 (exact) to lift a tiny LP, but never so far that a
+    column of the initial pool costs more than ROOT_CAP; float pricing on totals past 2^53 loses the low bits that
+    decide near-zero costs. The scale is a power of 4 and the totals are the originals times its root."""
+    z0 = test_bcp.gen(np.random.default_rng(seed), n, kind)
+    z, scale, pi, tau = ce._root(z0, 2, 4)
+    k = round(np.log(scale) / np.log(4))
+    assert scale == 4.0 ** k and k >= 0
+    assert np.array_equal(z, z0 * 2.0 ** k)
+    from . import sg
+    assert max(dive._sc(z, c) for c in sg.initial_pool(z, 2, 4)) <= ce.ROOT_CAP * 4
+
+
+def test_a_zero_root_lp_ends_the_rescale():
+    """Edge: totals that cancel exactly (every pair equal) give a root LP of 0; the root does not rescale and
+    returns."""
+    z, scale, pi, tau = ce._root(np.full(8, 5.0), 2, 4)
+    assert scale == 1.0
