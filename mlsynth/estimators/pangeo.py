@@ -84,6 +84,8 @@ class PANGEO:
         self.fast_candidates: int = config.fast_candidates
         self.objective: str = config.objective
         self.mip_backend: str = config.mip_backend
+        self.mip_rel_gap: float = config.mip_rel_gap
+        self.mip_abs_gap: float = config.mip_abs_gap
         self.recency_decay: float = config.recency_decay
         self.frac_E: float = config.frac_E
         self.covariates = config.covariates
@@ -144,6 +146,8 @@ class PANGEO:
                 q_min_pairs=self.q_min_pairs,
                 compute_q_sweep=self.compute_q_sweep,
                 mip_backend=self.mip_backend,
+                mip_rel_gap=self.mip_rel_gap,
+                mip_abs_gap=self.mip_abs_gap,
                 assignment_seed=self.config.assignment_seed,
             )
 

@@ -15,12 +15,25 @@ per-pair score is the difference-in-differences parallelism of
    M^\\top x = \\mathbf 1 \\ (\\text{exact cover}),\\;
    \\mathbf 1^\\top x \\ge \\kappa\\ (\\text{min pairs}).
 
-Solved with cvxpy using the first installed mixed-integer backend (HiGHS by
-preference, else SCIP / GLPK_MI / CBC).
+Solved by HiGHS through ``highspy``, or through cvxpy with its first installed
+mixed-integer backend (HiGHS by preference, else SCIP / GLPK_MI / CBC).
+
+The MIP is solved to relative and absolute gaps of zero unless stated
+otherwise. HiGHS's default relative gap of 1e-4 stops at any design within
+0.01% of its dual bound and calls it optimal: on a 20-market panel with one
+outlying market both backends returned a design costing 281,977,490 against the
+optimum 281,971,264. A solve that does not end optimal is repeated once with
+presolve off, since HiGHS's presolve has returned "Solve error" on a feasible
+model the simplex solved without it (the supergeo study's fixture,
+``presolve_failure_master.json``; Achterberg, Bixby, Gu, Rothberg and Weninger,
+"Presolve Reductions in Mixed Integer Programming", INFORMS Journal on
+Computing 32 (2020) 473-506, describe the reductions it runs). The status, the
+retry, the gaps asked for and the proven gap are returned in the diagnostics.
 """
 
 from __future__ import annotations
 
+import math
 import time
 from typing import List
 
@@ -122,6 +135,63 @@ def _infeasibility_reason(candidate_pairs: List[dict],
     return "; ".join(reasons)
 
 
+def _check_gaps(mip_rel_gap, mip_abs_gap) -> None:
+    """The gaps a MIP is solved to: a relative gap in [0, 1) and a finite
+    absolute gap >= 0."""
+    for name, v, top in (("mip_rel_gap", mip_rel_gap, 1.0), ("mip_abs_gap", mip_abs_gap, np.inf)):
+        if isinstance(v, bool) or not isinstance(v, (int, float, np.integer, np.floating)) \
+                or not np.isfinite(v) or v < 0 or v >= top:
+            bound = "in [0, 1)" if top == 1.0 else "finite and >= 0"
+            raise MlsynthConfigError(f"{name} must be {bound}, not {v!r}.")
+
+
+def _cost_scale(cost) -> float:
+    """The power of two that puts the largest cost in [2^29, 2^30), 1 when every
+    cost is 0. HiGHS's feasibility and optimality tolerances are absolute, so
+    the costs' units decide what it can tell apart: the default-gap instance's
+    costs multiplied by 1e-12 gave a design 368 dearer than the optimum in the
+    original units, with both gaps at 0, and the same costs scaled into this
+    band gave the optimum at every scale from 1e-14 to 1e6. A power of two
+    multiplies exactly, so the minimizing design is unchanged."""
+    top = float(np.max(np.abs(np.asarray(cost, dtype=float)))) if len(cost) else 0.0
+    if top == 0.0 or not np.isfinite(top):
+        return 1.0
+    _, e = math.frexp(top)                    # top = m 2^e, 0.5 <= m < 1
+    return math.ldexp(1.0, 30 - e)
+
+
+def _run_highs(h):
+    """Run a HiGHS model; when its status is not Optimal, run it once more with
+    presolve off. Returns (status string, whether it was repeated)."""
+    h.run()
+    status = h.modelStatusToString(h.getModelStatus())
+    if status == "Optimal":
+        return status, False
+    h.setOptionValue("presolve", "off")
+    h.clearSolver()
+    h.run()
+    return h.modelStatusToString(h.getModelStatus()), True
+
+
+def _cvxpy_options(solver_name: str, mip_rel_gap: float, mip_abs_gap: float,
+                   presolve: bool = True):
+    """The cvxpy solver options that set the MIP gaps, and presolve off for the
+    retry, for the named solver. Returns (options, whether the gaps are set):
+    HiGHS and SCIP take both gaps; GLPK_MI and CBC are not given them through
+    cvxpy, and the diagnostics say so."""
+    if solver_name == "HIGHS":
+        opts = {"mip_rel_gap": float(mip_rel_gap), "mip_abs_gap": float(mip_abs_gap)}
+        if not presolve:
+            opts["presolve"] = "off"
+        return opts, True
+    if solver_name == "SCIP":
+        params = {"limits/gap": float(mip_rel_gap), "limits/absgap": float(mip_abs_gap)}
+        if not presolve:
+            params["presolving/maxrounds"] = 0
+        return {"scip_params": params}, True
+    return {}, False
+
+
 def _highspy_available() -> bool:
     """True if the standalone ``highspy`` HiGHS interface is importable."""
     try:
@@ -137,6 +207,8 @@ def solve_partition(
     min_pairs: int = 1,
     return_diagnostics: bool = False,
     backend: str = "auto",
+    mip_rel_gap: float = 0.0,
+    mip_abs_gap: float = 0.0,
 ):
     """Select the exact-cover set of supergeo pairs of minimum total score.
 
@@ -146,7 +218,13 @@ def solve_partition(
     identical exact-cover program and return the same optimum within the
     solver's tolerances; see :func:`_solve_partition_highspy` /
     :func:`_solve_partition_cvxpy`. The diagnostics record the backend used.
+
+    ``mip_rel_gap`` and ``mip_abs_gap`` are the gaps the solver must close, 0
+    by default (the optimum). The diagnostics add ``status``,
+    ``presolve_retry``, ``mip_rel_gap_requested``, ``mip_abs_gap_requested``
+    and ``gap_enforced`` to the solver's own ``mip_gap`` and ``dual_bound``.
     """
+    _check_gaps(mip_rel_gap, mip_abs_gap)
     if backend not in ("auto", "highspy", "cvxpy"):
         raise MlsynthConfigError(
             f"mip_backend must be 'auto', 'highspy' or 'cvxpy', not {backend!r}.")
@@ -157,7 +235,8 @@ def solve_partition(
     use = "highspy" if backend == "highspy" or (
         backend == "auto" and _highspy_available()) else "cvxpy"
     solve = _solve_partition_highspy if use == "highspy" else _solve_partition_cvxpy
-    out = solve(candidate_pairs, unit_indices, min_pairs, return_diagnostics)
+    out = solve(candidate_pairs, unit_indices, min_pairs, return_diagnostics,
+                mip_rel_gap=float(mip_rel_gap), mip_abs_gap=float(mip_abs_gap))
     if return_diagnostics:
         chosen, diagnostics = out
         return chosen, {**diagnostics, "backend": use}
@@ -169,6 +248,8 @@ def _solve_partition_highspy(
     unit_indices: np.ndarray,
     min_pairs: int = 1,
     return_diagnostics: bool = False,
+    mip_rel_gap: float = 0.0,
+    mip_abs_gap: float = 0.0,
 ):
     """Exact-cover partition MIP solved with ``highspy`` (HiGHS) directly.
 
@@ -189,6 +270,7 @@ def _solve_partition_highspy(
 
     pos = {int(u): j for j, u in enumerate(unit_indices)}
     cost = [float(p["score"]) for p in candidate_pairs]
+    scale = _cost_scale(cost)
     # Candidates covering each unit position (empty => that unit is uncoverable).
     cover: List[List[int]] = [[] for _ in range(n_units)]
     for c, pair in enumerate(candidate_pairs):
@@ -197,6 +279,8 @@ def _solve_partition_highspy(
 
     h = highspy.Highs()
     h.setOptionValue("output_flag", False)
+    h.setOptionValue("mip_rel_gap", float(mip_rel_gap))
+    h.setOptionValue("mip_abs_gap", float(mip_abs_gap) * scale)   # in the scaled units
     x = h.addBinaries(n_cand)
     for i in range(n_units):
         cs = cover[i]
@@ -209,15 +293,16 @@ def _solve_partition_highspy(
     if min_pairs > 1:
         h.addConstr(sum(x[c] for c in range(n_cand)) >= min_pairs)
 
+    h.changeColsCost(n_cand, np.arange(n_cand, dtype=np.int32), np.asarray(cost, dtype=np.float64) * scale)
+    h.changeObjectiveSense(highspy.ObjSense.kMinimize)
     t0 = time.perf_counter()
-    h.minimize(sum(cost[c] * x[c] for c in range(n_cand)))
+    status, retried = _run_highs(h)
     solve_seconds = time.perf_counter() - t0
 
-    status = h.getModelStatus()
-    if status != highspy.HighsModelStatus.kOptimal:
+    if status != "Optimal":
         raise MlsynthEstimationError(
-            f"PANGEO partition MIP did not solve "
-            f"(status={h.modelStatusToString(status)}); "
+            f"PANGEO partition MIP did not solve (status={status}"
+            f"{', after a retry with presolve off' if retried else ''}); "
             f"{_infeasibility_reason(candidate_pairs, unit_indices)}."
         )
 
@@ -239,13 +324,18 @@ def _solve_partition_highspy(
     diagnostics = {
         "path": "exact_mip",
         "n_candidate_pairs": int(n_cand),
-        "objective_value": float(h.getObjectiveValue()),
+        "objective_value": float(sum(p["score"] for p in chosen)),
         "status": "optimal",                          # kOptimal -> cvxpy's label
         "solve_seconds": float(solve_seconds),
         "n_selected_pairs": len(chosen),
+        "presolve_retry": bool(retried),
+        "mip_rel_gap_requested": float(mip_rel_gap),
+        "mip_abs_gap_requested": float(mip_abs_gap),
+        "gap_enforced": True,
         "solver_name": "HiGHS",
         "mip_gap": _f(getattr(info, "mip_gap", None)),
-        "dual_bound": _f(getattr(info, "mip_dual_bound", None)),
+        "dual_bound": (None if getattr(info, "mip_dual_bound", None) is None
+                       else float(info.mip_dual_bound) / scale),
         "node_count": _f(getattr(info, "mip_node_count", None)),
         "simplex_iterations": _f(getattr(info, "simplex_iteration_count", None)),
     }
@@ -257,6 +347,8 @@ def _solve_partition_cvxpy(
     unit_indices: np.ndarray,
     min_pairs: int = 1,
     return_diagnostics: bool = False,
+    mip_rel_gap: float = 0.0,
+    mip_abs_gap: float = 0.0,
 ):
     """Select the exact-cover set of supergeo pairs of minimum total score.
 
@@ -296,15 +388,23 @@ def _solve_partition_cvxpy(
         for u in pair["members"]:
             M[pos[int(u)], c] = 1.0
     cost = np.array([p["score"] for p in candidate_pairs], dtype=float)
+    scale = _cost_scale(cost)
 
     x = cp.Variable(n_cand, boolean=True)
     constraints = [M @ x == 1]                      # exact cover
     if min_pairs > 1:
         constraints.append(cp.sum(x) >= min_pairs)
-    problem = cp.Problem(cp.Minimize(cost @ x), constraints)
+    problem = cp.Problem(cp.Minimize((cost * scale) @ x), constraints)
+    solver = _pick_milp_solver()
+    opts, enforced = _cvxpy_options(str(solver), mip_rel_gap, mip_abs_gap * scale, presolve=True)
+    retried = False
     t0 = time.perf_counter()
     try:
-        problem.solve(solver=_pick_milp_solver())
+        problem.solve(solver=solver, **opts)
+        if problem.status != "optimal":
+            retried = True
+            opts, _ = _cvxpy_options(str(solver), mip_rel_gap, mip_abs_gap * scale, presolve=False)
+            problem.solve(solver=solver, **opts)
     except cp.error.SolverError as exc:
         raise MlsynthEstimationError(
             f"PANGEO partition MIP failed: {exc}"
@@ -312,7 +412,8 @@ def _solve_partition_cvxpy(
     solve_seconds = time.perf_counter() - t0
     if problem.status not in {"optimal", "optimal_inaccurate"}:
         raise MlsynthEstimationError(
-            f"PANGEO partition MIP did not solve (status={problem.status}); "
+            f"PANGEO partition MIP did not solve (status={problem.status}"
+            f"{', after a retry with presolve off' if retried else ''}); "
             f"{_infeasibility_reason(candidate_pairs, unit_indices)}."
         )
 
@@ -323,12 +424,17 @@ def _solve_partition_cvxpy(
         diagnostics = {
             "path": "exact_mip",
             "n_candidate_pairs": int(n_cand),
-            "objective_value": (float(problem.value)
-                                if problem.value is not None else float("nan")),
+            "objective_value": float(sum(p["score"] for p in chosen)),
             "status": problem.status,
             "solve_seconds": float(solve_seconds),
             "n_selected_pairs": len(chosen),
+            "presolve_retry": retried,
+            "mip_rel_gap_requested": float(mip_rel_gap),
+            "mip_abs_gap_requested": float(mip_abs_gap),
+            "gap_enforced": enforced,
             **stats,
         }
+        if diagnostics.get("dual_bound") is not None:
+            diagnostics["dual_bound"] = float(diagnostics["dual_bound"]) / scale
         return chosen, diagnostics
     return chosen

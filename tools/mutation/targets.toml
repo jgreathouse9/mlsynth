@@ -18747,14 +18747,14 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-backend-not-passed-to-the-mip"
-  find = "                    return_diagnostics=True, backend=mip_backend)"
-  replace = "                    return_diagnostics=True, backend=\"auto\")"
+  find = "                    return_diagnostics=True, backend=mip_backend,"
+  replace = "                    return_diagnostics=True, backend=\"auto\","
   models = "the design's MIP solved on the automatic backend whatever was configured"
 
   [[target.mutant]]
   id = "the-q-sweep-on-the-automatic-backend"
-  find = "        mip_backend=mip_backend, assignment_seed=assignment_seed,\n    )\n    sweep, results"
-  replace = "        assignment_seed=assignment_seed,\n    )\n    sweep, results"
+  find = "        mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n    )\n    sweep, results"
+  replace = "        mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n    )\n    sweep, results"
   models = "automatic Q selection designing every Q on the automatic backend whatever was configured"
 
   [[target.mutant]]
@@ -19449,20 +19449,20 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-seed-not-given-to-automatic-q"
-  find = "            q_selection=q_selection, q_min_pairs=q_min_pairs,\n            mip_backend=mip_backend, assignment_seed=assignment_seed,"
-  replace = "            q_selection=q_selection, q_min_pairs=q_min_pairs,\n            mip_backend=mip_backend,"
+  find = "            q_selection=q_selection, q_min_pairs=q_min_pairs,\n            mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,"
+  replace = "            q_selection=q_selection, q_min_pairs=q_min_pairs,\n            mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n            mip_abs_gap=mip_abs_gap,"
   models = "automatic Q designing with seed 0 whatever the caller asked"
 
   [[target.mutant]]
   id = "the-seed-not-given-to-the-automatic-sweep"
-  find = "        mip_backend=mip_backend, assignment_seed=assignment_seed,\n    )\n    sweep, results = _sweep_designs("
-  replace = "        mip_backend=mip_backend,\n    )\n    sweep, results = _sweep_designs("
+  find = "        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n    )\n    sweep, results = _sweep_designs("
+  replace = "        mip_abs_gap=mip_abs_gap,\n    )\n    sweep, results = _sweep_designs("
   models = "automatic Q's candidate designs drawn with seed 0, so the returned design's labels ignore the seed"
 
   [[target.mutant]]
   id = "the-seed-not-given-to-the-diagnostic-sweep"
-  find = "            mip_backend=mip_backend, assignment_seed=assignment_seed,\n        )\n        metadata[\"q_sweep\"]"
-  replace = "            mip_backend=mip_backend,\n        )\n        metadata[\"q_sweep\"]"
+  find = "            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        )\n        metadata[\"q_sweep\"]"
+  replace = "            mip_abs_gap=mip_abs_gap,\n        )\n        metadata[\"q_sweep\"]"
   models = "the fixed-Q fit's diagnostic sweep designed with seed 0, so its row for the fitted Q disagrees with the fit"
 
 [[target]]
@@ -20220,3 +20220,147 @@ timeout = 900.0
   find = "    if not (isinstance(construct, bool) or (isinstance(construct, str) and construct == \"auto\")):"
   replace = "    if not (isinstance(construct, (bool, int)) or isinstance(construct, str)):"
   models = "1 or 'yes' read as a setting"
+
+[[target]]
+name = "pangeo-mip-hardening"
+module-path = "mlsynth/utils/pangeo_helpers/mip.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_mip_hardening.py mlsynth/tests/test_pangeo_highspy.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-relative-gap-not-set"
+  find = "    h.setOptionValue(\"mip_rel_gap\", float(mip_rel_gap))\n"
+  replace = "    pass\n"
+  models = "HiGHS left at its default relative gap of 1e-4, which returns 281,977,490 on the default-gap instance against the optimum 281,971,264 and calls it optimal"
+
+  [[target.mutant]]
+  id = "the-absolute-gap-not-scaled"
+  find = "    h.setOptionValue(\"mip_abs_gap\", float(mip_abs_gap) * scale)   # in the scaled units\n"
+  replace = "    h.setOptionValue(\"mip_abs_gap\", float(mip_abs_gap))   # in the scaled units\n"
+  models = "the absolute gap given in the caller's units to a solver working on scaled costs"
+
+  [[target.mutant]]
+  id = "no-retry-without-presolve"
+  find = "    h.setOptionValue(\"presolve\", \"off\")\n    h.clearSolver()\n    h.run()\n"
+  replace = "    pass\n"
+  models = "a model whose presolve fails reported as failed without the run that solves it"
+
+  [[target.mutant]]
+  id = "the-retry-not-reported"
+  find = "    return h.modelStatusToString(h.getModelStatus()), True\n"
+  replace = "    return h.modelStatusToString(h.getModelStatus()), False\n"
+  models = "a repeated solve reported as a first-run optimum"
+
+  [[target.mutant]]
+  id = "cvxpy-without-the-gaps"
+  find = "        problem.solve(solver=solver, **opts)\n        if problem.status != \"optimal\":"
+  replace = "        problem.solve(solver=solver)\n        if problem.status != \"optimal\":"
+  models = "the cvxpy path left at the solver's default gaps"
+
+  [[target.mutant]]
+  id = "cvxpy-retry-with-presolve-on"
+  find = "            opts, _ = _cvxpy_options(str(solver), mip_rel_gap, mip_abs_gap * scale, presolve=False)"
+  replace = "            opts, _ = _cvxpy_options(str(solver), mip_rel_gap, mip_abs_gap * scale, presolve=True)"
+  models = "the cvxpy retry repeating the same solve with presolve on"
+
+  [[target.mutant]]
+  id = "highs-presolve-left-on"
+  find = "            opts[\"presolve\"] = \"off\""
+  replace = "            pass"
+  models = "the HiGHS option for presolve off not given on the cvxpy retry"
+
+  [[target.mutant]]
+  id = "scip-presolve-left-on"
+  find = "            params[\"presolving/maxrounds\"] = 0"
+  replace = "            pass"
+  models = "SCIP's presolve left on in the retry"
+
+  [[target.mutant]]
+  id = "unenforced-gap-reported-enforced"
+  find = "    return {}, False"
+  replace = "    return {}, True"
+  models = "GLPK_MI or CBC reported as solving to the gap asked for, which cvxpy cannot give them"
+
+  [[target.mutant]]
+  id = "a-relative-gap-of-one-accepted"
+  find = "                or not np.isfinite(v) or v < 0 or v >= top:"
+  replace = "                or not np.isfinite(v) or v < 0 or v > top:"
+  models = "a relative gap of 1 accepted, under which any design is optimal"
+
+  [[target.mutant]]
+  id = "the-requested-gap-misreported"
+  find = "        \"presolve_retry\": bool(retried),\n        \"mip_rel_gap_requested\": float(mip_rel_gap),"
+  replace = "        \"presolve_retry\": bool(retried),\n        \"mip_rel_gap_requested\": 0.0,"
+  models = "the report claiming a gap of 0 when another was asked for"
+
+  [[target.mutant]]
+  id = "the-cvxpy-retry-not-reported"
+  find = "            \"presolve_retry\": retried,"
+  replace = "            \"presolve_retry\": False,"
+  models = "a repeated cvxpy solve reported as a first-run optimum"
+
+  [[target.mutant]]
+  id = "the-scale-out-of-the-band"
+  find = "    return math.ldexp(1.0, 30 - e)"
+  replace = "    return math.ldexp(1.0, 31 - e)"
+  models = "the largest cost scaled into [2^30, 2^31), outside the band the measurements were made in"
+
+  [[target.mutant]]
+  id = "highspy-costs-unscaled"
+  find = "    h.changeColsCost(n_cand, np.arange(n_cand, dtype=np.int32), np.asarray(cost, dtype=np.float64) * scale)"
+  replace = "    h.changeColsCost(n_cand, np.arange(n_cand, dtype=np.int32), np.asarray(cost, dtype=np.float64))"
+  models = "the highspy path solving on the caller's units, where costs of 1e-12 lose the optimum to HiGHS's absolute tolerances"
+
+  [[target.mutant]]
+  id = "cvxpy-costs-unscaled"
+  find = "    problem = cp.Problem(cp.Minimize((cost * scale) @ x), constraints)"
+  replace = "    problem = cp.Problem(cp.Minimize(cost @ x), constraints)"
+  models = "the cvxpy path solving on the caller's units"
+
+  [[target.mutant]]
+  id = "the-dual-bound-in-scaled-units"
+  find = "            diagnostics[\"dual_bound\"] = float(diagnostics[\"dual_bound\"]) / scale"
+  replace = "            diagnostics[\"dual_bound\"] = float(diagnostics[\"dual_bound\"])"
+  models = "the cvxpy path's dual bound reported in the solver's scaled units"
+
+[[target]]
+name = "pangeo-mip-report"
+module-path = "mlsynth/utils/pangeo_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_mip_hardening.py -q -p no:cacheprovider -x -W ignore -k \"result or config or report or automatic\""
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-gaps-not-passed-to-the-mip"
+  find = "                    mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap)\n"
+  replace = "                    )\n"
+  models = "the config's gaps stopping at the pipeline"
+
+  [[target.mutant]]
+  id = "the-reports-not-on-the-result"
+  find = "        excluded_units=[u for d in arm_designs.values() for u in d.excluded_units],\n        mip_reports=mip_reports,\n"
+  replace = "        excluded_units=[u for d in arm_designs.values() for u in d.excluded_units],\n"
+  models = "the solves computed and left off the result"
+
+  [[target.mutant]]
+  id = "the-automatic-q-drops-the-gaps"
+  find = "            q_selection=q_selection, q_min_pairs=q_min_pairs,\n            mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,"
+  replace = "            q_selection=q_selection, q_min_pairs=q_min_pairs,\n            mip_backend=mip_backend,\n            assignment_seed=assignment_seed,"
+  models = "the automatic-Q sweep solving at the default gaps whatever was asked"
+
+  [[target.mutant]]
+  id = "the-q-sweep-drops-the-gaps"
+  find = "att_trend=att_trend,\n        mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,"
+  replace = "att_trend=att_trend,\n        mip_backend=mip_backend,\n        assignment_seed=assignment_seed,"
+  models = "the automatic-Q designs built without the gaps"
+
+[[target]]
+name = "pangeo-mip-config"
+module-path = "mlsynth/estimators/pangeo.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_mip_hardening.py -q -p no:cacheprovider -x -W ignore -k \"config or automatic\""
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-estimator-drops-the-relative-gap"
+  find = "                mip_rel_gap=self.mip_rel_gap,\n                mip_abs_gap=self.mip_abs_gap,\n"
+  replace = "                mip_abs_gap=self.mip_abs_gap,\n"
+  models = "the config's relative gap never reaching the design"
