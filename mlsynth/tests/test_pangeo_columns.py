@@ -530,3 +530,32 @@ def test_a_costlier_later_design_does_not_replace_the_best(monkeypatch):
     assert d["objective_value"] == pytest.approx(sum(c["score"] for c in chosen))
     assert d["dual_bound"] == 1e-6
     assert d["mip_solves"] == len(returned)
+
+
+def test_the_search_ends_when_the_mip_holds_every_group():
+    """Unit: once a MIP has every group, its design is the answer, whatever it costs. A solver stopped inside a
+    gap can return a design whose margin z - L passes every group's reduced cost; the margin then cannot grow, and
+    without this stop the search would solve the same MIP forever. The stub returns the seed design, whose pairs
+    join a rising unit to a falling one."""
+    t = np.arange(8.0)
+    Y = np.vstack([t * (3 if i % 2 == 0 else -3) + np.sin(t + i) for i in range(6)])
+    idx = np.arange(6)
+    pool = columns.score_columns(idx, Y, 2)
+    root = columns.root_lp(pool, columns.min_groups(6, 2, 1))
+    seed_rows = [columns.column_index(g, 6) for g in columns.seed_partition(6)]
+    seed_cost = float(pool.cost[seed_rows].sum())
+    assert seed_cost - root.bound > root.reduced_costs.max()       # the margin passes every group
+    assert len(pool) <= columns.FIRST_MIN                           # the first MIP holds every group
+    calls = []
+
+    def stub(cands, ix, **kw):
+        calls.append(len(cands))
+        if len(calls) > 3:
+            raise AssertionError("the search did not stop with every group in the MIP")
+        seed = [c for c in cands if tuple(int(u) for u in c["members"]) in set(columns.seed_partition(6))]
+        _, d = mip.solve_partition(cands, ix, **kw)
+        return seed, dict(d, objective_value=seed_cost)
+
+    chosen, d = columns.solve_exact(idx, Y, 2, solve=stub)
+    assert calls == [len(pool)] and d["mip_solves"] == 1
+    assert d["objective_value"] == pytest.approx(seed_cost)

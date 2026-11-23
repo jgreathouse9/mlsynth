@@ -20500,7 +20500,7 @@ timeout = 900.0
 [[target]]
 name = "pangeo-columns-solve"
 module-path = "mlsynth/utils/pangeo_helpers/columns.py"
-test-command = "python -m pytest mlsynth/tests/test_pangeo_columns.py -q -p no:cacheprovider -x -W ignore -k \"optimum or eliminated or poor or cardinality or backend or gap or tiny or identical or no_design or errors or costlier or smoke\""
+test-command = "python -m pytest mlsynth/tests/test_pangeo_columns.py -q -p no:cacheprovider -x -W ignore -k \"optimum or eliminated or poor or cardinality or backend or gap or tiny or identical or no_design or errors or costlier or smoke or ends_when\""
 timeout = 900.0
 
   [[target.mutant]]
