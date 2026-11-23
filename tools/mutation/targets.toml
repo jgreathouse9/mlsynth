@@ -18747,14 +18747,14 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-backend-not-passed-to-the-mip"
-  find = "                    return_diagnostics=True, backend=mip_backend)"
-  replace = "                    return_diagnostics=True, backend=\"auto\")"
+  find = "                    return_diagnostics=True, backend=mip_backend,"
+  replace = "                    return_diagnostics=True, backend=\"auto\","
   models = "the design's MIP solved on the automatic backend whatever was configured"
 
   [[target.mutant]]
   id = "the-q-sweep-on-the-automatic-backend"
-  find = "        mip_backend=mip_backend, assignment_seed=assignment_seed,\n    )\n    sweep, results"
-  replace = "        assignment_seed=assignment_seed,\n    )\n    sweep, results"
+  find = "        mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n    )\n    sweep, results"
+  replace = "        mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n    )\n    sweep, results"
   models = "automatic Q selection designing every Q on the automatic backend whatever was configured"
 
   [[target.mutant]]
@@ -19449,20 +19449,20 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-seed-not-given-to-automatic-q"
-  find = "            q_selection=q_selection, q_min_pairs=q_min_pairs,\n            mip_backend=mip_backend, assignment_seed=assignment_seed,"
-  replace = "            q_selection=q_selection, q_min_pairs=q_min_pairs,\n            mip_backend=mip_backend,"
+  find = "            q_selection=q_selection, q_min_pairs=q_min_pairs,\n            mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,"
+  replace = "            q_selection=q_selection, q_min_pairs=q_min_pairs,\n            mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n            mip_abs_gap=mip_abs_gap,"
   models = "automatic Q designing with seed 0 whatever the caller asked"
 
   [[target.mutant]]
   id = "the-seed-not-given-to-the-automatic-sweep"
-  find = "        mip_backend=mip_backend, assignment_seed=assignment_seed,\n    )\n    sweep, results = _sweep_designs("
-  replace = "        mip_backend=mip_backend,\n    )\n    sweep, results = _sweep_designs("
+  find = "        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n    )\n    sweep, results = _sweep_designs("
+  replace = "        mip_abs_gap=mip_abs_gap,\n    )\n    sweep, results = _sweep_designs("
   models = "automatic Q's candidate designs drawn with seed 0, so the returned design's labels ignore the seed"
 
   [[target.mutant]]
   id = "the-seed-not-given-to-the-diagnostic-sweep"
-  find = "            mip_backend=mip_backend, assignment_seed=assignment_seed,\n        )\n        metadata[\"q_sweep\"]"
-  replace = "            mip_backend=mip_backend,\n        )\n        metadata[\"q_sweep\"]"
+  find = "            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        )\n        metadata[\"q_sweep\"]"
+  replace = "            mip_abs_gap=mip_abs_gap,\n        )\n        metadata[\"q_sweep\"]"
   models = "the fixed-Q fit's diagnostic sweep designed with seed 0, so its row for the fitted Q disagrees with the fit"
 
 [[target]]
@@ -20230,7 +20230,7 @@ timeout = 600.0
   [[target.mutant]]
   id = "the-relative-gap-not-set"
   find = "    h.setOptionValue(\"mip_rel_gap\", float(mip_rel_gap))\n"
-  replace = ""
+  replace = "    pass\n"
   models = "HiGHS left at its default relative gap of 1e-4, which returns 281,977,490 on the default-gap instance against the optimum 281,971,264 and calls it optimal"
 
   [[target.mutant]]
@@ -20242,7 +20242,7 @@ timeout = 600.0
   [[target.mutant]]
   id = "no-retry-without-presolve"
   find = "    h.setOptionValue(\"presolve\", \"off\")\n    h.clearSolver()\n    h.run()\n"
-  replace = ""
+  replace = "    pass\n"
   models = "a model whose presolve fails reported as failed without the run that solves it"
 
   [[target.mutant]]
@@ -20337,8 +20337,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-reports-not-on-the-result"
-  find = "        mip_reports=mip_reports,\n"
-  replace = ""
+  find = "        excluded_units=[u for d in arm_designs.values() for u in d.excluded_units],\n        mip_reports=mip_reports,\n"
+  replace = "        excluded_units=[u for d in arm_designs.values() for u in d.excluded_units],\n"
   models = "the solves computed and left off the result"
 
   [[target.mutant]]
@@ -20361,6 +20361,6 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-estimator-drops-the-relative-gap"
-  find = "                mip_rel_gap=self.mip_rel_gap,\n"
-  replace = ""
+  find = "                mip_rel_gap=self.mip_rel_gap,\n                mip_abs_gap=self.mip_abs_gap,\n"
+  replace = "                mip_abs_gap=self.mip_abs_gap,\n"
   models = "the config's relative gap never reaching the design"

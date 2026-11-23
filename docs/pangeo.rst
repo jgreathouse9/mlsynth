@@ -374,8 +374,19 @@ set-partitioning program
 solved with HiGHS, through the standalone ``highspy`` interface when it is
 installed and through ``cvxpy`` otherwise (``mip_backend``: ``"auto"``,
 ``"highspy"`` or ``"cvxpy"``; the solver diagnostics record which one ran).
-Both state the same program and stop at HiGHS's default relative MIP gap,
-:math:`10^{-4}`. The exact-cover
+Both state the same program and solve it to the optimum: the relative and
+absolute MIP gaps are 0 unless ``mip_rel_gap`` or ``mip_abs_gap`` states
+others. HiGHS's own default relative gap, :math:`10^{-4}`, stops at any design
+within 0.01% of its dual bound and reports it optimal; on 20 markets with one
+outlying market it returned a design costing 281,977,490 against the optimum
+281,971,264. Two more steps keep the answer the solver's best. The costs are
+multiplied by a power of two that puts the largest in
+:math:`[2^{29}, 2^{30})`, since HiGHS's tolerances are absolute: the same
+instance with its costs multiplied by :math:`10^{-12}` gave a design 368
+dearer in the original units, with both gaps at 0. And a solve that does not
+end optimal is repeated once with presolve off, since HiGHS's presolve has
+returned "Solve error" on a feasible model the simplex solved without it.
+The exact-cover
 constraint :math:`\mathbf{M}\mathbf{x}=\mathbf 1` assigns every geo to exactly one chosen
 pair (no geo is trimmed). Because each :math:`c_G` is *precomputed* offline,
 the objective is linear in :math:`\mathbf{x}` --- the program is a mixed-integer
@@ -516,10 +527,15 @@ Solver diagnostics. Every design records how the partition solver ran in
 winning candidate and its linkage, and each candidate's total score; the exact
 set-partitioning path (``fast=False``) reports the number of candidate
 supergeo pairs :math:`|\mathcal F|`, the MIP objective, optimality gap and
-dual bound, node/iteration counts, and the solve time. When no exact cover
-exists the raised error names the structural obstruction (units that appear in
-no admissible pair, or an odd-arm/even-pair parity clash), not a generic
-failure.
+dual bound, node/iteration counts, and the solve time. The same path puts one
+typed record per arm on ``results.mip_reports``
+(:class:`~mlsynth.utils.pangeo_helpers.structures.MipSolveReport`): the
+status, whether the solve was repeated with presolve off, the gaps asked for
+and whether the solver could be given them (through ``cvxpy``, GLPK_MI and CBC
+cannot), and the proven gap and dual bound. When no exact cover exists the
+raised error names the structural obstruction (units that appear in no
+admissible pair, or an odd-arm/even-pair parity clash) and whether the solve
+was repeated, not a generic failure.
 
 Balancing baseline covariates
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
