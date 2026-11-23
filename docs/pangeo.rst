@@ -442,20 +442,23 @@ therefore reaches the optimum of :eq:`mip` in three steps
    than :math:`z`, so the MIP needs only the pairs with
    :math:`\bar c_G \le z - L` (reduced-cost fixing; Nemhauser and Wolsey, 1988,
    section II.1.4). The first MIP takes the pairs of least reduced cost and a
-   fixed design's pairs; when its design costs :math:`z` and a pair left out has
-   :math:`\bar c_G \le z - L`, a second MIP over all such pairs returns the
-   optimum.
+   fixed design's pairs. When the best design so far costs :math:`z` and a pair
+   left out has :math:`\bar c_G \le z - L`, the next MIP takes the pairs up to
+   the smaller of :math:`z - L` and the reduced cost of a set four times larger,
+   so a first design far above the optimum does not admit almost every pair at
+   once (at 24 geos it admitted 189,950 of 190,026, and the MIP took 795 s). The
+   search ends when every pair left out has :math:`\bar c_G > z - L`, or the MIP
+   has every pair.
 
 The LP bound is weak on this problem: on the seasonal panels below it lies 14
 to 33% under the optimum, and subset-row cuts (Jepsen, Petersen, Spoorendonk
 and Pisinger, 2008) moved the gap at 20 geos and :math:`Q=3` only from 42.8 to
 39.6%. When :math:`2Q` does not divide :math:`N`, the LP covers the arm with a
 fractional :math:`N/2Q` of the cheap largest pairs, and the cut on
-:math:`\mathbf 1^{\top}\mathbf{x}` halved that gap, to 22%. Even so, at most
-one pair in thirty has :math:`\bar c_G \le z - L`, and at 28 geos fewer than
-one in a hundred. One arm of the seasonal
-panel (``make_seasonal_sales_panel``, 60 periods, a 42-period estimation
-window), on one core, with the optimum the same in every row:
+:math:`\mathbf 1^{\top}\mathbf{x}` halved that gap, to 22%. Even so, the last
+MIP holds at most one pair in twelve, and at 28 geos one in 137. One arm of the
+seasonal panel (``make_seasonal_sales_panel``, 60 periods, a 42-period
+estimation window), with the optimum the same in every row both paths ran:
 
 .. list-table::
    :header-rows: 1
@@ -467,55 +470,68 @@ window), on one core, with the optimum the same in every row:
      - pairs in the last MIP
      - this path
    * - 2
+     - 16
+     - 2,500
+     - 0.65 s
+     - 208
+     - 0.15 s
+   * - 2
+     - 18
+     - 4,029
+     - 2.5 s
+     - 209
+     - 0.69 s
+   * - 2
      - 20
      - 6,175
-     - 4.0 s
-     - 200
-     - 0.8 s
+     - 2.9 s
+     - 210
+     - 0.63 s
    * - 3
      - 14
      - 6,461
-     - 5.1 s
-     - 200
-     - 0.1 s
+     - 4.6 s
+     - 207
+     - 0.08 s
    * - 3
      - 16
      - 14,876
-     - 13.2 s
-     - 200
-     - 0.1 s
+     - 40.2 s
+     - 208
+     - 0.16 s
    * - 3
      - 18
      - 31,161
-     - 44.4 s
-     - 200
-     - 0.2 s
+     - 45.1 s
+     - 209
+     - 0.16 s
    * - 3
      - 20
      - 60,439
-     - 187.6 s
-     - 633
-     - 4.6 s
+     - 175.8 s
+     - 643
+     - 5.2 s
    * - 2
      - 30
      - 31,900
      - not run
-     - 381
-     - 4.1 s
+     - 396
+     - 7.1 s
    * - 3
      - 24
      - 190,026
      - not run
-     - 1,088
-     - 23.8 s
+     - 1,100
+     - 23.1 s
    * - 3
      - 28
      - 499,149
      - not run
-     - 3,640
-     - 38.5 s
+     - 3,654
+     - 54.7 s
 
-The full path's time is enumeration in Python plus the MIP over every pair.
+The full path's time is enumeration in Python plus the MIP over every pair;
+HiGHS's time on it varies between runs (13 s and 40 s at 16 geos).
 
 ``results.mip_reports`` records the pairs scored (``columns_scored``), the
 pairs in the last MIP (``columns_solved``) and the bound :math:`L`
