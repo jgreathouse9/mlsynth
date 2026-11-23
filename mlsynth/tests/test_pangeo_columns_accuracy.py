@@ -239,3 +239,23 @@ def test_property_the_bound_and_the_reduced_costs_are_rigorous(seed, n, Q, k, sc
         assert Fr(float(lo)) <= ex
     exact_L = sum(P) + S * k + sum(min(Fr(0), e) for e in exact_rc)
     assert Fr(float(L)) <= exact_L
+
+
+def test_covariates_at_large_levels_are_accurate():
+    """Unit: covariates near 1e9 that differ by about 1 across units give the covariate term to 1e-6 relative; they
+    are centred over the arm first, which leaves every difference of means exact."""
+    n, T = 6, 8
+    Y = np.random.default_rng(5).normal(size=(n, T)).cumsum(axis=1)
+    kw = dict(cov=1e9 + np.random.default_rng(6).normal(size=(n, 2)), cov_scales=np.array([1.0, 2.0]))
+    pool = columns.score_columns(np.arange(n), Y, 2, **kw)
+    for r, c in zip(_rows(pool), pool.cost):
+        ex = _exact_group(Y, r, 2, "ss_res", **_oracle_kw(kw))
+        assert abs(Fr(float(c)) - ex) <= Fr(1e-6) * ex
+
+
+@pytest.mark.parametrize("weights", [np.r_[-1.0, np.ones(7)], np.zeros(8), np.r_[np.nan, np.ones(7)], np.ones(5)])
+def test_weighted_needs_valid_weights(weights):
+    """Failure: weights that are negative, sum to zero, are not finite or do not match the window are reported."""
+    with pytest.raises(ValueError, match="weights"):
+        columns.score_columns(np.arange(4), np.random.default_rng(0).normal(size=(4, 8)), 2, objective="weighted",
+                              weights=weights)

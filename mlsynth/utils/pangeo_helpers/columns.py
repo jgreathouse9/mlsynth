@@ -3,21 +3,37 @@
 The exact program (:mod:`.mip`) chooses an exact cover of an arm's units by groups of 2 to 2Q units, each group
 costing its best split (:func:`.parallelism.best_split`). There are :math:`\\sum_{m=2}^{2Q}\\binom{n}{m}` groups. This
 module scores all of them in compiled code, bounds the optimum from below by the root linear program, and gives the
-MIP only the groups that bound cannot rule out. The design is the full MIP's optimum.
+MIP only the groups that bound cannot rule out. Every design whose exact cost is at most the returned design's is
+in the last MIP; that MIP's optimum is HiGHS's, on the computed costs, to its tolerances.
 
-Scoring. A split of a group into halves A and B has gap :math:`g = \\bar Y_A - \\bar Y_B = Y^\\top c`, with
+Scoring. A split of a group into halves A and B has gap :math:`g = \\bar Y_A - \\bar Y_B = \\sum_i c_i y_i`, with
 :math:`c_i = u_i / U_A` on A and :math:`-u_i / U_B` on B (:math:`u` the unit weights, :math:`U` their sums over a half).
-Each cost is then a quadratic form in :math:`c`: the level-removed residual sum of squares is :math:`c^\\top G c` with
-:math:`G = Y M Y^\\top` and :math:`M = I - \\mathbf 1\\mathbf 1^\\top / T` the centring matrix; the weighted one has
-:math:`M = D_w - w w^\\top / W`; the covariate term is :math:`c^\\top C\\,\\mathrm{diag}(\\omega / s^2) C^\\top c`; and
-the R^2 denominator is :math:`a^\\top G a` with :math:`a` the A part of :math:`c`. The Gram matrices are formed once per
-arm, so a split costs :math:`O(m^2)` operations, not :math:`O(mT)`. FDID's forward selection uses the same device: the
-fit of every candidate comes from shared cross-products (Li, "Frontiers: A simple forward difference-in-differences
-method", Marketing Science 43 (2024) 267-279; :mod:`mlsynth.utils.fdid_helpers`). The supergeo_total cost is the
-square of a difference of totals (Chen, Doudchenko, Jiang, Stein and Ying, arXiv:2301.12044, eq. 3). Groups come out
-in the enumeration's order, by size and then lexicographically, and splits are tried in
-:func:`.parallelism.best_split`'s order with the first minimum kept; splits that tie in exact arithmetic are separated
-by rounding, which differs between the two computations.
+Its cost is the residual sum of squares of fitting a level to that gap,
+:math:`\\min_\\delta \\|g - \\delta\\mathbf 1\\|^2` (weighted: :math:`\\min_\\delta \\sum_t w_t (g_t - \\delta)^2`), a least
+squares problem, and it is computed the way least squares problems are solved. Each unit's level is removed first (the two-pass algorithm: Bjorck, "Numerical
+Methods in Matrix Computations", Springer, 2015, eqs. 2.1.28 to 2.1.31; Chan, Golub and LeVeque, "Algorithms for
+computing the sample variance", Amer. Statist. 37 (1983) 241-247), the split's gap is formed directly from the centred
+paths, its level is removed again, and its squares are summed. The cost is never formed as :math:`c^\\top A^\\top A c`
+from the cross-product matrix: that is the method of normal equations, whose error grows with the square of the
+conditioning (Golub and Van Loan, "Matrix Computations", 4th ed., sections 5.3.2 and 5.3.7; Bjorck, "Numerical Methods
+for Least Squares Problems", SIAM, 1996, section 2.2.1). On panels whose units share a large common factor and run
+nearly parallel in clusters, it gave the costs that decide the design relative errors near 0.4, some negative, and a
+design above the exact optimum on 14 of 16 panels. Removing the levels is exact for the cost: a constant added to a
+unit's path moves the gap by a constant, which the fitted level absorbs, and a constant added to a covariate for every
+unit leaves each difference of half means unchanged, since the weights c sum to zero. The covariate term is the
+weighted squared difference of the halves' arm-centred covariate means, formed directly; the R^2 denominator is half
+A's level-removed residual, formed the same way; the supergeo_total cost is the square of a difference of totals (Chen,
+Doudchenko, Jiang, Stein and Ying, arXiv:2301.12044, eq. 3).
+
+Every split's exact cost (in exact arithmetic on the panel's doubles) is also bounded from below and above. The gap's
+error is at most :math:`k_1(m) \\sum_p |c_p| \\|A_p\\|_2`, from the error of a dot product, of the weights and of the
+centring (Rump, "Verification methods: rigorous results using floating-point arithmetic", Acta Numerica 19 (2010)
+287-449, Theorem 2.1); the level fit is an orthogonal projection, which does not lengthen that error; and the sum of
+squares and the mean carry their own :math:`\\gamma_{T+6}` and :math:`\\gamma_{2T+4}` terms. The bounds assume no
+underflow, the condition of that theorem. A group's lower bound is the least over its splits, its upper bound that of
+the split chosen. Groups come out in the enumeration's order, by size and then lexicographically, and splits are tried
+in :func:`.parallelism.best_split`'s order with the first minimum kept; splits that tie in exact arithmetic are
+separated by rounding.
 
 Bound. Let :math:`\\pi` be duals for the cover rows and :math:`\\sigma \\ge 0` one for the row
 :math:`\\sum_G x_G \\ge k`. For every design :math:`x`, :math:`c^\\top x = \\pi^\\top \\mathbf 1 + \\sigma k +
@@ -34,7 +50,12 @@ for any duals: the Lagrangian bound of the set-partitioning program with :math:`
 "Selected topics in column generation", Oper. Res. 53 (2005) 1007-1023, section 2.1). A group with
 :math:`\\bar c_H > z - L` is in no design cheaper than :math:`z`, which is reduced-cost fixing (Nemhauser and Wolsey,
 "Integer and Combinatorial Optimization", Wiley, 1988, section II.1.4). The duals come from the root LP, solved by
-column generation over the scored groups. The row :math:`\\sum_G x_G \\ge k` holds with
+column generation over the scored groups. The LP's duals need not be accurate, since the bound holds for any duals,
+provided it is evaluated rigorously (Jansson, "Rigorous lower and upper bounds in linear programming", SIAM J. Optim.
+14 (2004) 914-935; Neumaier and Shcherbina, "Safe bounds in linear and mixed-integer linear programming", Math.
+Program. 99 (2004) 283-296): the reduced costs are formed from the costs' lower bounds less their own rounding, and
+L is summed with its rounding subtracted and rounded down. The search compares the margin z - L exactly, with z the
+sum of the design's upper bounds. The row :math:`\\sum_G x_G \\ge k` holds with
 :math:`k = \\max(\\kappa_{\\min}, \\lceil n / 2Q \\rceil)`: summing the cover rows with multiplier :math:`1/2Q` gives
 :math:`\\sum_G (|G| / 2Q) x_G = n / 2Q`, and rounding up both sides is a Chvatal-Gomory cut (Chvatal, "Edmonds
 polytopes and a hierarchy of combinatorial problems", Discrete Math. 4 (1973) 305-337). When 2Q does not divide n
@@ -52,8 +73,10 @@ the MIP has every group.
 """
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass
+from fractions import Fraction
 from math import comb
 from typing import Callable, List, Optional, Sequence, Tuple
 
@@ -77,7 +100,7 @@ except ImportError:  # pragma: no cover - the suite runs with numba installed
 CANONICAL_NAME = "mlsynth.utils.pangeo_helpers.columns"
 _CACHE = __name__ == CANONICAL_NAME
 
-#: The most groups scored for one arm: 20 million groups of six take about 0.7 GB.
+#: The most groups scored for one arm: 20 million groups of six take about 1 GB.
 MAX_COLUMNS = 20_000_000
 #: The first MIP's groups: this many per unit, and at least FIRST_MIN.
 FIRST_PER_UNIT = 10
@@ -91,6 +114,7 @@ BATCH_PER_UNIT = 5
 #: Reduced costs within this share of the largest cost count as zero.
 _RTOL = 1e-9
 _EPS = 1e-12
+_U = 2.0 ** -53                      # the unit roundoff of IEEE double precision
 _OBJECTIVES = {"ss_res": 0, "r2": 1, "weighted": 2, "supergeo_total": 3}
 
 
@@ -111,6 +135,9 @@ class ColumnPool:
     complete : bool
         True when every group's cost is finite; a group with a non-finite cost is dropped, as the enumeration drops
         it, and the pool then no longer holds every group at :func:`column_index`.
+    cost_lo, cost_up : np.ndarray
+        Rigorous bounds on each group's exact cost (the cost in exact arithmetic on the panel's doubles): the least
+        lower bound over its splits, and the upper bound of the split chosen.
     """
 
     unit_indices: np.ndarray
@@ -118,6 +145,8 @@ class ColumnPool:
     cost: np.ndarray
     side_a: np.ndarray
     complete: bool
+    cost_lo: np.ndarray
+    cost_up: np.ndarray
 
     def __len__(self) -> int:
         return int(self.cost.size)
@@ -147,9 +176,9 @@ class RootLP:
     sigma : float
         Dual of the row ``sum(x) >= k``, at least 0.
     reduced_costs : np.ndarray
-        Every group's reduced cost at those duals.
+        Rigorous lower bounds on every group's exact reduced cost at those duals.
     bound : float
-        The Lagrangian bound at those duals (a lower bound on every design's cost).
+        The Lagrangian bound at those duals, a rigorous lower bound on every design's exact cost.
     lp_value : float
         The LP optimum over the groups generated.
     rounds : int
@@ -203,9 +232,107 @@ def min_groups(n: int, max_size: int, min_pairs: int) -> int:
     return max(int(min_pairs), -(-n // (2 * max_size)))
 
 
+def _up(F: Fraction) -> float:
+    """The least double at or above the rational F."""
+    f = float(F)
+    return f if Fraction(f) >= F else math.nextafter(f, math.inf)
+
+
+def _down(F: Fraction) -> float:
+    """The greatest double at or below the rational F."""
+    f = float(F)
+    return f if Fraction(f) <= F else math.nextafter(f, -math.inf)
+
+
+def _gamma(k: int) -> float:
+    """gamma_k = k u / (1 - k u), rounded up (Rump 2010, Theorem 2.1; Higham, Accuracy and Stability, Lemma 3.1)."""
+    U = Fraction(_U)
+    return _up(k * U / (1 - k * U))
+
+
+def _k1(m: int) -> float:
+    """The factor bounding a split's residual error by sum_p |c_p| ||A_p||: gamma_m for the dot products, gamma_{m+1}
+    for the weights c = u / U, u / (1 - u) for the centred data, inflated by gamma_{2m+4} for evaluating the bound."""
+    U = Fraction(_U)
+    g = lambda k: k * U / (1 - k * U)
+    return _up((g(m) + (g(m + 1) + U / (1 - U)) / (1 - g(m + 1))) * (1 + g(2 * m + 4)))
+
+
 @njit(cache=_CACHE)
-def _score_group(g, m, Q, obj, G, G0, K, has_cov, u, tot, c, a, sel):
+def _traj(pos, m, c, A, Nu, w, use_w, W, sw, k1, g_s, g_mu, r):
+    """The level-removed residual sum of squares of the gap r = sum_p c_p A_p, computed from the centred data, and
+    rigorous lower and upper bounds on its exact value. See the module docstring."""
+    T = A.shape[1]
+    for t in range(T):
+        r[t] = 0.0
+    abs_cn = 0.0
+    for p in range(m):
+        cp = c[p]
+        row = A[pos[p]]
+        for t in range(T):
+            r[t] += cp * row[t]
+        abs_cn += abs(cp) * Nu[pos[p]]
+    S = 0.0
+    if use_w:
+        for t in range(T):
+            S += w[t] * r[t]
+        mu = S / W
+    else:
+        for t in range(T):
+            S += r[t]
+        mu = S / T
+    s = 0.0
+    for t in range(T):
+        d = r[t] - mu
+        if use_w:
+            s += w[t] * d * d
+        else:
+            s += d * d
+    e_r = k1 * abs_cn * sw
+    rbar = abs_cn * (1.0 + 2.0 * k1)
+    e_mu = g_mu * g_mu * rbar * rbar * sw * sw
+    q_up = np.sqrt(s / (1.0 - g_s))
+    q2 = s / (1.0 + g_s) - e_mu
+    q_lo = np.sqrt(q2) if q2 > 0.0 else 0.0
+    lo = q_lo - e_r
+    lo = lo * lo * (1.0 - 8.0 * _U) if lo > 0.0 else 0.0
+    up = (q_up + e_r) * (q_up + e_r) * (1.0 + 8.0 * _U)
+    return s, lo, up
+
+
+@njit(cache=_CACHE)
+def _covterm(pos, m, c, Cc, sc, om, k1, g_c):
+    """The weighted squared standardized difference of the halves' covariate means, computed as a combination of
+    the arm-centred covariates, and rigorous bounds on its exact value."""
+    M = Cc.shape[1]
+    s = 0.0
+    lo = 0.0
+    up = 0.0
+    for j in range(M):
+        d = 0.0
+        a = 0.0
+        for p in range(m):
+            v = Cc[pos[p], j]
+            d += c[p] * v
+            a += abs(c[p]) * abs(v)
+        e = k1 * a
+        v = d / sc[j]
+        s += om[j] * v * v
+        ad = abs(d)
+        if ad > e:
+            vl = (ad - e) / sc[j]
+            lo += om[j] * vl * vl
+        vu = (ad + e) / sc[j]
+        up += om[j] * vu * vu
+    return s, lo * (1.0 - g_c), up * (1.0 + g_c)
+
+
+@njit(cache=_CACHE)
+def _score_group(g, m, Q, obj, A, Nu, w, use_w, W, sw, Cc, sc, om, has_cov, u, tot, tot_err, k1t, g_s, g_mu,
+                 g_c, gam, c, posA, cA, r, sel):
     best = np.inf
+    best_lo = np.inf
+    best_up = np.inf
     best_mask = 0
     for size_a in range(1, min(Q, m - 1) + 1):
         if m - size_a > Q:
@@ -227,36 +354,52 @@ def _score_group(g, m, Q, obj, G, G0, K, has_cov, u, tot, c, a, sel):
             for p in range(m):
                 if (mask >> p) & 1:
                     c[p] = u[g[p]] / UA
-                    a[p] = c[p]
                 else:
                     c[p] = -u[g[p]] / UB
-                    a[p] = 0.0
             if obj == 3:
                 d = 0.0
+                a = 0.0
+                e = 0.0
                 for p in range(m):
                     if (mask >> p) & 1:
                         d += tot[g[p]]
                     else:
                         d -= tot[g[p]]
+                    a += abs(tot[g[p]])
+                    e += tot_err[g[p]]
+                e = (e + gam[m + 1] * a) * (1.0 + 4.0 * _U)
                 s = d * d
+                ad = abs(d)
+                lo = (ad - e) * (ad - e) * (1.0 - 4.0 * _U) if ad > e else 0.0
+                up = (ad + e) * (ad + e) * (1.0 + 4.0 * _U)
             else:
-                s = 0.0
-                for p in range(m):
-                    for q in range(m):
-                        s += c[p] * c[q] * G[g[p], g[q]]
+                s, lo, up = _traj(g, m, c, A, Nu, w, use_w, W, sw, k1t[m], g_s, g_mu, r)
                 if obj == 1:
-                    st = 0.0
+                    na = 0
                     for p in range(m):
-                        for q in range(m):
-                            st += a[p] * a[q] * G0[g[p], g[q]]
+                        if (mask >> p) & 1:
+                            posA[na] = g[p]
+                            cA[na] = c[p]
+                            na += 1
+                    st, st_lo, st_up = _traj(posA, na, cA, A, Nu, w, False, W, 1.0, k1t[na], g_s, g_mu, r)
                     if st > 1e-12:
-                        s = s / st
+                        s = s / st                  # = 1 - R^2, as split_cost scores it
+                    if st_lo > 1e-12:
+                        lo = lo / st_up * (1.0 - 4.0 * _U)
+                        up = up / st_lo * (1.0 + 4.0 * _U)
+                    elif st_up > 1e-12:            # the exact ss_tot may lie on either side of the threshold
+                        lo = min(lo / st_up * (1.0 - 4.0 * _U), lo)
+                        up = max(up / 1e-12 * (1.0 + 4.0 * _U), up)
             if has_cov:
-                for p in range(m):
-                    for q in range(m):
-                        s += c[p] * c[q] * K[g[p], g[q]]
+                cs, clo, cup = _covterm(g, m, c, Cc, sc, om, k1t[m], g_c)
+                s += cs
+                lo = (lo + clo) * (1.0 - 2.0 * _U)
+                up = (up + cup) * (1.0 + 2.0 * _U)
+            if lo < best_lo:
+                best_lo = lo
             if s < best:
                 best = s
+                best_up = up
                 best_mask = mask
             j = k - 1
             while j >= 0 and sel[j] == m - k + j:
@@ -266,31 +409,39 @@ def _score_group(g, m, Q, obj, G, G0, K, has_cov, u, tot, c, a, sel):
             sel[j] += 1
             for i in range(j + 1, k):
                 sel[i] = sel[i - 1] + 1
-    return best, best_mask
+    return best, best_lo, best_up, best_mask
 
 
 @njit(cache=_CACHE)
-def _score_all(n, Q, obj, G, G0, K, has_cov, u, tot, N):
+def _score_all(n, Q, obj, A, Nu, w, use_w, W, sw, Cc, sc, om, has_cov, u, tot, tot_err, k1t, g_s, g_mu, g_c,
+               gam, N):
     hi = min(2 * Q, n)
     width = max(hi, 1)
     members = np.full((N, width), -1, np.int32)
     cost = np.empty(N)
+    cost_lo = np.empty(N)
+    cost_up = np.empty(N)
     side_a = np.zeros(N, np.int32)
     g = np.empty(width, np.int64)
     c = np.empty(width)
-    a = np.empty(width)
+    posA = np.empty(width, np.int64)
+    cA = np.empty(width)
+    r = np.empty(A.shape[1])
     sel = np.empty(width, np.int64)
-    r = 0
+    row = 0
     for m in range(2, hi + 1):
         for j in range(m):
             g[j] = j
         while True:
-            s, mk = _score_group(g, m, Q, obj, G, G0, K, has_cov, u, tot, c, a, sel)
+            s, lo, up, mk = _score_group(g, m, Q, obj, A, Nu, w, use_w, W, sw, Cc, sc, om, has_cov, u, tot,
+                                         tot_err, k1t, g_s, g_mu, g_c, gam, c, posA, cA, r, sel)
             for j in range(m):
-                members[r, j] = g[j]
-            cost[r] = s
-            side_a[r] = mk
-            r += 1
+                members[row, j] = g[j]
+            cost[row] = s
+            cost_lo[row] = lo
+            cost_up[row] = up
+            side_a[row] = mk
+            row += 1
             j = m - 1
             while j >= 0 and g[j] == n - m + j:
                 j -= 1
@@ -299,25 +450,41 @@ def _score_all(n, Q, obj, G, G0, K, has_cov, u, tot, N):
             g[j] += 1
             for i in range(j + 1, m):
                 g[i] = g[i - 1] + 1
-    return members, cost, side_a
+    return members, cost, cost_lo, cost_up, side_a
 
 
-def _grams(Y, objective, weights, cov, cov_scales, cov_weights):
-    """The quadratic forms of the module docstring, over the arm's rows."""
-    n = Y.shape[0]
-    Yc = Y - Y.mean(axis=1, keepdims=True)
-    G0 = Yc @ Yc.T
-    if objective == "weighted":
-        w = np.asarray(weights, dtype=float)
-        Yw = Y @ w
-        G = (Y * w) @ Y.T - np.outer(Yw, Yw) / max(float(w.sum()), _EPS)
+def _prepare(Y, objective, weights, cov, cov_scales, cov_weights, width):
+    """The arm's centred paths and the constants of the error bounds (module docstring)."""
+    n, T = Y.shape
+    use_w = objective == "weighted"
+    w = np.ones(T)
+    W = float(T)
+    if use_w:
+        w = np.ascontiguousarray(weights, dtype=float)
+        if w.shape != (T,) or not np.isfinite(w).all() or (w < 0).any() or float(w.sum()) <= _EPS:
+            raise ValueError("objective='weighted' needs T finite, nonnegative weights summing to more than 1e-12.")
+        W = float(w.sum())
+        mu = (Y @ w) / W
     else:
-        G = G0
+        mu = Y.mean(axis=1)
+    A = np.ascontiguousarray(Y - mu[:, None])        # the levels removed first: the two-pass algorithm
+    Nu = np.sqrt(np.einsum("ij,ij->i", A, A)) * (1.0 + _gamma(T + 3))
+    sw = math.sqrt(float(w.max())) * (1.0 + 4.0 * _U) if use_w and T else 1.0
+    tot = Y.sum(axis=1)
+    tot_err = _gamma(max(T, 1)) * np.abs(Y).sum(axis=1) * (1.0 + _gamma(T + 1))
     if cov is None:
-        return G, G0, np.zeros((n, n)), False
-    cw = np.ones(cov.shape[1]) if cov_weights is None else np.asarray(cov_weights, dtype=float)
-    K = (cov * (cw / np.asarray(cov_scales, dtype=float) ** 2)) @ cov.T
-    return G, G0, K, True
+        Cc, sc, om, has_cov = np.zeros((n, 1)), np.ones(1), np.zeros(1), False
+    else:
+        C = np.asarray(cov, dtype=float)
+        Cc = np.ascontiguousarray(C - C.mean(axis=0))   # a shift common to every unit leaves the difference exact
+        sc = np.asarray(cov_scales, dtype=float)
+        om = np.ones(C.shape[1]) if cov_weights is None else np.asarray(cov_weights, dtype=float)
+        has_cov = True
+    k1t = np.array([_k1(m) for m in range(width + 1)])
+    gam = np.array([_gamma(k) for k in range(width + 3)])
+    return dict(A=A, Nu=Nu, w=w, use_w=use_w, W=W, sw=sw, Cc=Cc, sc=sc, om=om, has_cov=has_cov, tot=tot,
+                tot_err=tot_err, k1t=k1t, g_s=_gamma(T + 6), g_mu=_gamma(2 * T + 4), g_c=_gamma(Cc.shape[1] + 8),
+                gam=gam)
 
 
 def score_columns(
@@ -326,9 +493,9 @@ def score_columns(
     cov_scales: Optional[np.ndarray] = None, cov_weights: Optional[np.ndarray] = None,
     unit_weights: Optional[np.ndarray] = None,
 ) -> ColumnPool:
-    """Every group of 2 to 2Q of ``unit_indices`` with its best split and cost, as
-    :func:`.parallelism.enumerate_candidate_pairs` scores them. The arguments are that function's; ``Ypre``,
-    ``cov`` and ``unit_weights`` are indexed by panel row."""
+    """Every group of 2 to 2Q of ``unit_indices`` with its best split, its cost, and rigorous lower and upper bounds
+    on the exact cost, as :func:`.parallelism.enumerate_candidate_pairs` scores them. The arguments are that
+    function's; ``Ypre``, ``cov`` and ``unit_weights`` are indexed by panel row."""
     if objective not in _OBJECTIVES:
         raise ValueError(f"Unknown objective {objective!r}; expected one of {sorted(_OBJECTIVES)}.")
     if objective == "weighted" and weights is None:
@@ -341,15 +508,19 @@ def score_columns(
             f"PANGEO: {n} units at max_supergeo_size={max_size} make {N:,} candidate groups, more than the "
             f"{MAX_COLUMNS:,} the exact design scores; use fast=True or a smaller max_supergeo_size.")
     Y = np.asarray(Ypre, dtype=float)[idx]
-    G, G0, K, has_cov = _grams(Y, objective, weights, None if cov is None else np.asarray(cov, float)[idx],
-                               cov_scales, cov_weights)
+    width = max(min(2 * int(max_size), n), 1)
+    k = _prepare(Y, objective, weights, None if cov is None else np.asarray(cov, float)[idx], cov_scales,
+                 cov_weights, width)
     u = np.ones(n) if unit_weights is None else np.asarray(unit_weights, dtype=float)[idx]
-    members, cost, side_a = _score_all(n, int(max_size), _OBJECTIVES[objective], G, G0, K, has_cov, u,
-                                       Y.sum(axis=1), N)
+    members, cost, cost_lo, cost_up, side_a = _score_all(
+        n, int(max_size), _OBJECTIVES[objective], k["A"], k["Nu"], k["w"], k["use_w"], k["W"], k["sw"], k["Cc"],
+        k["sc"], k["om"], k["has_cov"], u, k["tot"], k["tot_err"], k["k1t"], k["g_s"], k["g_mu"], k["g_c"],
+        k["gam"], N)
     finite = np.isfinite(cost)
     if not finite.all():
         members, cost, side_a = members[finite], cost[finite], side_a[finite]
-    return ColumnPool(idx, members, cost, side_a, bool(finite.all()))
+        cost_lo, cost_up = cost_lo[finite], cost_up[finite]
+    return ColumnPool(idx, members, cost, side_a, bool(finite.all()), cost_lo, cost_up)
 
 
 def _reduced_costs(members: np.ndarray, cost: np.ndarray, pi: np.ndarray, sigma: float) -> np.ndarray:
@@ -360,12 +531,33 @@ def _reduced_costs(members: np.ndarray, cost: np.ndarray, pi: np.ndarray, sigma:
     return rc
 
 
+def _rc_lower(pool: ColumnPool, pi: np.ndarray, sigma: float) -> np.ndarray:
+    """Rigorous lower bounds on every group's exact reduced cost: cost_lo minus its duals and sigma, less the
+    rounding of that sum of width + 1 terms (Rump 2010, Theorem 2.1)."""
+    pad = np.append(np.asarray(pi, dtype=float), 0.0)     # position -1 (padding) reads the 0
+    apad = np.abs(pad)
+    rc = pool.cost_lo - sigma
+    mag = pool.cost_lo + sigma
+    for j in range(pool.members.shape[1]):
+        rc = rc - pad[pool.members[:, j]]
+        mag = mag + apad[pool.members[:, j]]
+    return rc - 2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc))
+
+
 def lagrangian_bound(pool: ColumnPool, pi: np.ndarray, sigma: float, k: int) -> Tuple[float, np.ndarray]:
     """The Lagrangian bound of the module docstring at duals ``pi`` and ``sigma`` (clipped at 0) for the row
-    ``sum(x) >= k``, and every group's reduced cost. A lower bound on every design's cost for any duals."""
+    ``sum(x) >= k``, and every group's reduced cost, both as rigorous lower bounds: the reduced costs from the costs'
+    lower bounds less their rounding, the duals summed by ``math.fsum`` (correctly rounded), the negative reduced
+    costs summed with the error bound of Rump (2010), Theorem 2.1, and the total formed in rationals and rounded
+    down. A lower bound on every design's exact cost, for any duals."""
     sigma = max(float(sigma), 0.0)
-    rc = _reduced_costs(pool.members, pool.cost, pi, sigma)
-    return float(np.sum(pi) + sigma * k + np.minimum(rc, 0.0).sum()), rc
+    rc = _rc_lower(pool, pi, sigma)
+    neg = np.minimum(rc, 0.0)
+    s2 = float(neg.sum())
+    e2 = _gamma(max(neg.size, 1)) * float(np.abs(neg).sum()) * (1.0 + _gamma(max(neg.size, 1)))
+    s1 = math.fsum(float(x) for x in pi)
+    L = Fraction(s1) - abs(Fraction(s1)) * Fraction(_U) + Fraction(sigma) * k + Fraction(s2) - Fraction(e2)
+    return _down(L), rc
 
 
 def _master(pool: ColumnPool, cols: np.ndarray, cost: np.ndarray, n: int, k: int):
@@ -442,29 +634,36 @@ def solve_exact(
     t1 = time.perf_counter()
     root = root_lp(pool, k)
     lp_seconds = time.perf_counter() - t1
-    L, rc = root.bound, root.reduced_costs
+    L, rc = root.bound, root.reduced_costs               # rigorous lower bounds
     seed = np.array([column_index(g, n) for g in seed_partition(n)])
+    pos = {int(u): p for p, u in enumerate(idx)}
+
+    def upper(chosen) -> Fraction:
+        """A rigorous upper bound on a design's exact cost: the sum of its groups' cost_up, in rationals."""
+        rows = [column_index(tuple(sorted(pos[int(u)] for u in c["members"])), n) for c in chosen]
+        return sum((Fraction(float(pool.cost_up[j])) for j in rows), Fraction(0))
+
     count = min(len(pool), max(FIRST_MIN, FIRST_PER_UNIT * n))
     delta = float(np.partition(rc, count - 1)[count - 1])
-    tol = _RTOL * max(1.0, abs(L), float(np.abs(pool.cost).max()))
     best = last = None
     solves, mip_seconds = 0, 0.0
     while True:
-        keep = np.union1d(np.flatnonzero(rc <= delta + tol), seed)
+        keep = np.union1d(np.flatnonzero(rc <= delta), seed)
         chosen, d = solve(pool.candidates(keep), idx, min_pairs=k, **kw)
         solves += 1
         mip_seconds += float(d["solve_seconds"])
         last = d
         if best is None or d["objective_value"] < best[1]["objective_value"]:
-            best = (chosen, d)
-        z = best[1]["objective_value"]
-        if z - L <= delta + tol or keep.size >= len(pool):
+            best = (chosen, d, upper(chosen))
+        margin = best[2] - Fraction(L)                 # exact: every group left out has rc_lo > delta
+        if margin <= Fraction(delta) or keep.size >= len(pool):
             break
         # at most GROWTH times the groups, and never past z - L: a first design far above the optimum would
         # otherwise admit almost every group at once
         count = min(len(pool), count * GROWTH)
-        delta = min(z - L, float(np.partition(rc, count - 1)[count - 1]))
-    chosen, d = best
+        delta = min(_up(margin), float(np.partition(rc, count - 1)[count - 1]))
+    chosen, d, z_up = best
+    z = d["objective_value"]
     d = dict(d)
     if d is not last and last.get("dual_bound") is not None:
         # the last MIP held every design cheaper than this one, so its bound bounds the optimum
@@ -472,5 +671,5 @@ def solve_exact(
         d["mip_gap"] = (abs(z - last["dual_bound"]) / abs(z)) if z != 0 else last.get("mip_gap")
     d.update(extra, columns_solved=int(keep.size), lagrangian_bound=float(L), lp_value=root.lp_value,
              lp_rounds=root.rounds, mip_solves=solves, solve_seconds=mip_seconds, lp_seconds=lp_seconds,
-             objective_value=float(z), n_selected_pairs=len(chosen))
+             objective_value=float(z), objective_upper=_up(z_up), n_selected_pairs=len(chosen))
     return chosen, d
