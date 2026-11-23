@@ -744,6 +744,57 @@ At 235 markets, steady state (numba compiled), one thread:
 The bound is 1.78035386 on every row. The first eight iterations still scan, and
 the scan is now two thirds of the root.
 
+### A seeded first pool
+
+The root's first eight iterations scan because their duals are far from the
+optimum's. At 235 markets the optimum is plain: the market duals are within 2e-7
+of 0, since every market sits in a group of four that balances almost exactly,
+and the parity dual is 1.7803529, the cheapest triple's cost. The root bound is
+that triple and nothing else.
+
+`_seed_pool` starts column generation from that neighbourhood. To the sorted
+neighbours' blocks it adds the starting design's groups (for an odd count, the
+best triple and pairs) and the cheapest groups: every group of cost at most
+theta = g 10^e, g the squared median spacing, for the least e from -12 at which
+5N groups qualify. They come from the window at zero duals, costed exactly,
+and the search for theta stops at WINDOW_CAP rows. Column generation still runs
+to convergence, so the bound is unchanged.
+
+The first pricing from the seeded pool lands just under the window's limit: 2.1
+million rows against the groups / 50 limit of 2.5 million, whose count and
+pricing took 8.5 s where the scan took 1.7 s. The ratio that limit came from was
+timed on the pricing alone, without the count. The root now takes the window at
+groups / 200 rows or fewer (at 235 markets, 6.85 s at a ratio of 50, 2.65 s at
+200, 2.50 to 2.58 s at 400 and 1,000, 5.46 s with the scan alone).
+
+Root, steady state, one thread, main against the seeded pool:
+
+| markets | root, main | pricings | root, seeded | pricings |
+| --- | --- | --- | --- | --- |
+| 80 (subset of the 235) | 0.50 s | 9 | 0.05 s | 1 |
+| 121 (subset of the 235) | 3.19 s | 12 | 0.55 s | 3 |
+| 180 | 6.71 s | 14 | 0.36 s | 1 |
+| 235 | 24.11 s | 17 | 3.15 s | 3 |
+
+The bound is the same on every row. The certificate at 235 markets with the gap at
+0.01 N sigma^2 took 10.7 s against 33.0 s (77.1 s before the kept master and the
+window pricing), the same design and bound; the window for the stages is now
+most of it (5.6 s).
+
+Two candidates measured out:
+
+- An early stop on the Lagrangian bound of column generation (Uchoa, Pessoa and
+  Moreno, Theorem 2.8). Traced at 235 markets from the unseeded pool, the bound
+  was below 0 for the first ten iterations, which were 25 of the root's 29 s, and
+  came within 1e-4 of the LP value only at iteration 13 of 17. Stopping there
+  saved 1.7 s.
+- Wentges dual smoothing (Wentges, "Weighted Dantzig-Wolfe decomposition for
+  linear mixed-integer programming", ITOR 4, 1997) toward market duals of 0, on
+  top of the seeded pool. Pricing at the smoothed duals missed a negative column
+  in three of five iterations at 235 markets, and each miss cost a pricing at the
+  true duals: 4.92 s at a weight of 0.5 and 6.03 s at 0.9 against 4.02 s without;
+  slower at 121 and 180 markets as well.
+
 ### A reproducible design
 
 Three runs of the certificate on that panel gave three designs, all within the
