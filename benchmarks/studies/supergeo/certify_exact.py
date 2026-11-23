@@ -116,12 +116,71 @@ class _Master:
 ROOT_CAP = 1e10
 
 
+#: The root's first pool holds at least SEED_MULT * N of the cheapest groups (:func:`_seed_pool`). Measured on the
+#: simulated 235-market panel: 5 groups a market gave a 4.0 s root, 10 gave 7.7 s and 40 gave 8.5 s, against 26.1 s
+#: unseeded; at 51, 80, 121 and 180 markets 5 and 10 were within 0.3 s of each other.
+SEED_MULT = 5
+
+
+def _spacing2(z):
+    """The squared median spacing of the sorted totals, the scale of a near-balanced group's cost. When half or more
+    of the spacings are 0, the mean squared spacing; when every total is equal, 1."""
+    d = np.diff(np.sort(np.asarray(z, float)))
+    if len(d):
+        for g in (float(np.median(d)) ** 2, float(np.mean(d * d))):
+            if g > 0:
+                return g
+    return 1.0
+
+
+def _cheap_groups(z, lo, hi, K):
+    """The cheapest groups of lo..hi markets: every group of cost at most theta, for the least theta = g 10^e,
+    e = -12, -11, ..., g = :func:`_spacing2`, at which at least K groups qualify (every group when fewer than K
+    exist). The candidates at each theta are the safe window at zero duals, which holds every group of cost at most
+    theta; each is costed by the scan's arithmetic. Returns (rows, sorted markets padded with -1; theta)."""
+    if K < 0:
+        raise ValueError(f"the number of groups must be at least 0, not {K}")
+    z = np.asarray(z, float); n = len(z)
+    if K == 0:
+        return np.zeros((0, 4), np.int32), 0.0
+    want = min(K, sum(math.comb(n, k) for k in range(lo, hi + 1)))
+    g = _spacing2(z); zero = np.zeros(n); e = -12
+    while True:
+        theta = g * 10.0 ** e
+        W = safe_window(z, zero, lo, hi, theta)
+        keep = sg.scores(z, W) <= theta
+        if int(keep.sum()) >= want:
+            return W[keep], theta
+        e += 1
+
+
+def _seed_pool(z, lo, hi, mult=None):
+    """The root's first pool: the sorted neighbours' blocks (sg.initial_pool, which always holds a cover), the
+    starting design's groups (:func:`_start`) and the cheapest groups, at least mult * N of them
+    (:func:`_cheap_groups`; mult is SEED_MULT when None). Starting column generation from columns of a good primal
+    solution and from cheap columns is the standard initialization (Lubbecke and Desrosiers, "Selected Topics in
+    Column Generation", Operations Research 53(6), 2005, pp. 1007-1023). Here it puts the first LP near the optimum,
+    whose market duals are near 0 (every market sits in a group of four that balances almost exactly) and whose
+    parity dual, for an odd count, is the cheapest triple's cost: on the simulated 235-market panel the root took 5
+    pricings and 4.0 s against 17 and 26.1 s. Column generation still runs to convergence, so the bound is the same.
+    Returns the columns sorted, without repeats."""
+    mult = SEED_MULT if mult is None else mult
+    if mult < 0:
+        raise ValueError(f"mult must be at least 0, not {mult}")
+    z = np.asarray(z, float)
+    cols = set(sg.initial_pool(z, lo, hi))
+    cols |= {tuple(sorted(int(v) for v in g)) for g in _start(z, lo, hi)}
+    rows, _ = _cheap_groups(z, lo, hi, mult * len(z))
+    cols |= {tuple(int(v) for v in r if v >= 0) for r in rows}
+    return sorted(cols)
+
+
 def _root(z0, lo, hi):
-    """Column generation to convergence (floating point; its duals only need to be doubles).
-    Returns (z rescaled by a power of 4, the scale, pi, tau)."""
+    """Column generation to convergence (floating point; its duals only need to be doubles), from the seeded pool
+    (:func:`_seed_pool`). Returns (z rescaled by a power of 4, the scale, pi, tau)."""
     n = len(z0); odd = n % 2 == 1
     z = np.asarray(z0, float).copy(); scale = 1.0
-    cols = sg.initial_pool(z, lo, hi); score = {c: dive._sc(z, c) for c in cols}
+    cols = _seed_pool(z, lo, hi); score = {c: dive._sc(z, c) for c in cols}
     master = _Master(n, odd)
     while True:
         lp, pi, tau, x = master.solve(cols, np.array([score[c] for c in cols]))

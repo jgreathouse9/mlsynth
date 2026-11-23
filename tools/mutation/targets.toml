@@ -19938,3 +19938,69 @@ timeout = 600.0
   find = "        if st != \"Optimal\":\n            raise RuntimeError(f\"the root's master LP was not solved: {st}\")"
   replace = "        if False:\n            raise RuntimeError(f\"the root's master LP was not solved: {st}\")"
   models = "duals returned from a master that was not solved"
+
+[[target]]
+name = "supergeo-seeded-pool"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_seed_pool.py -q -p no:cacheprovider -x"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-root-not-seeded"
+  find = "    cols = _seed_pool(z, lo, hi); score = {c: dive._sc(z, c) for c in cols}"
+  replace = "    cols = sg.initial_pool(z, lo, hi); score = {c: dive._sc(z, c) for c in cols}"
+  models = "the root starting from the sorted neighbours' blocks, the seeded pool built and unused"
+
+  [[target.mutant]]
+  id = "the-window-kept-unfiltered"
+  find = "            return W[keep], theta"
+  replace = "            return W, theta"
+  models = "every window row seeded, groups dearer than theta among them"
+
+  [[target.mutant]]
+  id = "the-boundary-group-dropped"
+  find = "        keep = sg.scores(z, W) <= theta"
+  replace = "        keep = sg.scores(z, W) < theta"
+  models = "a group costing exactly theta left out of the seed"
+
+  [[target.mutant]]
+  id = "theta-steps-two-decades"
+  find = "        e += 1"
+  replace = "        e += 2"
+  models = "theta growing a hundredfold a step, past the least theta that holds K groups"
+
+  [[target.mutant]]
+  id = "the-start-left-out"
+  find = "    cols |= {tuple(sorted(int(v) for v in g)) for g in _start(z, lo, hi)}"
+  replace = "    cols |= set()"
+  models = "the starting design's groups (an odd count's triple) missing from the first pool"
+
+  [[target.mutant]]
+  id = "the-cheap-groups-left-out"
+  find = "    cols |= {tuple(int(v) for v in r if v >= 0) for r in rows}"
+  replace = "    cols |= set()"
+  models = "the cheapest groups computed and not added to the pool"
+
+  [[target.mutant]]
+  id = "more-asked-than-exist"
+  find = "    want = min(K, sum(math.comb(n, k) for k in range(lo, hi + 1)))"
+  replace = "    want = K"
+  models = "a count above the number of groups, so theta grows without end"
+
+  [[target.mutant]]
+  id = "no-seed-by-default"
+  find = "SEED_MULT = 5"
+  replace = "SEED_MULT = 0"
+  models = "the default seeding no cheap groups"
+
+  [[target.mutant]]
+  id = "equal-totals-scale-zero"
+  find = "    return 1.0\n\n\ndef _cheap_groups"
+  replace = "    return 0.0\n\n\ndef _cheap_groups"
+  models = "a zero scale when every total is equal, theta stuck at 0"
+
+  [[target.mutant]]
+  id = "negative-mult-accepted"
+  find = "    if mult < 0:"
+  replace = "    if mult < -1:"
+  models = "a negative count accepted and read as no seed"
