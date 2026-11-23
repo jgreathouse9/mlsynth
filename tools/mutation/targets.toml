@@ -18843,9 +18843,15 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-start-ignores-the-limits"
-  find = "    if lo == 2 and (n % 2 == 0 or hi >= 3):"
-  replace = "    if True:"
-  models = "the sorted-pairs start used whatever the limits, a design the heuristic may leave partly unrepaired"
+  find = "    if lo == 2 and hi >= 3:\n        s = np.asarray(z, float)[o]"
+  replace = "    if hi >= 3:\n        s = np.asarray(z, float)[o]"
+  models = "the odd-count start of one triple and pairs used whatever lo is, a design the heuristic may leave partly unrepaired"
+
+  [[target.mutant]]
+  id = "the-even-start-ignores-the-limits"
+  find = "    if lo == 2 and n % 2 == 0:"
+  replace = "    if n % 2 == 0:"
+  models = "the sorted-pairs start used for an even count whatever lo is"
 
   [[target.mutant]]
   id = "the-largest-group-count-not-tried"
@@ -19788,3 +19794,75 @@ timeout = 300.0
   find = "            if k > 0:\n                f = 4.0 ** k"
   replace = "            if k >= 0:\n                f = 4.0 ** k"
   models = "a rescale by 4^0 repeated when the cap allows no further power, so the root never returns"
+
+[[target]]
+name = "supergeo-odd-start"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_odd_start.py -q -p no:cacheprovider -x"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-triple-at-the-top"
+  find = "        _, p, q, r = _best_triple(s)"
+  replace = "        p, q, r = n - 3, n - 2, n - 1"
+  models = "the odd-count start's triple on the three largest markets, the start that left 160,540 in one triple at 235 markets"
+
+  [[target.mutant]]
+  id = "the-largest-market-always-alone"
+  find = "                t = min((S - 2 * s[p]) ** 2, (S - 2 * s[q]) ** 2, (S - 2 * s[r]) ** 2)"
+  replace = "                t = (S - 2 * s[r]) ** 2"
+  models = "the triple's split fixed at its largest market against the other two, right only for non-negative totals"
+
+  [[target.mutant]]
+  id = "the-dangling-market-not-paired"
+  find = "        d = s[x] - s[carry]; c = d * d; x += 1"
+  replace = "        x += 1"
+  models = "the pair bridging a removed position costed at zero"
+
+  [[target.mutant]]
+  id = "one-parity-for-every-segment"
+  find = "        P = PA if x % 2 == 0 else PB"
+  replace = "        P = PA"
+  models = "a segment starting at an odd position summed over the even gaps"
+
+  [[target.mutant]]
+  id = "the-dangling-parity-flipped"
+  find = "    return c, (y - 1 if (y - x) % 2 == 1 else -1)"
+  replace = "    return c, (y - 1 if (y - x) % 2 == 0 else -1)"
+  models = "a segment of even length leaving its last position dangling"
+
+  [[target.mutant]]
+  id = "every-gap-in-the-odd-sum"
+  find = "        PB[i + 1] = PB[i] + (d if i % 2 == 1 else 0.0)"
+  replace = "        PB[i + 1] = PB[i] + d"
+  models = "the odd-position prefix sum taking every neighbour gap"
+
+  [[target.mutant]]
+  id = "the-middle-segment-includes-its-hole"
+  find = "                c3, k = _seg(s, PA, PB, q + 1, r, k)"
+  replace = "                c3, k = _seg(s, PA, PB, q, r, k)"
+  models = "the triple's middle market counted again in the pairing of the rest"
+
+  [[target.mutant]]
+  id = "the-window-checked-after-it-is-built"
+  find = "    if total > cap:\n        raise WindowTooLarge(total, cap)"
+  replace = "    if False:\n        raise WindowTooLarge(total, cap)"
+  models = "the size check skipped, so a window of 1.1e9 rows is allocated and fails as a bare MemoryError"
+
+  [[target.mutant]]
+  id = "a-window-at-the-cap-refused"
+  find = "    if total > cap:\n        raise WindowTooLarge(total, cap)"
+  replace = "    if total >= cap:\n        raise WindowTooLarge(total, cap)"
+  models = "the cap exclusive"
+
+  [[target.mutant]]
+  id = "the-cap-frozen-at-import"
+  find = "    cap = WINDOW_CAP if cap is None else cap"
+  replace = "    cap = 50_000_000 if cap is None else cap"
+  models = "the module cap read at definition, so a changed WINDOW_CAP is ignored"
+
+  [[target.mutant]]
+  id = "the-refusal-without-the-gap"
+  find = "        raise WindowTooLarge(e.rows, e.cap, f\"incumbent {float(UB) / scale:.6g}, bound {b / scale:.6g} \"\n                             f\"(the window's threshold is set by their gap)\") from e"
+  replace = "        raise"
+  models = "the certificate's refusal not naming the incumbent and the bound whose gap set the threshold"
