@@ -230,84 +230,77 @@ sub-models, not the :math:`2^{N_0}` of the exhaustive procedure (for
 final group :math:`\widehat{\mathcal{D}}` is then plugged into the DiD formulas
 above for the ATT, its standard error, and the :math:`R^2`.
 
-How mlsynth computes this: incremental means and a batched :math:`R^2`
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+How mlsynth computes this: a running sum and every candidate's residual
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Read literally, each step of the algorithm re-forms a subset average from
 scratch and re-fits a DiD regression for *every* remaining candidate -- an
 :math:`O(N)` rebuild times an :math:`O(N)` candidate loop times the
 per-candidate work, repeated :math:`N` times. mlsynth's
 :func:`~mlsynth.utils.fdid_helpers.estimation.forward_did_select` instead
-collapses each step into a handful of vectorized NumPy operations through
-three observations.
+does each step in a few vectorized operations, without changing which donor
+any step picks.
 
-1. The comparison average is updated incrementally, never rebuilt.
-   Let :math:`\mathbf{m}^{(k)} \in \mathbb{R}^{T}` be the running average over
-   the :math:`k` already-selected controls. Adding control :math:`c` gives the
-   :math:`(k+1)`-average by a single rank-one update,
+1. The intercept :math:`b_0` drops out of the search. Profiling it out of the
+   DiD loss is *centring*: the fitted residual of a candidate group is the
+   treated unit's centred pre-period path minus the group average's centred
+   path. So the donors are centred once, before the search (subtracting each
+   donor's pre-period mean, and the treated unit's from it), and :math:`b_0` is
+   recovered only once, for the winning group, in
+   :func:`~mlsynth.utils.fdid_helpers.estimation.did_from_mean`.
 
-.. math::
-
-   \mathbf{m}^{(k+1)} = \mathbf{m}^{(k)}
-       + \frac{\mathbf{y}_c - \mathbf{m}^{(k)}}{k + 1},
-
-which is :math:`O(T)`, not :math:`O(kT)`. This is
-:func:`~mlsynth.utils.fdid_helpers.estimation._update_synthetic_control`
-(``current_mean + (control - current_mean) / (k + 1)``).
-
-2. All candidate averages for a step are built in one matrix. At step
-   :math:`k`, let :math:`\mathbf{Y}_{\mathcal{R}} \in \mathbb{R}^{T_0 \times
-   |\mathcal{R}|}` stack the *pre-period* columns of the remaining candidates
-   :math:`\mathcal{R}`. Every candidate :math:`(k+1)`-average -- one per
-   column -- is formed simultaneously by broadcasting the running pre-period
-   mean :math:`\mathbf{m}^{(k)}_{\mathcal{T}_1}`:
+2. The selected donors are carried as a running sum. With
+   :math:`\mathbf{S}^{(k)}` the sum of the :math:`k` selected donors' centred
+   pre-period paths and :math:`\widetilde{\mathbf{y}}` the treated unit's,
+   adding candidate :math:`\ell` leaves the residual
 
 .. math::
 
-   \mathbf{M} = \frac{k\,\mathbf{m}^{(k)}_{\mathcal{T}_1}\mathbf{1}^\top
-       + \mathbf{Y}_{\mathcal{R}}}{k + 1}
-   \in \mathbb{R}^{T_0 \times |\mathcal{R}|}.
-
-In code this is the one line ``new_means = (current_mean_pre[:, None] * k +
-candidates) / (k + 1)`` inside
-:func:`~mlsynth.utils.fdid_helpers.estimation._select_best_donor`.
-
-3. The intercept :math:`b_0` drops out, so scoring is pure inner
-   products. This is the step that removes the per-candidate regression
-   entirely. Profiling out :math:`b_0` from the DiD loss is exactly
-   *centering*: the fitted residual for candidate column :math:`\ell` is
-   :math:`\widehat{v}_t = (y_{1t} - \bar y_1) - (M_{t\ell} - \bar
-   M_\ell)`. Writing
-   :math:`\widetilde{\mathbf{y}} = \mathbf{y}_{1,\mathcal{T}_1} - \bar y_1`
-   (precomputed once, with its norm :math:`\|\widetilde{\mathbf{y}}\|_2^2 =
-   \mathrm{ss}_{\text{tot}}`), the residual sum of squares for *all*
-   candidates is
-
-.. math::
-
-   \mathrm{SSR}_\ell = \mathrm{ss}_{\text{tot}}
-       + \underbrace{\| \mathbf{M}_\ell - \bar M_\ell \|_2^2}_{\text{column SS}}
-       - 2\,\underbrace{\widetilde{\mathbf{y}}^\top (\mathbf{M}_\ell - \bar M_\ell)}_{\text{one matrix--vector product}},
+   \mathbf{e}_\ell = \widetilde{\mathbf{y}}
+       - \frac{\mathbf{S}^{(k)} + \widetilde{\mathbf{x}}_\ell}{k + 1},
+   \qquad
+   \mathrm{SSR}_\ell = \|\mathbf{e}_\ell - \bar e_\ell\mathbf{1}\|_2^2,
    \qquad
    R^2_\ell = 1 - \frac{\mathrm{SSR}_\ell}{\mathrm{ss}_{\text{tot}}}.
 
-The cross term for the whole candidate set is the single matvec
-:math:`\widetilde{\mathbf{y}}^\top(\mathbf{M} - \bar{\mathbf{M}})`; the column
-sums of squares are one reduction. This is the scoring step inside
-:func:`~mlsynth.utils.fdid_helpers.estimation.forward_did_select`, which centres
-the donors once and caches each donor's squared norm and its cross-product with
-the treated unit, so the step reduces to one matvec against the running centred
-sum. No candidate is ever regressed, and :math:`b_0` is never explicitly solved
-during the search (it is recovered only once, for the winning group, in
-:func:`~mlsynth.utils.fdid_helpers.estimation.did_from_mean`).
+   Every candidate's residual is one column of the matrix
+   :math:`(\widetilde{\mathbf{y}} - \mathbf{S}^{(k)}/(k+1))\mathbf{1}^\top -
+   \widetilde{\mathbf{X}}_{\mathcal{R}}/(k+1)`, formed in one broadcast; its
+   level is removed again and its squares are summed, column by column. A step
+   costs :math:`O(T_0|\mathcal{R}|)`.
 
-Taken together, a forward step costs :math:`O(T_0 |\mathcal{R}|)` and the
-entire search is :math:`O(T_0 N_0^2)`, with the inner loop expressed as a
-broadcast, a matrix--vector product, a column reduction, and an
-``argmax`` -- no Python-level loop over candidates and no per-candidate
-solve. This is what lets the implementation run the selection over
-:math:`\sim`\ 1,500 controls, and what makes the :math:`M = 5{,}000`
-replication Monte Carlo in *Verification* tractable.
+3. The residual is formed, not expanded. Expanding :math:`\mathrm{SSR}_\ell`
+   into :math:`\mathrm{ss}_{\text{tot}} + \|\cdot\|^2 - 2\,\text{cross}` costs
+   the same order but cancels large terms to get a small one, the method of
+   normal equations (Golub and Van Loan, *Matrix Computations*, 4th ed., 2013,
+   section 5.3.7): its error grows
+   with the square of the conditioning, and the best candidates, whose
+   :math:`R^2` is near 1, are where it is largest. On donor pools with a common
+   factor of :math:`10^6` the expanded form's :math:`R^2` path erred by up to
+   :math:`1.2\times 10^{-4}` of :math:`1 - R^2`, and with near-duplicate donors
+   at a factor of :math:`10^8` one pick differed from the exact one.
+
+4. Each pick is the one exact arithmetic makes. Every candidate's
+   :math:`\mathrm{SSR}` carries a lower and an upper bound on its exact value,
+   from the rounding error bounds of Rump ("Verification methods: rigorous
+   results using floating-point arithmetic", *Acta Numerica* 19, 2010,
+   Theorem 2.1). When another
+   candidate's bounds overlap the leader's, those few are recomputed in exact
+   rational arithmetic and the least is kept, ties going to the first index
+   as R's ``which.max`` breaks them. The number of donors kept, the step of the
+   largest :math:`R^2`, is decided the same way. Overlaps arise only for exact
+   or near-exact ties, so the exact recomputation runs rarely.
+
+A donor with a non-finite pre-period value has no comparable fit and is never
+a candidate; a non-finite treated pre-period leaves no comparable fit at all,
+and the search raises.
+
+Taken together, the entire search is :math:`O(T_0 N_0^2)`, with the inner
+loop expressed as a broadcast, a column reduction and an ``argmin``. No
+candidate is ever regressed and there is no Python-level loop over candidates.
+This is what lets the implementation run the selection over :math:`\sim`\
+1,500 controls, and what makes the :math:`M = 5{,}000` replication Monte Carlo
+in *Verification* tractable.
 
 The augmented fit
 ~~~~~~~~~~~~~~~~~

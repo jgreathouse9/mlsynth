@@ -20,6 +20,9 @@ from hypothesis import HealthCheck, given, settings, strategies as st
 
 from mlsynth.utils.fdid_helpers.estimation import forward_did_select
 
+#: R^2 near 1 is a double next to 1, which holds it to within ulp(1); closer than that no computation can report it.
+_ULP1 = Fr(2.0 ** -52)
+
 
 def _exact(y, X, T0):
     """Forward selection in exact arithmetic: (sequence, ss_res path, optimal prefix)."""
@@ -97,7 +100,7 @@ def test_the_r2_path_is_accurate_on_a_large_common_factor(seed):
     assert seq == ex_seq
     for got, ssr in zip(out["R2_at_each_step"], path):
         r2 = 1 - ssr / sst
-        assert abs(Fr(float(got)) - r2) <= Fr(1e-6) * (1 - r2)
+        assert abs(Fr(float(got)) - r2) <= Fr(1e-6) * (1 - r2) + _ULP1
 
 
 def test_exact_duplicate_donors_tie_to_the_first_index():
@@ -149,4 +152,33 @@ def test_property_the_selection_is_the_exact_one(seed, N, T0, F, LEV, EPS, gap):
     if sst > 0:
         for got, ssr in zip(out["R2_at_each_step"], path):
             r2 = 1 - ssr / sst
-            assert abs(Fr(float(got)) - r2) <= Fr(1e-6) * (1 - r2) + Fr(1e-12)
+            assert abs(Fr(float(got)) - r2) <= Fr(1e-6) * (1 - r2) + _ULP1
+
+
+def test_a_non_finite_treated_pre_period_is_reported():
+    """Failure: a NaN in the treated unit's pre-period leaves no comparable fit and raises, as the search always did."""
+    y, X = _pool(1, 5, 10, 1.0, 0.0, 1.0)
+    y[2] = np.nan
+    with pytest.raises(ValueError, match="All-NaN slice encountered"):
+        forward_did_select(y, X, 8, list(range(5)))
+
+
+def test_a_donor_with_a_non_finite_pre_period_is_never_a_candidate():
+    """Edge: a donor with a NaN pre-period is never selected, as the search always left it, and the selection over
+    the others is the exact one; the search used to end by re-selecting a chosen donor at R^2 = -inf."""
+    y, X = _pool(1, 6, 10, 1e3, 1e4, 1.0)
+    X[3, 4] = np.nan
+    seq, out = _run(y, X, 8)
+    keep = [0, 1, 2, 3, 5]
+    ex_seq, _, ex_opt, _ = _exact(y, X[:, keep], 8)
+    assert seq == [keep[i] for i in ex_seq]
+    assert out["selected_controls"] == [keep[i] for i in ex_opt]
+    assert 4 not in seq and np.all(np.isfinite(out["R2_at_each_step"]))
+
+
+def test_no_finite_donor_is_reported():
+    """Failure: every donor with a non-finite pre-period leaves nothing to select, and raises."""
+    y, X = _pool(1, 3, 10, 1.0, 0.0, 1.0)
+    X[0, :] = np.nan
+    with pytest.raises(ValueError, match="All-NaN slice encountered"):
+        forward_did_select(y, X, 8, list(range(3)))
