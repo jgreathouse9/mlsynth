@@ -489,66 +489,67 @@ estimation window), with the optimum the same in every row both paths ran:
    * - 2
      - 16
      - 2,500
-     - 0.65 s
+     - 0.87 s
      - 208
-     - 0.15 s
+     - 0.12 s
    * - 2
      - 18
      - 4,029
-     - 2.5 s
+     - 2.4 s
      - 209
-     - 0.69 s
+     - 0.75 s
    * - 2
      - 20
      - 6,175
      - 2.9 s
      - 210
-     - 0.63 s
+     - 0.60 s
    * - 3
      - 14
      - 6,461
-     - 4.6 s
+     - 4.7 s
      - 207
      - 0.08 s
    * - 3
      - 16
      - 14,876
-     - 40.2 s
+     - 13.8 s
      - 208
      - 0.16 s
    * - 3
      - 18
      - 31,161
-     - 45.1 s
+     - 40.4 s
      - 209
-     - 0.16 s
+     - 0.25 s
    * - 3
      - 20
      - 60,439
-     - 175.8 s
+     - 179.5 s
      - 643
-     - 5.2 s
+     - 5.7 s
    * - 2
      - 30
      - 31,900
      - not run
      - 396
-     - 7.1 s
+     - 6.7 s
    * - 3
      - 24
      - 190,026
      - not run
      - 1,100
-     - 23.1 s
+     - 22.6 s
    * - 3
      - 28
      - 499,149
      - not run
      - 3,654
-     - 54.7 s
+     - 56.5 s
 
 The full path's time is enumeration in Python plus the MIP over every pair;
-HiGHS's time on it varies between runs (13 s and 40 s at 16 geos).
+HiGHS's time on it varies between runs (13 s and 40 s at 16 geos). Scoring every pair
+from the centred data takes 0.9 s of the 56.5 s at 28 geos; the MIPs take 55 s.
 
 ``results.mip_reports`` records the pairs scored (``columns_scored``), the
 pairs in the last MIP (``columns_solved``) and the bound :math:`L`
