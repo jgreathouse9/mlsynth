@@ -14,8 +14,8 @@ least squares problem, and it is computed the way least squares problems are sol
 first (the two-pass algorithm: Bjorck, "Numerical Methods in Matrix Computations", Springer, 2015, eqs. 2.1.28 to
 2.1.31; Chan, Golub and LeVeque, "Algorithms for computing the sample variance", Amer. Statist. 37 (1983) 241-247),
 the split's gap is formed directly from the centred paths, its level is removed again, and its squares are summed.
-The cost is never formed as :math:`c^\\top A^\\top A c` from the cross-product matrix: that is the method of normal equations, whose error grows with the square of the
-conditioning (Golub and Van Loan, "Matrix Computations", 4th ed., sections 5.3.2 and 5.3.7; Bjorck, "Numerical Methods
+The cost is never formed as :math:`c^\\top A^\\top A c` from the cross-product matrix: that is the method of normal
+equations, whose error grows with the square of the conditioning (Golub and Van Loan, "Matrix Computations", 4th ed., sections 5.3.2 and 5.3.7; Bjorck, "Numerical Methods
 for Least Squares Problems", SIAM, 1996, section 2.2.1). On panels whose units share a large common factor and run
 nearly parallel in clusters, it gave the costs that decide the design relative errors near 0.4, some negative, and a
 design above the exact optimum on 14 of 16 panels. Removing the levels is exact for the cost: a constant added to a
