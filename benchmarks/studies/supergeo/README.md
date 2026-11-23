@@ -637,6 +637,46 @@ the heuristic's changes the variance of the treated-minus-control comparison by
 about one part in 60,000, so gaps below its cost do not bear on the experiment;
 the run at d = 0.001 was stopped for that reason, not for the time.
 
+### 235 markets: an odd count
+
+The same simulator at 235 markets (seed 2026; two regions of 163 and 72; four-week
+totals of mean 412.8 and sd 57.9; noise N sigma^2 = 65,247 in squared spacings).
+An odd count with groups of 2 to 4 forces an odd number of triples, and a triple
+splits one market against two, so it balances only where one total is near the
+sum of two others. On markets of similar size few triples do: the cheapest here
+is a market of 816.7 against two of 397.7 and 420.4, at a cost of 1.78, and the
+root bound is 1.78.
+
+The first run failed at every gap. The sorted start put its triple on the three
+largest markets (814.3, 816.7, 819.6), at a cost of 658,491 of the start's
+660,085; the heuristic's moves free groups near a chosen group's rank, never the
+smallest markets that triple needs, and left 160,540 in one triple. The window's
+threshold grows with the incumbent's distance to the bound, and the first window
+needed 1,098,913,193 rows (32.8 GiB) on a machine with 15 GiB. Its size check ran
+after the allocation, so the failure was a bare MemoryError. On the 180-market
+panel (even, no triple) the same window held 8,913 rows.
+
+Two changes:
+
+- The odd-count start is the best design of one triple and pairs. For a fixed
+  triple the rest pair best as sorted neighbours (the exchange argument), so the
+  best such design is the least over every triple of its cost plus that pairing's;
+  each triple is costed in O(1) from parity-split prefix sums of the neighbour
+  gaps, O(n^3) in all. Here it costs 1,359 (against 660,085), and the heuristic
+  takes it to 3.65.
+- The window counts its rows before it allocates and raises `WindowTooLarge`,
+  naming the rows, the memory, the incumbent and the bound.
+
+| absolute gap d | time | design's cost | proved |
+| --- | --- | --- | --- |
+| 0.01 N sigma^2 (652) | 77.1 s | 263.1 | at once, from the bound |
+| 0.001 N sigma^2 (65) | 78.3 s | 64.8 | at once, from the bound |
+| 0.01 | stopped at the 25-minute limit | | no |
+
+Root column generation is 71 to 73 s of each run, against 9.7 s at 180 markets
+(phase 0c's third step profiles it). The bound is the cheapest triple's cost and
+nothing more, so a gap below the heuristic's design needs a search.
+
 ### A reproducible design
 
 Three runs of the certificate on that panel gave three designs, all within the
