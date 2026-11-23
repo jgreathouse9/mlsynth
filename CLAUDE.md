@@ -76,6 +76,30 @@ python benchmarks/run_benchmarks.py --all     # durable paper/reference validati
    an odd count, the market left out is found by one scan of that order. The
    same pairs under a trajectory or covariate cost have no closed form and go to
    a matcher.
+9. **Stable before fast.** A reformulation that lowers a computation's cost is
+   used only when all three hold: it computes the same quantity, it does not
+   amplify rounding error, and the time it saves is on the measured critical
+   path. An identity in exact arithmetic is not enough. Forming a residual norm
+   through the cross-product matrix, c'A'Ac (the method of normal equations),
+   squares the problem's conditioning (Golub and Van Loan, Matrix Computations,
+   4th ed., sections 5.3.2 and 5.3.7; Bjorck, Numerical Methods for Least
+   Squares Problems, section 2.2.1), and the one-pass formula
+   sum(y^2) - sum(y)^2 / T cancels at the size of the data's level (Chan, Golub
+   and LeVeque, Amer. Statist. 37 (1983) 241-247). Compute residuals directly
+   from centred data (two passes) or through an orthogonal factorization, carry
+   vector sums instead of expanding a square into cross terms, and bound the
+   rounding of any result a decision rests on (Rump, Acta Numerica 19 (2010),
+   Theorem 2.1). A faster form ships with two things: a test against exact
+   rational arithmetic on deliberately ill-conditioned inputs (large shared
+   components, large levels, small differences), not only on benign data; and
+   the timing that shows the time it saves is on the critical path. A worked
+   example: PANGEO's exact path scored each split as c'Gc from the Gram matrix
+   of the centred paths, O(m^2) per split instead of O(mT). On panels whose
+   markets share a large common factor and run nearly parallel, it gave costs
+   with relative errors near 0.4, some negative, and designs above the exact
+   optimum on 14 of 16 panels, while scoring was 1% of the solve's time. The
+   residual formed directly from centred data, with rigorous bounds, replaced it
+   (branch `claude/pangeo-columns-least-squares`).
 
 ## Design doctrine (the Unix rules)
 
