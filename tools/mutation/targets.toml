@@ -19842,3 +19842,33 @@ timeout = 900.0
   find = "        raise WindowTooLarge(e.rows, e.cap, f\"incumbent {float(UB) / scale:.6g}, bound {b / scale:.6g} \"\n                             f\"(the window's threshold is set by their gap)\") from e"
   replace = "        raise"
   models = "the certificate's refusal not naming the incumbent and the bound whose gap set the threshold"
+
+[[target]]
+name = "supergeo-root-scan"
+module-path = "benchmarks/studies/supergeo/certify_exact.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"discards or without_its_minimum or unchanged_without\""
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-root-asks-for-the-minimum"
+  find = "5_000_000, with_min=False) if odd"
+  replace = "5_000_000, with_min=True) if odd"
+  models = "the odd root's scan computing the minimum reduced cost it discards, half the root's time at 235 markets"
+
+[[target]]
+name = "supergeo-parity-scan"
+module-path = "benchmarks/studies/supergeo/parity.py"
+test-command = "python -m pytest benchmarks/studies/supergeo/test_certify_staged.py -q -p no:cacheprovider -x -k \"discards or without_its_minimum or unchanged_without\""
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-minimum-computed-regardless"
+  find = "        if with_min:\n            best = min(best, float(sg._min_rc(z, pi, k, k)) - off)"
+  replace = "        if True:\n            best = min(best if best is not None else np.inf, float(sg._min_rc(z, pi, k, k)) - off)"
+  models = "with_min=False ignored, so the second full pass still runs"
+
+  [[target.mutant]]
+  id = "a-minimum-returned-without-a-pass"
+  find = "    best = np.inf if with_min else None"
+  replace = "    best = np.inf"
+  models = "with_min=False returning inf as if it were the least reduced cost"
