@@ -28,14 +28,22 @@ class WindowTooLarge(MemoryError):
                          f"({self.rows * 32 / 2 ** 30:.2f} GiB)" + (f"; {detail}" if detail else ""))
 
 
-def _window_args(z, pi, lo, hi, theta):
-    """The arguments of mitm_exact's window kernels for the window at theta."""
+def _window_base(z, pi):
+    """What the window kernels need that depends only on the totals and duals: the signed halves, their order, the
+    largest total and dual, and the bound on a right half's duals."""
     hv, ha, hb, hsa, hsb, hw = mitm._halves(z, pi)
     order = np.argsort(hv, kind="stable")
     M = float(np.max(np.abs(z))); P = float(np.max(np.abs(pi)))
     wmax = float(max(pi.max(), 0.0) + max(np.sort(pi)[-2:].sum(), pi.max(), 0.0))
+    return (hv, ha, hb, hsa, hsb, hw, order), M, P, wmax
+
+
+def _window_args(z, pi, lo, hi, theta, base=None):
+    """The arguments of mitm_exact's window kernels for the window at theta (from `base`, :func:`_window_base`'s
+    result, when given)."""
+    halves, M, P, wmax = _window_base(z, pi) if base is None else base
     slack_r2 = 8 * mx.U * (abs(theta) + 6 * P) + 2 * mx.U * abs(wmax); slack_v = 16 * mx.U * 4 * M
-    return hv, ha, hb, hsa, hsb, hw, order, lo, hi, float(theta), wmax, slack_r2, slack_v
+    return (*halves, lo, hi, float(theta), wmax, slack_r2, slack_v)
 
 
 def safe_window(z, pi, lo, hi, theta, cap=None):
@@ -132,13 +140,17 @@ def _price_window(z, pi, tau, lo, hi, thresh, odd):
 def _window_rows(z, pi, tau, lo, hi, thresh, odd, limit=None):
     """The safe window's row count over sizes lo..hi at the thresholds of :func:`_price_window`, counted without
     allocating; with a limit the count stops once past it, so the result is exact at or below the limit and above
-    it otherwise."""
+    it otherwise. The halves are built once, and the sizes are counted from the largest down: groups of four
+    dominate the window, so the limit is usually passed before a smaller size is counted (at the first root
+    iteration on the simulated 235-market panel, counting triples first took 2.6 s for rows the limit did not
+    need)."""
     z = np.asarray(z, float); pi = np.asarray(pi, float)
+    base = _window_base(z, pi)
     total = 0
-    for k in range(lo, hi + 1):
+    for k in range(hi, lo - 1, -1):
         off = tau if (odd and k % 2) else 0.0
         rest = -1 if limit is None else limit - total
-        total += int(mx._window_counts_capped(*_window_args(z, pi, k, k, thresh + off), rest))
+        total += int(mx._window_counts_capped(*_window_args(z, pi, k, k, thresh + off, base), rest))
         if limit is not None and total > limit:
             break
     return total

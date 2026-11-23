@@ -19940,10 +19940,22 @@ timeout = 600.0
   models = "a group of four priced without its fourth market's dual"
 
   [[target.mutant]]
+  id = "the-halves-rebuilt-per-size"
+  find = "        total += int(mx._window_counts_capped(*_window_args(z, pi, k, k, thresh + off, base), rest))"
+  replace = "        total += int(mx._window_counts_capped(*_window_args(z, pi, k, k, thresh + off), rest))"
+  models = "the signed halves built and sorted again for every size of a count"
+
+  [[target.mutant]]
   id = "the-capped-count-undercounts"
-  find = "    total = 0\n    for k in range(lo, hi + 1):\n        off = tau if (odd and k % 2) else 0.0\n        rest = -1 if limit is None else limit - total"
-  replace = "    total = 0\n    for k in range(lo, lo + 1):\n        off = tau if (odd and k % 2) else 0.0\n        rest = -1 if limit is None else limit - total"
-  models = "the row count over the smallest size only, so a large window can pass for a small one"
+  find = "    for k in range(hi, lo - 1, -1):\n        off = tau if (odd and k % 2) else 0.0\n        rest = -1 if limit is None else limit - total"
+  replace = "    for k in range(hi, hi - 1, -1):\n        off = tau if (odd and k % 2) else 0.0\n        rest = -1 if limit is None else limit - total"
+  models = "the row count over the largest size only, so a large window of smaller groups can pass for a small one"
+
+  [[target.mutant]]
+  id = "the-count-from-the-smallest-size"
+  find = "    for k in range(hi, lo - 1, -1):\n        off = tau if (odd and k % 2) else 0.0\n        rest = -1 if limit is None else limit - total"
+  replace = "    for k in range(lo, hi + 1):\n        off = tau if (odd and k % 2) else 0.0\n        rest = -1 if limit is None else limit - total"
+  models = "sizes counted from the smallest up, so the triples' rows are counted before the fours pass the limit"
 
 [[target]]
 name = "supergeo-window-counts-capped"

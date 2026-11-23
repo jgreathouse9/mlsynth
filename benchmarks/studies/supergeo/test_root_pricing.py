@@ -167,3 +167,33 @@ def test_a_count_that_meets_its_limit_after_one_block_keeps_counting():
     first, full = int(cnt[:1024].sum()), int(cnt.sum())
     assert 0 < first < full
     assert int(mx._window_counts_capped(*args, first)) == full
+
+
+def test_the_count_starts_with_the_largest_size_and_stops_there(monkeypatch):
+    """Unit: groups of four dominate the window, so the count takes sizes from the largest down; when the largest
+    alone passes the limit, no smaller size is counted (at the first root iteration on the simulated 235-market
+    panel, counting triples first took 2.6 s for 1.7M rows the limit did not need)."""
+    from . import mitm_exact as mx
+    z, pi = _instance(3, 14, 2, 30.0)
+    sizes = []
+    real = mx._window_counts_capped
+    def spy(*a):
+        sizes.append((a[7], a[8])); return real(*a)
+    monkeypatch.setattr(mx, "_window_counts_capped", spy)
+    full4 = ce._window_rows(z, pi, 0.0, 4, 4, 0.0, False)
+    assert full4 > 1
+    sizes.clear()
+    got = ce._window_rows(z, pi, 0.0, 2, 4, 0.0, False, limit=full4 - 1)
+    assert got > full4 - 1 and sizes == [(4, 4)]
+
+
+def test_the_halves_are_built_once_per_count(monkeypatch):
+    """Unit: the signed halves and their order depend on the totals and duals, not on the group size; a count over
+    three sizes builds them once."""
+    from . import mitm
+    calls = []
+    real = mitm._halves
+    monkeypatch.setattr(mitm, "_halves", lambda *a: calls.append(1) or real(*a))
+    z, pi = _instance(4, 12, 1, 1.0)
+    ce._window_rows(z, pi, 0.5, 2, 4, 0.0, True)
+    assert len(calls) == 1
