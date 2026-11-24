@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthConfigError, MlsynthDataError
+from ..datautils import geoex_dataprep
 
 
 @dataclass(frozen=True)
@@ -105,21 +106,18 @@ def prepare_pangeo_inputs(
             raise MlsynthDataError(f"Required column {col!r} missing.")
     if weight_col is not None and weight_col not in df.columns:
         raise MlsynthDataError(f"Weight column {weight_col!r} missing.")
-    if df[outcome].isna().any():
-        raise MlsynthDataError("Outcome column contains NaN values.")
     for col in covariates or []:
         if col not in df.columns:
             raise MlsynthDataError(f"Covariate column {col!r} missing.")
 
-    time_labels = np.array(sorted(df[time].unique()))
-    unit_names = sorted(df[unitid].unique())
+    # geoex_dataprep refuses a duplicate or absent unit-period and a missing or
+    # non-finite outcome, and returns the (T, N) outcome matrix.
+    panel = geoex_dataprep(df, unitid, time, outcome)
+    time_labels = np.asarray(panel["time_labels"])
+    unit_names = sorted(panel["Ywide"].columns)
     if len(unit_names) < 2:
         raise MlsynthDataError("PANGEO needs at least 2 units.")
-
-    wide = df.pivot(index=unitid, columns=time, values=outcome)
-    if wide.isna().any().any():
-        raise MlsynthDataError("Panel is unbalanced (missing unit-time cells).")
-    Y = wide.loc[unit_names, time_labels].to_numpy(dtype=float)
+    Y = np.ascontiguousarray(panel["Ywide"][unit_names].to_numpy(dtype=float).T)
 
     # Arm membership is time-invariant per unit.
     arm_by_unit = df.groupby(unitid, observed=True)[arm].agg(lambda s: s.iloc[0])
@@ -175,22 +173,25 @@ def build_post_matrix(
     post_df: pd.DataFrame, inputs: PangeoInputs, outcome: str,
     unitid: str, time: str,
 ) -> "tuple[np.ndarray, np.ndarray]":
-    """Pivot the post-treatment rows into a ``(N, T_post)`` outcome matrix
+    """Read the post-treatment rows into a ``(N, T_post)`` outcome matrix
     aligned with ``inputs.unit_names``.
 
     Returns ``(Y_post, post_time_labels)``. Every design unit must appear in
-    the post period with no missing cells (a balanced post panel).
+    the post period. The rows are cut to the design's units and read through
+    ``geoex_dataprep``, which refuses a duplicate or absent unit-period and a
+    missing or non-finite outcome among them; a unit outside the design is
+    ignored.
     """
     if outcome not in post_df.columns:
         raise MlsynthDataError(f"Required column {outcome!r} missing in post.")
-    post_times = np.array(sorted(post_df[time].unique()))
-    wide = post_df.pivot(index=unitid, columns=time, values=outcome)
-    missing = [u for u in inputs.unit_names if u not in wide.index]
+    present = set(post_df[unitid].unique())
+    missing = [u for u in inputs.unit_names if u not in present]
     if missing:
         raise MlsynthDataError(
             f"{len(missing)} design unit(s) absent from the post period."
         )
-    wide = wide.loc[inputs.unit_names, post_times]
-    if wide.isna().any().any():
-        raise MlsynthDataError("Post panel is unbalanced (missing cells).")
-    return wide.to_numpy(dtype=float), post_times
+    design_rows = post_df[post_df[unitid].isin(inputs.unit_names)]
+    panel = geoex_dataprep(design_rows, unitid, time, outcome)
+    Y_post = np.ascontiguousarray(
+        panel["Ywide"][list(inputs.unit_names)].to_numpy(dtype=float).T)
+    return Y_post, np.asarray(panel["time_labels"])
