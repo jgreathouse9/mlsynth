@@ -168,7 +168,11 @@ untreated outcome missing; the observed (untreated) cells are informative for
 the missing ones, and there is no anticipation. *Remark.* Staggered adoption
 produces a "staircase" of missing cells, which the mask-based completion fills
 directly -- MC-NNM's main advantage over fixed-rank interactive-fixed-effects
-methods that need a rectangular treated block.
+methods that need a rectangular treated block. Treatment is absorbing: once a
+unit is treated it stays treated to the end of the panel. A unit whose treatment
+switches off again is refused with ``MlsynthDataError`` by
+:func:`mlsynth.utils.datautils.dataprep`, the same check every estimator that
+ingests through ``dataprep`` applies.
 
 *Assumption 3 (regularization rate).* :math:`\lambda` shrinks at the rate the
 theory prescribes so the completion is consistent; in practice it is selected by
