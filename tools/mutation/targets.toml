@@ -20805,8 +20805,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "elimination-on-point-costs"
-  find = "    rc = pool.cost_lo - sigma\n"
-  replace = "    rc = pool.cost - sigma\n"
+  find = "    lo = pool.cost_lo if cost_lo is None else cost_lo\n"
+  replace = "    lo = pool.cost if cost_lo is None else cost_lo\n"
   models = "reduced costs from the computed costs, which can lie above the exact ones, so a group of a cheaper design is left out"
 
   [[target.mutant]]
@@ -20919,7 +20919,7 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-fixed-groups-cost-nothing"
-  find = "    P0 = float(pool.cost_lo[fixed].sum()) if fixed.size else 0.0"
+  find = "    P0 = float(shifted[fixed].sum()) if fixed.size else 0.0"
   replace = "    P0 = 0.0"
   models = "a search below a fixed group whose bound leaves out that group's cost, so it prunes on a bound below every design through the branch and can drop the optimum"
 
@@ -20967,6 +20967,120 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-branch-bound-leaves-out-the-fixed-group"
-  find = "        out.append((j, _down(L + lo_j), left, _Duals(pi, sigma, rc)))"
-  replace = "        out.append((j, _down(L), left, _Duals(pi, sigma, rc)))"
+  find = "        out.append((j, _down(L + lo_j), left, duals))"
+  replace = "        out.append((j, _down(L), left, duals))"
   models = "the branch bound without the fixed group's cost, valid but below the root's own bound, so a branch the residual LP could prune is searched"
+
+[[target]]
+name = "pangeo-cover-cliques"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover_cliques.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-lift-checks-only-the-support"
+  find = "            out.append(j)\n            ok &= inc[:, inc[j]].any(axis=1)\n"
+  replace = "            out.append(j)\n"
+  models = "the prototype's lifting: every kept group meeting the support clique's members joins, two of them can miss each other, and the row cuts off designs (38 of 39 cuts at 40 geos)"
+
+  [[target.mutant]]
+  id = "a-clique-with-a-common-unit-is-kept"
+  find = "        if len(R) < 3 or frozenset.intersection(*(sets[a] for a in R)):"
+  replace = "        if len(R) < 3:"
+  models = "cliques whose groups all hold one unit, which that unit's cover row already implies: cuts that add LP rows and never move the bound"
+
+  [[target.mutant]]
+  id = "an-unviolated-clique-is-kept"
+  find = "        if v > _VIOLATION:"
+  replace = "        if True:"
+  models = "every maximal clique of the support added whether the LP point violates it or not"
+
+  [[target.mutant]]
+  id = "two-groups-make-a-clique"
+  find = "        if len(R) < 3 or frozenset"
+  replace = "        if len(R) < 2 or frozenset"
+  models = "two-group cliques, which two groups sharing a unit never violate in a cover LP, kept as rows"
+
+  [[target.mutant]]
+  id = "no-clique-is-lifted"
+  find = "            lifted = np.sort(_lift(K, mem, order, inc))"
+  replace = "            lifted = np.array(sorted(K), dtype=np.int64)"
+  models = "cliques over the LP support only, so groups outside the support that the clique could hold get no shift and no credit"
+
+  [[target.mutant]]
+  id = "the-branches-drop-the-cliques"
+  find = "        found = _residual_lp(pool, left, units, kk, cliques)"
+  replace = "        found = _residual_lp(pool, left, units, kk, ())"
+  models = "cliques separated at the root and left out of the depth-1 residual LPs, so the subtrees search on duals without them"
+
+  [[target.mutant]]
+  id = "no-cliques-in-the-proof"
+  find = "    cliques = _separate_cliques(pool, keep, k)\n"
+  replace = "    cliques = ()\n"
+  models = "the re-optimised proof search with no clique separation, stage 2 alone"
+
+  [[target.mutant]]
+  id = "the-bound-keeps-the-clique-duals"
+  find = "        - sum((Fraction(float(m)) for m in mu), Fraction(0))"
+  replace = "        - 0"
+  models = "the Lagrangian bound over shifted costs without subtracting the clique duals' sum, which overstates the bound and prunes branches holding the optimum"
+
+  [[target.mutant]]
+  id = "the-costs-are-not-shifted"
+  find = "    lo = _shifted(pool, kept, mu) if kept else None"
+  replace = "    lo = None"
+  models = "clique duals priced in the bound and the credit but not in the groups' costs, a valid bound below the LP's that throws the cuts' gain away"
+
+[[target]]
+name = "pangeo-cover-credit"
+module-path = "mlsynth/utils/pangeo_helpers/cover.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover_cliques.py mlsynth/tests/test_pangeo_cover.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "no-clique-is-credited"
+  find = "            if cr > 0.0 and lb + cr - margin"
+  replace = "            if False and lb + cr - margin"
+  models = "the shifted costs and the raised threshold without the slack credit: the root cliques at 40 geos took the proof from 2.89 to 7.41 million nodes"
+
+  [[target.mutant]]
+  id = "a-clique-already-hit-is-credited"
+  find = "                if hit[K] > 0 or mu[K] <= 0.0:"
+  replace = "                if mu[K] <= 0.0:"
+  models = "credit for a clique a chosen group is in, whose slack is 0: its dual counted twice, pruning designs through it"
+
+  [[target.mutant]]
+  id = "a-clique-that-can-still-be-filled-is-credited"
+  find = "                if not alive:\n                    cr += mu[K]"
+  replace = "                if True:\n                    cr += mu[K]"
+  models = "credit for a clique a group that still fits could fill, whose slack a completion can make 0"
+
+  [[target.mutant]]
+  id = "the-threshold-leaves-out-the-clique-duals"
+  find = "    if muS == 0.0:\n        return best_up"
+  replace = "    if True:\n        return best_up"
+  models = "nodes pruned at the incumbent on a bound over shifted costs, which charges every design the clique duals it does not pay"
+
+  [[target.mutant]]
+  id = "the-leaves-are-bounded-by-the-shifted-costs"
+  find = "            leaf = T1 - g2 * (T1 + absA0)"
+  replace = "            leaf = P1 - g2 * (P1 + absA0)"
+  models = "a leaf's lower bound from its shifted cost, above its true cost when it holds a clique member, so the reported lower bound can pass the optimum"
+
+  [[target.mutant]]
+  id = "the-leaf-sum-misses-its-last-group"
+  find = "            for t in range(c1):\n                T1 += tlo[path[t]]"
+  replace = "            for t in range(depth):\n                T1 += tlo[path[t]]"
+  models = "a leaf's true-cost lower bound without the group that completed it, so the certified gap opens by that group's cost"
+
+  [[target.mutant]]
+  id = "a-fixed-groups-clique-is-credited"
+  find = "        if fx & set(int(j) for j in K):\n            continue\n"
+  replace = "\n"
+  models = "a clique holding a fixed group credited once its other members stop fitting, though the fixed group fills it in every completion"
+
+  [[target.mutant]]
+  id = "the-node-bound-sums-the-true-costs"
+  find = "    lo = np.ascontiguousarray(shifted[keep], dtype=float)"
+  replace = "    lo = np.ascontiguousarray(pool.cost_lo[keep], dtype=float)"
+  models = "the node bound over the unshifted costs against the raised threshold, valid but below the clique LP's bound"

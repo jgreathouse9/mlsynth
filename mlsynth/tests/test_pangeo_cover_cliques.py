@@ -233,7 +233,7 @@ def test_on_triangles_the_credited_search_finds_the_optimum(seed):
     assert len(cliques) == 2 and np.all(duals.mu > 0.5)
     assert res.status == "proved" and res.rows.size
     assert float(pool.cost[res.rows].sum()) == pytest.approx(z, rel=1e-12)
-    assert res.lower <= z
+    assert z * (1 - 1e-12) <= res.lower <= z
 
 
 @pytest.mark.parametrize("seed", range(4))
@@ -399,6 +399,7 @@ def test_property_separated_cliques_are_valid_and_the_credited_search_is_exact(s
     if incumbent != "optimum":
         assert res.rows.size and float(pool.cost[res.rows].sum()) == pytest.approx(z, rel=1e-9, abs=1e-12)
         assert _design_units(pool, res.rows) == list(range(n))
+        assert res.lower >= z - 1e-9 * max(1.0, abs(z))     # the leaves' bounds are the designs' true costs
 
 
 @settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])

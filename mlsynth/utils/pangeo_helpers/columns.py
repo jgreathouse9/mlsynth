@@ -79,7 +79,7 @@ from __future__ import annotations
 
 import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 from math import comb
 from typing import Callable, List, Optional, Sequence, Tuple
@@ -115,6 +115,12 @@ GROWTH = 4
 #: BATCH_PER_UNIT * n groups a round.
 SEED_PER_UNIT = 3
 BATCH_PER_UNIT = 5
+#: The proof search after the first MIP separates clique cuts over its groups for at most CLIQUE_ROUNDS LPs
+#: (0 turns them off), adding the CLIQUE_PER_ROUND most violated a round.
+CLIQUE_ROUNDS = 10
+CLIQUE_PER_ROUND = 60
+#: A clique counts as violated when the LP point exceeds its right-hand side 1 by more than this.
+_VIOLATION = 1e-6
 #: Reduced costs within this share of the largest cost count as zero.
 _RTOL = 1e-9
 _EPS = 1e-12
@@ -535,13 +541,14 @@ def _reduced_costs(members: np.ndarray, cost: np.ndarray, pi: np.ndarray, sigma:
     return rc
 
 
-def _rc_lower(pool: ColumnPool, pi: np.ndarray, sigma: float) -> np.ndarray:
-    """Rigorous lower bounds on every group's exact reduced cost: cost_lo minus its duals and sigma, less the
-    rounding of that sum of width + 1 terms (Rump 2010, Theorem 2.1)."""
+def _rc_lower(pool: ColumnPool, pi: np.ndarray, sigma: float, cost_lo: Optional[np.ndarray] = None) -> np.ndarray:
+    """Rigorous lower bounds on every group's exact reduced cost: cost_lo (the pool's, or lower bounds on shifted
+    costs) minus its duals and sigma, less the rounding of that sum of width + 1 terms (Rump 2010, Theorem 2.1)."""
     pad = np.append(np.asarray(pi, dtype=float), 0.0)     # position -1 (padding) reads the 0
     apad = np.abs(pad)
-    rc = pool.cost_lo - sigma
-    mag = pool.cost_lo + sigma
+    lo = pool.cost_lo if cost_lo is None else cost_lo
+    rc = lo - sigma
+    mag = np.abs(lo) + sigma
     for j in range(pool.members.shape[1]):
         rc = rc - pad[pool.members[:, j]]
         mag = mag + apad[pool.members[:, j]]
@@ -623,32 +630,212 @@ def _search(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int) -> 
                 seconds=time.perf_counter() - t)
 
 
+def _incidence(members: np.ndarray, n: int) -> np.ndarray:
+    """The groups-by-units incidence of ``members`` (rows padded with -1), as booleans."""
+    inc = np.zeros((members.shape[0], n), dtype=bool)
+    for t in range(members.shape[1]):
+        ok = members[:, t] >= 0
+        inc[np.flatnonzero(ok), members[ok, t]] = True
+    return inc
+
+
+def _clique_rows(x: np.ndarray, members: np.ndarray, cap: int = CLIQUE_PER_ROUND) -> List[Tuple[int, ...]]:
+    """The cliques of the conflict graph on the support of the LP point ``x`` that it violates: groups pairwise
+    sharing a unit, at least three of them, no unit common to all (a cover row already holds those), with
+    ``sum x > 1``. Every maximal clique of the support is listed by the Bron-Kerbosch algorithm with the pivot of
+    Tomita, Tanaka and Takahashi ("The worst-case time complexity for generating all maximal cliques", Theor.
+    Comput. Sci. 363 (2006) 28-42), as clique separation for set packing does (Marzi, Rossi and Smriglio, "Computational
+    study of separation algorithms for clique inequalities", Soft Comput. 23 (2019) 3013-3027). Returns the ``cap``
+    most violated, as row indices of ``members``."""
+    supp = np.flatnonzero(x > _EPS)
+    sets = [frozenset(int(u) for u in members[j][members[j] >= 0]) for j in supp]
+    m = supp.size
+    adj = [set() for _ in range(m)]
+    for a in range(m):
+        for b in range(a + 1, m):
+            if sets[a] & sets[b]:
+                adj[a].add(b)
+                adj[b].add(a)
+    found = []
+
+    def extend(R, P, X):
+        if not P and not X:
+            found.append(R)
+            return
+        u = max(sorted(P | X), key=lambda v: len(adj[v] & P))
+        for v in sorted(P - adj[u]):
+            extend(R + [v], P & adj[v], X & adj[v])
+            P = P - {v}
+            X = X | {v}
+
+    extend([], set(range(m)), set())
+    out = []
+    for R in found:
+        if len(R) < 3 or frozenset.intersection(*(sets[a] for a in R)):
+            continue
+        v = math.fsum(float(x[supp[a]]) for a in R) - 1.0
+        if v > _VIOLATION:
+            out.append((-v, tuple(sorted(int(supp[a]) for a in R))))
+    out.sort()
+    return [K for _, K in out[:cap]]
+
+
+def _lift(K: Sequence[int], members: np.ndarray, order: np.ndarray, inc: Optional[np.ndarray] = None) -> np.ndarray:
+    """The clique ``K`` (row indices of ``members``) grown greedily over ``order``: a group joins only when it meets
+    every member so far, those added before it included. A group that meets only the members of ``K`` can miss
+    another added group, and two such groups can be in one design. Returns the members, ``K`` first."""
+    if inc is None:
+        inc = _incidence(members, int(members.max()) + 1)
+    out = [int(j) for j in K]
+    ok = np.ones(inc.shape[0], dtype=bool)
+    for j in out:
+        ok &= inc[:, inc[j]].any(axis=1)
+    ok[out] = False
+    for j in order:
+        j = int(j)
+        if ok[j]:
+            out.append(j)
+            ok &= inc[:, inc[j]].any(axis=1)
+            ok[j] = False
+    return np.asarray(out, dtype=np.int64)
+
+
+def _lp(pool: ColumnPool, cols: np.ndarray, units: np.ndarray, kk: int, cliques):
+    """The LP over the groups ``cols`` covering ``units`` once each, with ``sum(x) >= kk`` when kk > 0 and a row
+    ``sum x <= 1`` for each clique's members among ``cols`` (cliques with fewer than two are left out). Costs are
+    scaled by the power of two of :func:`.mip._cost_scale`, as :func:`root_lp` does. Returns the result (None when
+    it has no solution), the cliques kept as pool rows, and the scale."""
+    n = int(pool.unit_indices.size)
+    rows = pool.members[cols]
+    r, c = np.nonzero(rows >= 0)
+    relabel = -np.ones(n, dtype=np.int64)
+    relabel[units] = np.arange(units.size)
+    A = sp.csr_matrix((np.ones(r.size), (relabel[rows[r, c]], r)), shape=(units.size, cols.size))
+    ub = [-np.ones(cols.size)] if kk > 0 else []
+    rhs = [-float(kk)] if kk > 0 else []
+    kept = []
+    for K in cliques:
+        row = np.isin(cols, K)
+        if row.sum() >= 2:
+            ub.append(row.astype(float))
+            rhs.append(1.0)
+            kept.append(cols[row])
+    scale = mip._cost_scale(pool.cost[cols])
+    kw = dict(A_ub=sp.csr_matrix(np.array(ub)), b_ub=rhs) if ub else {}
+    res = linprog(pool.cost[cols] * scale, A_eq=A, b_eq=np.ones(units.size), bounds=(0, 1), method="highs", **kw)
+    return (res if res.status == 0 else None), kept, scale
+
+
+def _shifted(pool: ColumnPool, cliques, mu: np.ndarray) -> np.ndarray:
+    """Rigorous lower bounds on every group's shifted cost, cost_lo plus the duals of the cliques it is in: the
+    float sum of at most m + 1 terms (m the most cliques a group is in) less twice its rounding (Higham 2002,
+    Lemma 3.1)."""
+    shift = np.zeros(len(pool))
+    count = np.zeros(len(pool), dtype=np.int64)
+    for K, m in zip(cliques, mu):
+        shift[K] += float(m)
+        count[K] += 1
+    lo = pool.cost_lo + shift
+    return lo - 2.0 * _gamma(int(count.max()) + 2) * (np.abs(pool.cost_lo) + shift)
+
+
 @dataclass(frozen=True)
 class _Duals:
     """A residual LP's duals, in the form cover.search reads: ``pi`` over every unit (0 on covered ones), ``sigma``,
-    and rigorous lower bounds on every pool row's reduced cost."""
+    rigorous lower bounds on every pool row's reduced cost, and the LP's cliques (pool rows) with their duals
+    ``mu >= 0`` and rigorous lower bounds on every row's shifted cost (None without cliques)."""
 
     pi: np.ndarray
     sigma: float
     reduced_costs: np.ndarray
+    cliques: tuple = ()
+    mu: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    cost_lo: Optional[np.ndarray] = None
 
 
-def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int):
-    """The first level of the search, each branch with its residual LP. The search branches on the unit with the
-    fewest kept groups (ties to the first unit); a branch fixes one of them, and the cover problem left over (the
-    other units, the kept groups disjoint from it, at least k - 1 groups) is an LP relaxation of its own. Its duals
-    give the Lagrangian bound of the module docstring over the residual, evaluated as :func:`lagrangian_bound`
-    does: reduced costs from the costs' lower bounds less their rounding, the duals summed by ``math.fsum``, the
-    negative reduced costs with the error bound of Rump (2010), Theorem 2.1, in rationals and rounded down.
-    Returns ``(row, bound, rows_left, duals)`` per branch, the bound covering the fixed group's cost lower bound,
-    in the order of that cost; a branch with no feasible residual has bound infinity and no duals."""
+def _residual_lp(pool: ColumnPool, cols: np.ndarray, units: np.ndarray, kk: int, cliques=()):
+    """The LP of :func:`_lp` and its Lagrangian bound. With cliques ``K`` and their duals ``mu >= 0``, every design
+    ``x`` over ``cols`` costs
+
+    .. math::
+
+       c^\\top x = \\sum_G \\tilde c_G x_G - \\sum_K \\mu_K + \\sum_K \\mu_K s_K, \\qquad
+       \\tilde c_G = c_G + \\sum_{K \\ni G} \\mu_K,
+
+    with slack :math:`s_K = 1 - \\sum_{G \\in K} x_G \\ge 0`, so the bound of the module docstring on the shifted
+    costs, less :math:`\\sum \\mu`, bounds the cost (Geoffrion 1974; the cuts are those of Marzi, Rossi and
+    Smriglio 2019). It is evaluated as :func:`lagrangian_bound` does, the shifted costs and reduced costs from the
+    costs' lower bounds less their rounding, and the duals' sum exact. Returns ``(duals, L, value)``: the
+    :class:`_Duals`, the bound as a rational, and the LP's value; None when the LP has no solution."""
+    cols = np.asarray(cols, dtype=np.int64)
+    units = np.asarray(units, dtype=np.int64)
+    if cols.size == 0:
+        return None
+    res, kept, scale = _lp(pool, cols, units, kk, cliques)
+    if res is None:
+        return None
+    n = int(pool.unit_indices.size)
+    pi = np.zeros(n)
+    pi[units] = np.asarray(res.eqlin.marginals, dtype=float) / scale
+    marg = -np.asarray(res.ineqlin.marginals, dtype=float) / scale if (kk > 0 or kept) else np.zeros(0)
+    sigma = max(float(marg[0]), 0.0) if kk > 0 else 0.0
+    mu = np.maximum(marg[1 if kk > 0 else 0:], 0.0)
+    lo = _shifted(pool, kept, mu) if kept else None
+    rc = _rc_lower(pool, pi, sigma, lo)
+    neg = np.minimum(rc[cols], 0.0)
+    s2 = float(neg.sum())
+    e2 = _gamma(max(neg.size, 1)) * float(np.abs(neg).sum()) * (1.0 + _gamma(max(neg.size, 1)))
+    s1 = math.fsum(float(x) for x in pi[units])
+    L = Fraction(s1) - abs(Fraction(s1)) * Fraction(_U) + Fraction(sigma) * kk + Fraction(s2) - Fraction(e2) \
+        - sum((Fraction(float(m)) for m in mu), Fraction(0))
+    return _Duals(pi, sigma, rc, tuple(kept), mu, lo), L, float(res.fun) / scale
+
+
+def _separate_cliques(pool: ColumnPool, keep: np.ndarray, k: int, rounds: Optional[int] = None) -> tuple:
+    """Clique cuts for the LP over the groups ``keep`` (:func:`_lp` with ``sum(x) >= k``): each round solves the LP
+    with the cuts so far, takes the violated cliques of its support (:func:`_clique_rows`) and lifts each over the
+    kept groups in order of LP value, then cost (:func:`_lift`). At most ``rounds`` LPs (``CLIQUE_ROUNDS`` when
+    None); it stops when a round adds no new clique. Returns the cliques as arrays of pool rows; empty when the
+    groups cannot cover the arm."""
+    rounds = CLIQUE_ROUNDS if rounds is None else int(rounds)
     keep = np.asarray(keep, dtype=np.int64)
     n = int(pool.unit_indices.size)
-    inc = np.zeros((keep.size, n), dtype=bool)
+    if rounds <= 0 or keep.size == 0:
+        return ()
     mem = pool.members[keep]
-    for t in range(mem.shape[1]):
-        ok = mem[:, t] >= 0
-        inc[np.flatnonzero(ok), mem[ok, t]] = True
+    inc = _incidence(mem, n)
+    if not inc.any(axis=0).all():
+        return ()
+    cliques, seen = [], set()
+    for _ in range(rounds):
+        res, _, _ = _lp(pool, keep, np.arange(n), k, [keep[K] for K in cliques])
+        if res is None:
+            break
+        order = np.lexsort((pool.cost_lo[keep], -res.x))
+        new = []
+        for K in _clique_rows(res.x, mem):
+            lifted = np.sort(_lift(K, mem, order, inc))
+            key = tuple(lifted.tolist())
+            if key not in seen:
+                seen.add(key)
+                new.append(lifted)
+        if not new:
+            break
+        cliques += new
+    return tuple(keep[K] for K in cliques)
+
+
+def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cliques=()):
+    """The first level of the search, each branch with its residual LP. The search branches on the unit with the
+    fewest kept groups (ties to the first unit); a branch fixes one of them, and the cover problem left over (the
+    other units, the kept groups disjoint from it, at least k - 1 groups) is an LP relaxation of its own, with the
+    ``cliques`` restricted to the groups left (a clique holding the fixed group has none left). Its duals give the
+    Lagrangian bound of :func:`_residual_lp`. Returns ``(row, bound, rows_left, duals)`` per branch, the bound
+    covering the fixed group's cost lower bound, in the order of that cost; a branch with no feasible residual has
+    bound infinity and no duals."""
+    keep = np.asarray(keep, dtype=np.int64)
+    n = int(pool.unit_indices.size)
+    inc = _incidence(pool.members[keep], n)
     g0 = int(np.argmin(inc.sum(axis=0)))
     out = []
     for a in np.flatnonzero(inc[:, g0])[np.argsort(pool.cost_lo[keep[inc[:, g0]]], kind="stable")]:
@@ -661,28 +848,12 @@ def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int):
         if units.size == 0:
             out.append((j, _down(lo_j) if kk == 0 else np.inf, left, None))
             continue
-        cols = left
-        rows = pool.members[cols]
-        r, c = np.nonzero(rows >= 0)
-        relabel = -np.ones(n, dtype=np.int64)
-        relabel[units] = np.arange(units.size)
-        A = sp.csr_matrix((np.ones(r.size), (relabel[rows[r, c]], r)), shape=(units.size, cols.size))
-        kw = dict(A_ub=-np.ones((1, cols.size)), b_ub=[-float(kk)]) if kk > 0 else {}
-        res = linprog(pool.cost[cols], A_eq=A, b_eq=np.ones(units.size), bounds=(0, 1), method="highs", **kw) \
-            if cols.size else None
-        if res is None or res.status != 0:
+        found = _residual_lp(pool, left, units, kk, cliques)
+        if found is None:
             out.append((j, np.inf, left, None))
             continue
-        pi = np.zeros(n)
-        pi[units] = np.asarray(res.eqlin.marginals, dtype=float)
-        sigma = max(-float(res.ineqlin.marginals[0]), 0.0) if kk > 0 else 0.0
-        rc = _rc_lower(pool, pi, sigma)
-        neg = np.minimum(rc[cols], 0.0)
-        s2 = float(neg.sum())
-        e2 = _gamma(max(neg.size, 1)) * float(np.abs(neg).sum()) * (1.0 + _gamma(max(neg.size, 1)))
-        s1 = math.fsum(float(x) for x in pi[units])
-        L = Fraction(s1) - abs(Fraction(s1)) * Fraction(_U) + Fraction(sigma) * kk + Fraction(s2) - Fraction(e2)
-        out.append((j, _down(L + lo_j), left, _Duals(pi, sigma, rc)))
+        duals, L, _ = found
+        out.append((j, _down(L + lo_j), left, duals))
     return out
 
 
@@ -709,7 +880,8 @@ def _search_reopt(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up:
     if not held.all():                                # a unit no kept group covers: no design over keep
         return cover.CoverSearch("proved", np.zeros(0, np.int64), float(best_up), float(best_up), 0)
     best, rows_best, lowest, nodes, status = float(best_up), np.zeros(0, np.int64), np.inf, 0, "proved"
-    for j, bound, left, duals in _branches(pool, root, keep, k):
+    cliques = _separate_cliques(pool, keep, k)
+    for j, bound, left, duals in _branches(pool, root, keep, k, cliques):
         if bound >= best:
             continue
         if nodes + 1 > node_limit:                    # the fixed group is a node of its own
