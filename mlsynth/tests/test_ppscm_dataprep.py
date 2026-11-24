@@ -4,8 +4,9 @@ PPSCM used to pivot the panel itself and check only the window before the last
 adoption for missing outcomes. It now takes the outcome matrix, the time labels
 and each cohort's adoption period from ``balance`` and ``dataprep``, so it gets
 the same refusals as every other estimator: a missing or non-finite outcome
-anywhere in the panel, an absent or duplicate unit-period, a non-binary
-treatment, and a treatment that switches off after it starts.
+anywhere in the panel, an absent or duplicate unit-period, and a non-binary
+treatment. A treatment that switches off after it starts is read as augsynth's
+``multisynth`` reads it: the unit adopts at its first treated period.
 
 ``_reference`` is the old pivot (augsynth's ``format_data_stag`` as ported),
 kept as the oracle the new path must match on every panel both accept.
@@ -156,11 +157,21 @@ class TestRefusals:
         with pytest.raises(MlsynthDataError, match="Duplicate"):
             prepare_ppscm_inputs(pd.concat([df, df.iloc[[7]]]), **COLS)
 
-    def test_a_treatment_that_switches_off_is_refused(self):
+    def test_a_treatment_that_switches_off_is_read_from_its_first_period(self):
+        # augsynth's multisynth takes a unit's first treated period as its
+        # adoption and ignores later zeros; PPSCM ports that reading, so a
+        # lockdown that lifts and returns adopts once (Bilgel 2022).
         df = _panel(shuffle=False)
         df.loc[(df.unit == 0) & (df.time >= 1999), "d"] = 0
-        with pytest.raises(MlsynthDataError, match="not sustained"):
-            prepare_ppscm_inputs(df, **COLS)
+        df.loc[(df.unit == 1) & (df.time.isin([1997, 1999])), "d"] = 0
+        _assert_same(prepare_ppscm_inputs(df, **COLS), _reference(df, **COLS))
+
+    def test_the_caller_frame_is_not_changed(self):
+        df = _panel(shuffle=False)
+        df.loc[(df.unit == 0) & (df.time >= 1999), "d"] = 0
+        before = df.copy()
+        prepare_ppscm_inputs(df, **COLS)
+        pd.testing.assert_frame_equal(df, before)
 
     def test_a_non_binary_treatment_is_refused(self):
         df = _panel(shuffle=False)
@@ -234,7 +245,7 @@ def cases(draw):
 @given(case=cases())
 def test_dataprep_path_matches_the_old_pivot_or_refuses(case):
     df, defect = case
-    if defect != "none":
+    if defect not in ("none", "off"):
         with pytest.raises(MlsynthDataError):
             prepare_ppscm_inputs(df, **COLS)
         return
