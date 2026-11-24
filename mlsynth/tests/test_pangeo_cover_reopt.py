@@ -84,6 +84,21 @@ def test_a_search_with_a_fixed_group_covers_only_the_other_units():
     assert float(pool.cost[res.rows].sum()) == pytest.approx(_optimum_with(pool, idx, Y, 2, k, j), rel=1e-9)
 
 
+
+def test_a_fixed_group_search_against_a_tight_incumbent_still_finds_the_design():
+    """Unit: against an incumbent just above the best design holding the fixed group, the search still finds that
+    design, so its bound counts only the uncovered units' duals; one that also counted the fixed group's units
+    would prune it."""
+    Y, idx, pool, k, root = _setup(2, 12, 2)
+    j = int(np.argmin(pool.cost))
+    g = set(int(p) for p in pool.members[j][pool.members[j] >= 0])
+    keep = np.array([r for r in range(len(pool))
+                     if not (g & set(int(p) for p in pool.members[r][pool.members[r] >= 0]))])
+    z = _optimum_with(pool, idx, Y, 2, k, j)
+    assert root.pi[list(g)].sum() > 1e-6 * z                         # the fixed group's duals matter here
+    res = cover.search(pool, root, keep, k, 2, z * (1 + 1e-9) + 1e-12, 10**7, fixed=(j,))
+    assert res.rows.size and float(pool.cost[res.rows].sum()) == pytest.approx(z, rel=1e-9)
+
 def test_a_fixed_group_that_covers_everything_is_the_design():
     """Edge: with Q large enough that one group holds every unit, fixing it leaves nothing to search."""
     Y, idx, pool, k, root = _setup(3, 4, 2)
@@ -139,6 +154,25 @@ def test_a_branch_whose_bound_reaches_the_incumbent_is_not_searched(monkeypatch)
     columns._search_reopt(pool, root, np.arange(len(pool)), k, 2, best, 10**7)
     assert not ({f[0] for f in searched if f} & pruned)
 
+
+
+def test_each_branch_is_searched_with_its_own_residual_duals(monkeypatch):
+    """Unit: a branch's subtree is searched with its residual LP's duals, which are zero on the fixed group's units,
+    not with the root's."""
+    Y, idx, pool, k, root = _setup(4, 12, 2)
+    seen, real = [], cover.search
+
+    def rec(pool_, duals_, keep_, k_, Q_, best_, limit_, fixed=()):
+        seen.append((duals_, tuple(fixed)))
+        return real(pool_, duals_, keep_, k_, Q_, best_, limit_, fixed=fixed)
+
+    monkeypatch.setattr(cover, "search", rec)
+    columns._search_reopt(pool, root, np.arange(len(pool)), k, 2, np.inf, 10**7)
+    assert seen
+    for duals, fixed in seen:
+        assert duals is not root
+        g = pool.members[fixed[0]][pool.members[fixed[0]] >= 0]
+        assert np.all(duals.pi[g] == 0.0)
 
 def test_the_reoptimised_search_places_fewer_nodes():
     """Unit: from the optimum on a 16-geo arm at Q = 2, re-optimised duals place fewer nodes than the root's."""
