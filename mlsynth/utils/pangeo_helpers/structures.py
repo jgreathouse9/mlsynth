@@ -157,6 +157,15 @@ class MipSolveReport:
         Lagrangian bound could not rule out, and a fixed design's groups.
     lagrangian_bound : float or None
         The root LP's Lagrangian bound, a lower bound on the optimum.
+    search : str or None
+        The exact-cover search before the MIP (:mod:`.cover`): ``"proved"``
+        when it proved the design optimal and no MIP ran (``backend`` is then
+        ``"search"``, ``proven_gap`` its certified gap and ``dual_bound`` a
+        rigorous lower bound on the optimum), ``"node_limit"`` when its node
+        cap stopped it and the MIP took over, ``"off"`` or ``"unavailable"``
+        (no numba); None when the design did not come from :mod:`.columns`.
+    search_nodes : int or None
+        Groups the search placed.
     """
 
     backend: str
@@ -174,6 +183,8 @@ class MipSolveReport:
     columns_scored: Optional[int] = None
     columns_solved: Optional[int] = None
     lagrangian_bound: Optional[float] = None
+    search: Optional[str] = None
+    search_nodes: Optional[int] = None
 
     @classmethod
     def from_diagnostics(cls, d: Dict[str, Any]) -> "MipSolveReport":
@@ -191,6 +202,8 @@ class MipSolveReport:
             columns_scored=d.get("columns_scored"),
             columns_solved=d.get("columns_solved"),
             lagrangian_bound=d.get("lagrangian_bound"),
+            search=d.get("search"),
+            search_nodes=d.get("search_nodes"),
         )
 
 

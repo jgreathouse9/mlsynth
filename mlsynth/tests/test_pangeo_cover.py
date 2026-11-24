@@ -77,7 +77,7 @@ def test_the_reported_bounds_bracket_the_optimum():
     assert d["dual_bound"] <= z + tol
     assert d["objective_upper"] >= z - tol
     assert d["dual_bound"] <= d["objective_value"] <= d["objective_upper"]
-    assert d["mip_gap"] == pytest.approx((d["objective_upper"] - d["dual_bound"]) / d["objective_upper"])
+    assert d["mip_gap"] == pytest.approx((d["objective_upper"] - d["dual_bound"]) / d["objective_value"])
     assert d["mip_gap"] <= 1e-12
     assert d["lagrangian_bound"] <= d["dual_bound"]
 
@@ -227,12 +227,14 @@ def test_tiny_arms(n, Q):
     assert d["search"] == "proved" and _close(d["objective_value"], d_ref["objective_value"])
 
 
-def test_identical_units_give_a_design_of_cost_zero_and_a_zero_gap():
+def test_identical_units_give_a_design_of_cost_zero_and_an_absolute_gap():
+    """Edge: every group costs 0, up to bounds of the order of rounding; the gap relative to a cost of 0 has no
+    meaning, so it is the absolute gap, as the MIP path reports it."""
     Y = np.tile(np.arange(8.0), (9, 1))
     chosen, d = columns.solve_exact(np.arange(9), Y, 2)
     _assert_design(chosen, np.arange(9), 2, columns.min_groups(9, 2, 1))
-    assert d["search"] == "proved" and d["objective_value"] == pytest.approx(0.0, abs=1e-12)
-    assert d["mip_gap"] == 0.0
+    assert d["search"] == "proved" and d["objective_value"] == 0.0
+    assert d["mip_gap"] == d["objective_upper"] - d["dual_bound"] <= 1e-20
 
 
 def test_units_past_64_use_more_than_one_mask_word():

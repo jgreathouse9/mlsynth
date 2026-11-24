@@ -66,7 +66,7 @@ def test_smoke_scores_every_group_and_solves():
     assert np.isfinite(pool.cost).all()
     chosen, d = columns.solve_exact(idx, Y, 2)
     _assert_cover(chosen, idx, 2)
-    assert d["path"] == "exact_mip" and d["n_candidate_pairs"] == len(pool)
+    assert d["path"] == "exact_search" and d["n_candidate_pairs"] == len(pool)
     assert d["objective_value"] == pytest.approx(sum(c["score"] for c in chosen))
 
 

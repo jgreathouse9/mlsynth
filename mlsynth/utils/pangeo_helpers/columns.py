@@ -64,7 +64,10 @@ the LP without it covers the arm with :math:`n / 2Q` of the cheap largest groups
 raised the bound from 0.796 to 1.086 against the optimum 1.393, and the MIP proof ran 2.4 times faster with the row
 in it.
 
-Search. The first MIP takes the groups of least reduced cost (``FIRST_PER_UNIT`` per unit, at least ``FIRST_MIN``)
+Search. Before any MIP, the exact-cover search of :mod:`.cover` enumerates designs depth first, pruned by the same
+Lagrangian bound, and a search that ends under its node cap proves its design optimal with a certified gap; no MIP
+runs. A search stopped by the cap adds its best design to the first MIP's groups, and the MIP loop below proves the
+optimum. The first MIP takes the groups of least reduced cost (``FIRST_PER_UNIT`` per unit, at least ``FIRST_MIN``)
 and the groups of a fixed design (:func:`seed_partition`), so it has a design. The best design's cost :math:`z` is the
 optimum when every group left out has :math:`\\bar c > z - L`. Otherwise the next MIP takes the groups up to the
 smaller of :math:`z - L` and the reduced cost of the ``GROWTH``-times-larger set, so a first design far above the
@@ -85,8 +88,8 @@ import numpy as np
 import scipy.sparse as sp
 from scipy.optimize import linprog
 
-from ...exceptions import MlsynthEstimationError
-from . import mip
+from ...exceptions import MlsynthConfigError, MlsynthEstimationError
+from . import cover, mip
 
 try:  # numba is the optional ``fast`` extra; without it the same code runs as Python
     from numba import njit
@@ -602,12 +605,31 @@ def root_lp(pool: ColumnPool, k: int) -> RootLP:
     return RootLP(pi, max(sigma, 0.0), rc, bound, value / scale, rounds, int(cols.size))
 
 
+def _search(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int) -> dict:
+    """The start design, then the proof search over the groups its upper bound z cannot exclude (reduced cost at
+    most z - L). Returns the status, the best design's rows, the lower bound when proved, the nodes, the groups
+    searched and the seconds."""
+    t = time.perf_counter()
+    start = cover.start_design(pool, root, k, Q)
+    if start.rows.size:
+        z_up = sum((Fraction(float(pool.cost_up[j])) for j in start.rows), Fraction(0))
+        best = _up(z_up)
+        keep = np.flatnonzero(root.reduced_costs <= _up(z_up - Fraction(root.bound)))
+    else:
+        best, keep = np.inf, np.arange(len(pool))
+    res = cover.search(pool, root, keep, k, Q, best, node_limit)
+    rows = res.rows if res.rows.size else start.rows
+    return dict(search=res.status, rows=rows, lower=res.lower, nodes=start.nodes + res.nodes, kept=keep.size,
+                seconds=time.perf_counter() - t)
+
+
 def solve_exact(
     unit_indices, Ypre: np.ndarray, max_size: int, *, objective: str = "ss_res",
     weights: Optional[np.ndarray] = None, cov: Optional[np.ndarray] = None,
     cov_scales: Optional[np.ndarray] = None, cov_weights: Optional[np.ndarray] = None,
     unit_weights: Optional[np.ndarray] = None, min_pairs: int = 1, backend: str = "auto",
     mip_rel_gap: float = 0.0, mip_abs_gap: float = 0.0, solve: Optional[Callable] = None,
+    search_node_limit: Optional[int] = None,
 ):
     """The exact-cover design of one arm: every group scored (:func:`score_columns`), the root bound
     (:func:`root_lp`), and the MIP (``solve``, :func:`.mip.solve_partition` by default) over the groups the bound
@@ -615,7 +637,22 @@ def solve_exact(
     diagnostics with ``n_candidate_pairs`` and ``columns_scored`` (every group), ``columns_solved`` (the groups in the
     last MIP), ``lagrangian_bound``, ``lp_value``, ``lp_rounds``, ``mip_solves``, ``score_seconds`` and
     ``lp_seconds``; ``solve_seconds`` is the MIPs' total. An arm with no design, or with a group of non-finite cost,
-    goes to one MIP over every group, which reports it as it reports the full enumeration."""
+    goes to one MIP over every group, which reports it as it reports the full enumeration.
+
+    Before any MIP, the exact-cover search (:mod:`.cover`) looks for the design and a proof that it is optimal,
+    placing at most ``search_node_limit`` groups (``cover.SEARCH_NODE_LIMIT`` when None; 0 skips it). A proof returns
+    the design with no MIP: ``backend`` is ``"search"``, ``mip_solves`` 0, ``dual_bound`` a rigorous lower bound on
+    the optimum, ``objective_upper`` one above the design's exact cost and ``mip_gap`` the gap between them relative
+    to the design's cost, as the MIP path reports it (absolute when that cost is 0).
+    A search stopped by the cap adds its best design to the first MIP's groups. ``search`` reports which happened
+    (``"proved"``, ``"node_limit"``, ``"off"``, or ``"unavailable"`` without numba) and ``search_nodes`` the groups
+    the search placed."""
+    if search_node_limit is None:
+        search_node_limit = cover.SEARCH_NODE_LIMIT
+    if isinstance(search_node_limit, bool) or not isinstance(search_node_limit, (int, np.integer)) \
+            or search_node_limit < 0:
+        raise MlsynthConfigError(
+            f"search_node_limit must be a non-negative integer (0 skips the search); got {search_node_limit!r}.")
     solve = mip.solve_partition if solve is None else solve
     kw = dict(return_diagnostics=True, backend=backend, mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap)
     t0 = time.perf_counter()
@@ -638,6 +675,30 @@ def solve_exact(
     L, rc = root.bound, root.reduced_costs               # rigorous lower bounds
     seed = np.array([column_index(g, n) for g in seed_partition(n)])
     pos = {int(u): p for p, u in enumerate(idx)}
+    info = dict(search="off", search_nodes=0)
+    if search_node_limit > 0 and not cover._NUMBA:
+        info["search"] = "unavailable"   # pragma: no cover - the suite runs with numba installed
+    elif search_node_limit > 0:
+        found = _search(pool, root, k, max_size, int(search_node_limit))
+        info.update(search=found["search"], search_nodes=found["nodes"])
+        if found["search"] == "proved":
+            rows = found["rows"]
+            chosen = pool.candidates(rows)
+            z_up = sum((Fraction(float(pool.cost_up[j])) for j in rows), Fraction(0))
+            upper = _up(z_up)
+            lower = min(found["lower"], upper)
+            z = math.fsum(float(pool.cost[j]) for j in rows)
+            d = dict(path="exact_search", backend="search", solver_name="exact-cover search", status="optimal",
+                     presolve_retry=False, mip_rel_gap_requested=float(mip_rel_gap),
+                     mip_abs_gap_requested=float(mip_abs_gap), gap_enforced=True,
+                     mip_gap=(upper - lower) / abs(z) if z != 0 else upper - lower, dual_bound=float(lower),
+                     node_count=float(found["nodes"]), solve_seconds=found["seconds"])
+            d.update({**extra, **info}, columns_solved=int(found["kept"]), lagrangian_bound=float(L),
+                     lp_value=root.lp_value, lp_rounds=root.rounds, mip_solves=0, lp_seconds=lp_seconds,
+                     objective_value=z, objective_upper=upper,
+                     n_selected_pairs=len(chosen))
+            return chosen, d
+        seed = np.union1d(seed, found["rows"]).astype(seed.dtype)   # the MIP starts from the search's design
 
     def upper(chosen) -> Fraction:
         """A rigorous upper bound on a design's exact cost: the sum of its groups' cost_up, in rationals."""
@@ -670,7 +731,7 @@ def solve_exact(
         # the last MIP held every design cheaper than this one, so its bound bounds the optimum
         d["dual_bound"] = last["dual_bound"]
         d["mip_gap"] = (abs(z - last["dual_bound"]) / abs(z)) if z != 0 else last.get("mip_gap")
-    d.update(extra, columns_solved=int(keep.size), lagrangian_bound=float(L), lp_value=root.lp_value,
+    d.update({**extra, **info}, columns_solved=int(keep.size), lagrangian_bound=float(L), lp_value=root.lp_value,
              lp_rounds=root.rounds, mip_solves=solves, solve_seconds=mip_seconds, lp_seconds=lp_seconds,
              objective_value=float(z), objective_upper=_up(z_up), n_selected_pairs=len(chosen))
     return chosen, d

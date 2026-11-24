@@ -466,6 +466,21 @@ therefore reaches the optimum of :eq:`mip` in three steps
    margin compared exactly, every design whose exact cost is at most the
    returned design's is in the last MIP; that MIP's optimum is HiGHS's, on the
    computed costs, to its tolerances.
+#. Search before the MIP. Before any MIP, a depth-first search over exact
+   covers (Knuth, 2000) looks for the design and its proof together
+   (``mlsynth.utils.pangeo_helpers.cover``). It branches on the geo with the
+   fewest pairs that still fit it, tries those pairs cheapest first, and drops
+   a partial design whose bound reaches the best design's upper bound. The
+   bound is the chosen pairs' lower bounds, plus the duals :math:`\pi_i` of the
+   geos still uncovered, plus the number of pairs still to place times
+   :math:`\sigma + \min_G \bar c_G`, taken at the fewest or the most pairs
+   that can still be placed, whichever is smaller: the Lagrangian bound of what
+   remains, at the root duals. Every comparison subtracts its own rounding
+   error. It searches only the pairs the elimination keeps for the upper bound
+   :math:`z` of a first design, found by a short search over the pairs of least
+   reduced cost. A search that ends within its node cap (3 million pairs
+   placed) has proved its design optimal, and no MIP runs. A search the cap
+   stops hands its best design to the first MIP.
 
 The LP bound is weak on this problem: on the seasonal panels below it lies 14
 to 33% under the optimum, and subset-row cuts (Jepsen, Petersen, Spoorendonk
@@ -551,9 +566,57 @@ The full path's time is enumeration in Python plus the MIP over every pair;
 HiGHS's time on it varies between runs (13 s and 40 s at 16 geos). Scoring every pair
 from the centred data takes 0.9 s of the 56.5 s at 28 geos; the MIPs take 55 s.
 
+The search before the MIP replaces those MIPs where it finishes. On the same
+panel (one arm, 42 estimation periods, single-threaded), with the same optimum
+from both:
+
+.. list-table::
+   :header-rows: 1
+
+   * - :math:`Q`
+     - geos
+     - search
+     - MIPs
+   * - 3
+     - 24
+     - 1.6 s
+     - 21.3 s
+   * - 3
+     - 28
+     - 2.9 s
+     - 47.7 s
+   * - 3
+     - 32
+     - 10.9 s
+     - 76.6 s
+   * - 2
+     - 30
+     - 0.10 s
+     - 5.4 s
+   * - 2
+     - 40
+     - 34.8 s
+     - 17.8 s
+   * - 2
+     - 50
+     - stopped at the cap
+     - 25.3 s
+
+Its bound does not tighten as it goes deeper, where HiGHS re-solves the LP and
+adds cuts at every node, so it loses where many designs lie between the bound
+and the optimum. At :math:`Q=2` and 50 geos the root bound is 8.4% under the
+optimum, and the proof needed 10 million nodes even when started from the
+optimum (32.8 s). The node cap bounds what such an arm costs before the MIPs
+take over, about 8 s. At 40 geos the first design was 13% above the optimum,
+and from the optimum the proof took 7.1 s.
+
 ``results.mip_reports`` records the pairs scored (``columns_scored``), the
-pairs in the last MIP (``columns_solved``) and the bound :math:`L`
-(``lagrangian_bound``); the per-arm diagnostics add the LP's rounds and value,
+pairs in the last MIP or the search (``columns_solved``), the bound :math:`L`
+(``lagrangian_bound``), and what the search did (``search``: ``"proved"``,
+``"node_limit"``, ``"off"``, or ``"unavailable"`` without numba) with the pairs
+it placed (``search_nodes``). When it proved the design, ``backend`` is
+``"search"``, ``dual_bound`` a lower bound on the optimum and ``proven_gap``
+the certified gap. The per-arm diagnostics add the LP's rounds and value,
 the MIPs solved, and the seconds spent scoring, on the LP and in the MIPs. An
 arm larger than 20 million pairs raises and names ``fast=True``.
 
@@ -1248,6 +1311,9 @@ Generation." *Operations Research* 53(6):1007-1023.
 
 Nemhauser, G. L., & Wolsey, L. A. (1988). *Integer and Combinatorial
 Optimization.* Wiley.
+
+Knuth, D. E. (2000). "Dancing Links." In J. Davies, B. Roscoe and J. Woodcock
+(eds.), *Millennial Perspectives in Computer Science*, Palgrave, 187-214.
 
 Chan, T. F., Golub, G. H., & LeVeque, R. J. (1983). "Algorithms for Computing
 the Sample Variance: Analysis and Recommendations." *The American Statistician*
