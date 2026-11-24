@@ -21024,3 +21024,45 @@ timeout = 300.0
   find = "        return SinglePanel(**core, covariates=cov_block, predictors=pred_block)"
   replace = "        return SinglePanel(**core, covariates=None, predictors=pred_block)"
   models = "covariates computed and left off the single panel"
+
+[[target]]
+name = "pangeo-geoex"
+module-path = "mlsynth/utils/pangeo_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-design-matrix-is-not-transposed"
+  find = "    Y = np.ascontiguousarray(panel[\"Ywide\"][unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = np.ascontiguousarray(panel[\"Ywide\"][unit_names].to_numpy(dtype=float))"
+  models = "geoex_dataprep's (T, N) matrix used as PANGEO's (N, T) matrix"
+
+  [[target.mutant]]
+  id = "design-units-in-another-order"
+  find = "    unit_names = sorted(panel[\"Ywide\"].columns)"
+  replace = "    unit_names = sorted(panel[\"Ywide\"].columns, reverse=True)"
+  models = "rows of Y in a different order from the unit names the design reports"
+
+  [[target.mutant]]
+  id = "one-unit-is-accepted"
+  find = "    if len(unit_names) < 2:"
+  replace = "    if len(unit_names) < 1:"
+  models = "PANGEO's own minimum of two units lost behind geoex_dataprep"
+
+  [[target.mutant]]
+  id = "the-post-matrix-is-not-transposed"
+  find = "        panel[\"Ywide\"][list(inputs.unit_names)].to_numpy(dtype=float).T)"
+  replace = "        panel[\"Ywide\"][list(inputs.unit_names)].to_numpy(dtype=float))"
+  models = "the post matrix returned period by unit, misaligned with the design's units"
+
+  [[target.mutant]]
+  id = "post-rows-are-not-cut-to-the-design"
+  find = "    design_rows = post_df[post_df[unitid].isin(inputs.unit_names)]"
+  replace = "    design_rows = post_df"
+  models = "a unit outside the design, with gaps after it, refusing the whole post panel"
+
+  [[target.mutant]]
+  id = "an-absent-design-unit-is-not-reported"
+  find = "    if missing:\n        raise MlsynthDataError(\n            f\"{len(missing)} design unit(s) absent from the post period.\""
+  replace = "    if False:\n        raise MlsynthDataError(\n            f\"{len(missing)} design unit(s) absent from the post period.\""
+  models = "a design unit missing from the post period surfacing as a KeyError, not PANGEO's error"
