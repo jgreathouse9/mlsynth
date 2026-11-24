@@ -31,8 +31,6 @@ def prepare_bfsc_inputs(
     if T - T0 < 1:  # pragma: no cover - a treated period forces >= 1 post
         raise MlsynthDataError("BFSC needs at least 1 post-treatment period.")
     Y = np.vstack([y_target[None, :], donors.T])               # (J, T), treated row 0
-    if not np.isfinite(Y).all():
-        raise MlsynthDataError("BFSC requires a balanced panel with no missing outcomes.")
     return BFSCInputs(
         Y=Y, y_target=y_target, T0=T0, T=T, J=Y.shape[0],
         treated_unit_name=str(prepared.get("treated_unit_name", "treated")),

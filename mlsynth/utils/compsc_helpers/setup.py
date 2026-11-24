@@ -96,8 +96,6 @@ def prepare_compsc_inputs(
     for c in outcomes:
         prep = dataprep(df, unitid, time, c, treat, allow_no_donors=True)
         Yc = prep["Ywide"].reindex(index=Ywide0.index, columns=order)
-        if Yc.isna().any().any():
-            raise MlsynthDataError(f"Missing values in outcome {c!r} after pivot.")
         slices.append(Yc.to_numpy().T)           # (J, T)
     A = np.stack(slices, axis=2)                  # (J, T, K)
 
@@ -114,8 +112,6 @@ def prepare_compsc_inputs(
 
 def _validate_and_close(A: np.ndarray, outcomes, order, zero_replacement: float):
     """Enforce Assumption 1 and renormalize each row to the simplex."""
-    if not np.isfinite(A).all():
-        raise MlsynthDataError("Composition contains non-finite values.")
     if (A < 0).any():
         j, t, k = np.argwhere(A < 0)[0]
         raise MlsynthDataError(

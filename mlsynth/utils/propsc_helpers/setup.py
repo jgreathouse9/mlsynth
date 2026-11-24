@@ -89,8 +89,6 @@ def prepare_propsc_inputs(
     for c in outcomes:
         prep = dataprep(df, unitid, time, c, treat, allow_no_donors=True)
         Yc = prep["Ywide"].reindex(index=Ywide0.index, columns=order)
-        if Yc.isna().any().any():
-            raise MlsynthDataError(f"Missing values in outcome {c!r} after pivot.")
         slices.append(Yc.to_numpy().T)          # (N, T)
     Y = np.stack(slices, axis=2)                 # (N, T, K)
 

@@ -58,11 +58,6 @@ def prepare_rrsc_inputs(
     treated_name = prepared["treated_unit_name"]
     time_labels = np.asarray(prepared.get("time_labels", np.arange(T)))
 
-    if np.isnan(y).any() or np.isnan(Y0).any():
-        raise MlsynthDataError(
-            "RRSC does not support missing data; impute or drop missing values "
-            "before calling fit()."
-        )
     if T0 < 2:
         raise MlsynthDataError(f"RRSC requires at least 2 pre-treatment periods; got {T0}.")
     if T - T0 < 1:                                                # pragma: no cover

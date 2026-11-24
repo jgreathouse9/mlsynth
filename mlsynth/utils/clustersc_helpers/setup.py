@@ -53,11 +53,6 @@ def prepare_clustersc_inputs(
     treated_name = prepared["treated_unit_name"]
     time_labels = np.asarray(prepared.get("time_labels", np.arange(T)))
 
-    if np.isnan(y).any() or np.isnan(Y0).any():
-        raise MlsynthDataError(
-            "CLUSTERSC does not support missing data; please impute "
-            "or drop missing values."
-        )
     if T0 < 2:
         raise MlsynthDataError(
             f"CLUSTERSC requires at least 2 pre-treatment periods; got {T0}."
