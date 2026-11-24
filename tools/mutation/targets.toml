@@ -21152,6 +21152,48 @@ timeout = 600.0
   models = "SYNDES's own minimum of two units lost behind geoex_dataprep"
 
 [[target]]
+name = "microsynth-dataprep"
+module-path = "mlsynth/utils/microsynth_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_microsynth_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-key-scan-is-not-shared"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    prep = dataprep(df.iloc[::-1], unitid, time, outcome, treat, keys=keys)"
+  models = "dataprep handed a panel the key scan was not taken from"
+
+  [[target.mutant]]
+  id = "the-post-block-starts-a-period-late"
+  find = "    post_wide = prep.Ywide[prep.Ywide.index >= cohort_time]"
+  replace = "    post_wide = prep.Ywide[prep.Ywide.index > cohort_time]"
+  models = "the cohort's first treated period dropped from the post-period outcomes"
+
+  [[target.mutant]]
+  id = "the-post-block-includes-the-pre-period"
+  find = "    post_wide = prep.Ywide[prep.Ywide.index >= cohort_time]"
+  replace = "    post_wide = prep.Ywide"
+  models = "pre-period outcomes counted as post-period effects"
+
+  [[target.mutant]]
+  id = "the-treated-outcomes-are-not-transposed"
+  find = "    Y_T = np.ascontiguousarray(post_wide[treated_units].to_numpy(dtype=float).T)"
+  replace = "    Y_T = np.ascontiguousarray(post_wide[treated_units].to_numpy(dtype=float))"
+  models = "dataprep's period-by-unit block used as MicroSynth's unit-by-period Y_T"
+
+  [[target.mutant]]
+  id = "controls-read-as-treated"
+  find = "    Y_C = np.ascontiguousarray(post_wide[control_units].to_numpy(dtype=float).T)"
+  replace = "    Y_C = np.ascontiguousarray(post_wide[treated_units].to_numpy(dtype=float).T)"
+  models = "the control block filled from the treated units' columns"
+
+  [[target.mutant]]
+  id = "dataprep-is-not-called"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    prep = type('P', (), {'Ywide': df.pivot(index=time, columns=unitid, values=outcome)})()"
+  models = "a hand pivot restored in place of dataprep, losing its outcome and treatment checks"
+
+[[target]]
 name = "pangeo-geoex"
 module-path = "mlsynth/utils/pangeo_helpers/setup.py"
 test-command = "python -m pytest mlsynth/tests/test_pangeo_dataprep.py -q -p no:cacheprovider -x -W ignore"
