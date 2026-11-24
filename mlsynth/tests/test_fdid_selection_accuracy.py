@@ -155,35 +155,6 @@ def test_property_the_selection_is_the_exact_one(seed, N, T0, F, LEV, EPS, gap):
             assert abs(Fr(float(got)) - r2) <= Fr(1e-6) * (1 - r2) + _ULP1
 
 
-def test_a_non_finite_treated_pre_period_is_reported():
-    """Failure: a NaN in the treated unit's pre-period leaves no comparable fit and raises, as the search always did."""
-    y, X = _pool(1, 5, 10, 1.0, 0.0, 1.0)
-    y[2] = np.nan
-    with pytest.raises(ValueError, match="All-NaN slice encountered"):
-        forward_did_select(y, X, 8, list(range(5)))
-
-
-def test_a_donor_with_a_non_finite_pre_period_is_never_a_candidate():
-    """Edge: a donor with a NaN pre-period is never selected, as the search always left it, and the selection over
-    the others is the exact one; the search used to end by re-selecting a chosen donor at R^2 = -inf."""
-    y, X = _pool(1, 6, 10, 1e3, 1e4, 1.0)
-    X[3, 4] = np.nan
-    seq, out = _run(y, X, 8)
-    keep = [0, 1, 2, 3, 5]
-    ex_seq, _, ex_opt, _ = _exact(y, X[:, keep], 8)
-    assert seq == [keep[i] for i in ex_seq]
-    assert out["selected_controls"] == [keep[i] for i in ex_opt]
-    assert 4 not in seq and np.all(np.isfinite(out["R2_at_each_step"]))
-
-
-def test_no_finite_donor_is_reported():
-    """Failure: every donor with a non-finite pre-period leaves nothing to select, and raises."""
-    y, X = _pool(1, 3, 10, 1.0, 0.0, 1.0)
-    X[0, :] = np.nan
-    with pytest.raises(ValueError, match="All-NaN slice encountered"):
-        forward_did_select(y, X, 8, list(range(3)))
-
-
 # --- one step's candidate costs, on both paths (fused kernel and numpy), against exact arithmetic ---
 
 from mlsynth.utils.fdid_helpers import estimation as est  # noqa: E402
@@ -193,7 +164,7 @@ def _step(y, X, T0, sel, fused):
     """One search step from the k donors ``sel``: the remaining rows' (ids, ss, lo, up) and the exact costs."""
     yp, Xp = y[:T0], X[:T0]
     y_c = est._centred(yp)
-    xc, ids, nx, mx = est._donor_columns(Xp, np.ones(X.shape[1], dtype=bool))
+    xc, ids, nx, mx = est._donor_columns(Xp)
     order = [j for j in range(X.shape[1]) if j not in sel] + list(sel)   # the remaining columns in front
     xc, ids, nx, mx = np.ascontiguousarray(xc[:, order]), ids[order], nx[order], mx[order]
     k = len(sel)

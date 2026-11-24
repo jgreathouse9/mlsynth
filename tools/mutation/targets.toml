@@ -3028,8 +3028,8 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "the-residual-sum-is-expanded-again"
-  find = '        ss = np.einsum("jt,jt->j", Ev, Ev)'
-  replace = '        ss = (b @ b) - 2.0 * c * (xr[:n] @ b) + c * c * np.einsum("jt,jt->j", xr[:n], xr[:n])'
+  find = "    ss = np.einsum(\"tj,tj->j\", E, E)\n"
+  replace = "    ss = (b @ b) - 2.0 * c * (b @ xc[:, :n]) + c * c * np.einsum(\"tj,tj->j\", xc[:, :n], xc[:, :n])\n"
   models = "the shipped form until 2026-11: ||b - c x_j||^2 expanded into ||b||^2 - 2 c b'x_j + c^2 ||x_j||^2, the normal-equations form whose error grows with the square of the conditioning (Golub and Van Loan section 5.3.7). On pools with a common factor of 1e6 its R^2 path erred by up to 1.2e-4 of 1 - R^2, and with near-duplicate donors at 1e8 it picked donor 1 where exact arithmetic picks donor 0"
 
   [[target.mutant]]
@@ -3041,13 +3041,13 @@ timeout = 300.0
   [[target.mutant]]
   id = "ties-follow-row-order-not-donor-index"
   find = "            tied = tied[np.argsort(ids[tied])]\n"
-  replace = ""
+  replace = "            pass\n"
   models = "exact ties broken by row position: the compaction swaps each chosen row with the last remaining one, so after a few steps row order is not donor order, and two identical donors tie to whichever the swaps left first"
 
   [[target.mutant]]
   id = "the-exact-pick-does-not-move-the-row"
   find = "            row = int(np.flatnonzero(ids[:n] == best_idx)[0])\n"
-  replace = ""
+  replace = "            pass\n"
   models = "the exact pick recorded under the rounded leader's row: the step reports one donor's cost, adds another's path to the running sum and removes a third from the pool"
 
   [[target.mutant]]
@@ -3063,27 +3063,57 @@ timeout = 300.0
   models = "ss_tot about a computed mean, which exceeds the exact one by T0 times the mean's error squared: about 1e-6 relative at levels of 1e9 over noise of 1e-4, an R^2 error the path test bounds at 1e-6 of 1 - R^2"
 
   [[target.mutant]]
-  id = "a-donor-with-a-nan-is-a-candidate"
-  find = "    finite_donor = np.isfinite(X_pre).all(axis=0)"
-  replace = "    finite_donor = np.ones(X_pre.shape[1], dtype=bool)"
-  models = "the NaN donor left in the pool: its cost is NaN, the search on main ended by re-selecting a chosen donor at R^2 = -inf, and here the overlap test sees no candidate"
-
-  [[target.mutant]]
   id = "the-chosen-row-stays-in-the-pool"
-  find = "        for a in (xr, nx, mx, ids):"
-  replace = "        for a in ():"
+  find = "        xc[:, [row, last]] = xc[:, [last, row]]\n        for a in (nx, mx, ids):\n            a[[row, last]] = a[[last, row]]\n"
+  replace = "        pass\n"
   models = "the compaction skipped: the chosen donor's row stays among the first n - 1, so it is a candidate again and the last remaining donor is never one"
 
   [[target.mutant]]
   id = "the-swap-leaves-the-labels-behind"
-  find = "        for a in (xr, nx, mx, ids):"
-  replace = "        for a in (xr, nx, mx):"
+  find = "        for a in (nx, mx, ids):\n"
+  replace = "        for a in (nx, mx):\n"
   models = "rows and labels out of step after the first swap: every later pick is reported under another donor's index"
 
   [[target.mutant]]
+  id = "the-swap-leaves-the-columns-behind"
+  find = "        xc[:, [row, last]] = xc[:, [last, row]]\n"
+  replace = "        pass\n"
+  models = "labels and bounds swapped but the donor columns not: from the second step every candidate is scored on another donor's data and reported under its own index"
+
+  [[target.mutant]]
+  id = "the-kernel-expands-the-residual"
+  find = "            e = bt - c * xc[t, j]\n            ss[j] += e * e\n"
+  replace = "            x = xc[t, j]\n            ss[j] += bt * bt - 2.0 * c * bt * x + c * c * x * x\n"
+  models = "the fused kernel accumulating the expanded square, b^2 - 2 c b x + c^2 x^2, which is the normal-equations form period by period: the cancellation the direct residual avoids comes back inside the compiled loop, where the numpy-path tests do not look"
+
+  [[target.mutant]]
+  id = "the-kernel-sums-the-residual-not-its-square"
+  find = "            ss[j] += e * e\n"
+  replace = "            ss[j] += e\n"
+  models = "the kernel summing the residual itself, whose sum is zero up to rounding because both parts are centred: every candidate then costs about nothing and the pick follows the rounding"
+
+  [[target.mutant]]
+  id = "the-kernel-skips-the-last-period"
+  find = "    for t in range(T):\n"
+  replace = "    for t in range(T - 1):\n"
+  models = "an off-by-one in the kernel's period loop, so the last pre-period never enters any candidate's cost"
+
+  [[target.mutant]]
+  id = "the-kernel-lower-bound-ignores-the-mean"
+  find = "        q_lo = np.sqrt(ss[j] / (1.0 + g_s)) - d - e_r\n"
+  replace = "        q_lo = np.sqrt(ss[j] / (1.0 + g_s)) - e_r\n"
+  models = "the kernel's lower bound without the residual-mean term, so a candidate's bound can sit above its exact cost by sqrt(T0) |mean E| and overlapping candidates look separated"
+
+  [[target.mutant]]
+  id = "the-kernel-upper-bound-without-the-residual-error"
+  find = "        up[j] = (np.sqrt(ss[j] / (1.0 - g_s)) + e_r) ** 2"
+  replace = "        up[j] = (np.sqrt(ss[j] / (1.0 - g_s))) ** 2"
+  models = "the kernel's upper bound counting only the final sum's rounding, not the residual's, so an exact cost can lie above it and a near tie is taken from the rounded leader"
+
+  [[target.mutant]]
   id = "no-rounding-error-on-the-residual"
-  find = "_ss_bounds(ss, _gamma(k + 10) * (ny + c * (s_norm + nx[:n])), d, g_s)"
-  replace = "_ss_bounds(ss, 0.0 * (ny + c * (s_norm + nx[:n])), d, g_s)"
+  find = "    e0, e1 = g_r * (ny + c * s_norm), g_r * c\n"
+  replace = "    e0, e1 = 0.0 * g_r * (ny + c * s_norm), 0.0 * g_r * c\n"
   models = "bounds that count only the rounding of the final sum of squares and not that of the residual: near-duplicate candidates whose residuals differ by less than their own rounding look separated, and the rounded leader is taken without the exact recompute"
 
 [[target]]

@@ -197,14 +197,14 @@ def _costs(xc, nx, mx, b, c, n, e0, e1, d0, d1, d2, g_s, ss, lo, up):  # pragma:
         up[j] = (np.sqrt(ss[j] / (1.0 - g_s)) + e_r) ** 2 * (1.0 + 8.0 * _U)
 
 
-def _donor_columns(X_pre: np.ndarray, finite_donor: np.ndarray):
-    """The finite donors' pre-periods as centred columns, by the corrected two-pass algorithm (Chan, Golub and LeVeque
-    1983), with their labels and bounds on each column's 2-norm and on the magnitude of its exact mean."""
-    xc = np.ascontiguousarray((X_pre - X_pre.mean(axis=0))[:, finite_donor])
+def _donor_columns(X_pre: np.ndarray):
+    """The donors' pre-periods as centred columns, by the corrected two-pass algorithm (Chan, Golub and LeVeque 1983),
+    with their labels and bounds on each column's 2-norm and on the magnitude of its exact mean."""
+    xc = np.ascontiguousarray(X_pre - X_pre.mean(axis=0))
     xc -= xc.mean(axis=0)
-    T0 = xc.shape[0]
+    T0, n = xc.shape
     nx = np.sqrt(np.einsum("tj,tj->j", xc, xc)) * (1.0 + _gamma(T0 + 3))
-    return xc, np.flatnonzero(finite_donor), nx, _mean_bound(xc.T)
+    return xc, np.arange(n), nx, _mean_bound(xc.T)
 
 
 def _candidate_costs(y_c, S_c, xc, nx, mx, n, c, ny, s_norm, k, fused=None):
@@ -545,13 +545,7 @@ def forward_did_select(
         ss_tot = 1e-12
 
     X_pre = control_outcomes[:T0]
-    # A donor with a non-finite pre-period has no comparable fit and is never a candidate, as the search always left
-    # it; a non-finite treated pre-period leaves no donor comparable, and raises as the search always did.
-    finite_donor = np.isfinite(X_pre).all(axis=0)
-    if not (np.isfinite(treated_pre).all() and finite_donor.any()):
-        raise ValueError("All-NaN slice encountered: the pre-period holds non-finite outcomes, so no donor's fit "
-                         "can be compared.")
-    n_steps = int(finite_donor.sum())
+    n_steps = X_pre.shape[1]                      # dataprep refuses a non-finite outcome, so every donor is a candidate
 
     mean_all = control_outcomes.mean(axis=1)
     did_all = did_from_mean(
@@ -579,7 +573,7 @@ def forward_did_select(
     # (N - k) T0 doubles, the work of the one matrix-vector product the expanded form needed. The parts are centred
     # by the corrected two-pass algorithm, so each residual's own mean is of the order of its rounding and is bounded
     # (:func:`_candidate_costs`), not removed by another pass. With numba the residual is squared as it is read.
-    xc, ids, nx, mx = _donor_columns(X_pre, finite_donor)                      # (T0, n) centred donors
+    xc, ids, nx, mx = _donor_columns(X_pre)                      # (T0, n) centred donors
     ny = float(np.sqrt(y_c @ y_c)) * (1.0 + _gamma(T0 + 3))
     exact = _ExactPool(treated_pre, X_pre)
 
