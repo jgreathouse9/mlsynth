@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthConfigError, MlsynthDataError
+from ..datautils import geoex_dataprep
 from ..fast_scm_helpers.structure import IndexSet
 from .structures import SYNDESInputs
 
@@ -20,7 +21,17 @@ def prepare_syndes_inputs(
     T0: Optional[int] = None,
     post_col: Optional[str] = None,
 ) -> SYNDESInputs:
-    """Pivot long panel data and split it into pre/post matrices for SYNDES.
+    """Build the pre/post outcome matrices for SYNDES through ``geoex_dataprep``.
+
+    SYNDES chooses which units to treat, so the panel has no treatment column
+    and :func:`~mlsynth.utils.datautils.dataprep` cannot split it.
+    :func:`~mlsynth.utils.datautils.geoex_dataprep` is the design-side sibling:
+    it returns the balanced ``time x unit`` outcome matrix and refuses a
+    duplicate or absent unit-period and a missing or non-finite outcome. With
+    ``post_col`` it also refuses a column that is undefined for some period,
+    that marks every period as post-treatment, or whose post periods are not a
+    single block at the end of the panel; the permutation inference and the
+    plotter stack ``Y_pre`` over ``Y_post`` and read the result in time order.
 
     Parameters
     ----------
@@ -39,51 +50,29 @@ def prepare_syndes_inputs(
         Wide pre/post matrices and label metadata.
     """
 
-    if post_col is not None and post_col not in df.columns:
-        raise MlsynthDataError(f"post_col '{post_col}' is not present in df.")
-
-    ordered_df = df.sort_values([time, unitid]).copy()
-    Ywide = ordered_df.pivot(index=time, columns=unitid, values=outcome).sort_index()
-
-    if Ywide.isna().any().any():
-        raise MlsynthDataError(
-            "SYNDES requires a complete balanced outcome matrix after pivoting."
-        )
-
+    panel = geoex_dataprep(df, unitid, time, outcome)
+    Ywide = panel["Ywide"]
     time_labels = np.asarray(Ywide.index.to_list())
     unit_labels = np.asarray(Ywide.columns.to_list())
-    Y_full = Ywide.to_numpy(dtype=float)
+    Y_full = panel["Y"]
+    n_periods = Y_full.shape[0]
 
     if post_col is not None:
-        post_by_time = (
-            ordered_df[[time, post_col]]
-            .drop_duplicates(subset=[time])
-            .set_index(time)
-            .reindex(time_labels)[post_col]
-        )
-        if post_by_time.isna().any():
-            raise MlsynthDataError(
-                "post_col must be defined for every time period in the panel."
-            )
-        post_mask = post_by_time.astype(bool).to_numpy()
-        if post_mask.all():
-            raise MlsynthConfigError("post_col marks every period as post-treatment.")
-        pre_mask = ~post_mask
-        Y_pre = Y_full[pre_mask, :]
-        Y_post = Y_full[post_mask, :] if post_mask.any() else None
-        pre_labels = time_labels[pre_mask]
-        post_labels = time_labels[post_mask] if post_mask.any() else None
+        # geoex_dataprep validates post_col and keeps the pre-period slice; its
+        # length is where the post block starts in the full matrix.
+        T0 = int(geoex_dataprep(df, unitid, time, outcome, post_col=post_col)["pre_periods"])
     else:
         if T0 is None:
-            T0 = Y_full.shape[0]
-        if T0 <= 0 or T0 > Y_full.shape[0]:
+            T0 = n_periods
+        if T0 <= 0 or T0 > n_periods:
             raise MlsynthConfigError(
-                f"T0 must be between 1 and the number of periods ({Y_full.shape[0]})."
+                f"T0 must be between 1 and the number of periods ({n_periods})."
             )
-        Y_pre = Y_full[:T0, :]
-        Y_post = Y_full[T0:, :] if T0 < Y_full.shape[0] else None
-        pre_labels = time_labels[:T0]
-        post_labels = time_labels[T0:] if T0 < Y_full.shape[0] else None
+
+    Y_pre = Y_full[:T0, :]
+    Y_post = Y_full[T0:, :] if T0 < n_periods else None
+    pre_labels = time_labels[:T0]
+    post_labels = time_labels[T0:] if T0 < n_periods else None
 
     if Y_pre.shape[0] < 2:
         raise MlsynthDataError("SYNDES requires at least two pre-treatment periods.")
