@@ -116,8 +116,6 @@ def prepare_dtwsc_inputs(
         # treated period fails dataprep's own treatment-detection first; kept
         # so the requirement is visible where DTWSC depends on it.
         raise MlsynthDataError("DTWSC needs at least one post-treatment period.")
-    if not np.isfinite(y).all() or not np.isfinite(donors).all():
-        raise MlsynthDataError("DTWSC: outcome contains NaN or infinite values.")
 
     cov_frame = None
     if covariates:

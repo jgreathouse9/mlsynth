@@ -53,10 +53,6 @@ def prepare_cast_inputs(
         Y = np.vstack([y[None, :], Y0.T])
         adoption = {prepared["treated_unit_name"]: int(prepared["pre_periods"])}
 
-    if np.isnan(Y).any():
-        raise MlsynthDataError(
-            "CAST does not support missing outcomes; impute or drop them first."
-        )
     N, T = Y.shape
     adoption_index = np.array([adoption.get(u, T) for u in unit_names], dtype=int)
 

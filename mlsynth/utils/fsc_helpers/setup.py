@@ -145,10 +145,6 @@ def prepare_fsc_inputs(df: pd.DataFrame, outcome: str, treat: str, unitid: str,
         time_labels = list(prepped.get("time_labels", range(treated.size)))
 
     values = np.stack(slices, axis=-1)                       # (N, T, M)
-    if not np.all(np.isfinite(values)):
-        raise MlsynthDataError(
-            "the panel carries NaN or inf in the outcome; FSC needs complete "
-            "objects -- every cell observed at every argument value.")
     if values.shape[0] < 2:
         raise MlsynthDataError(
             "no donor units: FSC needs at least one untreated unit to form "

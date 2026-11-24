@@ -30,8 +30,6 @@ def prepare_dpsc_inputs(config) -> DPSCInputs:
         raise MlsynthDataError("DPSC requires at least one pre-treatment period.")
     if donor_matrix.shape[1] < 1:  # pragma: no cover - dataprep guarantees donors
         raise MlsynthDataError("DPSC requires at least one donor unit.")
-    if not np.all(np.isfinite(donor_matrix)) or not np.all(np.isfinite(y_treated)):  # pragma: no cover - dataprep balances the panel
-        raise MlsynthDataError("DPSC: the outcome/donor matrix contains non-finite values.")
 
     return DPSCInputs(
         y_treated=y_treated,

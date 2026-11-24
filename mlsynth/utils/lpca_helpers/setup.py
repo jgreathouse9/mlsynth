@@ -58,11 +58,6 @@ def prepare_lpca_inputs(
         treatment_indicator_column_name=treat,
     )
     wide = prepped["Ywide"]
-    if wide.isna().to_numpy().any():
-        raise MlsynthDataError(
-            "Panel is unbalanced (missing unit-time cells); LPCA needs a "
-            "rectangular outcome matrix."
-        )
 
     unit_names = list(wide.columns)
     time_labels = np.asarray(wide.index)

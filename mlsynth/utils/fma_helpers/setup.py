@@ -71,11 +71,6 @@ def prepare_fma_inputs(
     treated_name = prepared["treated_unit_name"]
     time_labels = np.asarray(prepared.get("time_labels", np.arange(T)))
 
-    if np.isnan(y).any() or np.isnan(Y0).any():
-        raise MlsynthDataError(
-            "FMA does not currently support missing data; please impute "
-            "or drop missing values before calling fit()."
-        )
     if T0 < 2:
         raise MlsynthDataError(
             f"FMA requires at least 2 pre-treatment periods; got {T0}."
