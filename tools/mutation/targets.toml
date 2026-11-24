@@ -21026,6 +21026,72 @@ timeout = 300.0
   models = "covariates computed and left off the single panel"
 
 [[target]]
+name = "mcnnm-dataprep"
+module-path = "mlsynth/utils/mcnnm_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_mcnnm_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat)"
+  models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
+
+  [[target.mutant]]
+  id = "treatment-lasts-one-period"
+  find = "            D[i, starts[name]:] = 1.0"
+  replace = "            D[i, starts[name]] = 1.0"
+  models = "the rebuilt treatment matrix marking only the adoption period, so later treated cells are fitted as controls"
+
+  [[target.mutant]]
+  id = "adoption-one-period-late"
+  find = "            D[i, starts[name]:] = 1.0"
+  replace = "            D[i, starts[name] + 1:] = 1.0"
+  models = "an off-by-one between dataprep's pre-period count and the adoption index"
+
+  [[target.mutant]]
+  id = "the-latest-adoption-sets-t0"
+  find = "    T0 = min(starts.values())"
+  replace = "    T0 = max(starts.values())"
+  models = "staggered adoption with T0 at the last cohort, so earlier cohorts' treated cells count as pre-period"
+
+  [[target.mutant]]
+  id = "a-single-treated-unit-starts-at-its-post-count"
+  find = "        return {prep.treated_unit_name: int(prep.pre_periods)}"
+  replace = "        return {prep.treated_unit_name: int(prep.post_periods)}"
+  models = "the single-treated branch reading the wrong side of dataprep's period split"
+
+  [[target.mutant]]
+  id = "only-the-first-cohort-is-treated"
+  find = "            for cohort in prep.cohorts.values() for unit in cohort.treated_units}"
+  replace = "            for cohort in list(prep.cohorts.values())[:1] for unit in cohort.treated_units}"
+  models = "later cohorts dropped from the treatment matrix and fitted as never-treated controls"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-not-transposed"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float))"
+  models = "dataprep's period-by-unit matrix used as MC-NNM's unit-by-period matrix"
+
+  [[target.mutant]]
+  id = "units-in-another-order"
+  find = "    unit_names = sorted(prep.Ywide.columns)"
+  replace = "    unit_names = sorted(prep.Ywide.columns, reverse=True)"
+  models = "rows of Y and D in a different unit order from the names the results report"
+
+  [[target.mutant]]
+  id = "one-control-is-accepted"
+  find = "    if N - treated_idx.size < 2:"
+  replace = "    if N - treated_idx.size < 1:"
+  models = "MC-NNM's own minimum of two control units lost when its checks moved behind dataprep"
+
+  [[target.mutant]]
+  id = "two-units-are-accepted"
+  find = "    if N < 3:"
+  replace = "    if N < 2:"
+  models = "MC-NNM's own minimum of three units lost when its checks moved behind dataprep"
+
+[[target]]
 name = "syndes-geoex"
 module-path = "mlsynth/utils/syndes_helpers/setup.py"
 test-command = "python -m pytest mlsynth/tests/test_syndes_dataprep.py -q -p no:cacheprovider -x -W ignore"
