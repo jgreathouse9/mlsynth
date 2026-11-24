@@ -118,7 +118,7 @@ class TestPipelineSurfacesDiagnostics:
             max_supergeo_size=2, fast=False,
             compute_power=False, display_graphs=False)).fit()
         d = res.metadata["solver_diagnostics"]["A"]
-        assert d["path"] == "exact_mip"
+        assert d["path"] in {"exact_mip", "exact_search"}      # the search proves small arms without a MIP
         assert d["n_candidate_pairs"] > 0
         assert d["status"] in {"optimal", "optimal_inaccurate"}
         assert d["n_selected_pairs"] == len(res.arm_designs["A"].pairs)

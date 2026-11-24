@@ -66,7 +66,7 @@ def test_smoke_scores_every_group_and_solves():
     assert np.isfinite(pool.cost).all()
     chosen, d = columns.solve_exact(idx, Y, 2)
     _assert_cover(chosen, idx, 2)
-    assert d["path"] == "exact_mip" and d["n_candidate_pairs"] == len(pool)
+    assert d["path"] == "exact_search" and d["n_candidate_pairs"] == len(pool)
     assert d["objective_value"] == pytest.approx(sum(c["score"] for c in chosen))
 
 
@@ -318,7 +318,7 @@ def test_columns_are_eliminated():
     Y = _panel(11, 16, 20)
     idx = np.arange(16)
     _, d_ref = _reference(idx, Y, 3)
-    chosen, d = columns.solve_exact(idx, Y, 3)
+    chosen, d = columns.solve_exact(idx, Y, 3, search_node_limit=0)
     assert d["objective_value"] == pytest.approx(d_ref["objective_value"], rel=1e-9)
     assert d["n_candidate_pairs"] == columns.count_columns(16, 3)
     assert d["columns_solved"] < d["n_candidate_pairs"] / 10
@@ -333,7 +333,7 @@ def test_a_poor_first_design_is_followed_by_the_proof(monkeypatch):
     Y = _panel(12, 12, 15)
     idx = np.arange(12)
     _, d_ref = _reference(idx, Y, 2)
-    _, d = columns.solve_exact(idx, Y, 2)
+    _, d = columns.solve_exact(idx, Y, 2, search_node_limit=0)
     assert d["mip_solves"] >= 2
     assert d["objective_value"] == pytest.approx(d_ref["objective_value"], rel=1e-9)
 
@@ -354,7 +354,7 @@ def test_a_poor_first_design_does_not_open_every_group(monkeypatch):
         calls.append(out[1]["objective_value"])
         return out
 
-    _, d = columns.solve_exact(idx, Y, 2, solve=spy)
+    _, d = columns.solve_exact(idx, Y, 2, solve=spy, search_node_limit=0)
     pool = columns.score_columns(idx, Y, 2)
     root = columns.root_lp(pool, columns.min_groups(12, 2, 1))
     tol = 1e-9 * max(1.0, float(pool.cost.max()))
@@ -373,7 +373,7 @@ def test_the_cardinality_cut_reaches_the_mip():
         seen.append(kw["min_pairs"])
         return mip.solve_partition(cands, idx, **kw)
 
-    columns.solve_exact(np.arange(10), _panel(2, 10), 2, solve=spy)
+    columns.solve_exact(np.arange(10), _panel(2, 10), 2, solve=spy, search_node_limit=0)
     assert seen and set(seen) == {3}
 
 
@@ -386,7 +386,7 @@ def test_the_solve_passes_backend_and_gaps():
         return mip.solve_partition(cands, idx, **kw)
 
     columns.solve_exact(np.arange(8), _panel(2, 8), 2, backend="cvxpy", mip_rel_gap=0.01, mip_abs_gap=0.5,
-                        solve=spy)
+                        solve=spy, search_node_limit=0)
     assert seen and set(seen) == {("cvxpy", 0.01, 0.5, True)}
 
 
@@ -436,7 +436,7 @@ def test_solver_errors_propagate():
         raise MlsynthEstimationError("PANGEO partition MIP did not solve (status=Solve error)")
 
     with pytest.raises(MlsynthEstimationError, match="Solve error"):
-        columns.solve_exact(np.arange(8), _panel(0, 8), 2, solve=broken)
+        columns.solve_exact(np.arange(8), _panel(0, 8), 2, solve=broken, search_node_limit=0)
 
 
 # --- the pipeline -------------------------------------------------------------------------------------------------
@@ -467,8 +467,9 @@ def test_the_pipeline_designs_at_the_full_mips_optimum_and_reports_it():
 
 def test_the_pipeline_solves_through_its_solve_partition(monkeypatch):
     """Unit: the restricted MIPs go through pipeline.solve_partition, so a backend or a patch there reaches them."""
-    from mlsynth.utils.pangeo_helpers import pipeline as ppipe
+    from mlsynth.utils.pangeo_helpers import cover, pipeline as ppipe
 
+    monkeypatch.setattr(cover, "SEARCH_NODE_LIMIT", 0)            # the MIP loop, which the search proves without
     calls = []
     real = ppipe.solve_partition
     monkeypatch.setattr(ppipe, "solve_partition", lambda *a, **k: calls.append(k) or real(*a, **k))
@@ -524,7 +525,7 @@ def test_a_costlier_later_design_does_not_replace_the_best(monkeypatch):
         return chosen, d
 
     _, d_ref = _reference(idx, Y, 2)
-    chosen, d = columns.solve_exact(idx, Y, 2, solve=stub)
+    chosen, d = columns.solve_exact(idx, Y, 2, solve=stub, search_node_limit=0)
     assert returned[-1]["objective_value"] > min(real)   # the last MIP returned the dearer design
     assert d["objective_value"] == pytest.approx(d_ref["objective_value"], rel=1e-9)
     assert d["objective_value"] == pytest.approx(sum(c["score"] for c in chosen))
@@ -556,6 +557,6 @@ def test_the_search_ends_when_the_mip_holds_every_group():
         _, d = mip.solve_partition(cands, ix, **kw)
         return seed, dict(d, objective_value=seed_cost)
 
-    chosen, d = columns.solve_exact(idx, Y, 2, solve=stub)
+    chosen, d = columns.solve_exact(idx, Y, 2, solve=stub, search_node_limit=0)
     assert calls == [len(pool)] and d["mip_solves"] == 1
     assert d["objective_value"] == pytest.approx(seed_cost)

@@ -268,7 +268,7 @@ def test_the_solve_is_reported_on_the_result(panel):
     for arm, r in res.mip_reports.items():
         assert isinstance(r, MipSolveReport)
         assert r.status == "optimal" and r.requested_rel_gap == 0.0 and r.requested_abs_gap == 0.0
-        assert r.gap_enforced and r.presolve_retry is False and r.backend in ("highspy", "cvxpy")
+        assert r.gap_enforced and r.presolve_retry is False and r.backend in ("highspy", "cvxpy", "search")
         assert r.proven_gap is not None and r.proven_gap <= 1e-9
         d = res.metadata["solver_diagnostics"][arm]
         assert d["status"] == r.status and d["mip_gap"] == r.proven_gap
