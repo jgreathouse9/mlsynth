@@ -910,7 +910,7 @@ class TestSetupEdges:
         from mlsynth.utils.syndes_helpers.setup import prepare_syndes_inputs
         df = _panel(n_units=4, T=6)
         df = df.drop(df.index[0]).reset_index(drop=True)
-        with pytest.raises(MlsynthDataError, match="complete balanced"):
+        with pytest.raises(MlsynthDataError, match="not strongly balanced"):
             prepare_syndes_inputs(df, outcome="y", unitid="unit",
                                    time="time", T0=5)
 

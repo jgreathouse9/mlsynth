@@ -432,7 +432,12 @@ post_col vs T0
 the same pre/post split — passing ``post_col`` is just the more ergonomic
 form when the panel already carries an experiment-window flag. If both are
 supplied and disagree, ``post_col`` wins and a ``UserWarning`` is emitted so
-the override is visible.
+the override is visible. The post-treatment periods ``post_col`` marks must be
+one block at the end of the panel, all pre-treatment periods first; any other
+pattern raises ``MlsynthConfigError``. The panel is read through
+:func:`mlsynth.utils.datautils.geoex_dataprep`, which also refuses a duplicate
+or absent unit-period and a missing or non-finite outcome with
+``MlsynthDataError``.
 
 Choosing among the modes
 ------------------------
