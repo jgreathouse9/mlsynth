@@ -256,6 +256,15 @@ not slow:
    bound, the test for stopping the root early. Farley's bound (their p. 181)
    needs equal column costs and does not apply.
 
+   Done. The root at 235 markets went from 45.8 s to 3.15 s: the master LP kept
+   between iterations (#1125), pricing from the safe window once it is small
+   (#1126), and a seeded first pool (#1127). The early stop measured out (1.7 s
+   of 29 s) and so did dual smoothing. The bound was not the problem: a
+   first-moment count (Mertens 2003) put the optimum within about 1e-5 of it,
+   and the design constructor (#1128) proved the absolute gap 0.01 at 235
+   markets in 262 s. Study README, "What the column-generation papers and
+   number partitioning say".
+
 Known-answer families for every claim: pairs against sorting at 20 to 1,000
 markets; pairs with trajectory costs against an exact minimum weight perfect
 matching, from Blossom VI (Arkhipov and Kolmogorov, "Blossom VI: A practical
@@ -349,6 +358,25 @@ the window in that space, and fold the discarded eigenvalues into the safety
 margin so the elimination stays exact. Totals cannot see trend, seasonality or
 volatility (two markets with equal pretest totals can differ in all three), so
 this is the path from the base problem's machinery to PANGEO's objective.
+
+mlsynth's FDID already does this. `forward_did_select`
+(mlsynth/utils/fdid_helpers/estimation.py) centres the donors once, caches each
+one's squared norm and cross-product with the treated unit, and scores a
+candidate average by one matrix-vector product, O(N T0) a step against a refit.
+Groups grow the same way: adding a market to a half updates the quadratic form
+by one row of the Gram matrix, so a depth-first enumeration of groups of up to
+2Q markets extends each in O(k).
+
+The study's design constructor (construct.py) carries over with one change. A
+four balances when its two pairs' projected difference vectors cancel: the cost
+is about ||d_p - d_q||^2 for the better orientation, read from the Gram matrix.
+For scalar totals the best coupling of a fixed pairing's pairs was a sort; for
+trajectories it is a minimum-weight matching on the pairs' difference vectors,
+a lone pair costing ||d_p||^2 against a dummy partner. Still exact for a fixed
+pairing and polynomial, a blossom call in place of a sort, so the annealing
+budget is measured again. The scaling of the halves' means and the projection
+are checked against brute force before the constructor is trusted on this
+objective.
 
 ### Note for the trajectory objective: what the QUBO literature offers
 
@@ -681,6 +709,19 @@ whichever half each coin treats.
   to balance spend narrowed the cut's spread and raised the iROAS error 12%
   (phase 5, Budget). The design keeps the response objective and imposes spend
   balance only as far as the cap, floor or gap requires.
+- Restricting the draw. A cap or a spread bound can also bind on the coin flips
+  of a fixed design, not on the design: draw A until |B(A) - B0| <= delta, a
+  rerandomization. The cut minus its mean, sum_k A_k g_k / 2, is a walk with
+  steps g_k / 2, so for delta small against its sd the acceptance rate is
+  about 2 delta / sqrt(2 pi sum_k g_k^2 / 4) and the number of admissible
+  assignments 2^K times that (Mertens, "The Easiest Hard Problem", 2003, eqs.
+  7-8): the closed form for the rejection sampler's cost and for the size of
+  the randomization set that inference draws from. Whether any assignment
+  lands in an interval is the two-bin case of Bismuth, Segal-Halevi and
+  Shapira (arXiv:2204.11753, interval targets), polynomial in K and the inverse
+  of the interval's width; with unequal arm shares it is their asymmetric case.
+  Acceptance: the acceptance rate against the closed form on simulated gaps,
+  and the randomization test's size with the restricted draw.
 - Solvers, closed form first (CLAUDE.md invariant 8). A design that is optimal
   without the constraints and meets them is optimal with them, so every path
   first solves the unconstrained problem (the sorted pairing, the matcher, the

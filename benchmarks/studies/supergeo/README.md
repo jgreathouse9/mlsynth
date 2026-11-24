@@ -1256,6 +1256,75 @@ also needs a pricing kernel that subtracts the duals of cuts on sets of any size
 are not built for groups of 2 to 4. For pairs they close the gap at once, but
 PANGEO solves pairs by sorting or by the blossom matcher, which needs no bound.
 
+## What the column-generation papers and number partitioning say
+
+Seven papers were read against the 235-market root and its timeout at an
+absolute gap of 0.01.
+
+Five on branch-price-and-cut:
+
+- Desrosiers, Lubbecke, Desaulniers and Gauthier, "Branch-and-Price", Springer
+  2026, chapter 7, "Branch-Price-and-Cut".
+- Deleplanque, Labbe, Ponce and Puerto, "A Branch-Price-and-Cut Procedure for the
+  Discrete Ordered Median Problem", INFORMS Journal on Computing.
+- Felloussi, Ghannam, Dionisio, Gianessi and Delorme, "Branch and Price for
+  Job-Shop Scheduling with Time-Dependent Costs and Cardinality Resource
+  Constraints" (ISCO).
+- Maher and Ronnberg, "Integer programming column generation: accelerating
+  branch-and-price using a novel pricing scheme for finding high-quality
+  solutions in set covering, packing, and partitioning problems", Mathematical
+  Programming Computation 15 (2023) 509-548.
+- Ghannam, Mexi, Lam and Gleixner, "Branch and Price for the Length-Constrained
+  Cycle Partition Problem".
+
+Their root bounds are within 0.01% to 17% of the optimum, against roughly 50%
+here at the time, and none of their cuts or branching rules tightens a bound
+made of one forced triple. What they offered for speed, and what became of it:
+
+| idea | outcome |
+| --- | --- |
+| seed the first pool from cheap columns and a heuristic design | built: the root at 235 markets 24.1 s to 3.15 s ("A seeded first pool") |
+| price heuristically while the duals are far off | the root prices from the safe window once it is small ("Pricing from the window") |
+| keep the master LP between iterations | built: master 13.5 s to 3.2 s ("The root's master LP, kept") |
+| stop the root early on the Lagrangian bound | measured: saves 1.7 s of 29 s; not built |
+| Wentges dual smoothing | measured: slower by 20% to 50% after seeding; not built |
+| integer programming column generation (repair of a freed set of rows) | built as the wide repair ("Constructing the design") |
+
+Two on number partitioning:
+
+- Mertens, "The Easiest Hard Problem: Number Partitioning", 2003.
+- Bismuth, Segal-Halevi and Shapira, "Asymmetric Number Partitioning with
+  Splitting and Interval Targets", arXiv:2204.11753 (v7, 2025).
+
+Mertens changed the reading of the timeout. A partition problem is easy when
+designs as good as the trivial bound exist, since finding one ends the search,
+and hard when none do, since the best designs are then scattered at random and
+no rule beats checking them. His first-moment count, the expected number of
+designs of cost at most eps with the groups' imbalances taken as independent,
+locates which side a problem is on. Applied to the 232 markets left after the
+cheapest triple, it put the optimum about 1e-5 above the bound. Against exact
+optima on subsamples of the panel:
+
+| markets | predicted distance above the bound | exact |
+| --- | --- | --- |
+| 31 | 0.26 | 0.15 |
+| 31 | 0.26 | 0.093 |
+| 41 | 0.010 | 0.058 |
+| 41 | 0.025 | 0.14 |
+| 51 | 0.022 | 0.031 |
+
+Within a factor of 6. So the bound of 1.78 was nearly tight, and the distance
+of 1.7 to the heuristic's design of about 3.5 was the design's. The
+constructor and the window search then proved the gap 0.01 with a design
+0.0035 above the bound. The 61-market subsample at gap 0 did not finish in 50
+minutes: a proof at gap 0 sits on the hard side whatever the design.
+
+Bismuth, Segal-Halevi and Shapira decide, for two bins with unequal target
+shares, whether a partition lands within an interval of the target, in time
+polynomial in the number of items and the inverse of the interval's width. A
+spend constraint on the coin flips of a fixed design is that problem (phase 5e
+of the roadmap).
+
 ## Tests
 
 `python -m pytest benchmarks/studies/supergeo -q`. Brute force over every
