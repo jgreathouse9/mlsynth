@@ -9654,15 +9654,15 @@ timeout = 600.0
 
 [[target]]
 name = "spillsynth-setup-finite-outcome"
-module-path = "mlsynth/utils/spillsynth_helpers/setup.py"
+module-path = "mlsynth/utils/datautils.py"
 test-command = "python -m pytest mlsynth/tests/test_spillsynth_unit_sc.py -q -p no:cacheprovider -x -k ingestion"
 timeout = 300.0
 
   [[target.mutant]]
   id = "infinite-outcome-passes-ingestion"
-  find = "    if not finite.all():"
-  replace = "    if False:"
-  models = "the ingestion check dropped. isna passes an infinite outcome, after which cd returns an ATT of nan and iscm, iterative and grossi return -inf for one in the post-period, each without an error"
+  find = "    bad = ~np.isfinite(values)"
+  replace = "    bad = np.isnan(values)"
+  models = "ingestion checking for NaN only, so an infinite outcome reaches SPILLSYNTH, where cd returns an ATT of nan and iscm, iterative and grossi return -inf for one in the post-period, each without an error. The check moved from SPILLSYNTH's setup into dataprep (#1134); SPILLSYNTH's end-to-end test still has to catch it"
 
 [[target]]
 name = "marex-global-test-dependence"
