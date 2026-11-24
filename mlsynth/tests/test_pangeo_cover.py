@@ -215,6 +215,17 @@ def test_search_over_groups_that_miss_a_unit_has_no_design():
     assert res.status == "proved" and res.rows.size == 0 and res.nodes == 0
 
 
+
+def test_search_over_no_groups_proves_nothing_better_than_the_incumbent():
+    """Edge: with no groups to search the search is over at once; its bound is the incumbent's."""
+    Y = _panel(21, 8)
+    pool = columns.score_columns(np.arange(8), Y, 2)
+    k = columns.min_groups(8, 2, 1)
+    root = columns.root_lp(pool, k)
+    res = cover.search(pool, root, np.array([], dtype=int), k, 2, 3.5, 10)
+    assert res.status == "proved" and res.rows.size == 0 and res.nodes == 0
+    assert res.upper == res.lower == 3.5
+
 # --- edge -----------------------------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("n,Q", [(2, 1), (3, 2), (4, 2), (5, 5), (6, 3), (7, 2)])
@@ -260,6 +271,19 @@ def test_an_invalid_node_limit_is_refused(bad):
 def test_no_design_is_still_reported_as_the_mip_reports_it(n, Q, min_pairs, match):
     with pytest.raises(MlsynthEstimationError, match=match):
         columns.solve_exact(np.arange(n), _panel(0, max(n, 2))[:n], Q, min_pairs=min_pairs)
+
+
+@pytest.mark.parametrize("backend", ["cvxpy", "highspy"])
+def test_a_backend_named_explicitly_gets_its_mip(backend):
+    """Unit: the search runs only with backend="auto"; naming a MIP backend asks for that MIP."""
+    pytest.importorskip("highspy") if backend == "highspy" else None
+    _, d = columns.solve_exact(np.arange(10), _panel(19, 10), 2, backend=backend)
+    assert d["search"] == "off" and d["backend"] == backend and d["mip_solves"] >= 1
+
+
+def test_an_unknown_backend_is_still_refused():
+    with pytest.raises(MlsynthConfigError):
+        columns.solve_exact(np.arange(8), _panel(20, 8), 2, backend="gurobi-ish")
 
 
 # --- the report -----------------------------------------------------------------------------------------------------

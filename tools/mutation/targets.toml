@@ -20820,3 +20820,69 @@ timeout = 900.0
   find = "        if w.shape != (T,) or not np.isfinite(w).all() or (w < 0).any() or float(w.sum()) <= _EPS:\n"
   replace = "        if False:\n"
   models = "negative, non-finite, misshapen or zero-sum weights accepted"
+
+[[target]]
+name = "pangeo-cover-search"
+module-path = "mlsynth/utils/pangeo_helpers/cover.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-design-with-too-few-groups-is-a-leaf"
+  find = "            if c1 < k:\n                continue\n"
+  replace = "            if False:\n                continue\n"
+  models = "a cover with fewer groups than the cardinality row asks for accepted as a design, so min_pairs is ignored on the search path while the MIP path honours it"
+
+  [[target.mutant]]
+  id = "every-unit-read-from-the-first-mask-word"
+  find = "        if (Ucur[p >> 6] >> np.uint64(p & 63)) & np.uint64(1) == np.uint64(0):"
+  replace = "        if (Ucur[0] >> np.uint64(p & 63)) & np.uint64(1) == np.uint64(0):"
+  models = "the uncovered set read from its first 64-bit word only, so past 64 units a group is taken as fitting when its units are already covered, and the design covers some unit twice"
+
+  [[target.mutant]]
+  id = "the-node-cap-is-ignored"
+  find = "        if nodes > node_limit:"
+  replace = "        if nodes > node_limit + 10 ** 12:"
+  models = "a search that never stops at its cap, so an arm like Q = 2 at 50 geos runs 148 million nodes (611 s) before the MIP loop is reached"
+
+  [[target.mutant]]
+  id = "the-lowest-leaf-is-left-out-of-the-lower-bound"
+  find = "                       float(min(upper, lowest)), int(nodes))"
+  replace = "                       float(upper), int(nodes))"
+  models = "the lower bound taken as the design's own upper bound, which claims a zero gap and a bound above the design's computed cost, when only the least of it and the lowest leaf's lower bound is proved"
+
+[[target]]
+name = "pangeo-cover-in-solve-exact"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-fallback-mip-starts-without-the-searchs-design"
+  find = "        seed = np.union1d(seed, found[\"rows\"]).astype(seed.dtype)"
+  replace = "        seed = seed"
+  models = "a capped search whose design is thrown away, so the first MIP after it starts from a fixed design and the node budget bought nothing"
+
+  [[target.mutant]]
+  id = "the-proof-searches-only-the-negative-reduced-costs"
+  find = "        keep = np.flatnonzero(root.reduced_costs <= _up(z_up - Fraction(root.bound)))"
+  replace = "        keep = np.flatnonzero(root.reduced_costs <= 0.0)"
+  models = "the margin z - L replaced by 0, which leaves out groups that can be in a cheaper design, so the search proves the optimum of a smaller problem and reports it as the arm's"
+
+  [[target.mutant]]
+  id = "the-start-design-is-returned-as-the-proof"
+  find = "    rows = res.rows if res.rows.size else start.rows"
+  replace = "    rows = start.rows"
+  models = "the proof search's better design discarded for the start's, which is a design and not the optimum"
+
+  [[target.mutant]]
+  id = "a-named-backend-is-overridden-by-the-search"
+  find = "    if backend != \"auto\":"
+  replace = "    if False:"
+  models = "the search running when a MIP backend was named, so mip_backend='cvxpy' or 'highspy' returns a design no MIP solved and an unknown backend is accepted"
+
+  [[target.mutant]]
+  id = "the-dual-bound-is-the-root-bound"
+  find = "            lower = min(found[\"lower\"], upper)"
+  replace = "            lower = float(L)"
+  models = "the root Lagrangian bound reported as the proof's lower bound: valid, but 8 to 33% under the optimum on these panels, so a proved design reports a gap the search closed"

@@ -173,9 +173,9 @@ def test_an_explicit_mip_backend_keeps_the_mip(backend):
 
 
 def test_larger_supergeos_keep_the_mip():
-    """Unit: Q = 2 is set partitioning, not a matching; auto runs the MIP."""
+    """Unit: Q = 2 is set partitioning, not a matching; auto runs the exact path (the search, then the MIP)."""
     _, res = _design(_panel(4, 8), objective="ss_res", max_supergeo_size=2)
-    assert res.metadata["solver_diagnostics"]["A"]["path"] == "exact_mip"
+    assert res.metadata["solver_diagnostics"]["A"]["path"] in {"exact_mip", "exact_search"}
 
 
 def test_the_solver_label_names_the_path():

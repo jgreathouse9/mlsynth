@@ -640,7 +640,8 @@ def solve_exact(
     goes to one MIP over every group, which reports it as it reports the full enumeration.
 
     Before any MIP, the exact-cover search (:mod:`.cover`) looks for the design and a proof that it is optimal,
-    placing at most ``search_node_limit`` groups (``cover.SEARCH_NODE_LIMIT`` when None; 0 skips it). A proof returns
+    placing at most ``search_node_limit`` groups (``cover.SEARCH_NODE_LIMIT`` when None; 0 skips it). It runs only
+    with ``backend="auto"``: a backend named explicitly is a request for that MIP, and gets it. A proof returns
     the design with no MIP: ``backend`` is ``"search"``, ``mip_solves`` 0, ``dual_bound`` a rigorous lower bound on
     the optimum, ``objective_upper`` one above the design's exact cost and ``mip_gap`` the gap between them relative
     to the design's cost, as the MIP path reports it (absolute when that cost is 0).
@@ -676,7 +677,9 @@ def solve_exact(
     seed = np.array([column_index(g, n) for g in seed_partition(n)])
     pos = {int(u): p for p, u in enumerate(idx)}
     info = dict(search="off", search_nodes=0)
-    if search_node_limit > 0 and not cover._NUMBA:
+    if backend != "auto":
+        pass                                          # a MIP backend asked for by name
+    elif search_node_limit > 0 and not cover._NUMBA:
         info["search"] = "unavailable"   # pragma: no cover - the suite runs with numba installed
     elif search_node_limit > 0:
         found = _search(pool, root, k, max_size, int(search_node_limit))

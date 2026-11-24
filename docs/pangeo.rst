@@ -480,7 +480,9 @@ therefore reaches the optimum of :eq:`mip` in three steps
    :math:`z` of a first design, found by a short search over the pairs of least
    reduced cost. A search that ends within its node cap (3 million pairs
    placed) has proved its design optimal, and no MIP runs. A search the cap
-   stops hands its best design to the first MIP.
+   stops hands its best design to the first MIP. The search runs with
+   ``mip_backend="auto"``; naming ``"highspy"`` or ``"cvxpy"`` asks for that
+   MIP and skips it.
 
 The LP bound is weak on this problem: on the seasonal panels below it lies 14
 to 33% under the optimum, and subset-row cuts (Jepsen, Petersen, Spoorendonk
