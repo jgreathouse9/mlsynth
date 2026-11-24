@@ -17,6 +17,9 @@ every panel both accept.
 
 from __future__ import annotations
 
+import ast
+import inspect
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -107,14 +110,15 @@ class TestRouting:
         prepare_syndes_inputs(_panel(), **COLS, post_col="post")
         assert "post" in calls
 
-    def test_setup_does_not_pivot(self, monkeypatch):
-        def no_pivot(*a, **k):  # pragma: no cover - fails the test if reached
-            raise AssertionError("SYNDES setup pivoted the panel itself")
-
-        df = _panel()
-        monkeypatch.setattr(pd.DataFrame, "pivot", no_pivot)
-        monkeypatch.setattr(pd.DataFrame, "pivot_table", no_pivot)
-        prepare_syndes_inputs(df, **COLS, post_col="post")
+    def test_setup_does_not_pivot(self):
+        # The setup module itself must not reshape the panel. A runtime patch of
+        # DataFrame.pivot cannot test this: geoex_dataprep's _wide_pivot falls
+        # back to df.pivot on pandas versions whose fast path would change the
+        # array layout, so the patch fires inside geoex_dataprep there.
+        tree = ast.parse(inspect.getsource(SETUP))
+        called = {node.func.attr for node in ast.walk(tree)
+                  if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)}
+        assert not called & {"pivot", "pivot_table", "unstack", "crosstab"}, called
 
 
 # --------------------------------------------------------------------------- #
