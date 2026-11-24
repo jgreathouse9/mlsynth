@@ -92,6 +92,16 @@ def test_a_fixed_group_that_covers_everything_is_the_design():
     assert res.status == "proved" and res.rows.tolist() == [j] and res.nodes == 0
 
 
+
+@pytest.mark.parametrize("k,best", [(2, np.inf), (1, 0.0)])
+def test_a_fixed_group_that_covers_everything_but_cannot_be_the_design(k, best):
+    """Edge: a fixed group holding every unit is no design when the cardinality row asks for more groups, or when
+    it does not beat the incumbent."""
+    Y, idx, pool, _, root = _setup(3, 4, 2)
+    j = int(np.flatnonzero((pool.members >= 0).sum(axis=1) == 4)[0])
+    res = cover.search(pool, root, np.array([], dtype=int), k, 2, best, 10, fixed=(j,))
+    assert res.status == "proved" and res.rows.size == 0 and res.upper == best
+
 # --- unit: the branch bounds ------------------------------------------------------------------------------------------
 
 def test_every_branch_bound_is_at_most_the_best_design_through_that_branch():
@@ -147,6 +157,12 @@ def test_the_node_cap_is_shared_across_branches():
     res = columns._search_reopt(pool, root, np.arange(len(pool)), k, 2, np.inf, 5)
     assert res.status == "node_limit" and res.nodes <= 5 + 1
 
+
+
+def test_a_node_limit_of_zero_places_no_node():
+    Y, idx, pool, k, root = _setup(8, 14, 2)
+    res = columns._search_reopt(pool, root, np.arange(len(pool)), k, 2, np.inf, 0)
+    assert res.status == "node_limit" and res.nodes == 0
 
 def test_the_incumbent_carries_from_branch_to_branch(monkeypatch):
     """Unit: a design found in one branch is the incumbent the next branch is searched against."""
