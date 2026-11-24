@@ -21206,6 +21206,24 @@ timeout = 600.0
   models = "PPSCM's own minimum of two periods before the last adoption lost behind dataprep"
 
   [[target.mutant]]
+  id = "a-treatment-that-switches-off-is-refused"
+  find = "    df = _from_first_adoption(df, treat, unitid, time)\n"
+  replace = ""
+  models = "augsynth's first-adoption reading dropped, so the Bilgel lockdown panel is refused"
+
+  [[target.mutant]]
+  id = "adoption-read-out-of-time-order"
+  find = "    in_time = out.sort_values(time, kind=\"stable\")"
+  replace = "    in_time = out"
+  models = "the running maximum taken in row order, so a shuffled panel adopts at the wrong period"
+
+  [[target.mutant]]
+  id = "the-caller-frame-is-modified"
+  find = "    out = df.reset_index(drop=True)"
+  replace = "    out = df"
+  models = "the caller's treatment column overwritten in place"
+
+  [[target.mutant]]
   id = "an-all-treated-panel-is-accepted"
   find = "    if len(starts) == len(units):"
   replace = "    if False:"

@@ -30,14 +30,33 @@ def _adoption_index(prep) -> dict:
             for cohort in prep.cohorts.values() for unit in cohort.treated_units}
 
 
+def _from_first_adoption(df: pd.DataFrame, treat: str, unitid: str,
+                         time: str) -> pd.DataFrame:
+    """A copy of ``df`` whose treatment is 1 from each unit's first treated period on.
+
+    augsynth's ``multisynth`` takes a unit's first treated period as its
+    adoption and ignores later zeros (``format_data_stag``; Ben-Michael, Feller
+    and Rothstein, JRSS-B 84 (2022), section 2), so a lockdown that lifts and
+    returns adopts once. PPSCM ports that reading. The running maximum within
+    each unit, in time order, turns such an indicator into the absorbing one
+    ``dataprep`` checks for, and leaves an absorbing indicator as it was.
+    """
+    out = df.reset_index(drop=True)
+    in_time = out.sort_values(time, kind="stable")
+    out[treat] = in_time.groupby(unitid, observed=True)[treat].cummax().sort_index()
+    return out
+
+
 def prepare_ppscm_inputs(df: pd.DataFrame, *, outcome: str, treat: str,
                          unitid: str, time: str,
                          covariates: Optional[List[str]] = None) -> PPSCMInputs:
     """Build :class:`PPSCMInputs` from a long panel through ``balance`` and ``dataprep``.
 
     ``balance`` and ``dataprep`` refuse a duplicate or absent unit-period, a
-    missing or non-finite outcome anywhere in the panel, a non-binary
-    treatment, and a treatment that switches off after it starts. The adoption
+    missing or non-finite outcome anywhere in the panel, and a non-binary
+    treatment. A treatment that switches off after it starts is read from its
+    first treated period, as augsynth reads it (:func:`_from_first_adoption`).
+    The adoption
     bookkeeping then follows augsynth's ``format_data_stag`` (Ben-Michael,
     Feller and Rothstein, JRSS-B 84 (2022), section 2): each unit's adoption is
     its first treated period, indexed by position in the sorted time vector
@@ -51,6 +70,7 @@ def prepare_ppscm_inputs(df: pd.DataFrame, *, outcome: str, treat: str,
                 f"Covariate column(s) not in DataFrame: {missing}."
             )
 
+    df = _from_first_adoption(df, treat, unitid, time)
     keys = balance(df, unitid, time)
     prep = dataprep(df, unitid, time, outcome, treat, keys=keys)
     t_vec = np.asarray(prep.time_labels)
