@@ -21208,7 +21208,7 @@ timeout = 600.0
   [[target.mutant]]
   id = "a-treatment-that-switches-off-is-refused"
   find = "    df = _from_first_adoption(df, treat, unitid, time)\n"
-  replace = ""
+  replace = "    df = df\n"
   models = "augsynth's first-adoption reading dropped, so the Bilgel lockdown panel is refused"
 
   [[target.mutant]]
