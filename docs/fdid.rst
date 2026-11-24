@@ -283,11 +283,15 @@ any step picks.
    factor of :math:`10^6` the expanded form's :math:`R^2` path erred by up to
    :math:`1.2\times 10^{-4}` of :math:`1 - R^2`, and with near-duplicate donors
    at a factor of :math:`10^8` one pick differed from the exact one.
-   The two forms are of the same order, and the expanded one reads the donors
-   once per step in a single matrix-vector product where the residual form
-   reads them three times. Timed single-threaded on a random-walk pool with
-   :math:`T_0 = 100`, a full search took 0.005 s against 0.014 s at 200 donors
-   and 0.08 s against 0.23 s at 1,500, with the same donors kept.
+   The two forms are of the same order. With numba installed (the ``fast``
+   extra), each residual is squared as it is read, in one compiled pass with
+   the candidates innermost, so a step reads the donors once, as the expanded
+   form's matrix-vector product does; without numba it takes three numpy
+   passes over the block. Timed single-threaded on a random-walk pool with
+   :math:`T_0 = 100`, best of seven, a full search took 0.009 s with numba and
+   0.015 s without, against 0.005 s for the expanded form, at 200 donors; at
+   1,500 donors it took 0.087 s and 0.36 s against 0.079 s. All three kept
+   the same donors.
 
 4. Each pick is the one exact arithmetic makes. Every candidate's
    :math:`\mathrm{SSR}` carries a lower and an upper bound on its exact value,
@@ -300,12 +304,13 @@ any step picks.
    largest :math:`R^2`, is decided the same way. Overlaps arise only for exact
    or near-exact ties, so the exact recomputation runs rarely.
 
-A donor with a non-finite pre-period value has no comparable fit and is never
-a candidate; a non-finite treated pre-period leaves no comparable fit at all,
-and the search raises.
+Every outcome the search reads is finite: ingestion refuses a panel with a
+missing or non-finite outcome cell, so the search never ranks a donor whose
+fit cannot be computed.
 
 Taken together, the entire search is :math:`O(T_0 N_0^2)`, with the inner
-loop expressed as a broadcast, a column reduction and an ``argmin``. No
+loop one compiled pass (a broadcast and a column reduction without numba) and
+an ``argmin``. No
 candidate is ever regressed and there is no Python-level loop over candidates.
 This is what lets the implementation run the selection over :math:`\sim`\
 1,500 controls, and what makes the :math:`M = 5{,}000` replication Monte Carlo
