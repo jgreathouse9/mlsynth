@@ -20907,6 +20907,6 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-dual-bound-is-the-root-bound"
-  find = "            lower = min(found[\"lower\"], upper)"
-  replace = "            lower = float(L)"
+  find = "        lower = min(found[\"lower\"], upper)"
+  replace = "        lower = float(L)"
   models = "the root Lagrangian bound reported as the proof's lower bound: valid, but 8 to 33% under the optimum on these panels, so a proved design reports a gap the search closed"
