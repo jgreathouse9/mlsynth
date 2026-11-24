@@ -21234,3 +21234,81 @@ timeout = 600.0
   find = "    if missing:\n        raise MlsynthDataError(\n            f\"{len(missing)} design unit(s) absent from the post period.\""
   replace = "    if False:\n        raise MlsynthDataError(\n            f\"{len(missing)} design unit(s) absent from the post period.\""
   models = "a design unit missing from the post period surfacing as a KeyError, not PANGEO's error"
+
+[[target]]
+name = "ppscm-dataprep"
+module-path = "mlsynth/utils/ppscm_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_ppscm_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat)"
+  models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-not-transposed"
+  find = "    Xy = np.ascontiguousarray(prep.Ywide[units].to_numpy(dtype=float).T)"
+  replace = "    Xy = np.ascontiguousarray(prep.Ywide[units].to_numpy(dtype=float))"
+  models = "dataprep's period-by-unit matrix used as augsynth's unit-by-period Xy"
+
+  [[target.mutant]]
+  id = "units-in-another-order"
+  find = "    units = np.sort(np.asarray(prep.Ywide.columns))"
+  replace = "    units = np.sort(np.asarray(prep.Ywide.columns))[::-1]"
+  models = "rows of Xy and trt in a different order from the unit labels the results report"
+
+  [[target.mutant]]
+  id = "the-first-adoption-splits-the-panel"
+  find = "    last = max(starts.values())"
+  replace = "    last = min(starts.values())"
+  models = "the pre block cut at the first adoption, not the last, as format_data_stag does"
+
+  [[target.mutant]]
+  id = "adoption-one-period-late"
+  find = "    trt = np.array([float(starts[u]) if u in starts else np.inf for u in units],"
+  replace = "    trt = np.array([float(starts[u] + 1) if u in starts else np.inf for u in units],"
+  models = "an off-by-one between dataprep's pre-period count and augsynth's adoption index"
+
+  [[target.mutant]]
+  id = "a-single-treated-unit-reads-its-post-count"
+  find = "        return {prep.treated_unit_name: int(prep.pre_periods)}"
+  replace = "        return {prep.treated_unit_name: int(prep.post_periods)}"
+  models = "the single-treated branch reading the wrong side of dataprep's period split"
+
+  [[target.mutant]]
+  id = "only-the-first-cohort-is-treated"
+  find = "            for cohort in prep.cohorts.values() for unit in cohort.treated_units}"
+  replace = "            for cohort in list(prep.cohorts.values())[:1] for unit in cohort.treated_units}"
+  models = "later cohorts dropped and fitted as never-treated controls"
+
+  [[target.mutant]]
+  id = "one-pre-period-is-accepted"
+  find = "    if last < 2:"
+  replace = "    if last < 1:"
+  models = "PPSCM's own minimum of two periods before the last adoption lost behind dataprep"
+
+  [[target.mutant]]
+  id = "a-treatment-that-switches-off-is-refused"
+  find = "    df = _from_first_adoption(df, treat, unitid, time)\n"
+  replace = "    df = df\n"
+  models = "augsynth's first-adoption reading dropped, so the Bilgel lockdown panel is refused"
+
+  [[target.mutant]]
+  id = "adoption-read-out-of-time-order"
+  find = "    in_time = out.sort_values(time, kind=\"stable\")"
+  replace = "    in_time = out"
+  models = "the running maximum taken in row order, so a shuffled panel adopts at the wrong period"
+
+  [[target.mutant]]
+  id = "the-caller-frame-is-modified"
+  find = "    out = df.reset_index(drop=True)"
+  replace = "    out = df"
+  models = "the caller's treatment column overwritten in place"
+
+  [[target.mutant]]
+  id = "an-all-treated-panel-is-accepted"
+  find = "    if len(starts) == len(units):"
+  replace = "    if False:"
+  models = "a panel with no never-treated unit reaching the solver"

@@ -81,7 +81,12 @@ periods :math:`t \in \mathcal{T} \coloneqq \{1, \ldots, T\}`. A treated unit
 (or cohort) :math:`j` adopts at period :math:`T_j`; never-treated units have
 :math:`T_j = \infty` and form the donor pool
 :math:`\mathcal{N}_0 \coloneqq \{j \in \mathcal{N} : T_j = \infty\}` of
-cardinality :math:`N_0`. The panel is split at the last adoption time, the
+cardinality :math:`N_0`. As in augsynth's ``multisynth``, :math:`T_j` is unit
+:math:`j`'s first treated period, and a treatment that switches off later (a
+lockdown lifted and reimposed) is read as treated from :math:`T_j` on. The panel
+is read through :func:`mlsynth.utils.datautils.dataprep`, which refuses with
+``MlsynthDataError`` a non-binary treatment, a duplicate or absent unit-period,
+and a missing or non-finite outcome in any period, before or after :math:`T_0`. The panel is split at the last adoption time, the
 canonical point :math:`T_0`, into a pre-period
 :math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` of length
 :math:`T_0` and a post-period
