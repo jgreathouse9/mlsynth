@@ -638,6 +638,9 @@ def dataprep(
         - If there are zero pre-treatment periods for a single treated unit case.
         - If a covariate column name is not present in ``df.columns``.
         - If ``covariate_aggregation`` is unknown.
+        - If any outcome cell is missing or not finite: a NaN or infinite
+          value, or a unit-period row absent from the panel. mlsynth does not
+          impute outcomes (:func:`_refuse_missing_outcomes`).
     """
     # Both pivots below key on the same two columns and differ only in which
     # values they scatter, so the panel is scanned once here and the scan is
@@ -921,6 +924,8 @@ def geoex_dataprep(
         - If the panel is not strongly balanced or contains duplicate
           unit-time observations (delegated to :func:`balance`).
         - If ``post_col`` is undefined (NaN) for any time period.
+        - If any outcome cell is NaN or infinite
+          (:func:`_refuse_missing_outcomes`).
     MlsynthConfigError
         - If ``post_col`` marks every period as post-treatment (no pre-period).
         - If ``post_col``'s post periods are not a single contiguous block at
