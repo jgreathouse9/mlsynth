@@ -16,6 +16,7 @@ previous ``sdidutils`` location.
 """
 
 from collections import defaultdict
+from collections.abc import Mapping
 from typing import Any, DefaultDict, Dict, List, Tuple
 
 import numpy as np
@@ -165,7 +166,7 @@ def estimate_event_study_sdid(
     """
     # Input Validation
     # Ensure prepped_event_study_data is a dictionary and contains the 'cohorts' key.
-    if not isinstance(prepped_event_study_data, dict) or "cohorts" not in prepped_event_study_data:
+    if not isinstance(prepped_event_study_data, Mapping) or "cohorts" not in prepped_event_study_data:
         raise MlsynthDataError("prepped_event_study_data must be a dict with a 'cohorts' key.")
     # Ensure 'cohorts' itself is a dictionary.
     if not isinstance(prepped_event_study_data["cohorts"], dict):

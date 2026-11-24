@@ -7,3 +7,10 @@ Data Utilities
    :private-members:
    :show-inheritance:
    :special-members: __init__
+
+Prepared panels
+---------------
+
+.. automodule:: mlsynth.utils.prepared
+   :members:
+   :show-inheritance:
