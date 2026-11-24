@@ -272,7 +272,7 @@ def test_an_infinite_outcome_is_refused_at_ingestion(german_panel, method, year)
     the solver with an IndexError."""
     d = german_panel.copy()
     d.loc[(d.country == "Norway") & (d.year == year), "gdp"] = np.inf
-    with pytest.raises(MlsynthDataError, match="non-finite") as info:
+    with pytest.raises(MlsynthDataError, match="not finite") as info:
         SPILLSYNTH(dict(df=d, outcome="gdp", treat="treat", unitid="country",
                         time="year", method=method, affected_units=["Austria"],
                         display_graphs=False)).fit()

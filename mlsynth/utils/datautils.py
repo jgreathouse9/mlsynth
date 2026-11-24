@@ -257,6 +257,56 @@ def _wide_pivot(
     return df.pivot(index=index, columns=columns, values=values)
 
 
+def _refuse_missing_outcomes(wide: pd.DataFrame, outcome: str, n_rows: int) -> None:
+    """Raise if any cell of the pivoted outcome matrix is missing or not finite.
+
+    Every estimator reads its outcomes from this matrix, and none of them
+    imputes: synthetic control fits weights on the pre-period path of every
+    donor (Abadie, Diamond and Hainmueller 2010), and a single NaN donor cell
+    either propagates into every weight or, in a search that ranks candidates
+    by fit, ranks that donor as the worst possible and keeps searching. So
+    the refusal sits here, where the data comes in, and not in each
+    estimator's setup.
+
+    A cell is missing for one of two reasons, and the message counts each: the
+    unit-period row is absent from the long panel (the panel is not balanced),
+    or the row is present and its outcome is NaN or infinite. ``n_rows`` is the
+    number of rows the pivot scattered; key uniqueness is enforced before the
+    pivot (:class:`PanelKeys`, and ``df.pivot`` on its fallback path), so the
+    grid size minus ``n_rows`` is the number of absent rows.
+
+    The first missing cell is the first in time order, then unit order, which
+    is the row-major order of the (time x units) matrix.
+
+    An outcome column that does not convert to float is not this check's
+    concern: estimators that validate a numeric outcome report it themselves.
+    """
+    values = wide.to_numpy()
+    if values.dtype.kind not in "fc":
+        try:
+            values = values.astype(float)
+        except (TypeError, ValueError):
+            return
+    bad = ~np.isfinite(values)
+    if not bad.any():
+        return
+    n_bad = int(bad.sum())
+    n_absent = values.size - n_rows
+    n_inf = int(np.isinf(values).sum())
+    n_nan = n_bad - n_inf - n_absent
+    t, j = np.argwhere(bad)[0]
+    parts = [f"{n} {what}" for n, what in (
+        (n_absent, "absent unit-period row(s), so the panel is not balanced"),
+        (n_nan, "NaN"),
+        (n_inf, "infinite")) if n]
+    raise MlsynthDataError(
+        f"Missing outcome values: {n_bad} of {values.size} cells of the outcome column "
+        f"'{outcome}' are missing or not finite ({', '.join(parts)}), the first at unit "
+        f"'{wide.columns[j]}', time {wide.index[t]}. mlsynth does not impute outcomes: "
+        "drop or fill the units or periods with gaps before fitting."
+    )
+
+
 def logictreat(treatment_matrix: np.ndarray) -> Dict[str, Any]:
     """Analyze a treatment matrix to determine treatment timings and unit counts.
 
@@ -620,6 +670,7 @@ def dataprep(
             values=outcome_column_name,
             keys=keys,
         )
+        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df))
         treated_unit_name = outcome_matrix_wide.columns[treated_unit_column_index[0]]
         treated_unit_outcome_vector = outcome_matrix_wide[treated_unit_name].to_numpy()
         donor_outcome_df_wide = outcome_matrix_wide.drop(
@@ -709,6 +760,7 @@ def dataprep(
             values=outcome_column_name,
             keys=keys,
         )
+        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df))
         # The treatment pivot built before the branch. It is read only above
         # (``.to_numpy()`` into ``logictreat``), so rebuilding it here produced
         # an equal frame from unchanged inputs.
@@ -896,6 +948,7 @@ def geoex_dataprep(
         columns=unit_id_column_name,
         values=outcome_column_name,
     )
+    _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df))
 
     # Optional pre/post split: restrict to the pre-period so the design is
     # identical with a full post-treatment panel (flagged by ``post_col``) or a

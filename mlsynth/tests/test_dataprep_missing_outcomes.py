@@ -72,6 +72,60 @@ def test_the_message_names_the_column_the_count_and_the_first_cell():
     assert "unit 'c', time 2" in msg            # the first missing cell in time order, then unit order
 
 
+def test_the_message_counts_absent_rows_nan_and_infinite_cells_apart():
+    """An absent unit-period row and a NaN in a present row leave the same missing cell after the pivot; the
+    message tells them apart, since the first is an unbalanced panel and the second a missing value."""
+    df = _panel()
+    df = df[~((df.id == "d") & (df.time == 6))].copy()
+    df.loc[(df.id == "b") & (df.time == 3), "y"] = np.nan
+    df.loc[(df.id == "a") & (df.time == 4), "y"] = np.inf
+    with pytest.raises(MlsynthDataError) as excinfo:
+        _prep(df)
+    msg = str(excinfo.value)
+    assert "3 of 24" in msg
+    assert "1 absent unit-period row(s), so the panel is not balanced, 1 NaN, 1 infinite" in msg
+    assert "unit 'b', time 3" in msg
+
+
+def test_only_the_kinds_present_are_counted():
+    df = _panel()
+    df.loc[(df.id == "c") & (df.time == 1), "y"] = -np.inf
+    with pytest.raises(MlsynthDataError) as excinfo:
+        _prep(df)
+    msg = str(excinfo.value)
+    assert "(1 infinite)" in msg and "NaN" not in msg and "absent" not in msg
+
+
+def test_an_object_column_of_numbers_with_a_none_is_refused():
+    """``None`` in an object-dtype outcome column is a missing value once the column converts to float."""
+    df = _panel()
+    df["y"] = df["y"].astype(object)
+    df.loc[5, "y"] = None
+    with pytest.raises(MlsynthDataError, match="Missing outcome"):
+        _prep(df)
+
+
+def test_an_outcome_that_is_not_numeric_is_not_this_checks_concern():
+    """A text outcome does not convert to float; estimators that require a numeric outcome report that
+    themselves, so ``dataprep`` passes it through unchanged."""
+    df = _panel()
+    df["y"] = [f"v{i}" for i in range(len(df))]
+    assert _prep(df)["Ywide"].shape == (6, 4)
+
+
+def test_proximal_stops_on_a_missing_outcome():
+    """PROXIMAL used to fit with a NaN outcome cell; a missing proxy value still does not stop it."""
+    from mlsynth import PROXIMAL
+    rng = np.random.default_rng(0)
+    rows = [{"id": u, "time": t, "y": 5.0 + u + 0.3 * t + rng.normal(), "p": 1.0 + u + rng.normal(),
+             "d": int(u == 0 and t >= 16)} for u in range(5) for t in range(20)]
+    df = pd.DataFrame(rows)
+    df.loc[(df.id == 2) & (df.time == 0), "y"] = np.nan
+    with pytest.raises(MlsynthDataError, match="Missing outcome"):
+        PROXIMAL(dict(df=df, unitid="id", time="time", outcome="y", treat="d", methods=["PI"],
+                      donors=[1, 2, 3, 4], vars={"donorproxies": ["p"]}, display_graphs=False)).fit()
+
+
 def test_the_cohort_branch_refuses_too():
     """Two treated units (cohort mode) take the other branch of dataprep; it refuses the same way."""
     df = _panel(n_units=5, treated=("a", "b"))

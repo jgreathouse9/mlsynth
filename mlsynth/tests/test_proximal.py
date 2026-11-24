@@ -553,14 +553,13 @@ def test_proximal_insufficient_pre_periods(sample_proximal_data: pd.DataFrame) -
 @pytest.mark.parametrize(
     "sample_proximal_data, nan_column",
     [
-        ({"with_surrogates": False}, "OutcomeValue"),
         ({"with_surrogates": False}, "DonorProxyVar1"),
         ({"with_surrogates": True}, "SurrogateSpecificProxyVar1"),
     ],
     indirect=["sample_proximal_data"],
 )
 def test_proximal_fit_with_nans(sample_proximal_data: pd.DataFrame, nan_column: str) -> None:
-    """Balance() imputes NaNs at the start of fit, so estimation proceeds."""
+    """A missing proxy value does not stop the fit, so estimation proceeds."""
     df_with_nans = sample_proximal_data.copy()
     idx_to_nan = df_with_nans[df_with_nans["UnitIdentifier"] == 2].index[0]
     df_with_nans.loc[idx_to_nan, nan_column] = np.nan
