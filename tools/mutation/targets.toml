@@ -20379,8 +20379,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "r2-not-divided"
-  find = "                        s = s / st\n"
-  replace = "                        s = s\n"
+  find = "                        s = s / st                  # = 1 - R^2, as split_cost scores it\n"
+  replace = "                        pass\n"
   models = "the r2 objective scored as the residual SS, without the scale of half A"
 
   [[target.mutant]]
@@ -20391,9 +20391,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "weighted-centred-plainly"
-  find = "    if objective == \"weighted\":\n        w = np.asarray"
-  replace = "    if False:\n        w = np.asarray"
-  models = "the weighted objective scored with the plain centring, the recency weights dropped"
+  find = "            S += w[t] * r[t]\n        mu = S / W\n"
+  replace = "            S += r[t]\n        mu = S / T\n"
+  models = "the weighted objective's level fitted by the plain mean of the gap, not the weighted one"
 
   [[target.mutant]]
   id = "a-half-over-q"
@@ -20463,9 +20463,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "bound-without-negative-reduced-costs"
-  find = "    return float(np.sum(pi) + sigma * k + np.minimum(rc, 0.0).sum()), rc\n"
-  replace = "    return float(np.sum(pi) + sigma * k), rc\n"
-  models = "the Lagrangian bound off the LP optimum missing the groups of negative reduced cost, so it can exceed the optimum and exclude a group of the optimal design"
+  find = "    L = Fraction(s1) - abs(Fraction(s1)) * Fraction(_U) + Fraction(sigma) * k + Fraction(s2) - Fraction(e2)\n"
+  replace = "    L = Fraction(s1) - abs(Fraction(s1)) * Fraction(_U) + Fraction(sigma) * k\n"
+  models = "the Lagrangian bound missing the groups of negative reduced cost, so off the LP optimum it can exceed the optimum and exclude a group of the optimal design"
 
   [[target.mutant]]
   id = "sigma-not-clipped"
@@ -20505,7 +20505,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "every-column-kept"
-  find = "        keep = np.union1d(np.flatnonzero(rc <= delta + tol), seed)\n"
+  find = "        keep = np.union1d(np.flatnonzero(rc <= delta), seed)\n"
   replace = "        keep = np.arange(len(pool))\n"
   models = "every group handed to the MIP, the elimination skipped"
 
@@ -20517,8 +20517,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "seed-design-left-out"
-  find = "        keep = np.union1d(np.flatnonzero(rc <= delta + tol), seed)\n"
-  replace = "        keep = np.flatnonzero(rc <= delta + tol)\n"
+  find = "        keep = np.union1d(np.flatnonzero(rc <= delta), seed)\n"
+  replace = "        keep = np.flatnonzero(rc <= delta)\n"
   models = "a first MIP without the seed design's groups, which can hold no design"
 
   [[target.mutant]]
@@ -20547,14 +20547,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "margin-jumps-to-z-minus-l"
-  find = "        delta = min(z - L, float(np.partition(rc, count - 1)[count - 1]))\n"
-  replace = "        delta = z - L\n"
+  find = "        delta = min(_up(margin), float(np.partition(rc, count - 1)[count - 1]))\n"
+  replace = "        delta = _up(margin)\n"
   models = "the next MIP given every group within the best design's margin at once: 24 geos at Q = 3 handed 189,950 of 190,026 groups to the second MIP, 795 s"
 
   [[target.mutant]]
   id = "no-stop-with-every-group-in"
-  find = "        if z - L <= delta + tol or keep.size >= len(pool):\n"
-  replace = "        if z - L <= delta + tol:\n"
+  find = "        if margin <= Fraction(delta) or keep.size >= len(pool):\n"
+  replace = "        if margin <= Fraction(delta):\n"
   models = "a MIP over every group not taken as the end of the search, so a margin past the dearest group loops"
 
 [[target]]
@@ -20656,3 +20656,71 @@ timeout = 300.0
             return"""
   replace = """        values = values.astype(float)"""
   models = "the conversion left unguarded, so a text outcome that dataprep used to pass through now fails inside ingestion with numpy's ValueError"
+
+[[target]]
+name = "pangeo-columns-accuracy"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_columns_accuracy.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "levels-left-in-the-data"
+  find = "    A = np.ascontiguousarray(Y - mu[:, None])        # the levels removed first: the two-pass algorithm\n"
+  replace = "    A = np.ascontiguousarray(Y)\n"
+  models = "the one-pass form: the levels left in the data, so near-parallel splits cancel at the size of the levels"
+
+  [[target.mutant]]
+  id = "weights-dropped-from-the-squares"
+  find = "            s += w[t] * d * d\n"
+  replace = "            s += d * d\n"
+  models = "the weighted residual summed without its weights"
+
+  [[target.mutant]]
+  id = "no-residual-error-term"
+  find = "    e_r = k1 * abs_cn * sw\n"
+  replace = "    e_r = 0.0\n"
+  models = "a split's bounds without the rounding of its residual, which the exact cost can fall outside on near-parallel data"
+
+  [[target.mutant]]
+  id = "no-covariate-error-term"
+  find = "        e = k1 * a\n"
+  replace = "        e = 0.0\n"
+  models = "the covariate term's bounds without the rounding of its differences of means"
+
+  [[target.mutant]]
+  id = "no-total-error-term"
+  find = "                e = (e + gam[m + 1] * a) * (1.0 + 4.0 * _U)\n"
+  replace = "                e = 0.0\n"
+  models = "the supergeo_total bounds without the rounding of the totals"
+
+  [[target.mutant]]
+  id = "covariates-not-centred"
+  find = "        Cc = np.ascontiguousarray(C - C.mean(axis=0))   # a shift common to every unit leaves the difference exact\n"
+  replace = "        Cc = np.ascontiguousarray(C)\n"
+  models = "covariates at large levels used uncentred, their differences of means lost to cancellation"
+
+  [[target.mutant]]
+  id = "group-bound-from-the-chosen-split"
+  find = "            if lo < best_lo:\n                best_lo = lo\n"
+  replace = "            if s < best:\n                best_lo = lo\n"
+  models = "a group's lower bound taken from its chosen split, not the least over its splits"
+  expected = "survived"
+  accepted-because = "equivalent in practice: it differs only when two splits' exact costs lie closer than their computed errors and the computed order is reversed; actual rounding errors are far below the worst-case bounds, so no test draws such a pair"
+
+  [[target.mutant]]
+  id = "elimination-on-point-costs"
+  find = "    rc = pool.cost_lo - sigma\n"
+  replace = "    rc = pool.cost - sigma\n"
+  models = "reduced costs from the computed costs, which can lie above the exact ones, so a group of a cheaper design is left out"
+
+  [[target.mutant]]
+  id = "reduced-cost-rounding-ignored"
+  find = "    return rc - 2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc))\n"
+  replace = "    return rc\n"
+  models = "the reduced costs' own rounding left out of their lower bounds"
+
+  [[target.mutant]]
+  id = "weights-not-validated"
+  find = "        if w.shape != (T,) or not np.isfinite(w).all() or (w < 0).any() or float(w.sum()) <= _EPS:\n"
+  replace = "        if False:\n"
+  models = "negative, non-finite, misshapen or zero-sum weights accepted"

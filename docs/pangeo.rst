@@ -411,17 +411,27 @@ seasonal panel below, of which its LP relaxation took 0.2 s. The exact path
 therefore reaches the optimum of :eq:`mip` in three steps
 (``mlsynth.utils.pangeo_helpers.columns``).
 
-#. Scoring. Every pair is scored at its best split in compiled code. The gap
-   of a split is a linear combination of its geos' paths,
-   :math:`g = \mathbf{Y}^{\top}\mathbf{c}` with :math:`c_i = u_i/U_A` on half
-   :math:`A` and :math:`-u_i/U_B` on half :math:`B` (:math:`u` the unit
-   weights), so each objective is a quadratic form in :math:`\mathbf{c}`. The
-   level-removed residual sum of squares is
-   :math:`\mathbf{c}^{\top}\mathbf{Y}\mathbf{M}\mathbf{Y}^{\top}\mathbf{c}` with
-   :math:`\mathbf{M}` the centring matrix, and the recency-weighted and
-   covariate terms are quadratic forms of the same kind. The Gram matrices are
-   formed once per arm, so a split costs a few dozen operations whatever the
-   window's length, the device FDID's forward selection uses (Li, 2023).
+#. Scoring. Every pair is scored at its best split in compiled code. A split's
+   cost is the residual sum of squares of fitting a level to the gap between
+   its halves' mean paths, a least squares problem, and it is computed the way
+   such problems are solved: each geo's level is removed first (the two-pass
+   algorithm; Chan, Golub and LeVeque, 1983; Bjorck, 2015, section 2.1), the
+   gap is formed directly from the centred paths, its level is removed again,
+   and its squares are summed. The covariate term is the difference of the
+   halves' arm-centred covariate means, formed the same way. Removing the levels
+   first is exact, since the fitted level absorbs any constant added to a geo's
+   path. The cost is not formed from the cross-product matrix of the paths
+   :math:`\mathbf{A}^{\top}\mathbf{A}` as a quadratic form: that is the method of
+   normal equations, whose error grows with the square of the problem's
+   conditioning (Golub and Van Loan, 2013, section 5.3.7; Bjorck, 1996,
+   section 2.2.1). Geos that share a large common factor and run nearly
+   parallel are exactly the case it fails on. On panels of such geos in
+   clusters of two (factor :math:`10^6`, levels :math:`10^7`, noise
+   :math:`10^{-2}`), that form gave the costs that decide the design relative
+   errors near 0.4, some of them negative, and a design above the exact
+   optimum on 14 of 16 panels, by up to 154%. Each split also carries a lower
+   and an upper bound on its exact cost, the cost in exact arithmetic on the
+   panel's values, from the rounding error bounds of Rump (2010, Theorem 2.1).
 #. Bound. The LP relaxation of :eq:`mip` is solved by column generation: it
    starts from a few pairs and adds the pairs of negative reduced cost
    :math:`\bar c_G = c_G - \sum_{i\in G}\pi_i - \sigma` until none is left,
@@ -437,7 +447,11 @@ therefore reaches the optimum of :eq:`mip` in three steps
       \sum_G c_G x_G \;\ge\; L + \bar c_H,\qquad
       L = \sum_i \pi_i + \sigma k + \sum_{G} \min(\bar c_G, 0),
 
-   whatever the duals (Geoffrion, 1974; Lubbecke and Desrosiers, 2005).
+   whatever the duals (Geoffrion, 1974; Lubbecke and Desrosiers, 2005). The
+   bound holds for any duals only if it is evaluated without rounding against
+   it (Jansson, 2004; Neumaier and Shcherbina, 2004), so the reduced costs are
+   formed from the costs' lower bounds less their own rounding, and :math:`L`
+   is summed with its rounding subtracted and rounded down.
 #. Elimination. A pair with :math:`\bar c_G > z - L` is in no design cheaper
    than :math:`z`, so the MIP needs only the pairs with
    :math:`\bar c_G \le z - L` (reduced-cost fixing; Nemhauser and Wolsey, 1988,
@@ -448,7 +462,10 @@ therefore reaches the optimum of :eq:`mip` in three steps
    so a first design far above the optimum does not admit almost every pair at
    once (at 24 geos it admitted 189,950 of 190,026, and the MIP took 795 s). The
    search ends when every pair left out has :math:`\bar c_G > z - L`, or the MIP
-   has every pair.
+   has every pair. With :math:`z` the sum of the design's upper bounds and the
+   margin compared exactly, every design whose exact cost is at most the
+   returned design's is in the last MIP; that MIP's optimum is HiGHS's, on the
+   computed costs, to its tolerances.
 
 The LP bound is weak on this problem: on the seasonal panels below it lies 14
 to 33% under the optimum, and subset-row cuts (Jepsen, Petersen, Spoorendonk
@@ -472,66 +489,67 @@ estimation window), with the optimum the same in every row both paths ran:
    * - 2
      - 16
      - 2,500
-     - 0.65 s
+     - 0.87 s
      - 208
-     - 0.15 s
+     - 0.12 s
    * - 2
      - 18
      - 4,029
-     - 2.5 s
+     - 2.4 s
      - 209
-     - 0.69 s
+     - 0.75 s
    * - 2
      - 20
      - 6,175
      - 2.9 s
      - 210
-     - 0.63 s
+     - 0.60 s
    * - 3
      - 14
      - 6,461
-     - 4.6 s
+     - 4.7 s
      - 207
      - 0.08 s
    * - 3
      - 16
      - 14,876
-     - 40.2 s
+     - 13.8 s
      - 208
      - 0.16 s
    * - 3
      - 18
      - 31,161
-     - 45.1 s
+     - 40.4 s
      - 209
-     - 0.16 s
+     - 0.25 s
    * - 3
      - 20
      - 60,439
-     - 175.8 s
+     - 179.5 s
      - 643
-     - 5.2 s
+     - 5.7 s
    * - 2
      - 30
      - 31,900
      - not run
      - 396
-     - 7.1 s
+     - 6.7 s
    * - 3
      - 24
      - 190,026
      - not run
      - 1,100
-     - 23.1 s
+     - 22.6 s
    * - 3
      - 28
      - 499,149
      - not run
      - 3,654
-     - 54.7 s
+     - 56.5 s
 
 The full path's time is enumeration in Python plus the MIP over every pair;
-HiGHS's time on it varies between runs (13 s and 40 s at 16 geos).
+HiGHS's time on it varies between runs (13 s and 40 s at 16 geos). Scoring every pair
+from the centred data takes 0.9 s of the 56.5 s at 28 geos; the MIPs take 55 s.
 
 ``results.mip_reports`` records the pairs scored (``columns_scored``), the
 pairs in the last MIP (``columns_solved``) and the bound :math:`L`
@@ -1230,6 +1248,26 @@ Generation." *Operations Research* 53(6):1007-1023.
 
 Nemhauser, G. L., & Wolsey, L. A. (1988). *Integer and Combinatorial
 Optimization.* Wiley.
+
+Chan, T. F., Golub, G. H., & LeVeque, R. J. (1983). "Algorithms for Computing
+the Sample Variance: Analysis and Recommendations." *The American Statistician*
+37(3):241-247.
+
+Bjorck, A. (1996). *Numerical Methods for Least Squares Problems.* SIAM.
+
+Bjorck, A. (2015). *Numerical Methods in Matrix Computations.* Springer.
+
+Golub, G. H., & Van Loan, C. F. (2013). *Matrix Computations*, 4th ed. Johns
+Hopkins University Press.
+
+Rump, S. M. (2010). "Verification Methods: Rigorous Results Using
+Floating-Point Arithmetic." *Acta Numerica* 19:287-449.
+
+Jansson, C. (2004). "Rigorous Lower and Upper Bounds in Linear Programming."
+*SIAM Journal on Optimization* 14(3):914-935.
+
+Neumaier, A., & Shcherbina, O. (2004). "Safe Bounds in Linear and Mixed-Integer
+Linear Programming." *Mathematical Programming* 99:283-296.
 
 Chvatal, V. (1973). "Edmonds Polytopes and a Hierarchy of Combinatorial
 Problems." *Discrete Mathematics* 4(4):305-337.
