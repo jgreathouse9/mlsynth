@@ -128,14 +128,14 @@ class TestDataprepRefuses:
         with pytest.raises(MlsynthDataError, match="Missing values"):
             _wide_pivot(df, index="time", columns="id", values="y")
 
-    def test_missing_value_in_a_non_key_column_is_still_allowed(self):
-        """Only the keys identify an observation. A missing outcome is a
-        modelling question, not an ingestion one, and is left alone."""
+    def test_missing_outcome_is_refused_as_a_missing_outcome(self):
+        """Only the keys identify an observation, and this module refuses only
+        missing keys. A missing outcome is refused too, by its own check
+        (``test_dataprep_missing_outcomes.py``), with its own message."""
         df = _panel()
         df.loc[2, "y"] = np.nan
-        prep = _prep(df)
-        assert prep["Ywide"].shape == (4, 3)
-        assert np.isnan(prep["Ywide"].to_numpy(dtype=float)).sum() == 1
+        with pytest.raises(MlsynthDataError, match="Missing outcome"):
+            _prep(df)
 
 
 # --------------------------------------------------------------------------- #
@@ -279,10 +279,10 @@ class TestConfigRefuses:
         assert "time" in str(excinfo.value)
 
     def test_a_missing_outcome_still_constructs(self):
-        """Scoped to the keys. A blank outcome is a modelling question and the
-        estimators that tolerate it keep doing so -- which is where this differs
-        from ``BaseMAREXConfig``, whose stricter contract covers the outcome
-        column too.
+        """Scoped to the keys. A blank outcome is refused at ingestion
+        (``dataprep``), not by the config -- which is where this differs from
+        ``BaseMAREXConfig``, whose stricter contract covers the outcome column
+        at construction.
         """
         df = _panel()
         df.loc[1, "y"] = np.nan
