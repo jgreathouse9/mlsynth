@@ -478,9 +478,9 @@ therefore reaches the optimum of :eq:`mip` in three steps
    remains, at the root duals. Every comparison subtracts its own rounding
    error. It searches only the pairs the elimination keeps for the upper bound
    :math:`z` of a first design, found by a short search over the pairs of least
-   reduced cost. A search that ends within its node cap (3 million pairs
+   reduced cost. A search that ends within its node cap (1.5 million pairs
    placed) has proved its design optimal, and no MIP runs. A search the cap
-   stops hands its best design to the first MIP. The search runs with
+   stops leaves the MIPs to run as they would without it. The search runs with
    ``mip_backend="auto"``; naming ``"highspy"`` or ``"cvxpy"`` asks for that
    MIP and skips it.
 
@@ -569,48 +569,49 @@ HiGHS's time on it varies between runs (13 s and 40 s at 16 geos). Scoring every
 from the centred data takes 0.9 s of the 56.5 s at 28 geos; the MIPs take 55 s.
 
 The search before the MIP replaces those MIPs where it finishes. On the same
-panel (one arm, 42 estimation periods, single-threaded), with the same optimum
-from both:
+panel (one arm, 42 estimation periods, single-threaded), the whole solve,
+scoring and LP included, with the same optimum from both:
 
 .. list-table::
    :header-rows: 1
 
    * - :math:`Q`
      - geos
-     - search
-     - MIPs
+     - search first
+     - MIPs only
    * - 3
      - 24
-     - 1.6 s
-     - 21.3 s
+     - 0.9 s, proved
+     - 21.1 s
    * - 3
      - 28
-     - 2.9 s
-     - 47.7 s
+     - 3.7 s, proved
+     - 46.8 s
    * - 3
      - 32
-     - 10.9 s
-     - 76.6 s
+     - 17.7 s, proved
+     - 75.8 s
    * - 2
      - 30
-     - 0.10 s
-     - 5.4 s
+     - 0.2 s, proved
+     - 5.6 s
    * - 2
      - 40
-     - 34.8 s
-     - 17.8 s
+     - 26.9 s, capped
+     - 18.7 s
    * - 2
      - 50
-     - stopped at the cap
-     - 25.3 s
+     - 35.6 s, capped
+     - 27.0 s
 
 Its bound does not tighten as it goes deeper, where HiGHS re-solves the LP and
 adds cuts at every node, so it loses where many designs lie between the bound
 and the optimum. At :math:`Q=2` and 50 geos the root bound is 8.4% under the
 optimum, and the proof needed 10 million nodes even when started from the
 optimum (32.8 s). The node cap bounds what such an arm costs before the MIPs
-take over, about 8 s. At 40 geos the first design was 13% above the optimum,
-and from the optimum the proof took 7.1 s.
+take over, 8 to 9 s on the two capped arms above. A capped search does not
+pass its design to the MIPs: on the 50-geo arm that made HiGHS take 58 to 64 s
+over the same pairs, against 26 to 29 s without it.
 
 ``results.mip_reports`` records the pairs scored (``columns_scored``), the
 pairs in the last MIP or the search (``columns_solved``), the bound :math:`L`

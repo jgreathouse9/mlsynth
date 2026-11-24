@@ -35,7 +35,11 @@ in 1.6 s against 21.3 s for the MIP loop at 24 markets and Q = 3, 2.9 s against 
 76.6 s at 32; at Q = 2, 0.10 s against 5.4 s at 30 markets. At Q = 2 with 50 markets the proof needed 10 million
 nodes even from the optimum, and lost to the MIP loop (32.8 s against 24.4 s): the root bound was 8.4% below the
 optimum and the search's bound does not tighten with depth, where HiGHS re-solves the LP and adds cuts at every node.
-The node cap, ``SEARCH_NODE_LIMIT``, bounds what such a panel costs before the MIP loop takes over.
+The node cap, ``SEARCH_NODE_LIMIT``, bounds what such a panel costs before the MIP loop takes over: at 1.5 million
+nodes, 8.2 s at 40 markets and 8.6 s at 50, against MIP loops of 18.7 s and 27.0 s, while Q = 3 at 32 markets
+still proves under it (1.38 million nodes). A search stopped by the cap does not hand its design to the MIP loop:
+on the 50-market arm, adding it to the first MIP's groups made HiGHS take 58 to 64 s over the same groups, against
+26 to 29 s without it, and at 40 markets it changed nothing.
 """
 from __future__ import annotations
 
@@ -59,8 +63,8 @@ except ImportError:  # pragma: no cover - the suite runs with numba installed
 CANONICAL_NAME = "mlsynth.utils.pangeo_helpers.cover"
 _CACHE = __name__ == CANONICAL_NAME
 
-#: The proof search stops after this many nodes and the MIP loop takes over; about 8 s at 120,000 nodes a second.
-SEARCH_NODE_LIMIT = 3_000_000
+#: The proof search stops after this many nodes and the MIP loop takes over; about 7 s at Q = 2 and 50 markets.
+SEARCH_NODE_LIMIT = 1_500_000
 #: The start searches the START_PER_UNIT * n groups of least reduced cost, for at most START_NODE_LIMIT nodes.
 START_PER_UNIT = 40
 START_NODE_LIMIT = 200_000

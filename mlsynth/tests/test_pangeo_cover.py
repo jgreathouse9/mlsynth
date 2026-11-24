@@ -3,8 +3,8 @@
 After the groups are scored and the root LP gives duals, :mod:`mlsynth.utils.pangeo_helpers.cover` searches the
 exact covers of the arm depth first, pruning a partial design when its Lagrangian bound (the root duals, the
 cardinality row and the uncovered units) reaches the best design's upper bound. A search that finishes under its node
-cap proves its design optimal, with a certified gap, and no MIP runs. A search stopped by the cap hands its best design
-to the MIP loop of :func:`columns.solve_exact` as part of the first MIP's groups.
+cap proves its design optimal, with a certified gap, and no MIP runs. A search stopped by the cap leaves the proof to
+the MIP loop of :func:`columns.solve_exact`, which runs as it would without the search.
 
 The oracle is the full MIP over every candidate group (``mip.solve_partition``), as in ``test_pangeo_columns.py``.
 """
@@ -129,28 +129,24 @@ def test_the_node_cap_falls_back_to_the_mip():
     assert _close(d["objective_value"], d_ref["objective_value"])
 
 
-def test_the_fallback_mip_holds_the_searchs_design(monkeypatch):
-    """Unit: the first MIP after a capped search holds the search's best design, so it starts from it. The first
-    MIP's own window is cut to one group, so the design can reach it only as the search's."""
+def test_the_fallback_mips_are_the_mip_loops(monkeypatch):
+    """Unit: a capped search leaves the MIP loop unchanged: the same groups reach the same MIPs as with no search.
+    Handing the search's design to the first MIP made HiGHS 2.2 to 2.4 times slower on a 50-geo arm. The first MIP's
+    window is cut to one group, so a design handed over would show in its groups."""
     monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
     monkeypatch.setattr(columns, "FIRST_MIN", 1)
     Y = _panel(7, 14)
     idx = np.arange(14)
-    pool = columns.score_columns(idx, Y, 3)
-    root = columns.root_lp(pool, columns.min_groups(14, 3, 1))
-    start = cover.start_design(pool, root, columns.min_groups(14, 3, 1), 3)
-    assert start.rows.size > 0
-    want = {tuple(int(u) for u in pool.unit_indices[pool.members[j][pool.members[j] >= 0]]) for j in start.rows}
-    seen = []
+    seen = {}
+    for cap in (0, 1):
+        seen[cap] = []
 
-    def spy(cands, ix, **kw):
-        seen.append({tuple(int(u) for u in c["members"]) for c in cands})
-        return mip.solve_partition(cands, ix, **kw)
+        def spy(cands, ix, _cap=cap, **kw):
+            seen[_cap].append(sorted(tuple(int(u) for u in c["members"]) for c in cands))
+            return mip.solve_partition(cands, ix, **kw)
 
-    columns.solve_exact(idx, Y, 3, search_node_limit=1, solve=spy)
-    seed = {tuple(int(u) for u in idx[list(g)]) for g in columns.seed_partition(14)}
-    assert len(want - seed) >= 2          # more than the window's one group: the design came in as the search's
-    assert want <= seen[0]
+        columns.solve_exact(idx, Y, 3, search_node_limit=cap, solve=spy)
+    assert seen[1] == seen[0] and len(seen[0]) >= 1
 
 
 def test_a_node_limit_of_zero_is_the_mip_path():

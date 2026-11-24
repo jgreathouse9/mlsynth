@@ -20858,10 +20858,10 @@ test-command = "python -m pytest mlsynth/tests/test_pangeo_cover.py -q -p no:cac
 timeout = 900.0
 
   [[target.mutant]]
-  id = "the-fallback-mip-starts-without-the-searchs-design"
-  find = "        seed = np.union1d(seed, found[\"rows\"]).astype(seed.dtype)"
-  replace = "        seed = seed"
-  models = "a capped search whose design is thrown away, so the first MIP after it starts from a fixed design and the node budget bought nothing"
+  id = "the-capped-search-hands-its-design-to-the-mip"
+  find = "        info.update(search=found[\"search\"], search_nodes=found[\"nodes\"])"
+  replace = "        info.update(search=found[\"search\"], search_nodes=found[\"nodes\"])\n        seed = np.union1d(seed, found[\"rows\"]).astype(seed.dtype)"
+  models = "a capped search's design added to the first MIP's groups, which on a 50-geo arm at Q = 2 made HiGHS take 58 to 64 s over the same groups it solves in 26 to 29 s without it"
 
   [[target.mutant]]
   id = "the-proof-searches-only-the-negative-reduced-costs"

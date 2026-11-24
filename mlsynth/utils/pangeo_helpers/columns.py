@@ -66,8 +66,8 @@ in it.
 
 Search. Before any MIP, the exact-cover search of :mod:`.cover` enumerates designs depth first, pruned by the same
 Lagrangian bound, and a search that ends under its node cap proves its design optimal with a certified gap; no MIP
-runs. A search stopped by the cap adds its best design to the first MIP's groups, and the MIP loop below proves the
-optimum. The first MIP takes the groups of least reduced cost (``FIRST_PER_UNIT`` per unit, at least ``FIRST_MIN``)
+runs. A search stopped by the cap leaves the proof to the MIP loop below, which runs as it would without the search.
+The first MIP takes the groups of least reduced cost (``FIRST_PER_UNIT`` per unit, at least ``FIRST_MIN``)
 and the groups of a fixed design (:func:`seed_partition`), so it has a design. The best design's cost :math:`z` is the
 optimum when every group left out has :math:`\\bar c > z - L`. Otherwise the next MIP takes the groups up to the
 smaller of :math:`z - L` and the reduced cost of the ``GROWTH``-times-larger set, so a first design far above the
@@ -645,7 +645,7 @@ def solve_exact(
     the design with no MIP: ``backend`` is ``"search"``, ``mip_solves`` 0, ``dual_bound`` a rigorous lower bound on
     the optimum, ``objective_upper`` one above the design's exact cost and ``mip_gap`` the gap between them relative
     to the design's cost, as the MIP path reports it (absolute when that cost is 0).
-    A search stopped by the cap adds its best design to the first MIP's groups. ``search`` reports which happened
+    A search stopped by the cap leaves the MIP loop to run as without it. ``search`` reports which happened
     (``"proved"``, ``"node_limit"``, ``"off"``, or ``"unavailable"`` without numba) and ``search_nodes`` the groups
     the search placed."""
     if search_node_limit is None:
@@ -701,7 +701,6 @@ def solve_exact(
                      objective_value=z, objective_upper=upper,
                      n_selected_pairs=len(chosen))
             return chosen, d
-        seed = np.union1d(seed, found["rows"]).astype(seed.dtype)   # the MIP starts from the search's design
 
     def upper(chosen) -> Fraction:
         """A rigorous upper bound on a design's exact cost: the sum of its groups' cost_up, in rationals."""
