@@ -31,7 +31,7 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
-from ..datautils import balance
+from ..datautils import balance, dataprep
 from .structures import MicroSynthInputs
 
 
@@ -129,7 +129,7 @@ def prepare_microsynth_inputs(
         if col not in df.columns:
             raise MlsynthDataError(f"Covariate '{col}' not in df.")
 
-    balance(df, unitid, time)
+    keys = balance(df, unitid, time)
 
     cohort_time = _infer_cohort_time(df, treat, time, unitid)
 
@@ -141,6 +141,11 @@ def prepare_microsynth_inputs(
         raise MlsynthDataError("No treated users found.")
     if not control_units:
         raise MlsynthDataError("No control users found (all units treated).")
+
+    # dataprep refuses a missing or non-finite outcome in any period, a
+    # non-binary treatment and a treatment that switches off, and returns the
+    # (T, N) outcome matrix the post-period block is read from.
+    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)
 
     # Validate time-invariance of covariates.
     for col in covariates:
@@ -225,26 +230,10 @@ def prepare_microsynth_inputs(
         X_T = X_T / cov_sd
         X_C = X_C / cov_sd
 
-    # Post-treatment outcomes per user.
-    post_df = df[df[time] >= cohort_time]
-    post_times = np.sort(post_df[time].unique())
-    Y_T = (
-        post_df[post_df[unitid].isin(treated_units)]
-        .pivot(index=unitid, columns=time, values=outcome)
-        .reindex(index=treated_units, columns=post_times)
-        .to_numpy(dtype=float)
-    )
-    Y_C = (
-        post_df[post_df[unitid].isin(control_units)]
-        .pivot(index=unitid, columns=time, values=outcome)
-        .reindex(index=control_units, columns=post_times)
-        .to_numpy(dtype=float)
-    )
-    if np.isnan(Y_T).any() or np.isnan(Y_C).any():
-        raise MlsynthDataError(
-            "Post-treatment outcome matrix has NaN entries. The panel "
-            "is unbalanced over the post-treatment window."
-        )
+    # Post-treatment outcomes per user, one row per unit.
+    post_wide = prep.Ywide[prep.Ywide.index >= cohort_time]
+    Y_T = np.ascontiguousarray(post_wide[treated_units].to_numpy(dtype=float).T)
+    Y_C = np.ascontiguousarray(post_wide[control_units].to_numpy(dtype=float).T)
     if Y_T.shape[1] == 1:
         Y_T = Y_T[:, 0]
         Y_C = Y_C[:, 0]
