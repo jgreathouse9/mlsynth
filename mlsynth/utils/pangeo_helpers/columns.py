@@ -623,13 +623,116 @@ def _search(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int) -> 
                 seconds=time.perf_counter() - t)
 
 
+@dataclass(frozen=True)
+class _Duals:
+    """A residual LP's duals, in the form cover.search reads: ``pi`` over every unit (0 on covered ones), ``sigma``,
+    and rigorous lower bounds on every pool row's reduced cost."""
+
+    pi: np.ndarray
+    sigma: float
+    reduced_costs: np.ndarray
+
+
+def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int):
+    """The first level of the search, each branch with its residual LP. The search branches on the unit with the
+    fewest kept groups (ties to the first unit); a branch fixes one of them, and the cover problem left over (the
+    other units, the kept groups disjoint from it, at least k - 1 groups) is an LP relaxation of its own. Its duals
+    give the Lagrangian bound of the module docstring over the residual, evaluated as :func:`lagrangian_bound`
+    does: reduced costs from the costs' lower bounds less their rounding, the duals summed by ``math.fsum``, the
+    negative reduced costs with the error bound of Rump (2010), Theorem 2.1, in rationals and rounded down.
+    Returns ``(row, bound, rows_left, duals)`` per branch, the bound covering the fixed group's cost lower bound,
+    in the order of that cost; a branch with no feasible residual has bound infinity and no duals."""
+    keep = np.asarray(keep, dtype=np.int64)
+    n = int(pool.unit_indices.size)
+    inc = np.zeros((keep.size, n), dtype=bool)
+    mem = pool.members[keep]
+    for t in range(mem.shape[1]):
+        ok = mem[:, t] >= 0
+        inc[np.flatnonzero(ok), mem[ok, t]] = True
+    g0 = int(np.argmin(inc.sum(axis=0)))
+    out = []
+    for a in np.flatnonzero(inc[:, g0])[np.argsort(pool.cost_lo[keep[inc[:, g0]]], kind="stable")]:
+        j = int(keep[a])
+        G = inc[a]
+        left = keep[~inc[:, G].any(axis=1)]
+        units = np.flatnonzero(~G)
+        kk = max(int(k) - 1, 0)
+        lo_j = Fraction(float(pool.cost_lo[j]))
+        if units.size == 0:
+            out.append((j, _down(lo_j) if kk == 0 else np.inf, left, None))
+            continue
+        cols = left
+        rows = pool.members[cols]
+        r, c = np.nonzero(rows >= 0)
+        relabel = -np.ones(n, dtype=np.int64)
+        relabel[units] = np.arange(units.size)
+        A = sp.csr_matrix((np.ones(r.size), (relabel[rows[r, c]], r)), shape=(units.size, cols.size))
+        kw = dict(A_ub=-np.ones((1, cols.size)), b_ub=[-float(kk)]) if kk > 0 else {}
+        res = linprog(pool.cost[cols], A_eq=A, b_eq=np.ones(units.size), bounds=(0, 1), method="highs", **kw) \
+            if cols.size else None
+        if res is None or res.status != 0:
+            out.append((j, np.inf, left, None))
+            continue
+        pi = np.zeros(n)
+        pi[units] = np.asarray(res.eqlin.marginals, dtype=float)
+        sigma = max(-float(res.ineqlin.marginals[0]), 0.0) if kk > 0 else 0.0
+        rc = _rc_lower(pool, pi, sigma)
+        neg = np.minimum(rc[cols], 0.0)
+        s2 = float(neg.sum())
+        e2 = _gamma(max(neg.size, 1)) * float(np.abs(neg).sum()) * (1.0 + _gamma(max(neg.size, 1)))
+        s1 = math.fsum(float(x) for x in pi[units])
+        L = Fraction(s1) - abs(Fraction(s1)) * Fraction(_U) + Fraction(sigma) * kk + Fraction(s2) - Fraction(e2)
+        out.append((j, _down(L + lo_j), left, _Duals(pi, sigma, rc)))
+    return out
+
+
+def _branch_bounds(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, Q: int):
+    """Each first-level branch's fixed row and rigorous lower bound on every design holding it (:func:`_branches`)."""
+    return [(j, b) for j, b, _, _ in _branches(pool, root, keep, k)]
+
+
+def _search_reopt(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up: float,
+                  node_limit: int) -> "cover.CoverSearch":
+    """The proof search with duals re-optimised one level down: a branch whose residual bound reaches the
+    incumbent is pruned, and each other branch is searched with its residual LP's duals (:func:`_branches`), the
+    incumbent and the node budget carried from branch to branch. Measured from the optimum at Q = 2, it placed
+    0.88 million nodes against 2.89 million at 40 geos and 6.15 million against 10.35 million at 50; a second level
+    halved the nodes again but cost 1,900 LPs and lost. Returns a :class:`.cover.CoverSearch`: when proved, its
+    lower bound holds for every design over ``keep``."""
+    keep = np.asarray(keep, dtype=np.int64)
+    if keep.size == 0:
+        return cover.CoverSearch("proved", keep, float(best_up), float(best_up), 0)
+    n = int(pool.unit_indices.size)
+    held = np.zeros(n, dtype=bool)
+    mem = pool.members[keep]
+    held[mem[mem >= 0]] = True
+    if not held.all():                                # a unit no kept group covers: no design over keep
+        return cover.CoverSearch("proved", np.zeros(0, np.int64), float(best_up), float(best_up), 0)
+    best, rows_best, lowest, nodes, status = float(best_up), np.zeros(0, np.int64), np.inf, 0, "proved"
+    for j, bound, left, duals in _branches(pool, root, keep, k):
+        if bound >= best:
+            continue
+        if nodes + 1 > node_limit:                    # the fixed group is a node of its own
+            status = "node_limit"
+            break
+        res = cover.search(pool, duals, left, k, Q, best, node_limit - nodes - 1, fixed=(j,))
+        nodes += res.nodes + 1
+        if res.rows.size and res.upper < best:
+            best, rows_best = res.upper, res.rows
+        lowest = min(lowest, res.lower)
+        if res.status == "node_limit":
+            status = "node_limit"
+            break
+    return cover.CoverSearch(status, rows_best, best, float(min(best, lowest)), int(nodes))
+
+
 def _search_from(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int, z_up: Fraction,
                  rows: Sequence[int]) -> dict:
     """The proof search over the groups a design's upper bound z_up cannot exclude, with that design as the
     incumbent: returned as the best design when the search finds none cheaper."""
     t = time.perf_counter()
     keep = np.flatnonzero(root.reduced_costs <= _up(z_up - Fraction(root.bound)))
-    res = cover.search(pool, root, keep, k, Q, _up(z_up), node_limit)
+    res = _search_reopt(pool, root, keep, k, Q, _up(z_up), node_limit)
     found = res.rows if res.rows.size else np.asarray(rows, dtype=np.int64)
     return dict(search=res.status, rows=found, lower=res.lower, nodes=res.nodes, kept=keep.size,
                 seconds=time.perf_counter() - t)

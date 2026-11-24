@@ -119,7 +119,7 @@ def _fits(rows, col, Ucur):  # pragma: no cover - compiled; checked through sear
 
 @njit(cache=_CACHE)
 def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, best_up, g2,
-           node_limit):  # pragma: no cover - compiled; checked through search
+           node_limit, unc, P0, R0):  # pragma: no cover - compiled; checked through search
     """Depth-first search over exact covers. Returns (status, nodes, best_up, lowest, best_path)."""
     maxd = n // 2 + 1
     Ud = np.zeros((maxd + 1, W), np.uint64)
@@ -131,16 +131,23 @@ def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, be
     Kd = np.zeros(maxd + 1, np.int64)
     path = np.zeros(maxd + 1, np.int64)
     best_path = np.full(maxd + 1, -1, np.int64)
+    n0 = 0
     for i in range(n):
-        Ud[0, i >> 6] |= np.uint64(1) << np.uint64(i & 63)
+        if unc[i]:
+            Ud[0, i >> 6] |= np.uint64(1) << np.uint64(i & 63)
+            n0 += 1
     Sd[0] = S0
-    Nd[0] = n
+    Nd[0] = n0
+    Pd[0] = P0
+    Rd[0] = R0
     lowest = np.inf
     nodes = 0
     status = 0
     bc = 1 << 60
     g0 = -1
-    for i in range(n):                       # the root branches on the unit with the fewest groups
+    for i in range(n):                       # the root branches on the uncovered unit with the fewest groups
+        if not unc[i]:
+            continue
         c = gptr[i + 1] - gptr[i]
         if c < bc:
             bc = c
@@ -237,11 +244,28 @@ def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, be
     return status, nodes, best_up, lowest, best_path
 
 
-def search(pool, root, keep, k: int, Q: int, best_up: float, node_limit: int) -> CoverSearch:
+def search(pool, root, keep, k: int, Q: int, best_up: float, node_limit: int, fixed=()) -> CoverSearch:
     """Search the exact covers of the arm by the pool rows ``keep`` for one whose upper bound is below ``best_up``,
-    with at least ``k`` groups, placing at most ``node_limit`` groups. ``root`` is :func:`.columns.root_lp`'s."""
+    with at least ``k`` groups, placing at most ``node_limit`` groups. ``root`` holds the duals: ``pi``, ``sigma``
+    and rigorous lower bounds on every pool row's ``reduced_costs`` (:func:`.columns.root_lp`'s, or a residual
+    LP's). ``fixed`` are pool rows already chosen: their units start covered, their cost bounds start the sums,
+    they count toward ``k``, and they are part of the design returned. The rows in ``keep`` are disjoint from
+    them."""
     keep = np.asarray(keep, dtype=np.int64)
+    fixed = np.asarray(fixed, dtype=np.int64)
     n = int(pool.unit_indices.size)
+    unc = np.ones(n, dtype=np.bool_)
+    for j in fixed:
+        unc[pool.members[j][pool.members[j] >= 0]] = False
+    P0 = float(pool.cost_lo[fixed].sum()) if fixed.size else 0.0
+    R0 = float(pool.cost_up[fixed].sum()) if fixed.size else 0.0
+    k_rem = max(int(k) - int(fixed.size), 0)
+    g2 = 2.0 * _gamma(2 * n + 8) + 4.0 * _U
+    if not unc.any():                        # the fixed groups are the design
+        upper = R0 + g2 * R0
+        if k_rem > 0 or upper >= best_up:
+            return CoverSearch("proved", np.zeros(0, np.int64), float(best_up), float(best_up), 0)
+        return CoverSearch("proved", fixed, float(upper), float(min(upper, P0 - g2 * P0)), 0)
     if keep.size == 0:
         return CoverSearch("proved", keep, float(best_up), float(best_up), 0)
     rows = np.ascontiguousarray(pool.members[keep], dtype=np.int64)
@@ -261,14 +285,16 @@ def search(pool, root, keep, k: int, Q: int, best_up: float, node_limit: int) ->
     gptr = np.zeros(n + 1, dtype=np.int64)
     gptr[1:] = np.cumsum(np.bincount(unit, minlength=n))
     sm = float(root.sigma) + float(rc.min())
-    S0 = math.fsum(float(x) for x in root.pi)
-    absA0 = float(np.abs(root.pi).sum()) * (1.0 + _gamma(n))
-    g2 = 2.0 * _gamma(2 * n + 8) + 4.0 * _U
+    pi_unc = np.asarray(root.pi, dtype=float)[unc]
+    S0 = math.fsum(float(x) for x in pi_unc)
+    absA0 = float(np.abs(pi_unc).sum()) * (1.0 + _gamma(n))
     W = -(-n // 64)
     status, nodes, upper, lowest, path = _cover(
-        n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, int(k), int(Q), float(best_up), g2,
-        int(node_limit))
+        n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k_rem, int(Q), float(best_up), g2,
+        int(node_limit), unc, P0, R0)
     found = keep[path[path >= 0]]
+    if found.size and fixed.size:
+        found = np.concatenate([fixed, found])
     return CoverSearch("node_limit" if status else "proved", found, float(upper),
                        float(min(upper, lowest)), int(nodes))
 

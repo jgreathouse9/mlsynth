@@ -20910,3 +20910,63 @@ timeout = 900.0
   find = "        lower = min(found[\"lower\"], upper)"
   replace = "        lower = float(L)"
   models = "the root Lagrangian bound reported as the proof's lower bound: valid, but 8 to 33% under the optimum on these panels, so a proved design reports a gap the search closed"
+
+[[target]]
+name = "pangeo-cover-fixed"
+module-path = "mlsynth/utils/pangeo_helpers/cover.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover_reopt.py mlsynth/tests/test_pangeo_cover.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-fixed-groups-cost-nothing"
+  find = "    P0 = float(pool.cost_lo[fixed].sum()) if fixed.size else 0.0"
+  replace = "    P0 = 0.0"
+  models = "a search below a fixed group whose bound leaves out that group's cost, so it prunes on a bound below every design through the branch and can drop the optimum"
+
+  [[target.mutant]]
+  id = "the-fixed-groups-do-not-count-toward-k"
+  find = "    k_rem = max(int(k) - int(fixed.size), 0)"
+  replace = "    k_rem = int(k)"
+  models = "the cardinality row applied to the groups below a fixed group alone, so a design holding the fixed group needs one group too many and the optimum can be out of reach"
+
+  [[target.mutant]]
+  id = "the-first-branch-may-be-a-covered-unit"
+  find = "        if not unc[i]:\n            continue\n        c = gptr[i + 1] - gptr[i]"
+  replace = "        c = gptr[i + 1] - gptr[i]"
+  models = "the root branching on a unit a fixed group already covers, whose groups all overlap it, so the search ends at once and reports no design"
+
+  [[target.mutant]]
+  id = "the-duals-of-covered-units-are-summed"
+  find = "    pi_unc = np.asarray(root.pi, dtype=float)[unc]"
+  replace = "    pi_unc = np.asarray(root.pi, dtype=float)"
+  models = "the bound below a fixed group counting the duals of units that group covers, which with the root's duals overstates every node's bound and prunes designs that beat the incumbent"
+
+[[target]]
+name = "pangeo-cover-reopt"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover_reopt.py mlsynth/tests/test_pangeo_cover.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "no-branch-is-pruned-by-its-bound"
+  find = "        if bound >= best:\n            continue"
+  replace = "        if False:\n            continue"
+  models = "every first-level branch searched whatever its residual bound, which at 40 geos would search the 30 of 67 branches the residual LP proves out"
+
+  [[target.mutant]]
+  id = "the-branches-search-with-the-root-duals"
+  find = "        res = cover.search(pool, duals, left, k, Q, best, node_limit - nodes - 1, fixed=(j,))"
+  replace = "        res = cover.search(pool, root, left, k, Q, best, node_limit - nodes - 1, fixed=(j,))"
+  models = "the residual LP solved and its duals dropped, so below the first level the search prunes as the plain one does and the re-optimisation buys only the branch bounds"
+
+  [[target.mutant]]
+  id = "the-incumbent-stays-at-the-start"
+  find = "            best, rows_best = res.upper, res.rows"
+  replace = "            rows_best = res.rows"
+  models = "a design found in one branch not tightening the incumbent the next branches are searched and pruned against"
+
+  [[target.mutant]]
+  id = "the-branch-bound-leaves-out-the-fixed-group"
+  find = "        out.append((j, _down(L + lo_j), left, _Duals(pi, sigma, rc)))"
+  replace = "        out.append((j, _down(L), left, _Duals(pi, sigma, rc)))"
+  models = "the branch bound without the fixed group's cost, valid but below the root's own bound, so a branch the residual LP could prune is searched"
