@@ -131,7 +131,7 @@ def test_fdid_fit_nan_in_outcome(sample_fdid_data: pd.DataFrame):
         treat="treated_indicator",
         display_graphs=False,
     )
-    with pytest.raises(MlsynthEstimationError, match="All-NaN slice encountered"):
+    with pytest.raises(MlsynthDataError, match="Missing outcome"):
         FDID(config=config).fit()
 
 
