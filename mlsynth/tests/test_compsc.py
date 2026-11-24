@@ -406,7 +406,7 @@ def test_rejects_missing_values():
     df, _, _ = _panel()
     df = df.copy()
     df.loc[0, "c1"] = np.nan
-    with pytest.raises(MlsynthDataError, match="Missing values"):
+    with pytest.raises(MlsynthDataError, match="Missing outcome values.*'c1'"):
         _fit(df)
 
 
@@ -414,7 +414,7 @@ def test_rejects_non_finite_shares():
     df, _, _ = _panel()
     df = df.copy()
     df.loc[0, "c1"] = np.inf
-    with pytest.raises(MlsynthDataError, match="non-finite"):
+    with pytest.raises(MlsynthDataError, match="not finite"):
         _fit(df)
 
 

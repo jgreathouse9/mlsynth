@@ -1042,7 +1042,7 @@ class TestGuards:
     def test_a_covariate_with_a_gap_is_refused(self):
         df = _panel()
         df.loc[df.index[0], "z"] = np.nan
-        with pytest.raises(MlsynthDataError, match="incomplete"):
+        with pytest.raises(MlsynthDataError, match="Missing outcome values.*'z'"):
             prepare_sl_inputs(df, unitid="unit", time="time", outcome="y",
                               treat="D", covariates=["z"])
 

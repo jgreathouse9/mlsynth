@@ -20589,6 +20589,75 @@ timeout = 900.0
   models = "the report dropping the root bound"
 
 [[target]]
+name = "dataprep-missing-outcomes"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_dataprep_missing_outcomes.py mlsynth/tests/test_missing_key_rejection.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "single-treated-branch-unchecked"
+  find = """        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df))
+        treated_unit_name"""
+  replace = """        treated_unit_name"""
+  models = "the refusal dropped from the one-treated-unit branch, which every single-unit estimator takes. A missing donor cell then reaches the fit: FDID's forward search ranks the donor at an R^2 of minus infinity and re-selects a chosen one, and PROXIMAL fits with the NaN in place"
+
+  [[target.mutant]]
+  id = "cohort-branch-unchecked"
+  find = """        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df))
+        # The treatment pivot"""
+  replace = """        # The treatment pivot"""
+  models = "the refusal dropped from the cohort branch only, so the staggered-adoption estimators see a missing outcome the single-unit ones refuse"
+
+  [[target.mutant]]
+  id = "geoex-dataprep-unchecked"
+  find = """    )
+    _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df))"""
+  replace = """    )"""
+  models = "the refusal dropped from the treatment-agnostic ingestion the design tools use, so a design is chosen on a panel with a missing market-period"
+
+  [[target.mutant]]
+  id = "infinity-passes"
+  find = "    bad = ~np.isfinite(values)"
+  replace = "    bad = np.isnan(values)"
+  models = "a check written with isnan, which passes an infinite outcome; SPILLSYNTH turned one into an ATT of nan or -inf, or an IndexError from inside its solver"
+
+  [[target.mutant]]
+  id = "first-cell-in-unit-order"
+  find = "    t, j = np.argwhere(bad)[0]"
+  replace = "    j, t = np.argwhere(bad.T)[0]"
+  models = "the first missing cell reported in unit order, not time order, so the message points at a later period than the earliest gap"
+
+  [[target.mutant]]
+  id = "absent-rows-counted-as-nan"
+  find = "    n_absent = values.size - n_rows"
+  replace = "    n_absent = 0"
+  models = "an absent unit-period row reported as a NaN value, so an unbalanced panel reads as a missing value inside a balanced one"
+
+  [[target.mutant]]
+  id = "infinite-counted-as-nan"
+  find = "    n_inf = int(np.isinf(values).sum())"
+  replace = "    n_inf = 0"
+  models = "an infinite outcome reported as NaN, which sends the user looking for a missing value where there is an overflow or a divide by zero"
+
+  [[target.mutant]]
+  id = "object-column-skipped"
+  find = """        try:
+            values = values.astype(float)
+        except (TypeError, ValueError):
+            return"""
+  replace = """        return"""
+  models = "an object-dtype outcome never checked, so a None in a column read from a mixed-type source passes as an outcome"
+
+  [[target.mutant]]
+  id = "text-outcome-raises-untranslated"
+  find = """        try:
+            values = values.astype(float)
+        except (TypeError, ValueError):
+            return"""
+  replace = """        values = values.astype(float)"""
+  models = "the conversion left unguarded, so a text outcome that dataprep used to pass through now fails inside ingestion with numpy's ValueError"
+
+[[target]]
 name = "pangeo-columns-accuracy"
 module-path = "mlsynth/utils/pangeo_helpers/columns.py"
 test-command = "python -m pytest mlsynth/tests/test_pangeo_columns_accuracy.py -q -p no:cacheprovider -x -W ignore"

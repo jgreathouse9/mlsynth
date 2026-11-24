@@ -340,11 +340,11 @@ class TestSetupValidation:
 
     def test_nan_cells_after_pivot_raises(self):
         # Ragged panel (one affected unit missing a period) bypasses the
-        # estimator's balance() check when prepare is called directly, and
-        # produces NaN cells after the pivot.
+        # estimator's balance() check when prepare is called directly; dataprep
+        # refuses the missing cell the pivot leaves.
         df = _panel()
         df = df[~((df["unit"] == "u2") & (df["year"] == 5))].copy()
-        with pytest.raises(MlsynthDataError, match="missing cells after pivot"):
+        with pytest.raises(MlsynthDataError, match="absent unit-period row"):
             self._inp(df, affected_units=["u1"])
 
     def test_insufficient_pre_periods_raises(self):
