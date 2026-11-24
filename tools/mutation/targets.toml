@@ -109,16 +109,16 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "treated-series-reversed-in-time"
-  find = '"y": treated_unit_outcome_vector,'
-  replace = '"y": treated_unit_outcome_vector[::-1],'
+  find = 'y=treated_unit_outcome_vector,'
+  replace = 'y=treated_unit_outcome_vector[::-1],'
   models = "a treated series read backwards, which leaves every shape and count correct and changes only the numbers"
 
   [[target.mutant]]
   id = "period-counts-transposed"
-  find = """"pre_periods": num_pre_treatment_periods,
-            "post_periods": num_post_treatment_periods,"""
-  replace = """"pre_periods": num_post_treatment_periods,
-            "post_periods": num_pre_treatment_periods,"""
+  find = """pre_periods=num_pre_treatment_periods,
+            post_periods=num_post_treatment_periods,"""
+  replace = """pre_periods=num_post_treatment_periods,
+            post_periods=num_pre_treatment_periods,"""
   models = "pre and post counts swapped, which still sums to the panel length and so survives any test that only checks the partition"
 
 [[target]]
@@ -20886,3 +20886,141 @@ timeout = 900.0
   find = "            lower = min(found[\"lower\"], upper)"
   replace = "            lower = float(L)"
   models = "the root Lagrangian bound reported as the proof's lower bound: valid, but 8 to 33% under the optimum on these panels, so a proved design reports a gap the search closed"
+
+[[target]]
+name = "prepared-panels"
+module-path = "mlsynth/utils/prepared.py"
+test-command = "python -m pytest mlsynth/tests/test_prepared_panels.py -q -p no:cacheprovider -x -W ignore"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "the-single-view-drops-time-labels"
+  find = '''"post_periods": self.post_periods, "time_labels": self.time_labels}'''
+  replace = '''"post_periods": self.post_periods}'''
+  models = "a key of the old dict missing from the single-panel view, which fails at runtime in the callers that read it and nowhere else"
+
+  [[target.mutant]]
+  id = "the-cohort-view-drops-treated-units"
+  find = '''        return {"treated_units": self.treated_units, "y": self.y, "donor_names": self.donor_names,'''
+  replace = '''        return {"y": self.y, "donor_names": self.donor_names,'''
+  models = "a key of the old cohort dict missing from the cohort view"
+
+  [[target.mutant]]
+  id = "the-covariate-split-is-left-out-of-the-view"
+  find = "    if cov.donor_matrix is not None:"
+  replace = "    if False:"
+  models = "the single-panel view without donor_covariate_matrix and treated_covariate_matrix, which the covariate estimators read"
+
+  [[target.mutant]]
+  id = "the-view-hands-out-copies"
+  find = '''        out = {"treated_unit_name": self.treated_unit_name, "Ywide": self.Ywide, "y": self.y,'''
+  replace = '''        out = {"treated_unit_name": self.treated_unit_name, "Ywide": self.Ywide, "y": np.array(self.y),'''
+  models = "a view whose values are copies of the fields, so the field and the key can drift apart"
+
+  [[target.mutant]]
+  id = "the-periods-need-not-add-up"
+  find = "    _check(pre + post == total,"
+  replace = "    _check(True,"
+  models = "pre- and post-period counts accepted whatever their sum, the defect the period-counts-transposed mutant hides behind"
+
+  [[target.mutant]]
+  id = "negative-periods-are-accepted"
+  find = "    _check(pre >= 0 and post >= 0,"
+  replace = "    _check(True,"
+  models = "a negative period count accepted when the other makes up the total"
+
+  [[target.mutant]]
+  id = "the-outcome-vector-length-is-not-checked"
+  find = '''        _check(np.shape(self.y) == (T,), f"y has shape'''
+  replace = '''        _check(True, f"y has shape'''
+  models = "a treated outcome vector of the wrong length or rank accepted"
+
+  [[target.mutant]]
+  id = "the-donor-names-are-not-counted"
+  find = "        _check(len(self.donor_names) == d[1],"
+  replace = "        _check(True,"
+  models = "donor names that do not match the donor matrix's columns, so weights get the wrong labels"
+
+  [[target.mutant]]
+  id = "the-wide-panel-shape-is-not-checked"
+  find = "        _check(self.Ywide.shape == (T, d[1] + 1),"
+  replace = "        _check(True,"
+  models = "a wide panel of another shape than the outcome vector and donor matrix it was split into"
+
+  [[target.mutant]]
+  id = "the-time-labels-are-not-counted"
+  find = "        _check(len(self.time_labels) == T,"
+  replace = "        _check(True,"
+  models = "time labels of another length than the panel, which misdates the treatment"
+
+  [[target.mutant]]
+  id = "a-cohort-of-another-length-is-accepted"
+  find = "            _check(c.total_periods == T,"
+  replace = "            _check(True,"
+  models = "a cohort whose periods are not the panel's"
+
+  [[target.mutant]]
+  id = "the-cohort-donor-matrix-is-not-checked"
+  find = "        _check(np.shape(self.donor_matrix) == (T, J),"
+  replace = "        _check(True,"
+  models = "a cohort's donor matrix of the wrong shape accepted"
+
+  [[target.mutant]]
+  id = "the-cohort-outcomes-are-not-checked"
+  find = "        _check(np.shape(self.y) == (T, k),"
+  replace = "        _check(True,"
+  models = "a cohort's outcome matrix of the wrong shape accepted"
+
+  [[target.mutant]]
+  id = "the-covariate-block-is-not-sized-to-the-units"
+  find = "    _check(cov is None or np.shape(cov.matrix)[0] == n_units,"
+  replace = "    _check(True,"
+  models = "a covariate block for a different number of units than the panel"
+
+  [[target.mutant]]
+  id = "the-predictor-block-is-not-sized-to-the-units"
+  find = "    _check(pred is None or np.shape(pred.matrix)[1] == n_units,"
+  replace = "    _check(True,"
+  models = "a predictor block for a different number of units than the panel"
+
+  [[target.mutant]]
+  id = "the-covariate-names-are-not-counted"
+  find = "        _check(len(self.names) == m,"
+  replace = "        _check(True,"
+  models = "covariate names that do not match the covariate columns"
+
+  [[target.mutant]]
+  id = "the-covariate-split-is-not-checked"
+  find = "            _check(len(d) == 2 and len(t) == 2 and d[1] == m and t[1] == m and d[0] + t[0] == n,"
+  replace = "            _check(True,"
+  models = "donor and treated covariate rows that do not split the covariate matrix"
+
+  [[target.mutant]]
+  id = "the-predictor-blocks-need-not-add-up"
+  find = "        _check(len(self.block_sizes) == 2 and min(self.block_sizes) >= 0 and sum(self.block_sizes) == rows,"
+  replace = "        _check(True,"
+  models = "predictor block sizes that do not describe the matrix's rows"
+
+[[target]]
+name = "dataprep-typed-return"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_prepared_panels.py -q -p no:cacheprovider -x -W ignore"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "dataprep-returns-a-plain-dict"
+  find = "        return SinglePanel(**core, covariates=cov_block, predictors=pred_block)"
+  replace = "        return dict(SinglePanel(**core, covariates=cov_block, predictors=pred_block))"
+  models = "the single-treated case returning the untyped dict the issue replaces"
+
+  [[target.mutant]]
+  id = "a-cohort-is-returned-as-a-dict"
+  find = "            cohort_details_map[start_time] = Cohort("
+  replace = "            cohort_details_map[start_time] = dict("
+  models = "a cohort entry returned as an untyped dict inside a typed cohort panel"
+
+  [[target.mutant]]
+  id = "the-covariate-block-is-dropped"
+  find = "        return SinglePanel(**core, covariates=cov_block, predictors=pred_block)"
+  replace = "        return SinglePanel(**core, covariates=None, predictors=pred_block)"
+  models = "covariates computed and left off the single panel"

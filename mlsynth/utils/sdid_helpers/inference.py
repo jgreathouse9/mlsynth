@@ -25,6 +25,7 @@ placebo procedure.
 
 import warnings
 from collections import defaultdict
+from collections.abc import Mapping
 from copy import deepcopy
 from typing import Any, DefaultDict, Dict, List, Tuple
 
@@ -172,7 +173,7 @@ def estimate_placebo_variance(
     >>> assert len(variance_results["placebo_att_values"]) <= 3 # Can be less if NaNs occur
     """
     # Input Validation
-    if not isinstance(prepped_event_study_data, dict) or "cohorts" not in prepped_event_study_data:
+    if not isinstance(prepped_event_study_data, Mapping) or "cohorts" not in prepped_event_study_data:
         raise MlsynthDataError("prepped_event_study_data must be a dict with a 'cohorts' key.")
     if not isinstance(prepped_event_study_data["cohorts"], dict):
         raise MlsynthDataError("'cohorts' in prepped_event_study_data must be a dictionary.")
@@ -411,7 +412,7 @@ def _single_cohort(prepped_event_study_data: Dict[str, Any], method_name: str):
     procedure rather than return a silently wrong number.
     """
 
-    if not isinstance(prepped_event_study_data, dict) or "cohorts" not in prepped_event_study_data:
+    if not isinstance(prepped_event_study_data, Mapping) or "cohorts" not in prepped_event_study_data:
         raise MlsynthDataError("prepped_event_study_data must be a dict with a 'cohorts' key.")
     cohorts = prepped_event_study_data["cohorts"]
     if not isinstance(cohorts, dict):

@@ -3,6 +3,7 @@ import pandas as pd
 # Add `Literal` to the existing typing import:
 from typing import Optional, Dict, List, Tuple, Any, Literal
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
+from mlsynth.utils.prepared import Cohort, CohortPanel, CovariateBlock, PredictorBlock, SinglePanel
 
 # Constants for dictionary keys used in logictreat and dataprep
 KEY_NUM_TREATED_UNITS = "Num Treated Units"
@@ -555,7 +556,7 @@ def dataprep(
     normalize_covariates: bool = True,
     marex: bool = False,
     keys: Optional[PanelKeys] = None,
-) -> Dict[str, Any]:
+) -> "SinglePanel | CohortPanel":
     """Prepare data for synthetic control methods.
 
     Pivots a long DataFrame into a wide format required by many synthetic
@@ -582,14 +583,14 @@ def dataprep(
         the treated unit.
     covariates : list of str, optional
         Column names to fold into a per-unit covariate matrix. When
-        supplied, the returned dict gains
+        supplied, the result's mapping view gains
         ``covariate_matrix`` / ``covariate_names`` / ``covariate_means`` /
         ``covariate_scales`` plus
         ``donor_covariate_matrix`` / ``treated_covariate_matrix`` (single
         treated case). Time-varying covariates are aggregated per the
         ``covariate_aggregation`` mode; time-invariant covariates collapse
-        to their constant value. ``None`` (default) leaves the return dict
-        identical to the pre-extension behaviour.
+        to their constant value. ``None`` (default) leaves the covariate
+        block empty.
     covariate_aggregation : {"pre_mean"}, default "pre_mean"
         How to collapse each covariate column to a single value per unit.
         Currently only ``"pre_mean"`` (the pre-treatment mean) is supported.
@@ -611,13 +612,22 @@ def dataprep(
 
     Returns
     -------
-    Dict[str, Any]
-        A dictionary containing the prepared data. Always populates the
-        backward-compatible keys (`treated_unit_name`, `Ywide`, `y`,
-        `donor_names`, `donor_matrix`, `total_periods`, `pre_periods`,
-        `post_periods`, `time_labels` in the single-treated case;
-        `Ywide`, `cohorts`, `time_labels` in the cohort case). When the
-        opt-in kwargs above are non-default, additionally populates:
+    SinglePanel or CohortPanel
+        A :class:`~mlsynth.utils.prepared.SinglePanel` when one unit is
+        treated: ``treated_unit_name``, ``Ywide``, ``y``, ``donor_names``,
+        ``donor_matrix``, ``total_periods``, ``pre_periods``,
+        ``post_periods`` and ``time_labels``. A
+        :class:`~mlsynth.utils.prepared.CohortPanel` when several are:
+        ``Ywide``, ``cohorts`` (each start period's
+        :class:`~mlsynth.utils.prepared.Cohort`) and ``time_labels``. With
+        ``covariates``, either carries a
+        :class:`~mlsynth.utils.prepared.CovariateBlock` (split into donor and
+        treated rows for one treated unit); with ``marex=True``, a
+        :class:`~mlsynth.utils.prepared.PredictorBlock`. Each type checks its
+        own shapes when built and raises ``MlsynthDataError`` on a mismatch.
+
+        Each is also a read-only mapping with the keys of the dictionary this
+        function returned before (issue #1138), in the same order:
 
         ``covariate_matrix`` : (N, M)
         ``covariate_names`` : tuple of str
@@ -689,17 +699,19 @@ def dataprep(
         if num_pre_treatment_periods == 0:
             raise MlsynthDataError("Not enough pre-treatment periods (0 pre-periods found).")
 
-        out: Dict[str, Any] = {
-            "treated_unit_name": treated_unit_name,
-            "Ywide": outcome_matrix_wide,
-            "y": treated_unit_outcome_vector,
-            "donor_names": donor_names,
-            "donor_matrix": donor_outcome_array_wide,
-            "total_periods": total_periods_for_unit,
-            "pre_periods": num_pre_treatment_periods,
-            "post_periods": num_post_treatment_periods,
-            "time_labels": outcome_matrix_wide.index,
-        }
+        core: Dict[str, Any] = dict(
+            treated_unit_name=treated_unit_name,
+            Ywide=outcome_matrix_wide,
+            y=treated_unit_outcome_vector,
+            donor_names=donor_names,
+            donor_matrix=donor_outcome_array_wide,
+            total_periods=total_periods_for_unit,
+            pre_periods=num_pre_treatment_periods,
+            post_periods=num_post_treatment_periods,
+            time_labels=outcome_matrix_wide.index,
+        )
+        cov_block: Optional[CovariateBlock] = None
+        pred_block: Optional[PredictorBlock] = None
 
         if covariates:
             # Order is donors first, then the single treated unit, so that
@@ -714,12 +726,14 @@ def dataprep(
                 keys=keys,
             )
             n_donors = len(donor_names)
-            out["covariate_matrix"] = cov_matrix                      # (N, M)
-            out["covariate_names"] = cov_names                        # tuple of str
-            out["covariate_means"] = cov_means                        # (M,)
-            out["covariate_scales"] = cov_scales                      # (M,)
-            out["donor_covariate_matrix"] = cov_matrix[:n_donors]     # (n_donors, M)
-            out["treated_covariate_matrix"] = cov_matrix[n_donors:]   # (1, M)
+            cov_block = CovariateBlock(
+                matrix=cov_matrix,                                    # (N, M)
+                names=cov_names,                                      # tuple of str
+                means=cov_means,                                      # (M,)
+                scales=cov_scales,                                    # (M,)
+                donor_matrix=cov_matrix[:n_donors],                   # (n_donors, M)
+                treated_matrix=cov_matrix[n_donors:],                 # (1, M)
+            )
 
             if marex:
                 # Abadie-Zhou stacked predictor matrix (T_pre + M, N).
@@ -729,15 +743,16 @@ def dataprep(
                     .to_numpy(dtype=float)
                 )
                 X_stacked = np.vstack([Y_pre_all, cov_matrix.T])
-                out["predictor_matrix"] = X_stacked
-                out["predictor_block_sizes"] = (num_pre_treatment_periods,
-                                                len(cov_names))
                 # Equal-weighted population aggregate X̄ (the design objective's
                 # target). Users with a non-uniform ``f`` can recompute from
                 # ``predictor_matrix`` directly.
                 f = np.ones(len(unit_order)) / len(unit_order)
-                out["f_weights"] = f
-                out["X_population_mean"] = X_stacked @ f
+                pred_block = PredictorBlock(
+                    matrix=X_stacked,
+                    block_sizes=(num_pre_treatment_periods, len(cov_names)),
+                    f_weights=f,
+                    population_mean=X_stacked @ f,
+                )
 
         elif marex:
             # MAREX mode without covariates: still expose the f / X̄ pair
@@ -747,12 +762,14 @@ def dataprep(
                 .to_numpy(dtype=float)
             )
             f = np.ones(Y_pre_all.shape[1]) / Y_pre_all.shape[1]
-            out["predictor_matrix"] = Y_pre_all
-            out["predictor_block_sizes"] = (num_pre_treatment_periods, 0)
-            out["f_weights"] = f
-            out["X_population_mean"] = Y_pre_all @ f
+            pred_block = PredictorBlock(
+                matrix=Y_pre_all,
+                block_sizes=(num_pre_treatment_periods, 0),
+                f_weights=f,
+                population_mean=Y_pre_all @ f,
+            )
 
-        return out
+        return SinglePanel(**core, covariates=cov_block, predictors=pred_block)
 
     # ─── Multiple treated units (cohort mode) ──────────────────────────
     else:
@@ -787,21 +804,18 @@ def dataprep(
             donor_units = [u for u in outcome_matrix_wide.columns
                            if u not in all_treated_units]
             cohort_donor_matrix = outcome_matrix_wide[donor_units].to_numpy()
-            cohort_details_map[start_time] = {
-                "treated_units": cohort_units,
-                "y": cohort_treated_matrix,
-                "donor_names": donor_units,
-                "donor_matrix": cohort_donor_matrix,
-                "total_periods": outcome_matrix_wide.shape[0],
-                "pre_periods": num_pre,
-                "post_periods": num_post,
-            }
+            cohort_details_map[start_time] = Cohort(
+                treated_units=cohort_units,
+                y=cohort_treated_matrix,
+                donor_names=donor_units,
+                donor_matrix=cohort_donor_matrix,
+                total_periods=outcome_matrix_wide.shape[0],
+                pre_periods=num_pre,
+                post_periods=num_post,
+            )
 
-        out_multi: Dict[str, Any] = {
-            "Ywide": outcome_matrix_wide,
-            "cohorts": cohort_details_map,
-            "time_labels": outcome_matrix_wide.index,
-        }
+        multi_cov: Optional[CovariateBlock] = None
+        multi_pred: Optional[PredictorBlock] = None
 
         if covariates:
             # Use the earliest pre-period length across cohorts as the
@@ -817,10 +831,8 @@ def dataprep(
                 normalize=normalize_covariates,
                 keys=keys,
             )
-            out_multi["covariate_matrix"] = cov_matrix
-            out_multi["covariate_names"] = cov_names
-            out_multi["covariate_means"] = cov_means
-            out_multi["covariate_scales"] = cov_scales
+            multi_cov = CovariateBlock(matrix=cov_matrix, names=cov_names, means=cov_means,
+                                       scales=cov_scales)
 
             if marex:
                 Y_pre_all = (
@@ -830,10 +842,8 @@ def dataprep(
                 )
                 X_stacked = np.vstack([Y_pre_all, cov_matrix.T])
                 f = np.ones(len(unit_order)) / len(unit_order)
-                out_multi["predictor_matrix"] = X_stacked
-                out_multi["predictor_block_sizes"] = (min_pre, len(cov_names))
-                out_multi["f_weights"] = f
-                out_multi["X_population_mean"] = X_stacked @ f
+                multi_pred = PredictorBlock(matrix=X_stacked, block_sizes=(min_pre, len(cov_names)),
+                                            f_weights=f, population_mean=X_stacked @ f)
 
         elif marex:
             min_pre = (min(c["pre_periods"] for c in cohort_details_map.values())
@@ -841,12 +851,12 @@ def dataprep(
             Y_pre_all = outcome_matrix_wide.iloc[:min_pre, :].to_numpy(dtype=float)
             f = (np.ones(Y_pre_all.shape[1]) / Y_pre_all.shape[1]
                  if Y_pre_all.size else None)
-            out_multi["predictor_matrix"] = Y_pre_all
-            out_multi["predictor_block_sizes"] = (min_pre, 0)
-            out_multi["f_weights"] = f
-            out_multi["X_population_mean"] = Y_pre_all @ f if f is not None else None
+            multi_pred = PredictorBlock(matrix=Y_pre_all, block_sizes=(min_pre, 0), f_weights=f,
+                                        population_mean=Y_pre_all @ f if f is not None else None)
 
-        return out_multi
+        return CohortPanel(Ywide=outcome_matrix_wide, cohorts=cohort_details_map,
+                           time_labels=outcome_matrix_wide.index, covariates=multi_cov,
+                           predictors=multi_pred)
 
 
 def geoex_dataprep(
