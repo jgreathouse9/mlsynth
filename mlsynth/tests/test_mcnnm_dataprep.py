@@ -15,6 +15,9 @@ match on every panel both accept.
 
 from __future__ import annotations
 
+import ast
+import inspect
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -88,16 +91,15 @@ class TestRouting:
         prepare_mcnnm_inputs(df=_panel(), **COLS)
         assert len(calls) == 1
 
-    def test_setup_does_not_pivot(self, monkeypatch):
-        def no_pivot(*a, **k):  # pragma: no cover - fails the test if reached
-            raise AssertionError("MC-NNM setup pivoted the panel itself")
-
-        df = _panel()
-        monkeypatch.setattr(pd.DataFrame, "pivot", no_pivot)
-        monkeypatch.setattr(pd.DataFrame, "pivot_table", no_pivot)
-        # dataprep builds its matrices without DataFrame.pivot, so any call
-        # here came from the estimator.
-        prepare_mcnnm_inputs(df=df, **COLS)
+    def test_setup_does_not_pivot(self):
+        # The setup module itself must not reshape the panel. A runtime patch of
+        # DataFrame.pivot cannot test this: dataprep's _wide_pivot falls back to
+        # df.pivot on pandas versions whose fast path would change the array
+        # layout, so the patch fires inside dataprep on those versions.
+        tree = ast.parse(inspect.getsource(SETUP))
+        called = {node.func.attr for node in ast.walk(tree)
+                  if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)}
+        assert not called & {"pivot", "pivot_table", "unstack", "crosstab"}, called
 
 
 # --------------------------------------------------------------------------- #
