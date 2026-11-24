@@ -87,10 +87,6 @@ def prepare_mosc_inputs(
             f"MOSC cannot identify {n_factors} factors from {pre_periods} "
             f"pre-treatment periods; n_factors must be smaller."
         )
-    if not np.isfinite(panel).all():
-        raise MlsynthDataError(
-            "MOSC requires a balanced panel with no missing outcomes."
-        )
     check_modelling_scale(panel, factor_model, outcome_scale)
 
     return MOSCInputs(

@@ -44,17 +44,13 @@ def _covariate_block(df: pd.DataFrame, cols: Sequence[str], *, unitid: str,
     period order. This mirrors the authors' ``external_covariates``, which is the
     full state matrix of the covariate, not the treated unit's column alone.
 
-    ``dataprep`` returns a gap as a missing cell instead of raising, so
-    completeness is checked here and the message names the column.
+    ``dataprep`` refuses a gap or a non-finite cell in the column it pivots and
+    names the column, so each block is complete.
     """
     planes = []
     for c in cols:
         wide = dataprep(df, unitid, time, c, treat)["Ywide"]
         block = wide.reindex(index=times, columns=order)
-        if block.isna().any().any():
-            raise MlsynthDataError(
-                f"Covariate '{c}' is incomplete after pivoting; SL needs a "
-                f"balanced panel with no gaps.")
         planes.append(block.to_numpy(dtype=float))
     return np.column_stack(planes)
 

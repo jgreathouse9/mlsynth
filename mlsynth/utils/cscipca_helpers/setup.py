@@ -94,11 +94,6 @@ def prepare_cscipca_inputs(
 
     L, K = len(covariates), int(n_factors)
 
-    if np.isnan(y).any() or np.isnan(Y0).any():
-        raise MlsynthDataError(
-            "CSCIPCA does not support missing outcomes; impute or drop "
-            "missing values before calling fit()."
-        )
     if Y0.shape[1] < 1:  # pragma: no cover - dataprep always yields >=1 donor for a valid panel
         raise MlsynthDataError("CSCIPCA requires at least one control unit.")
     if T - T0 < 1:  # pragma: no cover - dataprep always yields >=1 post period for a treated unit

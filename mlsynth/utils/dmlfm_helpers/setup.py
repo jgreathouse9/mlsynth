@@ -103,20 +103,14 @@ def prepare_dmlfm_inputs(cfg) -> DMLFMInputs:
             "DMLFM needs at least one pre-treatment period; a treated unit "
             "adopts in the first period of the panel")
 
-    if df[[cfg.outcome] + covs].isna().any().any():
+    if df[covs].isna().any().any():
         raise MlsynthDataError(
-            "DMLFM needs a complete panel; the outcome or a covariate has "
-            "missing values")
+            "DMLFM needs a complete panel; a covariate has missing values")
 
     # The sampler itself tolerates ragged groups, and so does the pblasso
-    # reference, but mlsynth ingestion has no way to carry an observation mask,
-    # so an unbalanced panel is refused instead of silently fitting a panel the
-    # result contract cannot describe.
-    counts = df.groupby(cfg.unitid, observed=True)[cfg.time].nunique()
-    if counts.nunique() != 1 or int(counts.iloc[0]) != n_periods:
-        raise MlsynthDataError(
-            "DMLFM needs a balanced panel: units span "
-            f"{int(counts.min())} to {int(counts.max())} of {n_periods} periods")
+    # reference, but mlsynth ingestion has no way to carry an observation mask.
+    # dataprep refuses an unbalanced panel (an absent unit-period row is a
+    # missing outcome cell), so the panel here is balanced.
 
     df = df.sort_values([cfg.unitid, cfg.time]).reset_index(drop=True)
     units = list(pd.unique(df[cfg.unitid]))

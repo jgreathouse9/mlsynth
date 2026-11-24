@@ -35,8 +35,6 @@ def prepare_drosc_inputs(config) -> DROSCInputs:
             "DROSC requires at least two pre-treatment periods to form the "
             "pre-treatment moment band."
         )
-    if not np.all(np.isfinite(y)) or not np.all(np.isfinite(donor_matrix)):
-        raise MlsynthDataError("DROSC requires a complete (finite) outcome panel.")
     return DROSCInputs(
         y=y,
         donor_matrix=donor_matrix,

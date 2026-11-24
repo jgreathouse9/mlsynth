@@ -96,14 +96,11 @@ def prepare_medsc_inputs(
     Y_direct = Ywide[direct_pool].to_numpy(dtype=float)
     M_direct = Mwide[direct_pool].to_numpy(dtype=float)
 
-    for name, arr in (("treated outcome", treated_outcome),
-                      ("total-pool donor outcomes", Y_total),
-                      ("direct-pool donor outcomes", Y_direct),
-                      ("direct-pool donor mediators", M_direct)):
-        if not np.all(np.isfinite(arr)):
-            raise MlsynthDataError(
-                f"{name} contain missing or non-finite values; MEDSC needs a "
-                f"balanced outcome/mediator panel over the selected pools.")
+    # dataprep refuses a missing or non-finite outcome; the mediator is pivoted here and checked here.
+    if not np.all(np.isfinite(M_direct)):
+        raise MlsynthDataError(
+            "direct-pool donor mediators contain missing or non-finite values; MEDSC needs a "
+            "balanced outcome/mediator panel over the selected pools.")
 
     treated_cov: Optional[np.ndarray] = None
     total_cov: Optional[np.ndarray] = None

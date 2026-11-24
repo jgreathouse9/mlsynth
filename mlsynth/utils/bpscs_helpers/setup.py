@@ -61,8 +61,6 @@ def prepare_bpscs_inputs(
         raise MlsynthDataError("BPSCS needs at least 1 post-treatment period.")
 
     Y = np.column_stack([y_target, donors])                       # (T, D) treated col 0
-    if not np.isfinite(Y).all():  # pragma: no cover - dataprep guards balance
-        raise MlsynthDataError("BPSCS requires a balanced panel with no missing outcomes.")
 
     treated_name = str(prepared.get("treated_unit_name", "treated"))
     donor_names = list(prepared.get("donor_names", range(donors.shape[1])))
