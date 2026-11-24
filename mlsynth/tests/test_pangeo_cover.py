@@ -254,12 +254,20 @@ def test_identical_units_give_a_design_of_cost_zero_and_an_absolute_gap():
 
 
 def test_units_past_64_use_more_than_one_mask_word():
-    """Edge: the uncovered set is a bit mask of ceil(n / 64) words; at 66 units pairs cover words 0 and 1."""
-    Y = _panel(16, 66, T=8)
+    """Edge: the uncovered set is a bit mask of ceil(n / 64) words; at 66 units pairs cover words 0 and 1. The arm
+    is 33 well-separated paths, each held by two near-identical units, so the root bound is tight and the search
+    proves the design. A random 66-unit arm at Q = 1 hits the node cap and falls back to the MIP, which would hide
+    a search that misreads the second word."""
+    rng = np.random.default_rng(16)
+    base = rng.normal(size=(33, 8)).cumsum(axis=1) * 10.0
+    Y = np.repeat(base, 2, axis=0) + rng.normal(scale=1e-3, size=(66, 8))
     idx = np.arange(66)
     chosen, d = columns.solve_exact(idx, Y, 1)
     _, d_ref = _reference(idx, Y, 1)
     _assert_design(chosen, idx, 1, columns.min_groups(66, 1, 1))
+    assert d["search"] == "proved"
+    assert sorted(tuple(sorted(int(u) for u in c["members"])) for c in chosen) == [(2 * i, 2 * i + 1)
+                                                                                   for i in range(33)]
     assert _close(d["objective_value"], d_ref["objective_value"])
 
 
