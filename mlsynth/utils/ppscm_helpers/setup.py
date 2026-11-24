@@ -13,26 +13,37 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
+from ..datautils import balance, dataprep
+from ..prepared import SinglePanel
 from .structures import PPSCMInputs
 
 
-def _adopted(a) -> bool:
-    """True if ``a`` is an actual adoption time, False for the never-treated
-    sentinel ``np.inf``.
+def _adoption_index(prep) -> dict:
+    """Each treated unit's first treated period, as a position in the time axis.
 
-    Adoption times are whatever the ``time`` column holds -- an integer/float
-    year or a ``pd.Timestamp`` -- so we cannot use ``np.isfinite`` (it rejects
-    datetimes). Only the never-treated units carry the float ``np.inf`` marker.
+    ``dataprep`` has already refused a treatment that switches off, so a unit
+    is treated from that position to the end of the panel.
     """
-    return not (isinstance(a, float) and np.isinf(a))
+    if isinstance(prep, SinglePanel):
+        return {prep.treated_unit_name: int(prep.pre_periods)}
+    return {unit: int(cohort.pre_periods)
+            for cohort in prep.cohorts.values() for unit in cohort.treated_units}
 
 
 def prepare_ppscm_inputs(df: pd.DataFrame, *, outcome: str, treat: str,
                          unitid: str, time: str,
                          covariates: Optional[List[str]] = None) -> PPSCMInputs:
-    t_vec = np.sort(pd.unique(df[time]))
-    units = np.sort(pd.unique(df[unitid]))
+    """Build :class:`PPSCMInputs` from a long panel through ``balance`` and ``dataprep``.
 
+    ``balance`` and ``dataprep`` refuse a duplicate or absent unit-period, a
+    missing or non-finite outcome anywhere in the panel, a non-binary
+    treatment, and a treatment that switches off after it starts. The adoption
+    bookkeeping then follows augsynth's ``format_data_stag`` (Ben-Michael,
+    Feller and Rothstein, JRSS-B 84 (2022), section 2): each unit's adoption is
+    its first treated period, indexed by position in the sorted time vector
+    (``inf`` for never-treated units), and the panel is split at the last
+    adoption into the pre block and the rest.
+    """
     if covariates:
         missing = [c for c in covariates if c not in df.columns]
         if missing:
@@ -40,33 +51,24 @@ def prepare_ppscm_inputs(df: pd.DataFrame, *, outcome: str, treat: str,
                 f"Covariate column(s) not in DataFrame: {missing}."
             )
 
-    adopt = {}
-    for u, g in df.groupby(unitid, observed=True):
-        yrs = g.loc[g[treat] == 1, time]
-        adopt[u] = yrs.min() if len(yrs) else np.inf
-    finite = [a for a in adopt.values() if _adopted(a)]
-    if not finite:
-        raise MlsynthDataError("PPSCM requires at least one treated unit.")
-    if len(finite) == len(units):
+    keys = balance(df, unitid, time)
+    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)
+    t_vec = np.asarray(prep.time_labels)
+    units = np.sort(np.asarray(prep.Ywide.columns))
+
+    starts = _adoption_index(prep)
+    if len(starts) == len(units):
         raise MlsynthDataError("PPSCM requires at least one never-treated (control) unit.")
+    trt = np.array([float(starts[u]) if u in starts else np.inf for u in units],
+                   dtype=float)
 
-    trt = np.array([
-        (int(np.where(t_vec == adopt[u])[0][0]) if _adopted(adopt[u]) else np.inf)
-        for u in units
-    ], dtype=float)
-
-    t_int = max(finite)                                  # last adoption time
-    pre_times = t_vec[t_vec < t_int]
-    if len(pre_times) < 2:
+    last = max(starts.values())
+    t_int = t_vec[last]                                  # last adoption time
+    if last < 2:
         raise MlsynthDataError("PPSCM needs at least two pre-treatment periods.")
 
-    wide = df.pivot(index=unitid, columns=time, values=outcome).reindex(index=units)
-    Xy = wide.to_numpy(dtype=float)
-    if np.isnan(Xy[:, : len(pre_times)]).any():
-        raise MlsynthDataError(
-            "PPSCM requires a complete outcome panel over the analysis window; "
-            "restrict to years with measurements for every unit."
-        )
+    Xy = np.ascontiguousarray(prep.Ywide[units].to_numpy(dtype=float).T)
+    finite = [t_vec[i] for i in starts.values()]
 
     Z = None
     cov_names = None
@@ -86,7 +88,7 @@ def prepare_ppscm_inputs(df: pd.DataFrame, *, outcome: str, treat: str,
         cov_names = tuple(covariates)
 
     return PPSCMInputs(
-        Xy=Xy, trt=trt, n_pre=int(len(pre_times)),
+        Xy=Xy, trt=trt, n_pre=int(last),
         time_labels=t_vec, units=units, outcome=outcome,
         intervention_time=t_int, Z=Z, cov_names=cov_names,
     )
