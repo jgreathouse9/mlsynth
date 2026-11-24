@@ -21024,3 +21024,63 @@ timeout = 300.0
   find = "        return SinglePanel(**core, covariates=cov_block, predictors=pred_block)"
   replace = "        return SinglePanel(**core, covariates=None, predictors=pred_block)"
   models = "covariates computed and left off the single panel"
+
+[[target]]
+name = "syndes-geoex"
+module-path = "mlsynth/utils/syndes_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_syndes_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "post-col-split-is-not-validated"
+  find = "        T0 = int(geoex_dataprep(df, unitid, time, outcome, post_col=post_col)[\"pre_periods\"])"
+  replace = "        T0 = int((df.drop_duplicates(subset=[time]).set_index(time)[post_col] == 0).sum())"
+  models = "post_col counted without geoex_dataprep's checks, so post periods between pre periods are split by count and the panel's time order is broken"
+
+  [[target.mutant]]
+  id = "the-pre-block-runs-one-period-long"
+  find = "    Y_pre = Y_full[:T0, :]"
+  replace = "    Y_pre = Y_full[:T0 + 1, :]"
+  models = "an off-by-one between geoex_dataprep's pre-period count and the slice"
+
+  [[target.mutant]]
+  id = "the-post-block-repeats-the-last-pre-period"
+  find = "    Y_post = Y_full[T0:, :] if T0 < n_periods else None"
+  replace = "    Y_post = Y_full[T0 - 1:, :] if T0 < n_periods else None"
+  models = "the post block starting one period early, overlapping the pre block"
+
+  [[target.mutant]]
+  id = "an-empty-post-block-is-kept"
+  find = "    Y_post = Y_full[T0:, :] if T0 < n_periods else None"
+  replace = "    Y_post = Y_full[T0:, :]"
+  models = "a design-only panel carrying a zero-row post matrix the inference reads as post data"
+
+  [[target.mutant]]
+  id = "the-pre-labels-are-misaligned"
+  find = "    pre_labels = time_labels[:T0]"
+  replace = "    pre_labels = time_labels[1:T0 + 1]"
+  models = "pre-period labels shifted one period from the matrix rows"
+
+  [[target.mutant]]
+  id = "units-and-times-swapped"
+  find = "    unit_labels = np.asarray(Ywide.columns.to_list())"
+  replace = "    unit_labels = np.asarray(Ywide.index.to_list())"
+  models = "the unit index built from the time axis"
+
+  [[target.mutant]]
+  id = "T0-past-the-panel-is-accepted"
+  find = "        if T0 <= 0 or T0 > n_periods:"
+  replace = "        if T0 <= 0:"
+  models = "a T0 beyond the panel accepted and treated as design-only"
+
+  [[target.mutant]]
+  id = "one-pre-period-is-accepted"
+  find = "    if Y_pre.shape[0] < 2:"
+  replace = "    if Y_pre.shape[0] < 1:"
+  models = "SYNDES's own minimum of two pre-periods lost behind geoex_dataprep"
+
+  [[target.mutant]]
+  id = "one-unit-is-accepted"
+  find = "    if Y_pre.shape[1] < 2:"
+  replace = "    if Y_pre.shape[1] < 1:"
+  models = "SYNDES's own minimum of two units lost behind geoex_dataprep"
