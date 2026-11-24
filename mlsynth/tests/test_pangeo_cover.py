@@ -129,8 +129,11 @@ def test_the_node_cap_falls_back_to_the_mip():
     assert _close(d["objective_value"], d_ref["objective_value"])
 
 
-def test_the_fallback_mip_holds_the_searchs_design():
-    """Unit: the first MIP after a capped search holds the search's best design, so it starts from it."""
+def test_the_fallback_mip_holds_the_searchs_design(monkeypatch):
+    """Unit: the first MIP after a capped search holds the search's best design, so it starts from it. The first
+    MIP's own window is cut to one group, so the design can reach it only as the search's."""
+    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
+    monkeypatch.setattr(columns, "FIRST_MIN", 1)
     Y = _panel(7, 14)
     idx = np.arange(14)
     pool = columns.score_columns(idx, Y, 3)
@@ -145,6 +148,8 @@ def test_the_fallback_mip_holds_the_searchs_design():
         return mip.solve_partition(cands, ix, **kw)
 
     columns.solve_exact(idx, Y, 3, search_node_limit=1, solve=spy)
+    seed = {tuple(int(u) for u in idx[list(g)]) for g in columns.seed_partition(14)}
+    assert len(want - seed) >= 2          # more than the window's one group: the design came in as the search's
     assert want <= seen[0]
 
 
