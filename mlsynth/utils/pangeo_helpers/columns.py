@@ -623,6 +623,18 @@ def _search(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int) -> 
                 seconds=time.perf_counter() - t)
 
 
+def _search_from(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int, z_up: Fraction,
+                 rows: Sequence[int]) -> dict:
+    """The proof search over the groups a design's upper bound z_up cannot exclude, with that design as the
+    incumbent: returned as the best design when the search finds none cheaper."""
+    t = time.perf_counter()
+    keep = np.flatnonzero(root.reduced_costs <= _up(z_up - Fraction(root.bound)))
+    res = cover.search(pool, root, keep, k, Q, _up(z_up), node_limit)
+    found = res.rows if res.rows.size else np.asarray(rows, dtype=np.int64)
+    return dict(search=res.status, rows=found, lower=res.lower, nodes=res.nodes, kept=keep.size,
+                seconds=time.perf_counter() - t)
+
+
 def solve_exact(
     unit_indices, Ypre: np.ndarray, max_size: int, *, objective: str = "ss_res",
     weights: Optional[np.ndarray] = None, cov: Optional[np.ndarray] = None,
@@ -676,31 +688,36 @@ def solve_exact(
     L, rc = root.bound, root.reduced_costs               # rigorous lower bounds
     seed = np.array([column_index(g, n) for g in seed_partition(n)])
     pos = {int(u): p for p, u in enumerate(idx)}
-    info = dict(search="off", search_nodes=0)
+    info = dict(search="off", search_nodes=0, search_start=None)
+
+    def proved(found: dict, solves: int, mip_secs: float):
+        """The design a finished search proved, reported as the MIP path reports one (its gap relative to the
+        design's cost, absolute when that cost is 0)."""
+        rows = found["rows"]
+        chosen = pool.candidates(rows)
+        upper = _up(sum((Fraction(float(pool.cost_up[j])) for j in rows), Fraction(0)))
+        lower = min(found["lower"], upper)
+        z = math.fsum(float(pool.cost[j]) for j in rows)
+        d = dict(path="exact_search", backend="search", solver_name="exact-cover search", status="optimal",
+                 presolve_retry=False, mip_rel_gap_requested=float(mip_rel_gap),
+                 mip_abs_gap_requested=float(mip_abs_gap), gap_enforced=True,
+                 mip_gap=(upper - lower) / abs(z) if z != 0 else upper - lower, dual_bound=float(lower),
+                 node_count=float(info["search_nodes"]), solve_seconds=mip_secs + found["seconds"])
+        d.update({**extra, **info}, columns_solved=int(found["kept"]), lagrangian_bound=float(L),
+                 lp_value=root.lp_value, lp_rounds=root.rounds, mip_solves=solves, lp_seconds=lp_seconds,
+                 objective_value=z, objective_upper=upper, n_selected_pairs=len(chosen))
+        return chosen, d
     if backend != "auto":
         pass                                          # a MIP backend asked for by name
     elif search_node_limit > 0 and not cover._NUMBA:
         info["search"] = "unavailable"   # pragma: no cover - the suite runs with numba installed
     elif search_node_limit > 0:
-        found = _search(pool, root, k, max_size, int(search_node_limit))
+        quick = min(int(cover.SEARCH_QUICK_LIMIT), int(search_node_limit))
+        found = _search(pool, root, k, max_size, quick)
         info.update(search=found["search"], search_nodes=found["nodes"])
         if found["search"] == "proved":
-            rows = found["rows"]
-            chosen = pool.candidates(rows)
-            z_up = sum((Fraction(float(pool.cost_up[j])) for j in rows), Fraction(0))
-            upper = _up(z_up)
-            lower = min(found["lower"], upper)
-            z = math.fsum(float(pool.cost[j]) for j in rows)
-            d = dict(path="exact_search", backend="search", solver_name="exact-cover search", status="optimal",
-                     presolve_retry=False, mip_rel_gap_requested=float(mip_rel_gap),
-                     mip_abs_gap_requested=float(mip_abs_gap), gap_enforced=True,
-                     mip_gap=(upper - lower) / abs(z) if z != 0 else upper - lower, dual_bound=float(lower),
-                     node_count=float(found["nodes"]), solve_seconds=found["seconds"])
-            d.update({**extra, **info}, columns_solved=int(found["kept"]), lagrangian_bound=float(L),
-                     lp_value=root.lp_value, lp_rounds=root.rounds, mip_solves=0, lp_seconds=lp_seconds,
-                     objective_value=z, objective_upper=upper,
-                     n_selected_pairs=len(chosen))
-            return chosen, d
+            info["search_start"] = "staged"
+            return proved(found, 0, 0.0)
 
     def upper(chosen) -> Fraction:
         """A rigorous upper bound on a design's exact cost: the sum of its groups' cost_up, in rationals."""
@@ -722,6 +739,14 @@ def solve_exact(
         margin = best[2] - Fraction(L)                 # exact: every group left out has rc_lo > delta
         if margin <= Fraction(delta) or keep.size >= len(pool):
             break
+        if solves == 1 and info["search"] == "node_limit":
+            # the proof search again, from the first MIP's design: its upper bound sets the margin
+            found = _search_from(pool, root, k, max_size, int(search_node_limit), best[2],
+                                 [column_index(tuple(sorted(pos[int(u)] for u in c["members"])), n) for c in best[0]])
+            info["search_nodes"] += found["nodes"]
+            if found["search"] == "proved":
+                info.update(search="proved", search_start="first_mip")
+                return proved(found, solves, mip_seconds)
         # at most GROWTH times the groups, and never past z - L: a first design far above the optimum would
         # otherwise admit almost every group at once
         count = min(len(pool), count * GROWTH)

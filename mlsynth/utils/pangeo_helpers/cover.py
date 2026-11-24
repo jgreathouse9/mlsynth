@@ -65,6 +65,9 @@ _CACHE = __name__ == CANONICAL_NAME
 
 #: The proof search stops after this many nodes and the MIP loop takes over; about 7 s at Q = 2 and 50 markets.
 SEARCH_NODE_LIMIT = 1_500_000
+#: The quick search from the staged start places at most this many nodes (and at most the limit above). A search
+#: it stops runs again, up to SEARCH_NODE_LIMIT, from the design of the MIP loop's first MIP.
+SEARCH_QUICK_LIMIT = 1_500_000
 #: The start searches the START_PER_UNIT * n groups of least reduced cost, for at most START_NODE_LIMIT nodes.
 START_PER_UNIT = 40
 START_NODE_LIMIT = 200_000

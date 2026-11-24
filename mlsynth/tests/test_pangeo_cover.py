@@ -175,9 +175,12 @@ def test_without_numba_the_search_is_skipped(monkeypatch):
 def test_a_capped_quick_search_is_followed_by_a_proof_from_the_first_mips_design(monkeypatch):
     """Unit: when the quick search from the staged start stops at its cap, the proof search runs again from the
     first MIP's design, and a proof there ends the loop after one MIP. The staged start is cut to nothing, so the
-    quick search has no incumbent and stops at its cap of one node."""
+    quick search has no incumbent and stops at its cap of one node; the first MIP's window is cut to the seed
+    design and one group, so that MIP does not prove its design by itself and the loop would go on."""
     monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
+    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
+    monkeypatch.setattr(columns, "FIRST_MIN", 1)
     Y = _panel(22, 14)
     idx = np.arange(14)
     calls = []
@@ -198,9 +201,11 @@ def test_a_capped_quick_search_is_followed_by_a_proof_from_the_first_mips_design
 
 def test_the_proof_after_the_first_mip_starts_from_its_design(monkeypatch):
     """Unit: the second search's incumbent bound is the first MIP's design's upper bound, so it searches only the
-    groups that design's margin keeps."""
+    groups that design's margin keeps. The first MIP's window is cut so that MIP does not prove its design."""
     monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
+    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
+    monkeypatch.setattr(columns, "FIRST_MIN", 1)
     Y = _panel(23, 14)
     idx = np.arange(14)
     seen, real = [], cover.search
@@ -225,7 +230,12 @@ def test_the_proof_after_the_first_mip_starts_from_its_design(monkeypatch):
     assert len(seen) == 3                                            # start, quick proof, proof after the MIP
     assert seen[1][2] == 1 and seen[2][2] == cover.SEARCH_NODE_LIMIT
     assert seen[2][1] == pytest.approx(z_up, rel=1e-12) and seen[2][1] >= z_up
-    assert seen[2][0] < len(pool)
+    from fractions import Fraction
+    root = columns.root_lp(pool, columns.min_groups(14, 3, 1))
+    z_exact = sum((Fraction(float(pool.cost_up[columns.column_index(tuple(sorted(int(u) for u in c["members"])), 14)]))
+                   for c in chosen0), Fraction(0))
+    want = int((root.reduced_costs <= columns._up(z_exact - Fraction(root.bound))).sum())
+    assert seen[2][0] == want                                       # exactly the groups that design's margin keeps
 
 
 def test_a_search_capped_twice_leaves_the_loop_to_finish(monkeypatch):

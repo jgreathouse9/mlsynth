@@ -20858,6 +20858,30 @@ test-command = "python -m pytest mlsynth/tests/test_pangeo_cover.py -q -p no:cac
 timeout = 900.0
 
   [[target.mutant]]
+  id = "no-proof-from-the-first-mips-design"
+  find = "        if solves == 1 and info[\"search\"] == \"node_limit\":"
+  replace = "        if False:"
+  models = "the MIP loop running on after its first MIP without trying the proof search from that MIP's design, so a 40-geo arm at Q = 2 pays for a second MIP the search proves without"
+
+  [[target.mutant]]
+  id = "the-quick-search-takes-the-whole-limit"
+  find = "        quick = min(int(cover.SEARCH_QUICK_LIMIT), int(search_node_limit))"
+  replace = "        quick = int(search_node_limit)"
+  models = "the quick search from the staged start running to the full node limit, which is the cost every capped arm pays before the MIP loop starts"
+
+  [[target.mutant]]
+  id = "the-second-search-forgets-its-incumbent"
+  find = "            found = _search_from(pool, root, k, max_size, int(search_node_limit), best[2],"
+  replace = "            found = _search_from(pool, root, k, max_size, int(search_node_limit), best[2] * 2,"
+  models = "the proof after the first MIP started from twice that design's upper bound, so its margin keeps groups the design already excludes and the search has to rediscover the design"
+
+  [[target.mutant]]
+  id = "a-first-mip-proof-is-reported-as-a-staged-one"
+  find = "                info.update(search=\"proved\", search_start=\"first_mip\")"
+  replace = "                info.update(search=\"proved\", search_start=\"staged\")"
+  models = "the report not saying which start the proof came from, so a design the MIP found reads as one the search found"
+
+  [[target.mutant]]
   id = "the-capped-search-hands-its-design-to-the-mip"
   find = "        info.update(search=found[\"search\"], search_nodes=found[\"nodes\"])"
   replace = "        info.update(search=found[\"search\"], search_nodes=found[\"nodes\"])\n        seed = np.union1d(seed, found[\"rows\"]).astype(seed.dtype)"
