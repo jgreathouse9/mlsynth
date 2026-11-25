@@ -21881,3 +21881,159 @@ timeout = 600.0
   find = "            cwide = _covariate_panel(df, unitid, time, treat, c, keys)"
   replace = "            cwide = _covariate_panel(df, unitid, time, treat, c, None)"
   models = "each covariate's dataprep call scanning the panel's keys again"
+
+[[target]]
+name = "src-dataprep"
+module-path = "mlsynth/utils/src_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_src_dataprep.py mlsynth/tests/test_src_donor_selection.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    keys = None\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  models = "balance()'s key scan dropped, so each dataprep call scans the panel again"
+
+  [[target.mutant]]
+  id = "the-outcome-is-read-from-the-treatment"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    prep = dataprep(df, unitid, time, treat, treat, keys=keys)"
+  models = "the wrong column read as the outcome matrix"
+
+  [[target.mutant]]
+  id = "two-treated-units-reach-the-single-panel-path"
+  find = "    if not isinstance(prep, SinglePanel):"
+  replace = "    if False:"
+  models = "a CohortPanel read as a SinglePanel, an AttributeError in place of SRC's single-treated-unit refusal"
+
+  [[target.mutant]]
+  id = "cohorts-counted-as-units"
+  find = "        n_treated = sum(len(c.treated_units) for c in prep.cohorts.values())"
+  replace = "        n_treated = len(prep.cohorts)"
+  models = "the refusal reporting the number of adoption dates as the number of treated units"
+
+  [[target.mutant]]
+  id = "donors-sorted-by-label"
+  find = "    donors = [u for u in df[unitid].unique() if u != treated_label]"
+  replace = "    donors = list(prep.donor_names)"
+  models = "dataprep's label-sorted donor order replacing the first-appearance order the solver reads positionally"
+
+  [[target.mutant]]
+  id = "donor-labels-lose-their-type"
+  find = "    donors = [u for u in df[unitid].unique() if u != treated_label]"
+  replace = "    donors = [u for u in df[unitid].unique().tolist() if u != treated_label]"
+  models = "integer donor labels returned as Python ints, not the numpy integers the old setup returned"
+
+  [[target.mutant]]
+  id = "the-treated-unit-is-its-own-donor"
+  find = "    donors = [u for u in df[unitid].unique() if u != treated_label]"
+  replace = "    donors = [u for u in df[unitid].unique()]"
+  models = "the treated unit left in the donor pool"
+
+  [[target.mutant]]
+  id = "time-index-in-frame-order"
+  find = "    time_index = prep.time_labels.to_numpy()"
+  replace = "    time_index = df[time].unique()"
+  models = "periods in the order rows appear, not sorted, misaligned with the outcome rows"
+
+  [[target.mutant]]
+  id = "intervention-time-one-period-early"
+  find = "    intervention_time = prep.time_labels[T0]"
+  replace = "    intervention_time = prep.time_labels[T0 - 1]"
+  models = "the last pre-period reported as the adoption period, which also moves the default covariate window"
+
+  [[target.mutant]]
+  id = "intervention-time-loses-its-type"
+  find = "    intervention_time = prep.time_labels[T0]"
+  replace = "    intervention_time = prep.time_labels.to_numpy()[T0]"
+  models = "a datetime adoption period returned as numpy datetime64, not the Timestamp the old setup returned"
+
+  [[target.mutant]]
+  id = "treated-series-strided"
+  find = "    Y_treated = np.ascontiguousarray(prep.Ywide[treated_label].to_numpy(dtype=float))"
+  replace = "    Y_treated = prep.Ywide[treated_label].to_numpy(dtype=float)"
+  models = "a value-equal strided treated series, which changes the solver's summation order"
+
+  [[target.mutant]]
+  id = "donor-matrix-row-major"
+  find = "    Y_donors = np.asfortranarray(prep.Ywide[donors].to_numpy(dtype=float))"
+  replace = "    Y_donors = prep.Ywide[donors].to_numpy(dtype=float)"
+  models = "a value-equal row-major donor matrix, which changes the solver's summation order"
+
+  [[target.mutant]]
+  id = "treatment-period-zero-indexed"
+  find = "    treatment_period = T0 + 1"
+  replace = "    treatment_period = T0"
+  models = "the 1-indexed treatment period read as 0-indexed"
+
+  [[target.mutant]]
+  id = "post-period-count-short-by-one"
+  find = "    T1 = T - T0"
+  replace = "    T1 = T - T0 - 1"
+  models = "the post-period count losing the adoption period"
+
+  [[target.mutant]]
+  id = "one-pre-period-accepted"
+  find = "    if T0 < 2:"
+  replace = "    if T0 < 1:"
+  models = "SRC's own minimum of two pre-periods lost behind dataprep's minimum of one"
+
+  [[target.mutant]]
+  id = "an-absent-column-is-not-named"
+  find = "        if col not in df.columns:"
+  replace = "        if False:"
+  models = "an absent column surfacing as pandas' KeyError, not SRC's error"
+
+  [[target.mutant]]
+  id = "an-absent-covariate-is-not-named"
+  find = "            if c not in df.columns:"
+  replace = "            if False:"
+  models = "an absent covariate surfacing as pandas' KeyError, not SRC's error"
+
+  [[target.mutant]]
+  id = "covariate-gaps-refused"
+  find = "                        missing_outcomes=\"keep\")"
+  replace = "                        missing_outcomes=\"refuse\")"
+  models = "a covariate observed in some periods only refused, which breaks the paper's Basque specification"
+
+  [[target.mutant]]
+  id = "covariate-gaps-not-filled"
+  find = "    return prep.Ywide.ffill().bfill()"
+  replace = "    return prep.Ywide"
+  models = "covariate gaps left NaN and refused by SRC's whole-unit check"
+
+  [[target.mutant]]
+  id = "covariate-gaps-filled-across-units"
+  find = "    return prep.Ywide.ffill().bfill()"
+  replace = "    return prep.Ywide.ffill(axis=1).bfill(axis=1)"
+  models = "a covariate gap filled from a neighbouring unit, not from the same unit's other periods"
+
+  [[target.mutant]]
+  id = "covariate-panel-read-from-the-treatment"
+  find = "        prep = dataprep(df, unitid, time, column, treat, keys=keys,"
+  replace = "        prep = dataprep(df, unitid, time, treat, treat, keys=keys,"
+  models = "every covariate panel filled with the treatment column"
+
+  [[target.mutant]]
+  id = "a-covariate-refusal-loses-its-name"
+  find = "    except MlsynthDataError as exc:"
+  replace = "    except KeyError as exc:"
+  models = "an infinite covariate refused under the outcome's wording, without the covariate's name"
+
+  [[target.mutant]]
+  id = "the-covariate-scan-is-not-reused"
+  find = "            cwide = _covariate_panel(df, unitid, time, treat, c, keys)"
+  replace = "            cwide = _covariate_panel(df, unitid, time, treat, c, None)"
+  models = "each covariate's dataprep call scanning the panel's keys again"
+
+  [[target.mutant]]
+  id = "covariate-window-ignored"
+  find = "            if c in windows:"
+  replace = "            if False:"
+  models = "a covariate averaged over the pre-period instead of its own window"
+
+  [[target.mutant]]
+  id = "default-covariate-window-includes-the-adoption-period"
+  find = "    pre_mask = time_index < intervention_time"
+  replace = "    pre_mask = time_index <= intervention_time"
+  models = "the adoption period averaged into the default covariate window and used as a matching row"
