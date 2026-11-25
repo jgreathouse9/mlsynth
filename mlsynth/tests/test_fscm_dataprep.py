@@ -367,6 +367,28 @@ class TestOwnChecks:
         assert inputs.match_idx.tolist() == [6]
 
 
+class TestDeriveTreatment:
+    """``derive_treatment`` stays exported; the setup no longer calls it."""
+
+    def test_it_agrees_with_the_setup(self):
+        df = _panel(names="str", treated=2)
+        inputs = prepare_fscm_inputs(df, **COLS)
+        assert SETUP.derive_treatment(df, "unit", "time", "d") == (
+            inputs.treated_label, inputs.metadata["intervention_time"])
+
+    def test_no_treated_row(self):
+        df = _panel()
+        df["d"] = 0
+        with pytest.raises(MlsynthDataError, match="No treated rows"):
+            SETUP.derive_treatment(df, "unit", "time", "d")
+
+    def test_two_treated_units(self):
+        df = _panel(shuffle=False)
+        df.loc[df.unit == 1, "d"] = 1
+        with pytest.raises(MlsynthDataError, match="found 2"):
+            SETUP.derive_treatment(df, "unit", "time", "d")
+
+
 # --------------------------------------------------------------------------- #
 # properties over the domain, defects included
 # --------------------------------------------------------------------------- #

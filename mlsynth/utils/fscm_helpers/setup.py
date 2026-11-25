@@ -8,7 +8,9 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
+from ..datautils import _wide_pivot, balance, dataprep
 from ..fast_scm_helpers.structure import IndexSet
+from ..prepared import SinglePanel
 from .structures import FSCMInputs
 
 
@@ -38,30 +40,47 @@ def prepare_fscm_inputs(
     covariate_windows: Optional[Dict[str, Tuple[Any, Any]]] = None,
     match_periods: Optional[List[Any]] = None,
 ) -> FSCMInputs:
-    """Pivot the panel to NumPy, build ``IndexSet``\\ s, split pre/post.
+    """Build :class:`FSCMInputs` from a long panel through ``balance`` and ``dataprep``.
+
+    ``dataprep`` supplies the outcome matrix, the time labels, the treated unit
+    and the period its treatment starts. ``balance`` and ``dataprep`` refuse a
+    duplicate or absent unit-period, a missing or non-finite outcome anywhere in
+    the panel, a non-binary treatment, a treatment that switches off after it
+    starts, a panel with no treated unit and one with no donor. FSCM's own
+    requirements stay on top: exactly one treated unit (Cerulli 2024 studies a
+    single treated unit) and four pre-treatment periods to cross-validate on.
 
     Covariate predictors are each averaged over an aggregation window (Abadie's
     specification): ``covariate_windows`` maps a covariate to an inclusive
     ``(start, end)`` label range; covariates not listed are averaged over the
-    full pre-treatment period. ``match_periods`` are specific pre-treatment
-    periods whose outcome value is matched directly.
+    full pre-treatment period. A covariate's gaps are filled forward, then
+    backward, within each unit before it is averaged, so each covariate is read
+    with ``datautils``' pivot on the key scan ``balance`` took, not through
+    ``dataprep``'s covariate block, which neither fills gaps nor takes windows.
+    ``match_periods`` are specific pre-treatment periods whose outcome value is
+    matched directly.
     """
-    treated_unit, intervention_time = derive_treatment(df, unitid, time, treat)
+    keys = balance(df, unitid, time)
+    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)
+    if not isinstance(prep, SinglePanel):
+        n_treated = sum(len(c.treated_units) for c in prep.cohorts.values())
+        raise MlsynthDataError(
+            f"FSCM expects exactly one treated unit; found {n_treated}."
+        )
+    treated_unit = prep.treated_unit_name
     windows = dict(covariate_windows or {})
 
-    times = np.sort(pd.unique(df[time]))
+    times = np.asarray(prep.time_labels)
     time_index = IndexSet.from_labels(times)
 
-    wide = df.pivot(index=time, columns=unitid, values=outcome).reindex(times)
-    if wide.isna().any().any():
-        raise MlsynthDataError("FSCM requires a complete outcome panel after pivoting.")
-
-    donors = [u for u in wide.columns if u != treated_unit]
+    wide = prep.Ywide
+    donors = list(prep.donor_names)
     unit_index = IndexSet.from_labels(donors)
 
     y = wide[treated_unit].to_numpy(dtype=float)
     Y = wide[donors].to_numpy(dtype=float)
-    T0 = int(np.sum(times < intervention_time))
+    T0 = int(prep.pre_periods)
+    intervention_time = prep.time_labels[T0]
     if T0 < 4:
         raise MlsynthDataError(
             "FSCM needs at least four pre-treatment periods to cross-validate."
@@ -74,7 +93,7 @@ def prepare_fscm_inputs(
     if cov_names:
         treated_vals, donor_vals = [], []
         for c in cov_names:
-            cwide = df.pivot(index=time, columns=unitid, values=c).reindex(times)
+            cwide = _wide_pivot(df, index=time, columns=unitid, values=c, keys=keys)
             cwide = cwide.ffill().bfill()
             if cwide[[treated_unit, *donors]].isna().any().any():
                 raise MlsynthDataError(
