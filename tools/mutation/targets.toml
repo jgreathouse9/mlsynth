@@ -21937,3 +21937,45 @@ timeout = 900.0
   find = "    if T0 < 2:"
   replace = "    if T0 < 1:"
   models = "MUSC's minimum of two pre-treatment periods lost"
+
+[[target]]
+name = "lexscm-dataprep"
+module-path = "mlsynth/utils/fast_scm_helpers/fast_scm_setup.py"
+test-command = "python -m pytest mlsynth/tests/test_lexscm_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "outcome-periods-reversed"
+  find = "        geoex_dataprep(working_df, unitid, time, outcome)[\"Ywide\"]"
+  replace = "        geoex_dataprep(working_df, unitid, time, outcome)[\"Ywide\"].iloc[::-1]"
+  models = "Y's rows out of period order"
+
+  [[target.mutant]]
+  id = "outcome-units-not-reordered"
+  find = "        geoex_dataprep(working_df, unitid, time, outcome)[\"Ywide\"]\n        .reindex(columns=unit_index)"
+  replace = "        geoex_dataprep(working_df, unitid, time, outcome)[\"Ywide\"]"
+  models = "Y's columns in dataprep's sorted order, not the caller's unit_index"
+
+  [[target.mutant]]
+  id = "covariate-units-not-reordered"
+  find = "        cov_wide = cov_wide.reindex(columns=unit_index)"
+  replace = "        cov_wide = cov_wide"
+  models = "Z's columns in dataprep's sorted order, not the caller's unit_index"
+
+  [[target.mutant]]
+  id = "every-covariate-reads-the-first"
+  find = "            cov_wide = geoex_dataprep(working_df, unitid, time, col)[\"Ywide\"]"
+  replace = "            cov_wide = geoex_dataprep(working_df, unitid, time, covariates[0])[\"Ywide\"]"
+  models = "the wrong column read as a covariate"
+
+  [[target.mutant]]
+  id = "the-covariate-refusal-loses-its-name"
+  find = "                f\"Covariate '{col}' is incomplete; LEXSCM needs every covariate \""
+  replace = "                f\"A covariate is incomplete; LEXSCM needs every covariate \""
+  models = "a covariate refusal that does not say which covariate"
+
+  [[target.mutant]]
+  id = "the-covariate-refusal-loses-its-cause"
+  find = "                f\"observed and finite in every unit-period. {exc}\") from exc"
+  replace = "                f\"observed and finite in every unit-period.\") from None"
+  models = "dataprep's count of the bad cells dropped from the covariate refusal"
