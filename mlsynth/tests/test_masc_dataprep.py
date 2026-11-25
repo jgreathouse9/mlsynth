@@ -38,6 +38,8 @@ from mlsynth.utils.masc_helpers.setup import prepare_masc_inputs
 from mlsynth.utils.masc_helpers.structures import MASCInputs
 
 COLS = dict(outcome="y", treat="d", unitid="unit", time="time")
+LAYOUT = {"Y_treated": "C_CONTIGUOUS", "Y_donors": "F_CONTIGUOUS"}
+PANDAS_2 = int(pd.__version__.split(".")[0]) < 3
 
 
 def _reference(df, *, outcome, treat, unitid, time, covariates=None,
@@ -124,9 +126,14 @@ def _assert_same(got, ref):
             continue
         assert a.dtype == b.dtype, f"{f}: dtype {a.dtype} vs {b.dtype}"
         assert a.shape == b.shape, f
-        # The solver's sums depend on the layout, so it is pinned too.
-        assert a.flags["C_CONTIGUOUS"] == b.flags["C_CONTIGUOUS"], f
-        assert a.flags["F_CONTIGUOUS"] == b.flags["F_CONTIGUOUS"], f
+        # The solver's sums depend on the layout, so it is pinned too. The old
+        # pivot's layout depends on the pandas version; the outcome arrays are
+        # pinned to what it gave under pandas 2.x, the version CI runs.
+        if f in LAYOUT:
+            assert a.flags[LAYOUT[f]], f"{f} is not {LAYOUT[f]}"
+        if f not in LAYOUT or PANDAS_2:
+            assert a.flags["C_CONTIGUOUS"] == b.flags["C_CONTIGUOUS"], f
+            assert a.flags["F_CONTIGUOUS"] == b.flags["F_CONTIGUOUS"], f
         np.testing.assert_array_equal(a, b, err_msg=f)
     for f in ("treated_label", "intervention_time"):
         a, b = getattr(got, f), getattr(ref, f)
