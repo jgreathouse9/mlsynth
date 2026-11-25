@@ -21655,3 +21655,63 @@ timeout = 600.0
   find = "        X = (X - X.mean(axis=0)) / (X.std(axis=0, ddof=0) + 1e-12)"
   replace = "        X = (X - X.mean(axis=0)) / (X.std(axis=0, ddof=1) + 1e-12)"
   models = "SPCD's population z-score replaced by the sample one"
+
+[[target]]
+name = "laxscm-dataprep"
+module-path = "mlsynth/utils/laxscm_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_laxscm_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)"
+  replace = "    keys = None"
+  models = "an absent unit-period reported as a missing outcome and a duplicate reaching pandas, not balance()'s refusals"
+
+  [[target.mutant]]
+  id = "the-key-scan-is-not-shared"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True,\n                    keys=keys)"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True,\n                    keys=None)"
+  models = "dataprep rescanning the panel's keys instead of reading balance()'s scan"
+
+  [[target.mutant]]
+  id = "a-lone-treated-unit-is-refused"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True,"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=False,"
+  models = "dataprep's no-donor refusal added where the old setup passed an empty donor matrix on"
+
+  [[target.mutant]]
+  id = "the-treated-unit-is-kept-as-a-donor"
+  find = "    donors = list(prep.donor_names)"
+  replace = "    donors = list(wide.columns)"
+  models = "the treated series left in X, so it is fitted from itself"
+
+  [[target.mutant]]
+  id = "the-treated-series-is-the-first-column"
+  find = "    y = wide[treated_unit].to_numpy(dtype=float)"
+  replace = "    y = wide.iloc[:, 0].to_numpy(dtype=float)"
+  models = "y read by position from dataprep's sorted columns, not by the treated label"
+
+  [[target.mutant]]
+  id = "the-donor-matrix-is-column-major"
+  find = "    X = wide[donors].to_numpy(dtype=float)"
+  replace = "    X = np.asfortranarray(wide[donors].to_numpy(dtype=float))"
+  models = "X in a different memory layout from the old pivot, so the solvers' sums move in the last bits"
+
+  [[target.mutant]]
+  id = "period-labels-change-type"
+  find = "    times = np.asarray(prep.time_labels)"
+  replace = "    times = np.asarray(list(prep.time_labels))"
+  models = "datetime periods returned as Timestamp objects where the old labels were datetime64"
+
+  [[target.mutant]]
+  id = "t0-reads-the-post-count"
+  find = "    T0 = int(prep.pre_periods)"
+  replace = "    T0 = int(prep.post_periods)"
+  models = "the wrong side of dataprep's period split taken as the pre-period"
+
+  [[target.mutant]]
+  id = "one-pre-period-is-accepted"
+  find = "    if T0 < 2:"
+  replace = "    if T0 < 1:"
+  models = "RESCM's own minimum of two pre-treatment periods lost behind dataprep"
