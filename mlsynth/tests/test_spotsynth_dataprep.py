@@ -132,15 +132,18 @@ class TestSameInputs:
         df = _panel(**kw)
         _assert_same(prepare_spotsynth_inputs(df, **COLS), _reference(df, **COLS))
 
-    @pytest.mark.parametrize("label", ["datetime", "str", "float"])
+    @pytest.mark.parametrize("label", ["datetime", "str", "float", "float32", "int32"])
     def test_period_labels_keep_their_type(self, label):
         # The old labels were np.array(sorted(...)): Timestamps as objects,
-        # strings as a fixed-width unicode array.
+        # strings as a fixed-width unicode array, and 32-bit periods (a Stata
+        # file's float32 time column) kept at 32 bits.
         df = _panel()
         step = df["time"] - 2000
         df["time"] = {"datetime": pd.to_datetime("2001-01-01") + pd.to_timedelta(step, unit="D"),
                       "str": "p" + step.map("{:02d}".format),
-                      "float": step / 4.0}[label]
+                      "float": step / 4.0,
+                      "float32": (step / 4.0).astype(np.float32),
+                      "int32": step.astype(np.int32)}[label]
         _assert_same(prepare_spotsynth_inputs(df, **COLS), _reference(df, **COLS))
 
     @pytest.mark.parametrize("dtype", [bool, float])
