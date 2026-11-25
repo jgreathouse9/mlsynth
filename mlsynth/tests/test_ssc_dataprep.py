@@ -5,9 +5,10 @@ takes the outcome matrix, the time labels and each treated unit's adoption
 period from ``balance`` and ``dataprep``, and builds the treatment matrix ``D``
 and the adoption vector from the adoption periods. It gets the same refusals as
 every other estimator: a missing or non-finite outcome cell, an absent or
-duplicate unit-period, a non-binary treatment, and a treatment that switches
-off after it starts. SSC's own checks (three units, two clean pre-periods, no
-unit treated in the first period, no missing treatment value) stay on top.
+duplicate unit-period, a non-binary treatment, a treatment that switches
+off after it starts, and a missing treatment value. SSC's own checks (three
+units, two clean pre-periods, no unit treated in the first period) stay on
+top.
 
 Staggered adoption is what SSC is for: ``dataprep`` returns a ``CohortPanel``
 for such a panel, and ``D`` is rebuilt from its cohorts.
@@ -233,12 +234,13 @@ class TestRefusals:
             prepare_ssc_inputs(df, *ARGS)
 
     def test_a_missing_treatment_cell_is_refused(self):
-        # dataprep's binary check skips NaN; the old pivot refused it as an
-        # absent cell, and SSC keeps that refusal.
+        # dataprep refuses it and names the cell; the setup has no check of
+        # its own.
         df = _panel(shuffle=False)
         df["d"] = df["d"].astype(float)
         df.loc[(df.unit == 5) & (df.time == 2002), "d"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Treatment column"):
+        with pytest.raises(MlsynthDataError, match=r"Missing treatment values: 1 of .*"
+                           r"the first at unit '5', time 2002\."):
             prepare_ssc_inputs(df, *ARGS)
 
     def test_no_treated_cell_is_refused(self):

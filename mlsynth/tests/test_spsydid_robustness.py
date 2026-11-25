@@ -133,7 +133,7 @@ class TestPanelGuards:
     def test_treatment_nan(self):
         df, W = _panel()
         df.loc[0, "D"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Treatment column contains NaN"):
+        with pytest.raises(MlsynthDataError, match="Missing treatment values: 1 of"):
             prepare_spsydid_inputs(df=df, outcome="y", treat="D",
                                    unitid="unit", time="time",
                                    spatial_matrix=W)

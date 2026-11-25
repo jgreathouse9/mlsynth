@@ -229,12 +229,13 @@ class TestRefusals:
             prepare_iscm_inputs(df, **COLS)
 
     def test_a_missing_treatment_cell_is_refused(self):
-        # dataprep refuses a missing treatment cell too; ISCM's own check
-        # runs first and keeps the message its old pivot gave.
+        # dataprep refuses it and names the cell; the setup has no check of
+        # its own.
         df = _panel(shuffle=False)
         df["d"] = df["d"].astype(float)
         df.loc[(df.unit == 5) & (df.time == 2002), "d"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Treatment column"):
+        with pytest.raises(MlsynthDataError, match=r"Missing treatment values: 1 of .*"
+                           r"the first at unit '5', time 2002\."):
             prepare_iscm_inputs(df, **COLS)
 
     def test_no_treated_cell_is_refused(self):
