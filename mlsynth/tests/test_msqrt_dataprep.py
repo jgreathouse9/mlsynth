@@ -132,7 +132,7 @@ class TestRouting:
 class TestSameInputs:
     @pytest.mark.parametrize("kw", [
         dict(),                                              # a block of two
-        dict(treated=(3,)),                                  # one treated unit
+        dict(treated=(3,), t0=8),                            # one treated unit
         dict(names="str", treated=(1, 4, 6)),
         dict(shuffle=False, start=-5, t0=11),                # last-period adoption
         dict(t0=2),                                          # two pre-periods

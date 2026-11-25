@@ -21655,3 +21655,99 @@ timeout = 600.0
   find = "        X = (X - X.mean(axis=0)) / (X.std(axis=0, ddof=0) + 1e-12)"
   replace = "        X = (X - X.mean(axis=0)) / (X.std(axis=0, ddof=1) + 1e-12)"
   models = "SPCD's population z-score replaced by the sample one"
+
+[[target]]
+name = "msqrt-dataprep"
+module-path = "mlsynth/utils/msqrt_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_msqrt_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n"
+  replace = "    keys = None\n"
+  models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-not-transposed"
+  find = "    Y = prep.Ywide[unit_names].to_numpy(dtype=float).T"
+  replace = "    Y = prep.Ywide[unit_names].to_numpy(dtype=float)"
+  models = "dataprep's period-by-unit matrix sliced as MSQRT's unit-by-period one"
+
+  [[target.mutant]]
+  id = "the-blocks-are-not-copies"
+  find = "    Y_pre = Y[np.ix_(treated_idx, np.arange(T0))].T        # (T0, m)"
+  replace = "    Y_pre = Y[treated_idx][:, :T0].T        # (T0, m)"
+  models = "a treated block whose layout differs from the old one, so the solver's sums differ from main in the last bits"
+
+  [[target.mutant]]
+  id = "units-in-another-order"
+  find = "    unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    unit_names = sorted(np.asarray(prep.Ywide.columns), reverse=True)"
+  models = "columns of Y and X in a different order from the unit labels the results report"
+
+  [[target.mutant]]
+  id = "unit-labels-change-type"
+  find = "    unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    unit_names = sorted(prep.Ywide.columns)"
+  models = "integer unit labels returned as Python ints where the old setup returned NumPy integers"
+
+  [[target.mutant]]
+  id = "period-labels-change-type"
+  find = "    time_labels = np.array(list(prep.time_labels))"
+  replace = "    time_labels = np.asarray(prep.time_labels)"
+  models = "datetime periods returned as datetime64 and string periods as objects, unlike the old labels"
+
+  [[target.mutant]]
+  id = "a-single-treated-unit-reads-its-post-count"
+  find = "        return {prep.treated_unit_name: int(prep.pre_periods)}"
+  replace = "        return {prep.treated_unit_name: int(prep.post_periods)}"
+  models = "the single-treated branch reading the wrong side of dataprep's period split"
+
+  [[target.mutant]]
+  id = "only-the-first-cohort-is-treated"
+  find = "            for cohort in prep.cohorts.values() for unit in cohort.treated_units}"
+  replace = "            for cohort in list(prep.cohorts.values())[:1] for unit in cohort.treated_units}"
+  models = "a later cohort fitted as never-treated donors, so staggered adoption passes the block check"
+
+  [[target.mutant]]
+  id = "staggered-adoption-is-accepted"
+  find = "    if len(set(starts.values())) > 1:"
+  replace = "    if False:"
+  models = "the block-design check lost, so later adopters enter Y_pre with treated periods"
+
+  [[target.mutant]]
+  id = "a-block-in-the-first-period-is-accepted"
+  find = "    if T0 == 0:"
+  replace = "    if False:"
+  models = "dataprep's cohort path, which does not refuse treatment in the first period, left unguarded"
+
+  [[target.mutant]]
+  id = "one-pre-period-is-accepted"
+  find = "    if T0 < 2:"
+  replace = "    if T0 < 1:"
+  models = "MSQRT's own minimum of two pre-treatment periods lost behind dataprep"
+
+  [[target.mutant]]
+  id = "one-donor-is-accepted"
+  find = "    if control_idx.size < 2:"
+  replace = "    if control_idx.size < 1:"
+  models = "MSQRT's minimum of two never-treated donors lost behind dataprep's minimum of one"
+
+  [[target.mutant]]
+  id = "dataprep-reports-the-missing-donors"
+  find = "allow_no_donors=True, keys=keys)"
+  replace = "allow_no_donors=False, keys=keys)"
+  models = "a single treated unit without donors refused with dataprep's message, not MSQRT's"
+
+  [[target.mutant]]
+  id = "a-missing-treatment-cell-is-read-as-untreated"
+  find = "    if df[treat].isna().any():"
+  replace = "    if False:"
+  models = "dataprep's binary check skipping NaN, so a missing treatment cell is read as 0"
+
+  [[target.mutant]]
+  id = "an-absent-column-is-not-reported"
+  find = "        if col not in df.columns:"
+  replace = "        if False:"
+  models = "an absent column surfacing as pandas' KeyError, not MSQRT's error"
