@@ -22037,3 +22037,117 @@ timeout = 600.0
   find = "    pre_mask = time_index < intervention_time"
   replace = "    pre_mask = time_index <= intervention_time"
   models = "the adoption period averaged into the default covariate window and used as a matching row"
+
+[[target]]
+name = "ssc-dataprep"
+module-path = "mlsynth/utils/ssc_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_ssc_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    if keys.n_units < 3:"
+  replace = "    keys = None\n    if df[unitid].nunique() < 3:"
+  models = "balance()'s key scan dropped, so dataprep scans the panel again"
+
+  [[target.mutant]]
+  id = "the-outcome-is-read-from-the-treatment"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    prep = dataprep(df, unitid, time, treat, treat, keys=keys)"
+  models = "the wrong column read as the outcome matrix"
+
+  [[target.mutant]]
+  id = "two-units-are-accepted"
+  find = "    if keys.n_units < 3:"
+  replace = "    if keys.n_units < 2:"
+  models = "SSC's own minimum of three units lost behind dataprep"
+
+  [[target.mutant]]
+  id = "a-missing-treatment-is-read-as-untreated"
+  find = "    if df[treat].isna().any():"
+  replace = "    if False:"
+  models = "a NaN treatment cell passed through dataprep's binary check, which skips NaN, and read as untreated"
+
+  [[target.mutant]]
+  id = "an-absent-column-is-not-named"
+  find = "        if col not in df.columns:"
+  replace = "        if False:"
+  models = "an absent column surfacing as pandas' KeyError, not SSC's error"
+
+  [[target.mutant]]
+  id = "units-in-frame-order"
+  find = "    unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    unit_names = list(df[unitid].unique())"
+  models = "units in the order rows appear, not sorted as the old setup listed them"
+
+  [[target.mutant]]
+  id = "unit-labels-lose-their-type"
+  find = "    unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    unit_names = sorted(prep.Ywide.columns.tolist())"
+  models = "integer unit labels returned as Python ints, not the numpy integers the old setup returned"
+
+  [[target.mutant]]
+  id = "time-labels-change-dtype"
+  find = "    time_labels = np.array(list(prep.time_labels))"
+  replace = "    time_labels = np.asarray(prep.time_labels)"
+  models = "string periods returned as an object array and Timestamp periods as datetime64, not the old dtypes"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-not-transposed"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float))"
+  models = "dataprep's period-by-unit matrix used as SSC's unit-by-period Y"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-column-major"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = prep.Ywide[unit_names].to_numpy(dtype=float).T"
+  models = "a value-equal F-ordered Y, which changes the solver's summation order from the old pivot's row-major array"
+
+  [[target.mutant]]
+  id = "treatment-matrix-is-float"
+  find = "    D = np.zeros((N, T1), dtype=int)"
+  replace = "    D = np.zeros((N, T1), dtype=float)"
+  models = "D returned as floats, not the integer indicators the old setup returned"
+
+  [[target.mutant]]
+  id = "treatment-is-not-absorbing-in-d"
+  find = "            D[i, starts[name]:] = 1"
+  replace = "            D[i, starts[name]] = 1"
+  models = "D marking only the adoption period, not every period after it"
+
+  [[target.mutant]]
+  id = "adoption-not-recorded"
+  find = "            adoption[i] = starts[name]"
+  replace = "            adoption[i] = -1"
+  models = "every unit reported as never treated in the adoption vector"
+
+  [[target.mutant]]
+  id = "only-the-first-cohort-is-read"
+  find = "            for cohort in prep.cohorts.values() for unit in cohort.treated_units}"
+  replace = "            for cohort in list(prep.cohorts.values())[:1] for unit in cohort.treated_units}"
+  models = "later cohorts of a staggered panel dropped from D and the adoption vector"
+
+  [[target.mutant]]
+  id = "t0-is-the-last-cohort"
+  find = "    T0 = min(starts.values())"
+  replace = "    T0 = max(starts.values())"
+  models = "the clean pre-period running to the last adoption, not the first"
+
+  [[target.mutant]]
+  id = "a-cohort-at-the-first-period-is-accepted"
+  find = "    if T0 == 0:"
+  replace = "    if False:"
+  models = "a staggered panel with a cohort treated in the first period passed on with no clean pre-period"
+
+  [[target.mutant]]
+  id = "one-pre-period-accepted"
+  find = "    if T0 < 2:"
+  replace = "    if T0 < 1:"
+  models = "SSC's own minimum of two clean pre-periods lost behind dataprep's minimum of one"
+
+  [[target.mutant]]
+  id = "single-panel-start-off-by-one"
+  find = "        return {prep.treated_unit_name: int(prep.pre_periods)}"
+  replace = "        return {prep.treated_unit_name: int(prep.pre_periods) + 1}"
+  models = "the single treated unit's adoption read one period late"
