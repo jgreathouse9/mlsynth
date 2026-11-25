@@ -87,12 +87,16 @@ def prepare_siv_inputs(
     # and a missing or non-finite outcome after it.
     panel = geoex_dataprep(df, unitid, time, outcome)
     Y_wide = panel["Ywide"]                              # (T, J), both axes sorted
-    Y = panel["Y"].T                                     # (J, T)
+    # Unit by period and C-ordered, the layout the old setup gave on pandas
+    # 2.3 (CI): its sort_index() copy of the pivot was column-major there.
+    # On pandas 3 that copy is row-major, so the old layout depended on the
+    # version; this one does not.
+    Y = np.ascontiguousarray(panel["Y"].T)               # (J, T)
     matrices = {}
     for role, col in (("treatment", treat), ("instrument", instrument)):
         # The same panel, so the same sorted axes as the outcome's matrix.
         try:
-            matrices[role] = geoex_dataprep(df, unitid, time, col)["Y"].T
+            matrices[role] = np.ascontiguousarray(geoex_dataprep(df, unitid, time, col)["Y"].T)
         except MlsynthDataError as exc:
             raise MlsynthDataError(
                 f"SIV's {role} column {col!r} is incomplete; SIV needs it "

@@ -22048,15 +22048,21 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-outcome-matrix-is-not-transposed"
-  find = "    Y = panel[\"Y\"].T                                     # (J, T)"
-  replace = "    Y = panel[\"Y\"]                                     # (J, T)"
+  find = "    Y = np.ascontiguousarray(panel[\"Y\"].T)               # (J, T)"
+  replace = "    Y = np.ascontiguousarray(panel[\"Y\"])               # (J, T)"
   models = "geoex_dataprep's period-by-unit matrix used as SIV's unit-by-period Y"
 
   [[target.mutant]]
-  id = "the-outcome-matrix-is-row-major"
-  find = "    Y = panel[\"Y\"].T                                     # (J, T)"
-  replace = "    Y = np.ascontiguousarray(panel[\"Y\"].T)                                     # (J, T)"
-  models = "Y in C order where the old transposed pivot was in Fortran order, so the SC sums differ in the last bits"
+  id = "the-outcome-matrix-is-column-major"
+  find = "    Y = np.ascontiguousarray(panel[\"Y\"].T)               # (J, T)"
+  replace = "    Y = panel[\"Y\"].T               # (J, T)"
+  models = "Y in Fortran order where CI's main had C order, so the SC sums differ there in the last bits"
+
+  [[target.mutant]]
+  id = "r-and-z-are-column-major"
+  find = "            matrices[role] = np.ascontiguousarray(geoex_dataprep(df, unitid, time, col)[\"Y\"].T)"
+  replace = "            matrices[role] = geoex_dataprep(df, unitid, time, col)[\"Y\"].T"
+  models = "R and Z in Fortran order where CI's main had C order"
 
   [[target.mutant]]
   id = "the-treatment-is-read-from-the-outcome"
