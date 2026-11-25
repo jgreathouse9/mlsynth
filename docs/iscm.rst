@@ -77,7 +77,14 @@ donors. Time runs over :math:`t \in \mathcal{T} \coloneqq \{1, \dots, T\}`,
 The scalar outcome is :math:`y_{jt}` (unit, then time), with treatment dummy
 :math:`d_{jt}` and transitory shock :math:`\epsilon_{jt}`; in Abadie's
 potential-outcome notation :math:`y_{jt}^N` is the outcome without the
-intervention and :math:`y_{jt}^I` under it. Unit :math:`i`'s donor weights are
+intervention and :math:`y_{jt}^I` under it. Treatment is absorbing:
+:math:`d_{jt} = 1` from unit :math:`j`'s adoption period to the end of the
+panel. With staggered adoption :math:`T_0` is the last period before any unit is
+treated, and a later adopter has :math:`d_{jt} = 1` from its own adoption on. The
+panel is read through :func:`mlsynth.utils.datautils.dataprep`, so a non-binary
+treatment, a treatment that switches off, a duplicate or absent unit-period, and
+a missing or non-finite outcome in any period are refused with
+``MlsynthDataError``; ISCM also refuses a missing treatment value. Unit :math:`i`'s donor weights are
 :math:`\mathbf{w}_i \in \mathbb{R}^{N_0}` (entries :math:`w_i^j`), constrained
 to the unit simplex
 :math:`\Delta^{N_0} \coloneqq \{\mathbf{w} \in \mathbb{R}_{\ge 0}^{N_0} :
