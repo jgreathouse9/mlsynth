@@ -396,6 +396,14 @@ def test_separation_over_an_infeasible_keep_is_empty():
     assert columns._separate_cliques(pool, keep, k) == ()
 
 
+def test_separation_over_groups_that_meet_every_unit_but_cover_none_exactly_is_empty():
+    """Edge: kept groups {0, 1} and {1, 2} each meet a unit the other misses, so every unit is in some group and the
+    first check passes, but unit 1 lies in both and units 0 and 2 in one each: no point covers each unit once, the
+    LP has no solution, and separation stops before its first round."""
+    pool = _hand_pool(3, [(0, 1), (1, 2)], [1.0, 1.0])
+    assert columns._separate_cliques(pool, np.arange(2), 1) == ()
+
+
 def test_an_integral_lp_separates_no_clique():
     """Edge: pairs on four units (three designs): the LP is integral, nothing is violated."""
     groups = [tuple(p) for p in itertools.combinations(range(4), 2)]
