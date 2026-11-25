@@ -48,7 +48,13 @@ the donor pool of :math:`N_0 \coloneqq N - 1` controls. Time is
 effect after :math:`T_0`, so the pre-period is :math:`\mathcal{T}_1 \coloneqq
 \{t \in \mathcal{T} : t \le T_0\}` with :math:`|\mathcal{T}_1| = T_0` and the
 post-period is :math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`
-with length :math:`T_2 \coloneqq |\mathcal{T}_2|`.
+with length :math:`T_2 \coloneqq |\mathcal{T}_2|`. The panel is read through
+:func:`mlsynth.utils.datautils.dataprep`, so a non-binary treatment, a treatment
+that switches off, a duplicate or absent unit-period, and a missing or
+non-finite outcome in any period are refused with ``MlsynthDataError``. A
+covariate may be missing in some periods, and each unit's gaps are filled
+forward and then backward before the window averages; an infinite covariate
+value, or a covariate missing in every period for some unit, is refused.
 
 Notation bridge. Zhu (2023) indexes the treated unit as one of :math:`j = 1,
 \ldots, J + 1` with :math:`J` controls, and writes the pre-period as

@@ -21667,6 +21667,492 @@ timeout = 600.0
   models = "SPCD's population z-score replaced by the sample one"
 
 [[target]]
+name = "dataprep-missing-keep"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_dataprep_missing_keep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "keep-is-ignored"
+  find = "    keep_nan = missing_outcomes == \"keep\"\n"
+  replace = "    keep_nan = False\n"
+  models = "the opt-in accepted and then dropped, so a missing-data method is still refused"
+
+  [[target.mutant]]
+  id = "keep-lets-an-infinity-through"
+  find = "    if keep_nan and n_inf == 0 and n_absent == 0:"
+  replace = "    if keep_nan and n_absent == 0:"
+  models = "an infinite outcome passed as if it were missing"
+
+  [[target.mutant]]
+  id = "keep-lets-an-absent-row-through"
+  find = "    if keep_nan and n_inf == 0 and n_absent == 0:"
+  replace = "    if keep_nan and n_inf == 0:"
+  models = "an absent unit-period row, whose treatment is unknown, passed as a missing cell"
+
+  [[target.mutant]]
+  id = "keep-with-marex-is-accepted"
+  find = "    if keep_nan and marex:"
+  replace = "    if False:"
+  models = "NaN pre-period outcomes stacked into the marex predictor matrix"
+
+  [[target.mutant]]
+  id = "an-unknown-value-is-accepted"
+  find = "    if missing_outcomes not in (\"refuse\", \"keep\"):"
+  replace = "    if False:"
+  models = "a misspelt missing_outcomes read as the default"
+
+  [[target.mutant]]
+  id = "the-mask-is-inverted"
+  find = "        observed = (~np.isnan(outcome_matrix_wide.to_numpy(dtype=float))\n                    if keep_nan else None)\n        treated_unit_name"
+  replace = "        observed = (np.isnan(outcome_matrix_wide.to_numpy(dtype=float))\n                    if keep_nan else None)\n        treated_unit_name"
+  models = "the single panel's mask marking the missing cells as observed"
+
+  [[target.mutant]]
+  id = "the-cohort-mask-is-dropped"
+  find = "                           predictors=multi_pred, observed=observed)"
+  replace = "                           predictors=multi_pred, observed=None)"
+  models = "a cohort panel returned without its mask under keep"
+
+[[target]]
+name = "prepared-observed-mask"
+module-path = "mlsynth/utils/prepared.py"
+test-command = "python -m pytest mlsynth/tests/test_dataprep_missing_keep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-mask-is-not-checked-against-ywide"
+  find = "    _check(np.array_equal(observed, ~np.isnan(Ywide.to_numpy(dtype=float))),"
+  replace = "    _check(True,"
+  models = "a mask that disagrees with Ywide's NaN cells accepted"
+
+  [[target.mutant]]
+  id = "a-non-boolean-mask-is-accepted"
+  find = "    _check(isinstance(observed, np.ndarray) and observed.dtype == bool,"
+  replace = "    _check(isinstance(observed, np.ndarray),"
+  models = "an integer mask accepted, so ~observed flips bits instead of selecting cells"
+
+  [[target.mutant]]
+  id = "the-mask-is-left-out-of-the-view"
+  find = "    if observed is not None:\n        out[\"observed\"] = observed"
+  replace = "    if False:\n        out[\"observed\"] = observed"
+  models = "callers reading the dict view never see the mask"
+
+  [[target.mutant]]
+  id = "the-mask-shape-is-not-checked"
+  find = "    _check(observed.shape == Ywide.shape,"
+  replace = "    _check(True or observed.shape == Ywide.shape,"
+  models = "a mask of another shape reaching the equality check, which then compares broadcast arrays"
+
+[[target]]
+name = "masc-dataprep"
+module-path = "mlsynth/utils/masc_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_masc_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    keys = None\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  models = "balance()'s key scan dropped, so each dataprep call scans the panel again"
+
+  [[target.mutant]]
+  id = "the-outcome-is-read-from-the-treatment"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    prep = dataprep(df, unitid, time, treat, treat, keys=keys)"
+  models = "the wrong column read as the outcome matrix"
+
+  [[target.mutant]]
+  id = "two-treated-units-reach-the-single-panel-path"
+  find = "    if not isinstance(prep, SinglePanel):"
+  replace = "    if False:"
+  models = "a CohortPanel read as a SinglePanel, an AttributeError in place of MASC's single-treated-unit refusal"
+
+  [[target.mutant]]
+  id = "cohorts-counted-as-units"
+  find = "        n_treated = sum(len(c.treated_units) for c in prep.cohorts.values())"
+  replace = "        n_treated = len(prep.cohorts)"
+  models = "the refusal reporting the number of adoption dates as the number of treated units"
+
+  [[target.mutant]]
+  id = "donors-sorted-by-label"
+  find = "    never_treated = [u for u in df[unitid].unique() if u != treated_label]"
+  replace = "    never_treated = list(prep.donor_names)"
+  models = "dataprep's label-sorted donor order replacing the first-appearance order the weights are reported in"
+
+  [[target.mutant]]
+  id = "donor-labels-lose-their-type"
+  find = "    never_treated = [u for u in df[unitid].unique() if u != treated_label]"
+  replace = "    never_treated = [u for u in df[unitid].unique().tolist() if u != treated_label]"
+  models = "integer donor labels returned as Python ints, not the numpy integers the old setup returned"
+
+  [[target.mutant]]
+  id = "the-treated-unit-is-its-own-donor"
+  find = "    never_treated = [u for u in df[unitid].unique() if u != treated_label]"
+  replace = "    never_treated = [u for u in df[unitid].unique()]"
+  models = "the treated unit left in the donor pool"
+
+  [[target.mutant]]
+  id = "time-index-in-frame-order"
+  find = "    time_index = prep.time_labels.to_numpy()"
+  replace = "    time_index = df[time].unique()"
+  models = "periods in the order rows appear, not sorted, misaligned with the outcome rows"
+
+  [[target.mutant]]
+  id = "intervention-time-one-period-early"
+  find = "    intervention_time = prep.time_labels[T0]"
+  replace = "    intervention_time = prep.time_labels[T0 - 1]"
+  models = "the last pre-period reported as the adoption period"
+
+  [[target.mutant]]
+  id = "intervention-time-loses-its-type"
+  find = "    intervention_time = prep.time_labels[T0]"
+  replace = "    intervention_time = prep.time_labels.to_numpy()[T0]"
+  models = "a datetime adoption period returned as numpy datetime64, not the Timestamp the old setup returned"
+
+  [[target.mutant]]
+  id = "treated-series-strided"
+  find = "    Y_treated = np.ascontiguousarray(prep.Ywide[treated_label].to_numpy(dtype=float))"
+  replace = "    Y_treated = prep.Ywide[treated_label].to_numpy(dtype=float)"
+  models = "a value-equal strided treated series, which changes the solver's summation order"
+
+  [[target.mutant]]
+  id = "donor-matrix-row-major"
+  find = "    Y_donors = np.asfortranarray(prep.Ywide[never_treated].to_numpy(dtype=float))"
+  replace = "    Y_donors = prep.Ywide[never_treated].to_numpy(dtype=float)"
+  models = "a value-equal row-major donor matrix, which moves the Basque weights by about 7e-12"
+
+  [[target.mutant]]
+  id = "treatment-period-zero-indexed"
+  find = "    treatment_period = T0 + 1"
+  replace = "    treatment_period = T0"
+  models = "the R reference's 1-indexed treatment period read as 0-indexed"
+
+  [[target.mutant]]
+  id = "post-period-count-short-by-one"
+  find = "    T1 = T - T0"
+  replace = "    T1 = T - T0 - 1"
+  models = "the post-period count losing the adoption period"
+
+  [[target.mutant]]
+  id = "one-pre-period-accepted"
+  find = "    if T0 < 2:"
+  replace = "    if T0 < 1:"
+  models = "MASC's own minimum of two pre-periods lost behind dataprep's minimum of one"
+
+  [[target.mutant]]
+  id = "an-absent-column-is-not-named"
+  find = "        if col not in df.columns:"
+  replace = "        if False:"
+  models = "an absent column surfacing as pandas' KeyError, not MASC's error"
+
+  [[target.mutant]]
+  id = "covariate-gaps-refused"
+  find = "                        missing_outcomes=\"keep\")"
+  replace = "                        missing_outcomes=\"refuse\")"
+  models = "a covariate observed in some periods only refused, which breaks the Basque application"
+
+  [[target.mutant]]
+  id = "covariate-gaps-not-filled"
+  find = "    return prep.Ywide.ffill().bfill()"
+  replace = "    return prep.Ywide"
+  models = "covariate gaps left NaN and refused by MASC's whole-unit check"
+
+  [[target.mutant]]
+  id = "covariate-gaps-filled-across-units"
+  find = "    return prep.Ywide.ffill().bfill()"
+  replace = "    return prep.Ywide.ffill(axis=1).bfill(axis=1)"
+  models = "a covariate gap filled from a neighbouring unit, not from the same unit's other periods"
+
+  [[target.mutant]]
+  id = "covariate-panel-read-from-the-treatment"
+  find = "        prep = dataprep(df, unitid, time, column, treat, keys=keys,"
+  replace = "        prep = dataprep(df, unitid, time, treat, treat, keys=keys,"
+  models = "every covariate panel filled with the treatment column"
+
+  [[target.mutant]]
+  id = "a-covariate-refusal-loses-its-name"
+  find = "    except MlsynthDataError as exc:"
+  replace = "    except KeyError as exc:"
+  models = "an infinite covariate refused under the outcome's wording, without the covariate's name"
+
+  [[target.mutant]]
+  id = "the-covariate-scan-is-not-reused"
+  find = "            cwide = _covariate_panel(df, unitid, time, treat, c, keys)"
+  replace = "            cwide = _covariate_panel(df, unitid, time, treat, c, None)"
+  models = "each covariate's dataprep call scanning the panel's keys again"
+
+[[target]]
+name = "src-dataprep"
+module-path = "mlsynth/utils/src_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_src_dataprep.py mlsynth/tests/test_src_donor_selection.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    keys = None\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  models = "balance()'s key scan dropped, so each dataprep call scans the panel again"
+
+  [[target.mutant]]
+  id = "the-outcome-is-read-from-the-treatment"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    prep = dataprep(df, unitid, time, treat, treat, keys=keys)"
+  models = "the wrong column read as the outcome matrix"
+
+  [[target.mutant]]
+  id = "two-treated-units-reach-the-single-panel-path"
+  find = "    if not isinstance(prep, SinglePanel):"
+  replace = "    if False:"
+  models = "a CohortPanel read as a SinglePanel, an AttributeError in place of SRC's single-treated-unit refusal"
+
+  [[target.mutant]]
+  id = "cohorts-counted-as-units"
+  find = "        n_treated = sum(len(c.treated_units) for c in prep.cohorts.values())"
+  replace = "        n_treated = len(prep.cohorts)"
+  models = "the refusal reporting the number of adoption dates as the number of treated units"
+
+  [[target.mutant]]
+  id = "donors-sorted-by-label"
+  find = "    donors = [u for u in df[unitid].unique() if u != treated_label]"
+  replace = "    donors = list(prep.donor_names)"
+  models = "dataprep's label-sorted donor order replacing the first-appearance order the solver reads positionally"
+
+  [[target.mutant]]
+  id = "donor-labels-lose-their-type"
+  find = "    donors = [u for u in df[unitid].unique() if u != treated_label]"
+  replace = "    donors = [u for u in df[unitid].unique().tolist() if u != treated_label]"
+  models = "integer donor labels returned as Python ints, not the numpy integers the old setup returned"
+
+  [[target.mutant]]
+  id = "the-treated-unit-is-its-own-donor"
+  find = "    donors = [u for u in df[unitid].unique() if u != treated_label]"
+  replace = "    donors = [u for u in df[unitid].unique()]"
+  models = "the treated unit left in the donor pool"
+
+  [[target.mutant]]
+  id = "time-index-in-frame-order"
+  find = "    time_index = prep.time_labels.to_numpy()"
+  replace = "    time_index = df[time].unique()"
+  models = "periods in the order rows appear, not sorted, misaligned with the outcome rows"
+
+  [[target.mutant]]
+  id = "intervention-time-one-period-early"
+  find = "    intervention_time = prep.time_labels[T0]"
+  replace = "    intervention_time = prep.time_labels[T0 - 1]"
+  models = "the last pre-period reported as the adoption period, which also moves the default covariate window"
+
+  [[target.mutant]]
+  id = "intervention-time-loses-its-type"
+  find = "    intervention_time = prep.time_labels[T0]"
+  replace = "    intervention_time = prep.time_labels.to_numpy()[T0]"
+  models = "a datetime adoption period returned as numpy datetime64, not the Timestamp the old setup returned"
+
+  [[target.mutant]]
+  id = "treated-series-strided"
+  find = "    Y_treated = np.ascontiguousarray(prep.Ywide[treated_label].to_numpy(dtype=float))"
+  replace = "    Y_treated = prep.Ywide[treated_label].to_numpy(dtype=float)"
+  models = "a value-equal strided treated series, which changes the solver's summation order"
+
+  [[target.mutant]]
+  id = "donor-matrix-row-major"
+  find = "    Y_donors = np.asfortranarray(prep.Ywide[donors].to_numpy(dtype=float))"
+  replace = "    Y_donors = prep.Ywide[donors].to_numpy(dtype=float)"
+  models = "a value-equal row-major donor matrix, which changes the solver's summation order"
+
+  [[target.mutant]]
+  id = "treatment-period-zero-indexed"
+  find = "    treatment_period = T0 + 1"
+  replace = "    treatment_period = T0"
+  models = "the 1-indexed treatment period read as 0-indexed"
+
+  [[target.mutant]]
+  id = "post-period-count-short-by-one"
+  find = "    T1 = T - T0"
+  replace = "    T1 = T - T0 - 1"
+  models = "the post-period count losing the adoption period"
+
+  [[target.mutant]]
+  id = "one-pre-period-accepted"
+  find = "    if T0 < 2:"
+  replace = "    if T0 < 1:"
+  models = "SRC's own minimum of two pre-periods lost behind dataprep's minimum of one"
+
+  [[target.mutant]]
+  id = "an-absent-column-is-not-named"
+  find = "        if col not in df.columns:"
+  replace = "        if False:"
+  models = "an absent column surfacing as pandas' KeyError, not SRC's error"
+
+  [[target.mutant]]
+  id = "an-absent-covariate-is-not-named"
+  find = "            if c not in df.columns:"
+  replace = "            if False:"
+  models = "an absent covariate surfacing as pandas' KeyError, not SRC's error"
+
+  [[target.mutant]]
+  id = "covariate-gaps-refused"
+  find = "                        missing_outcomes=\"keep\")"
+  replace = "                        missing_outcomes=\"refuse\")"
+  models = "a covariate observed in some periods only refused, which breaks the paper's Basque specification"
+
+  [[target.mutant]]
+  id = "covariate-gaps-not-filled"
+  find = "    return prep.Ywide.ffill().bfill()"
+  replace = "    return prep.Ywide"
+  models = "covariate gaps left NaN and refused by SRC's whole-unit check"
+
+  [[target.mutant]]
+  id = "covariate-gaps-filled-across-units"
+  find = "    return prep.Ywide.ffill().bfill()"
+  replace = "    return prep.Ywide.ffill(axis=1).bfill(axis=1)"
+  models = "a covariate gap filled from a neighbouring unit, not from the same unit's other periods"
+
+  [[target.mutant]]
+  id = "covariate-panel-read-from-the-treatment"
+  find = "        prep = dataprep(df, unitid, time, column, treat, keys=keys,"
+  replace = "        prep = dataprep(df, unitid, time, treat, treat, keys=keys,"
+  models = "every covariate panel filled with the treatment column"
+
+  [[target.mutant]]
+  id = "a-covariate-refusal-loses-its-name"
+  find = "    except MlsynthDataError as exc:"
+  replace = "    except KeyError as exc:"
+  models = "an infinite covariate refused under the outcome's wording, without the covariate's name"
+
+  [[target.mutant]]
+  id = "the-covariate-scan-is-not-reused"
+  find = "            cwide = _covariate_panel(df, unitid, time, treat, c, keys)"
+  replace = "            cwide = _covariate_panel(df, unitid, time, treat, c, None)"
+  models = "each covariate's dataprep call scanning the panel's keys again"
+
+  [[target.mutant]]
+  id = "covariate-window-ignored"
+  find = "            if c in windows:"
+  replace = "            if False:"
+  models = "a covariate averaged over the pre-period instead of its own window"
+
+  [[target.mutant]]
+  id = "default-covariate-window-includes-the-adoption-period"
+  find = "    pre_mask = time_index < intervention_time"
+  replace = "    pre_mask = time_index <= intervention_time"
+  models = "the adoption period averaged into the default covariate window and used as a matching row"
+
+[[target]]
+name = "ssc-dataprep"
+module-path = "mlsynth/utils/ssc_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_ssc_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    if keys.n_units < 3:"
+  replace = "    keys = None\n    if df[unitid].nunique() < 3:"
+  models = "balance()'s key scan dropped, so dataprep scans the panel again"
+
+  [[target.mutant]]
+  id = "the-outcome-is-read-from-the-treatment"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    prep = dataprep(df, unitid, time, treat, treat, keys=keys)"
+  models = "the wrong column read as the outcome matrix"
+
+  [[target.mutant]]
+  id = "two-units-are-accepted"
+  find = "    if keys.n_units < 3:"
+  replace = "    if keys.n_units < 2:"
+  models = "SSC's own minimum of three units lost behind dataprep"
+
+  [[target.mutant]]
+  id = "a-missing-treatment-is-read-as-untreated"
+  find = "    if df[treat].isna().any():"
+  replace = "    if False:"
+  models = "a NaN treatment cell passed through dataprep's binary check, which skips NaN, and read as untreated"
+
+  [[target.mutant]]
+  id = "an-absent-column-is-not-named"
+  find = "        if col not in df.columns:"
+  replace = "        if False:"
+  models = "an absent column surfacing as pandas' KeyError, not SSC's error"
+
+  [[target.mutant]]
+  id = "units-in-frame-order"
+  find = "    unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    unit_names = list(df[unitid].unique())"
+  models = "units in the order rows appear, not sorted as the old setup listed them"
+
+  [[target.mutant]]
+  id = "unit-labels-lose-their-type"
+  find = "    unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    unit_names = sorted(prep.Ywide.columns.tolist())"
+  models = "integer unit labels returned as Python ints, not the numpy integers the old setup returned"
+
+  [[target.mutant]]
+  id = "time-labels-change-dtype"
+  find = "    time_labels = np.array(list(prep.time_labels))"
+  replace = "    time_labels = np.asarray(prep.time_labels)"
+  models = "string periods returned as an object array and Timestamp periods as datetime64, not the old dtypes"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-not-transposed"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float))"
+  models = "dataprep's period-by-unit matrix used as SSC's unit-by-period Y"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-column-major"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = prep.Ywide[unit_names].to_numpy(dtype=float).T"
+  models = "a value-equal F-ordered Y, which changes the solver's summation order from the old pivot's row-major array"
+
+  [[target.mutant]]
+  id = "treatment-matrix-is-float"
+  find = "    D = np.zeros((N, T1), dtype=int)"
+  replace = "    D = np.zeros((N, T1), dtype=float)"
+  models = "D returned as floats, not the integer indicators the old setup returned"
+
+  [[target.mutant]]
+  id = "treatment-is-not-absorbing-in-d"
+  find = "            D[i, starts[name]:] = 1"
+  replace = "            D[i, starts[name]] = 1"
+  models = "D marking only the adoption period, not every period after it"
+
+  [[target.mutant]]
+  id = "adoption-not-recorded"
+  find = "            adoption[i] = starts[name]"
+  replace = "            adoption[i] = -1"
+  models = "every unit reported as never treated in the adoption vector"
+
+  [[target.mutant]]
+  id = "only-the-first-cohort-is-read"
+  find = "            for cohort in prep.cohorts.values() for unit in cohort.treated_units}"
+  replace = "            for cohort in list(prep.cohorts.values())[:1] for unit in cohort.treated_units}"
+  models = "later cohorts of a staggered panel dropped from D and the adoption vector"
+
+  [[target.mutant]]
+  id = "t0-is-the-last-cohort"
+  find = "    T0 = min(starts.values())"
+  replace = "    T0 = max(starts.values())"
+  models = "the clean pre-period running to the last adoption, not the first"
+
+  [[target.mutant]]
+  id = "a-cohort-at-the-first-period-is-accepted"
+  find = "    if T0 == 0:"
+  replace = "    if False:"
+  models = "a staggered panel with a cohort treated in the first period passed on with no clean pre-period"
+
+  [[target.mutant]]
+  id = "one-pre-period-accepted"
+  find = "    if T0 < 2:"
+  replace = "    if T0 < 1:"
+  models = "SSC's own minimum of two clean pre-periods lost behind dataprep's minimum of one"
+
+  [[target.mutant]]
+  id = "single-panel-start-off-by-one"
+  find = "        return {prep.treated_unit_name: int(prep.pre_periods)}"
+  replace = "        return {prep.treated_unit_name: int(prep.pre_periods) + 1}"
+  models = "the single treated unit's adoption read one period late"
+
+[[target]]
 name = "laxscm-dataprep"
 module-path = "mlsynth/utils/laxscm_helpers/setup.py"
 test-command = "python -m pytest mlsynth/tests/test_laxscm_dataprep.py -q -p no:cacheprovider -x -W ignore"
@@ -21989,84 +22475,6 @@ timeout = 900.0
   find = "                f\"observed and finite in every unit-period. {exc}\") from exc"
   replace = "                f\"observed and finite in every unit-period.\") from None"
   models = "dataprep's count of the bad cells dropped from the covariate refusal"
-
-[[target]]
-name = "dataprep-missing-keep"
-module-path = "mlsynth/utils/datautils.py"
-test-command = "python -m pytest mlsynth/tests/test_dataprep_missing_keep.py -q -p no:cacheprovider -x -W ignore"
-timeout = 600.0
-
-  [[target.mutant]]
-  id = "keep-is-ignored"
-  find = "    keep_nan = missing_outcomes == \"keep\"\n"
-  replace = "    keep_nan = False\n"
-  models = "the opt-in accepted and then dropped, so a missing-data method is still refused"
-
-  [[target.mutant]]
-  id = "keep-lets-an-infinity-through"
-  find = "    if keep_nan and n_inf == 0 and n_absent == 0:"
-  replace = "    if keep_nan and n_absent == 0:"
-  models = "an infinite outcome passed as if it were missing"
-
-  [[target.mutant]]
-  id = "keep-lets-an-absent-row-through"
-  find = "    if keep_nan and n_inf == 0 and n_absent == 0:"
-  replace = "    if keep_nan and n_inf == 0:"
-  models = "an absent unit-period row, whose treatment is unknown, passed as a missing cell"
-
-  [[target.mutant]]
-  id = "keep-with-marex-is-accepted"
-  find = "    if keep_nan and marex:"
-  replace = "    if False:"
-  models = "NaN pre-period outcomes stacked into the marex predictor matrix"
-
-  [[target.mutant]]
-  id = "an-unknown-value-is-accepted"
-  find = "    if missing_outcomes not in (\"refuse\", \"keep\"):"
-  replace = "    if False:"
-  models = "a misspelt missing_outcomes read as the default"
-
-  [[target.mutant]]
-  id = "the-mask-is-inverted"
-  find = "        observed = (~np.isnan(outcome_matrix_wide.to_numpy(dtype=float))\n                    if keep_nan else None)\n        treated_unit_name"
-  replace = "        observed = (np.isnan(outcome_matrix_wide.to_numpy(dtype=float))\n                    if keep_nan else None)\n        treated_unit_name"
-  models = "the single panel's mask marking the missing cells as observed"
-
-  [[target.mutant]]
-  id = "the-cohort-mask-is-dropped"
-  find = "                           predictors=multi_pred, observed=observed)"
-  replace = "                           predictors=multi_pred, observed=None)"
-  models = "a cohort panel returned without its mask under keep"
-
-[[target]]
-name = "prepared-observed-mask"
-module-path = "mlsynth/utils/prepared.py"
-test-command = "python -m pytest mlsynth/tests/test_dataprep_missing_keep.py -q -p no:cacheprovider -x -W ignore"
-timeout = 600.0
-
-  [[target.mutant]]
-  id = "the-mask-is-not-checked-against-ywide"
-  find = "    _check(np.array_equal(observed, ~np.isnan(Ywide.to_numpy(dtype=float))),"
-  replace = "    _check(True,"
-  models = "a mask that disagrees with Ywide's NaN cells accepted"
-
-  [[target.mutant]]
-  id = "a-non-boolean-mask-is-accepted"
-  find = "    _check(isinstance(observed, np.ndarray) and observed.dtype == bool,"
-  replace = "    _check(isinstance(observed, np.ndarray),"
-  models = "an integer mask accepted, so ~observed flips bits instead of selecting cells"
-
-  [[target.mutant]]
-  id = "the-mask-is-left-out-of-the-view"
-  find = "    if observed is not None:\n        out[\"observed\"] = observed"
-  replace = "    if False:\n        out[\"observed\"] = observed"
-  models = "callers reading the dict view never see the mask"
-
-  [[target.mutant]]
-  id = "the-mask-shape-is-not-checked"
-  find = "    _check(observed.shape == Ywide.shape,"
-  replace = "    _check(True or observed.shape == Ywide.shape,"
-  models = "a mask of another shape reaching the equality check, which then compares broadcast arrays"
 
 [[target]]
 name = "shc-simulator-post-window"

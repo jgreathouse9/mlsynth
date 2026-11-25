@@ -64,20 +64,20 @@ class TestWhichUnitsBecomeDonors:
         with pytest.raises(MlsynthDataError, match="single treated unit"):
             prepare_src_inputs(df, **KW)
 
-    def test_a_unit_with_a_nonzero_treat_code_other_than_one_is_not_a_donor(self):
-        # The one case the scan decided on its own: `treat == 1` does not flag
-        # this unit as treated, but its column is not all zeros either. It stays
-        # out of the donor pool, and the rewrite must keep it out.
+    def test_a_unit_with_a_nonzero_treat_code_other_than_one_is_refused(self):
+        # The scan used to decide this case on its own: `treat == 1` did not
+        # flag the unit as treated, its column was not all zeros either, and it
+        # was left out of the donor pool. The setup now reads the panel through
+        # dataprep, which refuses a treatment that is not 0/1 (#1138).
         df = _panel()
         df.loc[(df.unit == "u2") & (df.time >= 6), "treat"] = 2
-        out = prepare_src_inputs(df, **KW)
-        assert "u2" not in out.donor_labels
-        assert list(out.donor_labels) == ["u1", "u3", "u4", "u5"]
+        with pytest.raises(MlsynthDataError, match="binary"):
+            prepare_src_inputs(df, **KW)
 
     def test_a_panel_with_no_untreated_units_raises(self):
         df = _panel(n_units=2)
         df.loc[df.unit == "u1", "treat"] = 3          # nonzero, not treated-coded
-        with pytest.raises(MlsynthDataError, match="donor pool is empty"):
+        with pytest.raises(MlsynthDataError, match="binary"):
             prepare_src_inputs(df, **KW)
 
 
