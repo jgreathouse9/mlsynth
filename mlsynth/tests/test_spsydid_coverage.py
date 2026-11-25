@@ -345,7 +345,7 @@ class TestSetupBranches:
     def test_outcome_nan(self):
         df = _small_panel()
         df.loc[0, "y"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Outcome column contains NaN"):
+        with pytest.raises(MlsynthDataError, match="Missing outcome values"):
             prepare_spsydid_inputs(
                 df=df, outcome="y", treat="D", unitid="unit",
                 time="time", spatial_matrix=_line_W(),
@@ -371,7 +371,7 @@ class TestSetupBranches:
     def test_unbalanced_panel(self):
         df = _small_panel()
         df = df.drop(df.index[0])  # remove one (unit, time) cell
-        with pytest.raises(MlsynthDataError, match="not balanced"):
+        with pytest.raises(MlsynthDataError, match="not strongly balanced"):
             prepare_spsydid_inputs(
                 df=df, outcome="y", treat="D", unitid="unit", time="time",
                 spatial_matrix=_line_W(),
