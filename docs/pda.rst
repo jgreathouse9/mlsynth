@@ -94,6 +94,12 @@ treated unit, with treated series
 :math:`\mathcal{N}_0 \coloneqq \mathcal{N}\setminus\{1\}`, with cardinality
 :math:`N_0`, where :math:`\mathcal{N} = \{1,\ldots,N\}`.
 
+The panel is read through :func:`mlsynth.utils.datautils.dataprep`, so every
+unit has a row for every period. It refuses with ``MlsynthDataError`` a
+duplicate or absent unit-period, a missing or non-finite outcome in any period,
+a non-binary treatment, and a treatment that switches off after it starts: unit
+1 stays treated from :math:`T_0 + 1` to :math:`T`.
+
 The shared model
 ^^^^^^^^^^^^^^^^
 
