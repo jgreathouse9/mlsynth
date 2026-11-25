@@ -159,6 +159,28 @@ def _blocks(cov: Optional[CovariateBlock], pred: Optional[PredictorBlock], n_uni
            "units.")
 
 
+def _mask(observed: Optional[np.ndarray], Ywide: pd.DataFrame) -> None:
+    """Check an observed-cell mask against the outcome matrix it describes.
+
+    ``dataprep(missing_outcomes="keep")`` sets it: ``True`` where the outcome is
+    present, ``False`` where it is NaN, so it must be boolean, shaped like
+    ``Ywide`` and equal to ``~isnan(Ywide)``.
+    """
+    if observed is None:
+        return
+    _check(isinstance(observed, np.ndarray) and observed.dtype == bool,
+           f"observed must be a boolean array, not {getattr(observed, 'dtype', type(observed).__name__)}.")
+    _check(observed.shape == Ywide.shape,
+           f"observed has shape {observed.shape} for Ywide's {Ywide.shape}.")
+    _check(np.array_equal(observed, ~np.isnan(Ywide.to_numpy(dtype=float))),
+           "observed disagrees with the NaN cells of Ywide.")
+
+
+def _mask_pairs(observed: Optional[np.ndarray], out: Dict[str, Any]) -> None:
+    if observed is not None:
+        out["observed"] = observed
+
+
 @dataclass(frozen=True, eq=False, slots=True)
 class SinglePanel(_View):
     """A panel with one treated unit.
@@ -183,6 +205,9 @@ class SinglePanel(_View):
         With ``dataprep(covariates=...)``.
     predictors : PredictorBlock or None
         With ``dataprep(marex=True)``.
+    observed : np.ndarray or None
+        With ``dataprep(missing_outcomes="keep")``: a boolean mask shaped like
+        ``Ywide``, ``False`` at the outcome cells that are missing (NaN).
     """
 
     treated_unit_name: Hashable
@@ -196,6 +221,7 @@ class SinglePanel(_View):
     time_labels: pd.Index
     covariates: Optional[CovariateBlock] = None
     predictors: Optional[PredictorBlock] = None
+    observed: Optional[np.ndarray] = None
 
     def __post_init__(self) -> None:
         T = self.total_periods
@@ -208,6 +234,7 @@ class SinglePanel(_View):
         _check(self.Ywide.shape == (T, d[1] + 1),
                f"Ywide has shape {self.Ywide.shape} for {T} periods and {d[1] + 1} units.")
         _blocks(self.covariates, self.predictors, d[1] + 1)
+        _mask(self.observed, self.Ywide)
 
     def _pairs(self) -> Dict[str, Any]:
         out = {"treated_unit_name": self.treated_unit_name, "Ywide": self.Ywide, "y": self.y,
@@ -216,6 +243,7 @@ class SinglePanel(_View):
                "post_periods": self.post_periods, "time_labels": self.time_labels}
         _covariate_pairs(self.covariates, out)
         _predictor_pairs(self.predictors, out)
+        _mask_pairs(self.observed, out)
         return out
 
 
@@ -276,6 +304,9 @@ class CohortPanel(_View):
         With ``dataprep(covariates=...)``, over every unit; no donor and treated split.
     predictors : PredictorBlock or None
         With ``dataprep(marex=True)``, over the earliest cohort's pre-periods.
+    observed : np.ndarray or None
+        With ``dataprep(missing_outcomes="keep")``: a boolean mask shaped like
+        ``Ywide``, ``False`` at the outcome cells that are missing (NaN).
     """
 
     Ywide: pd.DataFrame
@@ -283,6 +314,7 @@ class CohortPanel(_View):
     time_labels: pd.Index
     covariates: Optional[CovariateBlock] = None
     predictors: Optional[PredictorBlock] = None
+    observed: Optional[np.ndarray] = None
 
     def __post_init__(self) -> None:
         T = len(self.time_labels)
@@ -292,9 +324,11 @@ class CohortPanel(_View):
             _check(c.total_periods == T, f"the cohort starting at {start!r} has {c.total_periods} periods; the "
                                          f"panel has {T}.")
         _blocks(self.covariates, self.predictors, self.Ywide.shape[1])
+        _mask(self.observed, self.Ywide)
 
     def _pairs(self) -> Dict[str, Any]:
         out = {"Ywide": self.Ywide, "cohorts": self.cohorts, "time_labels": self.time_labels}
         _covariate_pairs(self.covariates, out)
         _predictor_pairs(self.predictors, out)
+        _mask_pairs(self.observed, out)
         return out
