@@ -60,10 +60,6 @@ def prepare_iscm_inputs(
     for col in (outcome, treat, unitid, time):
         if col not in df.columns:
             raise MlsynthDataError(f"Required column {col!r} missing.")
-    # dataprep refuses a missing treatment cell as well; ISCM refuses it here,
-    # before balance scans the keys, with the message its old pivot gave.
-    if df[treat].isna().any():
-        raise MlsynthDataError("Treatment column contains missing values.")
 
     # balance() refuses a duplicate or absent unit-period, and its key scan is
     # reused by dataprep instead of being built twice.

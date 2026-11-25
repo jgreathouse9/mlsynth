@@ -54,10 +54,6 @@ def prepare_msqrt_inputs(
     for col in (outcome, treat, unitid, time):
         if col not in df.columns:
             raise MlsynthDataError(f"Required column {col!r} missing.")
-    # dataprep's binary check skips NaN, so a missing treatment cell would be
-    # read as untreated; the old pivot refused it as a missing cell.
-    if df[treat].isna().any():
-        raise MlsynthDataError("Treatment column contains missing values.")
 
     # balance() refuses a duplicate or absent unit-period, and its key scan is
     # reused by dataprep instead of being built twice. A single treated unit

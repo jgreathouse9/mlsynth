@@ -64,10 +64,6 @@ def prepare_rmsi_inputs(
     missing = required - set(df.columns)
     if missing:
         raise MlsynthDataError(f"Missing columns: {', '.join(sorted(missing))}.")
-    # dataprep's binary check skips NaN, so a missing treatment cell would be
-    # read as untreated; the old pivot refused it as a missing cell.
-    if df[treat].isna().any():
-        raise MlsynthDataError("Treatment column contains missing values.")
 
     # balance() refuses a duplicate or absent unit-period, and its key scan is
     # reused by dataprep instead of being built twice.

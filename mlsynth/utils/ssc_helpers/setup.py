@@ -46,17 +46,13 @@ def prepare_ssc_inputs(
     unit's adoption period; the treatment matrix ``D`` and the adoption vector
     are built from the adoption periods. ``balance`` and ``dataprep`` refuse a
     missing or non-finite outcome, an absent or duplicate unit-period, a
-    non-binary treatment and a treatment that switches off after it starts.
-    SSC's own checks (three units, two clean pre-periods, no unit treated in
-    the first period, no missing treatment value) stay on top.
+    non-binary or missing treatment value and a treatment that switches off
+    after it starts. SSC's own checks (three units, two clean pre-periods, no
+    unit treated in the first period) stay on top.
     """
     for col in (outcome, treat, unitid, time):
         if col not in df.columns:
             raise MlsynthDataError(f"Required column {col!r} missing.")
-    # dataprep's binary check skips NaN, so a missing treatment cell would be
-    # read as untreated; the old pivot refused it as a missing cell.
-    if df[treat].isna().any():
-        raise MlsynthDataError("Treatment column contains missing values.")
 
     # balance() refuses a duplicate or absent unit-period, and its key scan is
     # reused by dataprep instead of being built twice.
