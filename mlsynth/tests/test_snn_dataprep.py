@@ -6,8 +6,9 @@ time labels and each treated unit's adoption period from ``balance`` and
 or non-finite outcome cell, an absent or duplicate unit-period, a non-binary
 treatment, and a treatment that switches off after it starts. The last one is a
 change: the old pivot read the treatment cell by cell and accepted a treatment
-that stops. The setup's own docstring describes a unit treated from its adoption
-period onward, and the estimator page describes one-time and staggered adoption.
+that stops. The setup's own docstring described a unit treated from its adoption
+period onward, and the estimator page imputes the treated post-treatment cells,
+with one-time and staggered adoption as its panel designs.
 
 The matrix-completion engine, ``snn_complete``, still takes a matrix with
 ``NaN`` for its missing entries; only the panel path goes through ``dataprep``.
