@@ -1,23 +1,29 @@
 """CLUSTERSC's PCR path on panels with missing donor cells (#1146 step 2).
 
-The algorithm is the two-block PCR of Agarwal, Shah and Shen, "On Model
+The algorithm is the two-step PCR of Agarwal, Shah and Shen, "On Model
 Identification and Out-of-Sample Prediction of Principal Component
 Regression: Applications to Synthetic Controls", JMLR 26 (2025), Section 2.2,
 in the synthetic-control mapping of their Section 7.1 (Z = donor pre-periods,
-Z' = donor post-periods, y = treated pre-periods):
+Z' = donor post-periods, y = treated pre-periods), with one change to the fill:
 
-I.  Z-tilde = zero-filled Z / rho-hat (rho-hat = observed fraction of Z),
-    beta-hat = (Z-tilde^k)^+ y.
-II. Z-tilde' = zero-filled Z' / rho-hat' (its own observed fraction),
-    y-hat' = Z-tilde'^ell beta-hat, with ell full rank in CLUSTERSC, so
-    y-hat' = Z-tilde' beta-hat.
+I.  Z-tilde = m + (Z - m) * M / rho-hat, where M is the observed mask, rho-hat
+    the block's observed fraction and m each donor's mean over its observed
+    pre-period cells; beta-hat = (Z-tilde^k)^+ y.
+II. Z-tilde' = m' + (Z' - m') * M' / rho-hat' with the post block's own
+    observed fraction and post-period donor means (a donor with no observed
+    post cell takes its pre-period mean); y-hat' = Z-tilde' beta-hat at full
+    rank.
+
+The paper sets missing entries to 0 (its Section 2.4.1). That zero-fill adds
+noise in proportion to the outcome's level, which biases Step I when the
+outcomes sit far from zero; centring each donor at its observed mean removes
+that term. A block with every cell observed is returned unchanged.
 
 Layers, as agents_tests.md lays them out: an independent numpy oracle;
 closed-form reduction to the complete-data path bit for bit; missing cells
-never entering as values; refusals for the treated unit's cells, for empty
-periods and for the branches the paper does not cover; smoke and edge cases;
-hypothesis properties; and planted missingness on the latent-variable model of
-Amjad, Shah and Shen (2018), Section 5.3, with different rates pre and post.
+never entering as values; refusals; smoke and edge cases; hypothesis
+properties; and planted missingness on the latent-variable model of Amjad,
+Shah and Shen (2018), Section 5.3, at level 0 and shifted by +100.
 """
 
 from __future__ import annotations
@@ -35,6 +41,7 @@ from mlsynth.utils.clustersc_helpers.pcr.missing import (
     ObservedDenoise,
     check_missing_supported,
     denoise_observed,
+    donor_means,
     observed_fraction,
     refuse_empty_periods,
     rescale_observed,
@@ -46,17 +53,18 @@ from mlsynth.utils.pcr.core import hsvt, pcr_weights
 from mlsynth.utils.pcr.rank import select_rank
 
 SUPPORTED = dict(method="pcr", clustering=False, compute_shen_ci=False)
+EPS = np.finfo(float).eps
 
 
 # ----------------------------------------------------------------------
 # Fixtures
 # ----------------------------------------------------------------------
 
-def _factor(T=20, J=12, r=2, T0=14, noise=0.3, seed=0, tau=1.0):
+def _factor(T=20, J=12, r=2, T0=14, noise=0.3, seed=0, tau=1.0, level=0.0):
     rng = np.random.default_rng(seed)
     F = rng.standard_normal((T, r))
     lam = rng.standard_normal((J + 1, r))
-    Y = F @ lam.T + noise * rng.standard_normal((T, J + 1))
+    Y = level + F @ lam.T + noise * rng.standard_normal((T, J + 1))
     Y[T0:, 0] += tau
     return Y, T0
 
@@ -81,52 +89,71 @@ def _fit(df, **cfg):
                           **{**SUPPORTED, **cfg})).fit()
 
 
-def _paper(values, T0, y_pre, k):
-    """JMLR 2025 Section 2.2, Steps I and II (ell full), from the paper."""
-    def tilde(B):
-        obs = ~np.isnan(B)
-        rho = obs.sum() / obs.size
-        Z = np.zeros(B.shape)
-        Z[obs] = B[obs]
-        return Z / rho, rho
-    Zt, rho = tilde(values[:T0])
+def _oracle_fill(B, fallback=None, zero=False):
+    """The fill written out from the spec, cell by cell, independent of the library."""
+    m_rows, n_cols = B.shape
+    obs = ~np.isnan(B)
+    rho = obs.sum() / obs.size
+    out = np.empty(B.shape)
+    means = np.empty(n_cols)
+    for j in range(n_cols):
+        cells = [B[i, j] for i in range(m_rows) if obs[i, j]]
+        means[j] = sum(cells) / len(cells) if cells else fallback[j]
+    for i in range(m_rows):
+        for j in range(n_cols):
+            if zero:
+                out[i, j] = B[i, j] / rho if obs[i, j] else 0.0
+            elif obs[i, j]:
+                out[i, j] = means[j] + (B[i, j] - means[j]) / rho
+            else:
+                out[i, j] = means[j]
+    return out, rho, means
+
+
+def _oracle(values, T0, y_pre, k, zero=False):
+    """JMLR 2025 Section 2.2 with the donor-mean fill (or the paper's zero-fill)."""
+    Zt, rho, m_pre = _oracle_fill(values[:T0], zero=zero)
     U, s, Vt = np.linalg.svd(Zt, full_matrices=False)
     beta = Vt[:k].T @ np.diag(1 / s[:k]) @ U[:, :k].T @ y_pre     # eq. (3)
-    Zp, rho_p = tilde(values[T0:])
+    Zp, rho_p, _ = _oracle_fill(values[T0:], fallback=m_pre, zero=zero)
     return beta, np.concatenate([Zt @ beta, Zp @ beta]), rho, rho_p
 
 
 # ----------------------------------------------------------------------
-# Against an independent oracle written from the paper
+# Against an independent oracle written from the spec
 # ----------------------------------------------------------------------
 
 class TestOracle:
     @pytest.mark.parametrize("seed", range(5))
-    def test_weights_and_counterfactual_match_the_paper(self, seed):
-        Y, T0 = _factor(seed=seed)
+    def test_weights_and_counterfactual_match_the_oracle(self, seed):
+        Y, T0 = _factor(seed=seed, level=50.0)
         rng = np.random.default_rng(100 + seed)
         D = np.where(rng.uniform(size=Y[:, 1:].shape) > 0.2, Y[:, 1:], np.nan)
         D[:, 0] = Y[:, 1]          # one complete donor, so no period is empty
         mask = ~np.isnan(D)
         den = denoise_observed(D[:T0], mask[:T0], 2)
         beta = pcr_weights(den.M_hat, Y[:T0, 0], 2)
-        cf, p_post = two_block_counterfactual(D, mask, T0, beta)
-        b_ref, cf_ref, rho, rho_p = _paper(D, T0, Y[:T0, 0], 2)
+        cf, p_post, n_fb = two_block_counterfactual(D, mask, T0, beta, den.means)
+        b_ref, cf_ref, rho, rho_p = _oracle(D, T0, Y[:T0, 0], 2)
         assert den.p_hat == pytest.approx(rho, abs=0)
         assert p_post == pytest.approx(rho_p, abs=0)
-        np.testing.assert_allclose(beta, b_ref, rtol=1e-9, atol=1e-10)
+        assert n_fb == 0
+        np.testing.assert_allclose(beta, b_ref, rtol=1e-9, atol=1e-9)
         np.testing.assert_allclose(cf, cf_ref, rtol=1e-9, atol=1e-9)
 
-    def test_fit_matches_the_paper_end_to_end(self):
-        Y, T0 = _factor(seed=4)
+    def test_fit_matches_the_oracle_end_to_end(self):
+        Y, T0 = _factor(seed=4, level=100.0)
         Ym = _plant(Y, [(0, 1), (3, 4), (9, 9), (15, 5), (19, 11), (17, 3)])
         res = _fit(_long(Ym, T0), rank=2, rank_method="fixed")
-        b_ref, cf_ref, rho, rho_p = _paper(Ym[:, 1:], T0, Y[:T0, 0], 2)
+        b_ref, cf_ref, rho, rho_p = _oracle(Ym[:, 1:], T0, Y[:T0, 0], 2)
         np.testing.assert_allclose(res.counterfactual, cf_ref, rtol=1e-9, atol=1e-9)
         w = np.array([res.donor_weights[str(j)] for j in range(1, 13)])
-        np.testing.assert_allclose(w, b_ref, rtol=1e-9, atol=1e-10)
-        assert res.pcr.metadata["missing_p_hat"] == pytest.approx(rho)
-        assert res.pcr.metadata["missing_p_hat_post"] == pytest.approx(rho_p)
+        np.testing.assert_allclose(w, b_ref, rtol=1e-9, atol=1e-9)
+        md = res.pcr.metadata
+        assert md["missing_p_hat"] == pytest.approx(rho)
+        assert md["missing_p_hat_post"] == pytest.approx(rho_p)
+        assert md["missing_fill"] == "donor_mean"
+        assert md["missing_post_mean_fallbacks"] == 0
 
     def test_p_hat_is_the_observed_fraction(self):
         mask = np.zeros((4, 5), bool)
@@ -136,18 +163,19 @@ class TestOracle:
     def test_p_hat_is_floored_at_one_over_mn(self):
         assert observed_fraction(np.zeros((4, 5), bool)) == 1 / 20
 
-    def test_rescaling_divides_the_zero_filled_block_by_p_hat(self):
-        values = np.arange(12.0).reshape(3, 4) + 1
-        mask = np.ones((3, 4), bool)
-        mask[0, 0] = mask[2, 3] = False
+    def test_fill_centres_each_donor_at_its_observed_mean(self):
+        values = np.array([[1.0, 10.0], [3.0, np.nan], [np.nan, 30.0], [5.0, 50.0]])
+        mask = ~np.isnan(values)
         Z, p = rescale_observed(values, mask)
-        assert p == 10 / 12
-        expect = np.where(mask, values, 0.0) * 12 / 10
+        assert p == 6 / 8
+        m = np.array([3.0, 30.0])
+        expect = np.where(mask, m + (np.nan_to_num(values) - m) / p, m)
         np.testing.assert_allclose(Z, expect, rtol=1e-15)
-        assert Z[0, 0] == 0.0 and Z[2, 3] == 0.0
+        assert Z[2, 0] == 3.0 and Z[1, 1] == 30.0
+        np.testing.assert_allclose(donor_means(values, mask), m, rtol=1e-15)
 
-    def test_each_block_has_its_own_p_hat(self):
-        Y, T0 = _factor()
+    def test_each_block_has_its_own_p_hat_and_means(self):
+        Y, T0 = _factor(level=20.0)
         D = Y[:, 1:].copy()
         D[:T0][np.random.default_rng(0).uniform(size=(T0, 12)) > 0.9] = np.nan
         D[T0:][np.random.default_rng(1).uniform(size=(6, 12)) > 0.6] = np.nan
@@ -155,39 +183,24 @@ class TestOracle:
         mask = ~np.isnan(D)
         den = denoise_observed(D[:T0], mask[:T0], 2)
         beta = pcr_weights(den.M_hat, Y[:T0, 0], 2)
-        cf, p_post = two_block_counterfactual(D, mask, T0, beta)
+        cf, p_post, _ = two_block_counterfactual(D, mask, T0, beta, den.means)
         assert den.p_hat == pytest.approx(mask[:T0].mean())
         assert p_post == pytest.approx(mask[T0:].mean())
         assert abs(den.p_hat - p_post) > 0.05
-        np.testing.assert_allclose(
-            cf[T0:], (np.where(mask[T0:], D[T0:], 0) / p_post) @ beta, rtol=1e-12)
+        Zp, _, _ = _oracle_fill(D[T0:], fallback=den.means)
+        np.testing.assert_allclose(cf[T0:], Zp @ beta, rtol=1e-12)
 
     def test_in_sample_fit_equals_the_truncated_fit(self):
         # beta lies in the row space of Z-tilde^k, so Z-tilde beta = Z-tilde^k beta.
-        Y, T0 = _factor(seed=3)
+        Y, T0 = _factor(seed=3, level=10.0)
         D = _plant(Y, [(1, 2), (4, 6), (8, 8)])[:, 1:]
         mask = ~np.isnan(D)
         den = denoise_observed(D[:T0], mask[:T0], 2)
         beta = pcr_weights(den.M_hat, Y[:T0, 0], 2)
-        cf, _ = two_block_counterfactual(D, mask, T0, beta)
-        np.testing.assert_allclose(cf[:T0], den.M_hat @ beta, rtol=1e-9, atol=1e-10)
+        cf, _, _ = two_block_counterfactual(D, mask, T0, beta, den.means)
+        np.testing.assert_allclose(cf[:T0], den.M_hat @ beta, rtol=1e-9, atol=1e-9)
 
-    def test_weights_carry_p_hat(self):
-        # The weights are fitted to Z-tilde = Y / rho-hat, so they are rho-hat
-        # times the weights on the unscaled zero-filled block.
-        Y, T0 = _factor(seed=2)
-        Ym = Y.copy()
-        Ym[:T0, 1:][np.random.default_rng(9).uniform(size=(T0, 12)) > 0.7] = np.nan
-        Ym[:T0, 1] = Y[:T0, 1]
-        res = _fit(_long(Ym, T0), rank=2, rank_method="fixed")
-        p_hat = res.pcr.metadata["missing_p_hat"]
-        assert p_hat < 0.85
-        unscaled = hsvt(np.nan_to_num(Ym[:T0, 1:]), 2)[0]
-        beta_unscaled = pcr_weights(unscaled, Y[:T0, 0], 2)
-        w = np.array([res.donor_weights[str(j)] for j in range(1, 13)])
-        np.testing.assert_allclose(w, p_hat * beta_unscaled, rtol=1e-8, atol=1e-10)
-
-    def test_rank_rule_reads_the_rescaled_block(self):
+    def test_rank_rule_reads_the_filled_block(self):
         Y, T0 = _factor()
         Ym = _plant(Y, [(2, 2)])
         res = _fit(_long(Ym, T0), rank_method="usvt")
@@ -198,10 +211,19 @@ class TestOracle:
 
 
 # ----------------------------------------------------------------------
-# Closed form first: an all-observed mask is the complete-data path
+# Closed form first: an all-observed block is the block itself
 # ----------------------------------------------------------------------
 
 class TestAllObservedReduction:
+    def test_rounding_case_needs_the_complete_block_branch(self):
+        # m + (B - m) != B here in floating point: 0.1 does not round-trip.
+        B = np.array([[0.1], [0.7], [0.3]])
+        m = B.mean(axis=0)
+        assert not np.array_equal(m + (B - m), B)
+        Z, p = rescale_observed(B, np.ones(B.shape, bool))
+        assert p == 1.0
+        np.testing.assert_array_equal(Z, B)
+
     def test_denoise_is_hsvt_bit_for_bit(self):
         Y, T0 = _factor()
         pre = Y[:T0, 1:]
@@ -215,8 +237,8 @@ class TestAllObservedReduction:
         D = Y[:, 1:]
         mask = np.ones(D.shape, bool)
         beta = pcr_weights(hsvt(D[:T0], 2)[0], Y[:T0, 0], 2)
-        cf, p_post = two_block_counterfactual(D, mask, T0, beta)
-        assert p_post == 1.0
+        cf, p_post, n_fb = two_block_counterfactual(D, mask, T0, beta)
+        assert p_post == 1.0 and n_fb == 0
         np.testing.assert_array_equal(cf[:T0], D[:T0] @ beta)
         np.testing.assert_array_equal(cf[T0:], D[T0:] @ beta)
 
@@ -224,7 +246,7 @@ class TestAllObservedReduction:
         Y, T0 = _factor()
         res = _fit(_long(Y, T0))
         assert "missing_p_hat" not in res.method_details.parameters_used
-        assert "missing_p_hat" not in res.pcr.metadata
+        assert "missing_fill" not in res.pcr.metadata
 
     def test_run_pcr_complete_equals_hsvt_ols_raw_projection(self):
         Y, T0 = _factor()
@@ -233,6 +255,15 @@ class TestAllObservedReduction:
         M = hsvt(Y[:T0, 1:], 2)[0]
         beta = pcr_weights(M, Y[:T0, 0], 2)
         np.testing.assert_array_equal(fit.counterfactual, Y[:, 1:] @ beta)
+
+    def test_complete_post_block_with_missing_pre_cells_is_raw(self):
+        Y, T0 = _factor(level=30.0)
+        D = _plant(Y, [(2, 3)])[:, 1:]
+        mask = ~np.isnan(D)
+        beta = np.random.default_rng(2).standard_normal(12)
+        cf, p_post, _ = two_block_counterfactual(D, mask, T0, beta)
+        assert p_post == 1.0
+        np.testing.assert_array_equal(cf[T0:], D[T0:] @ beta)
 
 
 # ----------------------------------------------------------------------
@@ -245,6 +276,7 @@ class TestMaskedValuesAreInert:
         Y, T0 = _factor()
         pre = Y[:T0, 1:]
         mask = np.random.default_rng(7).uniform(size=pre.shape) > 0.3
+        mask[0] = True                         # every donor has an observed cell
         base = denoise_observed(np.where(mask, pre, np.nan), mask, 2)
         other = denoise_observed(np.where(mask, pre, fill), mask, 2)
         np.testing.assert_array_equal(base.M_hat, other.M_hat)
@@ -255,16 +287,13 @@ class TestMaskedValuesAreInert:
         Y, T0 = _factor()
         D = Y[:, 1:]
         mask = np.random.default_rng(8).uniform(size=D.shape) > 0.3
+        mask[0] = mask[T0] = True
         beta = np.random.default_rng(1).standard_normal(12)
-        a, _ = two_block_counterfactual(np.where(mask, D, np.nan), mask, T0, beta)
-        b, _ = two_block_counterfactual(np.where(mask, D, fill), mask, T0, beta)
+        a, _, _ = two_block_counterfactual(np.where(mask, D, np.nan), mask, T0, beta)
+        b, _, _ = two_block_counterfactual(np.where(mask, D, fill), mask, T0, beta)
         np.testing.assert_array_equal(a, b)
 
-    def test_fit_ignores_what_sits_under_the_mask(self):
-        # Through the estimator: a planted NaN against the same cell refilled
-        # by run_pcr's caller with garbage is not possible (NaN is the mask),
-        # so the check is that two panels differing only in masked cells'
-        # original values give the same fit.
+    def test_fit_ignores_the_original_values_of_masked_cells(self):
         Y, T0 = _factor(seed=5)
         cells = [(2, 3), (16, 7)]
         Y2 = Y.copy()
@@ -290,7 +319,8 @@ class TestEstimator:
         assert params["missing_donor_cells"] == 4
         assert params["missing_p_hat"] == pytest.approx(1 - 2 / (T0 * 12))
         assert params["missing_p_hat_post"] == pytest.approx(1 - 2 / (6 * 12))
-        assert res.pcr.metadata["missing_p_hat"] == params["missing_p_hat"]
+        assert params["missing_fill"] == "donor_mean"
+        assert params["missing_post_mean_fallbacks"] == 0
 
     def test_only_post_cells_missing(self):
         Y, T0 = _factor()
@@ -415,6 +445,44 @@ class TestEdgeCases:
             refuse_empty_periods(mask)
         refuse_empty_periods(np.ones((3, 4), bool))
 
+    def test_donor_with_no_observed_post_cell_takes_its_pre_mean(self):
+        Y, T0 = _factor(level=40.0)
+        Ym = Y.copy()
+        Ym[T0:, 4] = np.nan                        # donor column 3 has no post cell
+        res = _fit(_long(Ym, T0), rank=2, rank_method="fixed")
+        md = res.pcr.metadata
+        assert md["missing_post_mean_fallbacks"] == 1
+        assert res.method_details.parameters_used["missing_post_mean_fallbacks"] == 1
+        b_ref, cf_ref, _, _ = _oracle(Ym[:, 1:], T0, Y[:T0, 0], 2)
+        np.testing.assert_allclose(res.counterfactual, cf_ref, rtol=1e-9, atol=1e-9)
+        assert np.all(np.isfinite(res.counterfactual))
+
+    def test_fallback_means_are_what_the_post_block_uses(self):
+        D = np.array([[1.0, 2.0], [3.0, 4.0], [np.nan, 5.0], [np.nan, 7.0]])
+        mask = ~np.isnan(D)
+        beta = np.array([1.0, 0.0])
+        cf, p_post, n_fb = two_block_counterfactual(D, mask, 2, beta)
+        assert n_fb == 1 and p_post == 0.5
+        np.testing.assert_allclose(cf[2:], [2.0, 2.0])     # donor 0's pre mean
+
+    def test_donor_with_one_observed_pre_cell(self):
+        Y, T0 = _factor(level=25.0)
+        Ym = Y.copy()
+        Ym[1:T0, 5] = np.nan                        # only period 0 observed
+        res = _fit(_long(Ym, T0), rank=2, rank_method="fixed")
+        assert np.all(np.isfinite(res.counterfactual))
+        den = denoise_observed(Ym[:T0, 1:], ~np.isnan(Ym[:T0, 1:]), 2)
+        assert den.means[4] == Ym[0, 5]
+        b_ref, cf_ref, _, _ = _oracle(Ym[:, 1:], T0, Y[:T0, 0], 2)
+        np.testing.assert_allclose(res.counterfactual, cf_ref, rtol=1e-9, atol=1e-9)
+
+    def test_donor_with_no_observed_pre_cell_is_refused(self):
+        Y, T0 = _factor()
+        Ym = Y.copy()
+        Ym[:T0, 5] = np.nan
+        with pytest.raises(MlsynthDataError, match="no observed pre-period"):
+            _fit(_long(Ym, T0))
+
     def test_single_donor_missing_cell_leaves_its_period_empty(self):
         Y, T0 = _factor(J=1, r=1)
         with pytest.raises(MlsynthDataError, match="no observed"):
@@ -425,15 +493,6 @@ class TestEdgeCases:
         Y[:, 2] = Y[:, 1]
         res = _fit(_long(_plant(Y, [(1, 1), (6, 2)]), T0))
         assert np.all(np.isfinite(res.counterfactual))
-
-    def test_every_pre_donor_cell_but_one_column_missing(self):
-        # A design of rank one: the rank-2 request keeps one direction.
-        Y, T0 = _factor()
-        Ym = Y.copy()
-        Ym[:T0, 2:] = np.nan
-        res = _fit(_long(Ym, T0), rank=2, rank_method="fixed")
-        assert np.all(np.isfinite(res.counterfactual))
-        assert res.pcr.metadata["missing_p_hat"] == pytest.approx(1 / 12)
 
     def test_rescale_refuses_a_mask_of_the_wrong_shape(self):
         with pytest.raises(MlsynthEstimationError, match="shape"):
@@ -456,6 +515,7 @@ def _lowrank(draw):
     X = level + rng.standard_normal((m, r)) @ rng.standard_normal((r, n)) \
         + 0.1 * rng.standard_normal((m, n))
     mask = rng.uniform(size=(m, n)) >= q
+    mask[rng.integers(m)] = True               # every donor has an observed cell
     return X, mask, r
 
 
@@ -478,6 +538,16 @@ def test_property_denoised_matrix_is_finite(case):
     assert np.all(np.isfinite(den.M_hat)) and np.all(np.isfinite(den.Z_tilde))
 
 
+@settings(max_examples=80, **_PROP)
+@given(st.integers(1, 30), st.integers(1, 12), st.integers(0, 2 ** 31 - 1),
+       st.floats(-1e6, 1e6), st.sampled_from([1e-3, 1.0, 1e3]))
+def test_property_complete_block_is_returned_unchanged(m, n, seed, level, scale):
+    B = level + scale * np.random.default_rng(seed).standard_normal((m, n))
+    Z, p = rescale_observed(B, np.ones(B.shape, bool))
+    assert p == 1.0
+    np.testing.assert_array_equal(Z, B)
+
+
 @settings(max_examples=60, **_PROP)
 @given(_lowrank(), st.integers(1, 17))
 def test_property_all_observed_is_the_complete_path(case, T0):
@@ -487,9 +557,53 @@ def test_property_all_observed_is_the_complete_path(case, T0):
     den = denoise_observed(X[:T0], full[:T0], r)
     np.testing.assert_array_equal(den.M_hat, hsvt(X[:T0], r)[0])
     beta = np.random.default_rng(0).standard_normal(X.shape[1])
-    cf, _ = two_block_counterfactual(X, full, T0, beta)
+    cf, _, _ = two_block_counterfactual(X, full, T0, beta)
     np.testing.assert_array_equal(cf[:T0], X[:T0] @ beta)
     np.testing.assert_array_equal(cf[T0:], X[T0:] @ beta)
+
+
+@settings(max_examples=80, **_PROP)
+@given(_lowrank(), st.floats(-1e4, 1e4), st.integers(0, 13))
+def test_property_level_equivariance_within_a_rounding_bound(case, c, col):
+    """Adding c to a donor column shifts its filled column by c.
+
+    Rounding bound (unit roundoff u = eps/2, gamma_k = k u / (1 - k u);
+    Higham, Accuracy and Stability of Numerical Algorithms, 2nd ed., Sec. 3.1
+    and Lemma 3.1). rho is the same computed number in both fills, so it is
+    treated as exact. Let A bound |x| over the column's observed cells, before
+    and after the shift, and n be the column's observed count; then |m| <= A
+    and |x - m| <= 2A.
+
+    * The mean: a sum of n terms errs by at most gamma_{n-1} n A, and the
+      division by n adds u A, so |m-hat - m| <= gamma_n A.
+    * An observed cell, fl(m-hat + fl(fl(x - m-hat) / rho)): the subtraction
+      errs by at most gamma_n A + u (2A + gamma_n A) <= gamma_{n+3} A; the
+      division scales that by 1/rho and adds u 2A / rho; the final addition
+      adds u (A + 2A / rho). In total at most gamma_{n+1} A + gamma_{n+8} A / rho.
+    * A missing cell is m-hat + 0, exactly m-hat, so within gamma_n A.
+
+    So one filled cell errs from its exact value by at most
+    E = gamma_{n+8} A (1 + 2 / rho). The shifted input fl(x + c) differs from
+    x + c by u A per cell, which moves the exact fill by at most
+    u A (1 + 2 / rho) <= E. The test's own two subtractions, fl(fl(b - a) - c),
+    add at most u (3 |c| + 4 E'). With E' = 2E per fill, the difference minus c
+    is within 2 E' + 4 u E' + 3 u |c| = (4 + 8u) E + 3u |c|.
+    """
+    X, mask, _ = case
+    col = col % X.shape[1]
+    u = EPS / 2
+    a = rescale_observed(np.where(mask, X, np.nan), mask)[0]
+    Xc = X.copy()
+    Xc[:, col] = X[:, col] + c
+    b, rho = rescale_observed(np.where(mask, Xc, np.nan), mask)
+    n = int(mask[:, col].sum())
+    A = max(np.abs(X[mask[:, col], col]).max(), np.abs(Xc[mask[:, col], col]).max())
+    k = n + 8
+    E = (k * u / (1 - k * u)) * A * (1 + 2 / rho)
+    bound = (4 + 8 * u) * E + 3 * u * abs(c)
+    assert np.all(np.abs((b[:, col] - a[:, col]) - c) <= bound)
+    others = [j for j in range(X.shape[1]) if j != col]
+    np.testing.assert_array_equal(a[:, others], b[:, others])
 
 
 @settings(max_examples=60, **_PROP)
@@ -501,40 +615,43 @@ def test_property_masked_cells_are_inert(case, garbage):
     np.testing.assert_array_equal(a.M_hat, b.M_hat)
     beta = np.ones(X.shape[1])
     T0 = X.shape[0] // 2
-    ca, pa = two_block_counterfactual(np.where(mask, X, np.nan), mask, T0, beta)
-    cb, pb = two_block_counterfactual(np.where(mask, X, garbage), mask, T0, beta)
+    ca, pa, _ = two_block_counterfactual(np.where(mask, X, np.nan), mask, T0, beta)
+    cb, pb, _ = two_block_counterfactual(np.where(mask, X, garbage), mask, T0, beta)
     np.testing.assert_array_equal(ca, cb)
     assert pa == pb
 
 
 @settings(max_examples=60, **_PROP)
 @given(_lowrank())
-def test_property_rescaled_block_is_unbiased_for_the_observed_values(case):
-    # E[Z-tilde] = X (Section 2.4.1): averaged over the cells of the block,
-    # sum(Z-tilde) = sum over observed cells / rho-hat, an exact identity.
+def test_property_filled_columns_keep_their_observed_means(case):
+    # Sum over a column of (Z-tilde - m) = sum over observed cells of (x - m) / rho = 0.
     X, mask, _ = case
-    Z, p = rescale_observed(X, mask)
-    assert Z.sum() == pytest.approx(X[mask].sum() / p, rel=1e-9, abs=1e-9)
-    assert np.all(Z[~mask] == 0.0)
+    Z, _ = rescale_observed(np.where(mask, X, np.nan), mask)
+    m = donor_means(X, mask)
+    scale = np.abs(X).max() + 1.0
+    np.testing.assert_allclose(Z.mean(axis=0), m, rtol=0, atol=1e-9 * scale)
 
 
 # ----------------------------------------------------------------------
 # Planted missingness on the latent-variable model of ASS (2018) Section 5.3
 # ----------------------------------------------------------------------
 
-def _sim_error(N, T0, p_pre, p_post, seed, rank=2):
+def _sim_error(N, T0, p_pre, p_post, seed, rank=2, level=0.0, zero=False):
     T = int(T0 * 1.25)
     panel = simulate_rsc_panel(N=N, T=T, T0=T0, noise=1.0, seed=seed)
-    X = panel.observed.T
-    M = panel.means.T
+    X = panel.observed.T + level
+    M = panel.means.T + level
     y, D = X[:, 0], X[:, 1:].copy()
     u = np.random.default_rng(10_000 + seed).uniform(size=D.shape)
     D[:T0][u[:T0] > p_pre] = np.nan
     D[T0:][u[T0:] > p_post] = np.nan
-    mask = ~np.isnan(D)
-    den = denoise_observed(D[:T0], mask[:T0], rank)
-    beta = pcr_weights(den.M_hat, y[:T0], rank)
-    cf, _ = two_block_counterfactual(D, mask, T0, beta)
+    if zero:
+        _, cf, _, _ = _oracle(D, T0, y[:T0], rank, zero=True)
+    else:
+        mask = ~np.isnan(D)
+        den = denoise_observed(D[:T0], mask[:T0], rank)
+        beta = pcr_weights(den.M_hat, y[:T0], rank)
+        cf, _, _ = two_block_counterfactual(D, mask, T0, beta, den.means)
     e = cf[T0:] - M[T0:, 0]
     return float(np.mean(e)), float(np.sqrt(np.mean(e ** 2)))
 
@@ -550,6 +667,22 @@ def test_simulation_counterfactual_is_unbiased_across_missing_rates(p_pre, p_pos
     rmse = np.mean([r for _, r in errs])
     assert abs(bias.mean()) < max(4 * se, 0.05), (bias.mean(), se)
     assert rmse < 0.3, rmse
+
+
+def _bias_bound(biases):
+    """Four standard errors of the seed-mean bias, plus the 0.05 the complete
+    panel already carries on this model (its bias at level 0 is about -0.02)."""
+    b = np.asarray(biases)
+    return 4 * b.std(ddof=1) / np.sqrt(b.size) + 0.05
+
+
+def test_simulation_level_shift_bias_within_bound_and_zero_fill_outside():
+    # Level +100, 20% of pre-period donor cells missing, rank 2, 16 seeds.
+    mean_fill = [_sim_error(100, 800, 0.8, 1.0, s, level=100.0)[0] for s in range(16)]
+    assert abs(np.mean(mean_fill)) <= _bias_bound(mean_fill), np.mean(mean_fill)
+    zero_fill = [_sim_error(100, 800, 0.8, 1.0, s, level=100.0, zero=True)[0]
+                 for s in range(16)]
+    assert abs(np.mean(zero_fill)) > _bias_bound(zero_fill), np.mean(zero_fill)
 
 
 def test_simulation_error_falls_with_the_panel_length():
