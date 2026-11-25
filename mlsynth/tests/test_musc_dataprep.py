@@ -293,6 +293,19 @@ class TestSameInputs:
                                      treated_unit="s03", intervention_time=2009)
         _assert_same(inputs, ref)
 
+    def test_run_musc_cohorts_reads_the_panel_when_not_given_it(self):
+        df = _panel(adopt={0: 7, 1: 9, 2: 9})
+        cohorts = derive_treatment_cohorts(df, "unit", "time", "d")
+        kw = dict(unitid="unit", time="time", outcome="y", treat="d",
+                  cohorts=cohorts, run_inference=False)
+        own = ORCH.run_musc_cohorts(df, **kw)
+        given = ORCH.run_musc_cohorts(df, **kw, wide=read_musc_panel(df, **COLS))
+        assert list(own.cohort_fits) == list(given.cohort_fits)
+        for t in own.cohort_fits:
+            a, b = own.cohort_fits[t].results.inputs, given.cohort_fits[t].results.inputs
+            np.testing.assert_array_equal(a.Y, b.Y)
+            np.testing.assert_array_equal(a.unit_index.labels, b.unit_index.labels)
+
     @pytest.mark.parametrize("adopt", [{0: 8}, {0: 8, 1: 8}, {0: 7, 1: 9}])
     def test_fit_smoke(self, adopt):
         res = MUSC(dict(df=_panel(adopt=adopt), **COLS, display_graphs=False,
