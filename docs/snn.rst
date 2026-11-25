@@ -77,8 +77,8 @@ completion, and forms the treatment effect as observed minus imputed:
 The long panel is read through :func:`mlsynth.utils.datautils.dataprep`, so
 a treated unit stays treated from its adoption period to the end of the panel,
 with one adoption period or staggered ones. ``dataprep`` refuses with
-``MlsynthDataError`` a missing or non-finite outcome in any cell, an absent or
-duplicate unit-period, a non-binary treatment, and a treatment that switches
+``MlsynthDataError`` an infinite outcome in any cell, an absent or duplicate
+unit-period, a non-binary treatment, and a treatment that switches
 off after it starts.
 
 The general matrix-completion engine is exposed directly as

@@ -38,8 +38,8 @@ def prepare_snn_inputs(
     """Build :class:`SNNInputs` from a long panel through ``datautils.dataprep``.
 
     ``dataprep`` supplies the outcome matrix, the time labels and each treated
-    unit's adoption period. ``balance`` and ``dataprep`` refuse a missing or
-    non-finite outcome, an absent or duplicate unit-period, a non-binary
+    unit's adoption period. ``balance`` and ``dataprep`` refuse an infinite
+    outcome, an absent or duplicate unit-period, a non-binary
     treatment, treatment in the first period, a panel with no treated cell and
     a treatment that switches off after it starts. A treated unit has
     ``treat == 1`` from its adoption period onward, with one adoption period or

@@ -2,8 +2,8 @@
 
 SNN used to pivot the long panel itself. It now takes the outcome matrix, the
 time labels and each treated unit's adoption period from ``balance`` and
-``dataprep``, so it gets the same refusals as every other estimator: a missing
-or non-finite outcome cell, an absent or duplicate unit-period, a non-binary
+``dataprep``, so it gets the same refusals as every other estimator: an
+infinite outcome cell, an absent or duplicate unit-period, a non-binary
 treatment, and a treatment that switches off after it starts. The last one is a
 change: the old pivot read the treatment cell by cell and accepted a treatment
 that stops. The setup's own docstring described a unit treated from its adoption
@@ -12,6 +12,8 @@ with one-time and staggered adoption as its panel designs.
 
 The matrix-completion engine, ``snn_complete``, still takes a matrix with
 ``NaN`` for its missing entries; only the panel path goes through ``dataprep``.
+What the panel path does with a missing outcome cell is left to the
+``missing_outcomes`` opt-in that ``dataprep`` is getting, and is not pinned here.
 
 ``_reference`` below is the old pivot, kept as the oracle the new path must
 match on every panel both accept.
@@ -163,12 +165,6 @@ class TestRefusals:
         with pytest.raises(MlsynthDataError, match="not sustained"):
             SNN(dict(df=df, display_graphs=False, **COLS)).fit()
 
-    def test_a_missing_outcome_cell_is_refused(self):
-        df = _panel(shuffle=False)
-        df.loc[(df.unit == 3) & (df.time == 2004), "y"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Missing outcome values"):
-            SNN(dict(df=df, display_graphs=False, **COLS)).fit()
-
     def test_a_non_finite_outcome_is_refused(self):
         df = _panel(shuffle=False)
         df.loc[(df.unit == 2) & (df.time == 2001), "y"] = np.inf
@@ -238,11 +234,9 @@ def cases(draw):
     df = _panel(n_units=n_units, n_periods=n_periods, adopt=adopt, seed=seed,
                 names=names, boolean=boolean)
     defect = draw(st.sampled_from(
-        ["none", "none", "none", "nan", "inf", "gap", "dup", "off", "nonbinary"]))
+        ["none", "none", "none", "inf", "gap", "dup", "off", "nonbinary"]))
     i = draw(st.integers(0, len(df) - 1))
-    if defect == "nan":
-        df.iloc[i, df.columns.get_loc("y")] = np.nan
-    elif defect == "inf":
+    if defect == "inf":
         df.iloc[i, df.columns.get_loc("y")] = -np.inf
     elif defect == "gap":
         df = df.drop(df.index[i])
