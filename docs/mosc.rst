@@ -212,7 +212,8 @@ Set against each other:
      - mean zero, finite, one common variance
      - whatever likelihood you choose
    * - missing data
-     - imputed by singular value thresholding
+     - donor cells zero-filled and rescaled by the observed fraction
+       before thresholding; in mlsynth, :doc:`clustersc`'s PCR path only
      - refused at ingestion
    * - finite-sample theory
      - yes, with an explicit error bound
@@ -234,7 +235,9 @@ mean. That, and not linearity, is where a count outcome breaks rSC.
 
 The practical reading. If the span-and-rank story is credible -- and on a panel
 of similar units it usually is -- rSC asks less, carries an error bound, and
-handles missing cells, so reach for :doc:`clustersc`. Reach for MOSC when the
+handles missing donor cells (on :doc:`clustersc`'s PCR path, by the two-step
+rule of Agarwal, Shah and Shen, JMLR 2025, Section 2.2), so reach for
+:doc:`clustersc`. Reach for MOSC when the
 outcome's distribution is the thing going wrong. And run the placebo check under
 either: fit the method to a unit you know was untreated and see whether it finds
 an effect.

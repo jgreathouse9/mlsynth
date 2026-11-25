@@ -100,7 +100,8 @@ When to use this estimator
 --------------------------
 
 * Your donor pool is large and noisy -- disaggregated panels with
-  hundreds of donor series, missing cells, or measurement error -- and
+  hundreds of donor series, missing donor cells (PCR path only; see
+  Missing donor cells below), or measurement error -- and
   the donor matrix has an approximately low-rank spectrum that a
   factor model can absorb. The denoising step is what protects the
   weight fit from the noise the raw donors carry.
@@ -303,16 +304,35 @@ data-driven rank selection (cumulative-variance / USVT rules) used
 below: choose :math:`r` to trade pre-period fit against this complexity
 penalty.
 
-HSVT denoising. mlsynth follows the Amjad-Shah-Shen (2018)
-convention and applies HSVT to the *pre-period* donor matrix only.
-The full-matrix variant proposed in Rho et al. (2025) Algorithm 2
-(SVD on the entire :math:`(T, N_0)` panel, then slice the pre-period
-rows) leaks post-period donor information into the rank-:math:`r`
-reconstruction, which can wash out the very post-period deviations
-the synthetic control is meant to detect. The user can opt into
-the full-matrix variant via :py:attr:`CLUSTERSCConfig.project_denoised`,
-in which case HSVT is also applied to :math:`\mathbf{Y}_0` for the
-projection step.
+HSVT denoising. The robust synthetic control literature writes the
+de-noising step in two ways, and the two give different estimates on
+the same panel.
+
+* Full horizon. Amjad, Shah and Shen (2018), Algorithm 1, eq. (8),
+  truncate the whole donor matrix, pre- and post-period together, fit
+  the weights on its pre-period rows and project through its
+  post-period rows. The multi-metric extension mRSC (Amjad, Misra,
+  Shah and Shen 2019, Algorithm 1, eq. 15) and the transductive PCR of
+  Agarwal, Shah, Shen and Song (2021) do the same, and so does Rho et
+  al. (2025), Algorithm 2.
+* Pre-period. The forecast algorithm of Agarwal, Amjad, Shah and Shen
+  (2018, Section 3.3), which the authors' ``tslib`` implements, the
+  PCR of Shen, Ding, Sekhon and Yu ("Same Root Different Leaves",
+  arXiv:2207.14481, Corollary on PCR) and the two-step PCR of Agarwal,
+  Shah and Shen (JMLR 2025, Section 2.2) truncate the pre-period donor
+  block only and apply the weights to the post-period donor rows.
+
+CLUSTERSC implements the pre-period family. JMLR 2025 is the authors'
+latest statement of RSC and PCR for synthetic control (their Section
+7.1 maps it), and it is the source of the missing-data rule below. On
+the California Proposition 99 panel at :math:`r = 4` the full-horizon
+estimate is -7.2 packs and the pre-period estimate -19.4; ``tslib``
+gives -19.3. At :math:`r = 2` the two give -17.3 and -21.2; on Basque
+at :math:`r = 1`, -1.79 and -1.67.
+:py:attr:`CLUSTERSCConfig.project_denoised` projects through a
+full-horizon truncation at the fitted rank, with the weights still
+fitted on the pre-period block; it belongs to neither family's
+published algorithm.
 
 Let :math:`\mathbf{Y}_0^- = \mathbf{U} \boldsymbol{\Sigma}
 \mathbf{V}^\top` be the SVD of the pre-period donor matrix. The
@@ -350,9 +370,15 @@ the rank that a cumvar threshold picks. Centring is *only* used
 for rank picking -- the HSVT step itself still consumes the raw
 matrix so the counterfactual is returned in original units.
 
-The same rank is applied to the full :math:`\mathbf{Y}_0` so that the
-post-period projection (Algorithm 4 Step 5) consumes the denoised
-matrix :math:`\widetilde{\mathbf{M}} = \mathrm{HSVT}_r(\mathbf{Y}_0)`.
+With ``project_denoised=True`` the same rank is applied to the full
+:math:`\mathbf{Y}_0` and the projection (Rho et al. 2025, Algorithm 4
+Step 5) consumes :math:`\widetilde{\mathbf{M}} =
+\mathrm{HSVT}_r(\mathbf{Y}_0)`.
+
+The rank rule is CLUSTERSC's own. JMLR 2025 (Section 2.4.2) chooses
+:math:`k` by the Gavish and Donoho (2014) threshold in its
+simulations, and Bayat, Morrin, Wang and Misra (2021) study RSC's rank
+choice; neither is implemented here.
 
 Donor clustering (Algorithm 3). When ``clustering=True`` the
 estimator clusters donors on the rows of
@@ -406,14 +432,97 @@ The counterfactual is
                    \bigl(y_{1t} - (\mathbf{Y}_0\, \widehat{\mathbf{w}})_t\bigr).
 
 Algorithm 4 Step 5 of Rho et al. (2025) writes the projection
-through the *denoised* matrix :math:`\widetilde{\mathbf{M}}`. For the
-OLS solver the two are mathematically identical --
-:math:`\widehat{\mathbf{w}}` lies in the column space of
-:math:`\mathbf{V}_r`, so the discarded high-order components
-annihilate. They differ for the Bayesian and SIMPLEX solvers below,
-where :math:`\widehat{\mathbf{w}}` is not constrained to the
-rank-:math:`r` subspace. Set ``project_denoised=True`` to recover the
-paper-strict projection.
+through the de-noised full-horizon matrix
+:math:`\widetilde{\mathbf{M}} = \mathrm{HSVT}_r(\mathbf{Y}_0)`. For the
+OLS solver the raw and de-noised projections coincide only when the
+weights were fitted on that same full-horizon truncation, because then
+:math:`\widehat{\mathbf{w}}` lies in the span of its right singular
+vectors. CLUSTERSC fits on the pre-period truncation, whose right
+singular vectors differ, so ``project_denoised=True`` changes the OLS
+estimate too: on Proposition 99 the ATT is -21.24 raw against -20.37
+de-noised at :math:`r = 2`, and -19.37 against -19.50 at :math:`r = 4`.
+The Bayesian and SIMPLEX solvers below are not confined to the
+rank-:math:`r` subspace at all.
+
+Missing donor cells
+"""""""""""""""""""
+
+A NaN donor outcome is kept (``dataprep(..., missing_outcomes="keep")``)
+and handled by the two-step PCR of Agarwal, Shah and Shen (JMLR 2025,
+Section 2.2), with :math:`\mathbf{Z} = \mathbf{Y}_0^-`,
+:math:`\mathbf{Z}' = \mathbf{Y}_0^+` and :math:`\mathbf{y} =
+\mathbf{y}_1^-` (their Section 7.1):
+
+1. Step I. Set the missing entries of :math:`\mathbf{Z}` to zero,
+   let :math:`\hat\rho` be the fraction of its entries observed, and
+   rescale, :math:`\widetilde{\mathbf{Z}} = \mathbf{Z}/\hat\rho`.
+   The rank rule reads :math:`\widetilde{\mathbf{Z}}`, and the weights
+   are :math:`\widehat{\mathbf{w}} = (\widetilde{\mathbf{Z}}^k)^{+}
+   \mathbf{y}_1^-` from its rank-:math:`k` truncation, as above.
+2. Step II. Set the missing entries of :math:`\mathbf{Z}'` to zero and
+   rescale by its own observed fraction,
+   :math:`\widetilde{\mathbf{Z}}' = \mathbf{Z}'/\hat\rho'`; the
+   post-period counterfactual is :math:`\widetilde{\mathbf{Z}}'
+   \widehat{\mathbf{w}}`. The paper allows a rank-:math:`\ell`
+   truncation of :math:`\widetilde{\mathbf{Z}}'`; CLUSTERSC uses full
+   rank, which leaves the block as it is.
+
+The zero-fill with the :math:`1/\hat\rho` rescaling makes
+:math:`\mathbb{E}[\widetilde{\mathbf{Z}}] = \mathbf{X}`, the latent
+mean, when entries are missing completely at random (their Section
+2.4.1), and the separate :math:`\hat\rho'` keeps the post block on the
+weights' scale when it misses at a different rate. The pre-period fit
+is :math:`\widetilde{\mathbf{Z}}\widehat{\mathbf{w}}`, equal to
+:math:`\widetilde{\mathbf{Z}}^k\widehat{\mathbf{w}}`. With every cell
+observed, :math:`\hat\rho = \hat\rho' = 1` and the result is the
+complete-data estimate exactly. The two observed fractions are
+reported as ``missing_p_hat`` and ``missing_p_hat_post`` in
+``method_details.parameters_used``, with ``missing_donor_cells``.
+
+The path covers ``method="pcr"`` with OLS weights. With a missing donor
+cell, CLUSTERSC raises ``MlsynthDataError`` for the options the paper
+does not cover:
+
+* the rpca family;
+* ``clustering=True``;
+* ``estimator="bayesian"``;
+* ``pcr_objective="SIMPLEX"``;
+* ``lambda_penalty > 0``;
+* ``project_denoised=True``;
+* ``compute_shen_ci=True``, the default;
+* ``compute_scpi_pi=True``.
+
+The defaults run clustering and the Shen et al. intervals, so a panel
+with missing donor cells needs ``clustering=False`` and
+``compute_shen_ci=False``. A missing treated cell is refused on every
+branch, since Step I regresses on the complete treated series. A
+period with no observed donor is refused, since its zero-filled row
+would give a counterfactual of 0.
+
+The rescaling is unbiased in expectation, but it does not remove all
+finite-sample error. On the latent-variable model of Amjad, Shah and
+Shen (2018, Section 5.3), with 100 units and 400 or 800 pre-periods,
+the post-period error has no detectable bias at missing fractions of
+up to 30%, with the pre- and post-period rates equal or different.
+When the donor outcomes sit far from zero, as cigarette sales do, the
+zero-fill adds noise in proportion to that level. Missing cells in the
+post block then widen the spread of the estimate without biasing it.
+Missing cells in the pre block bias the weights, because Step I is an
+errors-in-variables regression. On Proposition 99 at the default rank,
+with 50 random masks per rate:
+
+* pre and post blocks 10% missing: the ATT moves from -19.4 to -27.9,
+  standard deviation 1.6;
+* post block only, 20% missing: -20.3, standard deviation 3.4.
+
+On Basque at the default rank, 10% missing in each block gives -1.52
+against -1.67. In simulation the pre-block bias shrinks as the panel
+grows.
+
+JMLR 2025's Assumption 4.2 (the post-period donor signal lies in the
+row space of the pre-period signal) has a hypothesis test in their
+Section 6. At level 0.05 the test does not pass on Basque or on
+Proposition 99 (their Section 7.3). CLUSTERSC does not run it.
 
 mlsynth extensions
 ^^^^^^^^^^^^^^^^^^
