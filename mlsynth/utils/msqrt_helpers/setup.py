@@ -70,9 +70,10 @@ def prepare_msqrt_inputs(
     # datetime periods stay an object array of Timestamps.
     time_labels = np.array(list(prep.time_labels))
     T = time_labels.size
-    # Unit by period, C-ordered as the old pivot was: the slices below keep
-    # the layout the solver's sums were computed on.
-    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)
+    # Unit by period, as the old pivot was. The np.ix_ slices below are fresh
+    # C-ordered copies whatever Y's own layout, so the blocks keep the layout
+    # the solver's sums were computed on.
+    Y = prep.Ywide[unit_names].to_numpy(dtype=float).T
     starts = _adoption_starts(prep)
 
     # Adoption period: first time any unit is treated. dataprep refuses
