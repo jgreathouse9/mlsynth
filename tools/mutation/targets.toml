@@ -22039,3 +22039,63 @@ timeout = 600.0
   find = "        if set(unit_names) != unit_set_panel:"
   replace = "        if False:"
   models = "a unit_order naming a unit the panel lacks reaching dataprep's columns as a KeyError"
+
+[[target]]
+name = "siv-dataprep"
+module-path = "mlsynth/utils/siv_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_siv_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-not-transposed"
+  find = "    Y = panel[\"Y\"].T                                     # (J, T)"
+  replace = "    Y = panel[\"Y\"]                                     # (J, T)"
+  models = "geoex_dataprep's period-by-unit matrix used as SIV's unit-by-period Y"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-row-major"
+  find = "    Y = panel[\"Y\"].T                                     # (J, T)"
+  replace = "    Y = np.ascontiguousarray(panel[\"Y\"].T)                                     # (J, T)"
+  models = "Y in C order where the old transposed pivot was in Fortran order, so the SC sums differ in the last bits"
+
+  [[target.mutant]]
+  id = "the-treatment-is-read-from-the-outcome"
+  find = "    for role, col in ((\"treatment\", treat), (\"instrument\", instrument)):"
+  replace = "    for role, col in ((\"treatment\", outcome), (\"instrument\", instrument)):"
+  models = "the wrong column read as the treatment intensity R"
+
+  [[target.mutant]]
+  id = "treatment-and-instrument-swapped"
+  find = "    R = matrices[\"treatment\"]\n    Z = matrices[\"instrument\"]"
+  replace = "    R = matrices[\"instrument\"]\n    Z = matrices[\"treatment\"]"
+  models = "R and Z exchanged, so the first stage regresses the instrument on the treatment"
+
+  [[target.mutant]]
+  id = "the-refusal-loses-the-column-name"
+  find = "                f\"SIV's {role} column {col!r} is incomplete; SIV needs it \""
+  replace = "                f\"SIV's {role} column is incomplete; SIV needs it \""
+  models = "a refusal for R or Z that says geoex_dataprep's 'outcome column' without naming SIV's column"
+
+  [[target.mutant]]
+  id = "the-refusal-loses-its-cause"
+  find = "                f\"observed and finite in every unit-period. {exc}\""
+  replace = "                f\"observed and finite in every unit-period.\""
+  models = "a refusal for R or Z that drops geoex_dataprep's count and first bad cell"
+
+  [[target.mutant]]
+  id = "post-col-read-from-the-unsorted-frame"
+  find = "            df.sort_values([unitid, time])[[time, post_col]]"
+  replace = "            df[[time, post_col]]"
+  models = "post_col read per period from whichever unit comes first in the caller's row order"
+
+  [[target.mutant]]
+  id = "the-time-index-holds-the-units"
+  find = "        time_index=IndexSet.from_labels(Y_wide.index.to_list()),"
+  replace = "        time_index=IndexSet.from_labels(Y_wide.columns.to_list()),"
+  models = "the time index read from the outcome matrix's unit axis"
+
+  [[target.mutant]]
+  id = "two-units-are-accepted"
+  find = "    if J < 3:"
+  replace = "    if J < 2:"
+  models = "SIV's minimum of three units lost behind geoex_dataprep"

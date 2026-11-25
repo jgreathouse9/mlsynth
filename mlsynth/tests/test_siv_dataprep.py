@@ -176,9 +176,11 @@ class TestSameInputs:
 
     def test_a_post_col_read_from_the_first_sorted_unit(self):
         # post_col is read per period from the first unit in sorted order, as
-        # before; a unit that disagrees later in the order does not move T0.
+        # before; a unit that disagrees does not move T0, even when its rows
+        # come first in the frame.
         df = _panel(shuffle=False)
         df.loc[(df.unit == 5) & (df.time == 2006), "post"] = 1
+        df = pd.concat([df[df.unit == 5], df[df.unit != 5]])
         _assert_same(prepare_siv_inputs(df, **COLS, post_col="post"),
                      _reference(df, **COLS, post_col="post"))
         assert prepare_siv_inputs(df, **COLS, post_col="post").T0 == 8
