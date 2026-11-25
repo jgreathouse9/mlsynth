@@ -324,7 +324,8 @@ the same panel.
 
 CLUSTERSC implements the pre-period family. JMLR 2025 is the authors'
 latest statement of RSC and PCR for synthetic control (their Section
-7.1 maps it), and it is the source of the missing-data rule below. On
+7.1 maps it), and it is the source of the missing-data rule below,
+with a donor-mean fill in place of its zero-fill. On
 the California Proposition 99 panel at :math:`r = 4` the full-horizon
 estimate is -7.2 packs and the pre-period estimate -19.4; ``tslib``
 gives -19.3. At :math:`r = 2` the two give -17.3 and -21.2; on Basque
@@ -451,33 +452,214 @@ A NaN donor outcome is kept (``dataprep(..., missing_outcomes="keep")``)
 and handled by the two-step PCR of Agarwal, Shah and Shen (JMLR 2025,
 Section 2.2), with :math:`\mathbf{Z} = \mathbf{Y}_0^-`,
 :math:`\mathbf{Z}' = \mathbf{Y}_0^+` and :math:`\mathbf{y} =
-\mathbf{y}_1^-` (their Section 7.1):
+\mathbf{y}_1^-` (their Section 7.1), and with one change to how the
+missing cells are filled:
 
-1. Step I. Set the missing entries of :math:`\mathbf{Z}` to zero,
-   let :math:`\hat\rho` be the fraction of its entries observed, and
-   rescale, :math:`\widetilde{\mathbf{Z}} = \mathbf{Z}/\hat\rho`.
+1. Step I. Let :math:`\hat\rho` be the fraction of the entries of
+   :math:`\mathbf{Z}` that are observed and :math:`m_j` donor
+   :math:`j`'s mean over its observed pre-period cells. The filled block
+   is
+
+   .. math::
+
+      \widetilde Z_{tj} = m_j + (Z_{tj} - m_j)\,
+          \mathbb{1}[Z_{tj}\ \text{observed}] / \hat\rho .
+
    The rank rule reads :math:`\widetilde{\mathbf{Z}}`, and the weights
    are :math:`\widehat{\mathbf{w}} = (\widetilde{\mathbf{Z}}^k)^{+}
    \mathbf{y}_1^-` from its rank-:math:`k` truncation, as above.
-2. Step II. Set the missing entries of :math:`\mathbf{Z}'` to zero and
-   rescale by its own observed fraction,
-   :math:`\widetilde{\mathbf{Z}}' = \mathbf{Z}'/\hat\rho'`; the
-   post-period counterfactual is :math:`\widetilde{\mathbf{Z}}'
-   \widehat{\mathbf{w}}`. The paper allows a rank-:math:`\ell`
-   truncation of :math:`\widetilde{\mathbf{Z}}'`; CLUSTERSC uses full
-   rank, which leaves the block as it is.
+2. Step II. Fill :math:`\mathbf{Z}'` the same way, with its own observed
+   fraction :math:`\hat\rho'` and each donor's mean over its observed
+   post-period cells; a donor with no observed post-period cell takes its
+   pre-period mean. The post-period counterfactual is
+   :math:`\widetilde{\mathbf{Z}}'\widehat{\mathbf{w}}`. The paper allows a
+   rank-:math:`\ell` truncation of :math:`\widetilde{\mathbf{Z}}'`;
+   CLUSTERSC uses full rank, which leaves the block as it is.
 
-The zero-fill with the :math:`1/\hat\rho` rescaling makes
-:math:`\mathbb{E}[\widetilde{\mathbf{Z}}] = \mathbf{X}`, the latent
-mean, when entries are missing completely at random (their Section
-2.4.1), and the separate :math:`\hat\rho'` keeps the post block on the
-weights' scale when it misses at a different rate. The pre-period fit
-is :math:`\widetilde{\mathbf{Z}}\widehat{\mathbf{w}}`, equal to
-:math:`\widetilde{\mathbf{Z}}^k\widehat{\mathbf{w}}`. With every cell
-observed, :math:`\hat\rho = \hat\rho' = 1` and the result is the
-complete-data estimate exactly. The two observed fractions are
-reported as ``missing_p_hat`` and ``missing_p_hat_post`` in
-``method_details.parameters_used``, with ``missing_donor_cells``.
+A block with every cell observed is used as it is. In exact arithmetic
+:math:`m + (Z - m) = Z`, but in floating point the identity fails in
+about 6% of cells (the column :math:`(0.1, 0.7, 0.3)` loses its 0.1), so
+a complete block is returned unchanged and the complete-data estimate is
+reproduced bit for bit. The separate :math:`\hat\rho'` keeps the post
+block on the weights' scale when it misses at a different rate. The
+pre-period fit is :math:`\widetilde{\mathbf{Z}}\widehat{\mathbf{w}}`,
+equal to :math:`\widetilde{\mathbf{Z}}^k\widehat{\mathbf{w}}`.
+``method_details.parameters_used`` reports ``missing_p_hat``,
+``missing_p_hat_post``, ``missing_donor_cells``, ``missing_fill``
+(``"donor_mean"``) and ``missing_post_mean_fallbacks``, the number of
+donors centred at their pre-period mean.
+
+The fill departs from the paper. JMLR 2025 (Section 2.4.1) sets missing
+entries to 0 and divides by :math:`\hat\rho`, which makes
+:math:`\mathbb{E}[\widetilde Z_{tj}] = X_{tj}` when cells are missing
+completely at random. The noise that zero-fill adds to a cell has
+variance :math:`X_{tj}^2 (1 - \rho)/\rho`, in proportion to the squared
+level of the outcome, and Step I is an errors-in-variables regression,
+so when the donor outcomes sit far from zero, as cigarette sales do, the
+weights are biased. Centring each donor at its observed mean keeps
+:math:`\mathbb{E}[\widetilde Z_{tj} \mid m_j] = X_{tj}` and replaces the
+level in that variance by the deviation :math:`X_{tj} - m_j`.
+
+The two fills compared. Each real-panel row is 50 random masks over the
+donor cells (mask :math:`s` draws a uniform number per donor cell from
+``numpy.random.default_rng(s)`` and hides the cells above the observed
+rate), with the rank chosen by the cumulative-variance rule or held at
+the complete panel's choice. Entries are the ATT's mean (standard
+deviation) over the masks.
+
+California Proposition 99 (``basedata/smoking_data.csv``, 38 donors,
+treatment in 1989; complete ATT -19.37 at rank 4):
+
+.. list-table::
+   :header-rows: 1
+
+   * - missing
+     - rank
+     - zero-fill
+     - donor-mean fill
+   * - 5%, both blocks
+     - cumulative variance
+     - -23.98 (2.85)
+     - -19.08 (1.19)
+   * - 5%, both blocks
+     - fixed at 4
+     - -27.13 (1.77)
+     - -20.30 (0.50)
+   * - 10%, both blocks
+     - cumulative variance
+     - -25.13 (3.15)
+     - -19.48 (1.73)
+   * - 10%, both blocks
+     - fixed at 4
+     - -27.90 (1.56)
+     - -21.04 (0.88)
+   * - 20%, both blocks
+     - cumulative variance
+     - -26.65 (2.66)
+     - -20.53 (2.25)
+   * - 20%, both blocks
+     - fixed at 4
+     - -27.62 (1.74)
+     - -21.80 (1.40)
+   * - 20%, post block only
+     - either
+     - -20.26 (3.40)
+     - -19.37 (0.35)
+
+Basque Country (``basedata/basque_data.csv``, 16 donors, treatment in
+1971 as in the authors' ``tslib`` example; complete ATT -1.67 at
+rank 1):
+
+.. list-table::
+   :header-rows: 1
+
+   * - missing
+     - rank
+     - zero-fill
+     - donor-mean fill
+   * - 5%, both blocks
+     - cumulative variance
+     - -1.39 (0.43)
+     - -1.27 (0.30)
+   * - 5%, both blocks
+     - fixed at 1
+     - -1.59 (0.11)
+     - -1.67 (0.03)
+   * - 10%, both blocks
+     - cumulative variance
+     - -1.41 (0.49)
+     - -1.13 (0.12)
+   * - 10%, both blocks
+     - fixed at 1
+     - -1.52 (0.13)
+     - -1.67 (0.05)
+   * - 20%, both blocks
+     - cumulative variance
+     - -1.41 (0.66)
+     - -1.24 (0.19)
+   * - 20%, both blocks
+     - fixed at 1
+     - -1.31 (0.21)
+     - -1.66 (0.07)
+   * - 20%, post block only
+     - either
+     - -1.66 (0.09)
+     - -1.67 (0.05)
+
+On the latent-variable model of Amjad, Shah and Shen (2018, Section 5.3;
+:func:`~mlsynth.utils.clustersc_helpers.simulation.simulate_rsc_panel`,
+100 units, 800 pre-periods and 200 post-periods, noise 1, unit 0 as the
+treated unit, rank 2, 32 seeds, pre-period donor cells missing), the
+post-period error of the counterfactual against the true mean is, as
+bias (standard deviation across seeds; root mean squared error):
+
+.. list-table::
+   :header-rows: 1
+
+   * - level
+     - pre missing
+     - zero-fill
+     - donor-mean fill
+   * - +0
+     - 10% to 30%
+     - -0.023 to -0.028
+     - -0.020 to -0.022
+   * - +100
+     - 10%
+     - -0.154 (0.126; 0.208)
+     - -0.028 (0.129; 0.161)
+   * - +100
+     - 20%
+     - -0.312 (0.123; 0.333)
+     - -0.031 (0.126; 0.159)
+   * - +100
+     - 30%
+     - -0.517 (0.130; 0.528)
+     - -0.031 (0.127; 0.159)
+
+Across panel sizes (level +100, 20% of cells missing in both blocks,
+cumulative-variance rank, 20 seeds), as bias (root mean squared error):
+
+.. list-table::
+   :header-rows: 1
+
+   * - units x pre-periods
+     - zero-fill
+     - donor-mean fill
+   * - 20 x 20
+     - -3.62 (14.73)
+     - -0.07 (0.80)
+   * - 40 x 40
+     - -3.01 (9.71)
+     - +0.05 (0.76)
+   * - 100 x 100
+     - -1.01 (6.11)
+     - +0.04 (0.58)
+   * - 100 x 400
+     - -0.38 (5.59)
+     - -0.04 (0.43)
+   * - 100 x 1600
+     - -0.34 (5.26)
+     - -0.02 (0.28)
+   * - 400 x 1600
+     - -0.14 (2.87)
+     - -0.02 (0.45)
+
+The zero-fill's root mean squared error there is mostly the post block:
+a zero-filled post cell at level 100 adds noise of standard deviation
+about :math:`100\sqrt{(1-\rho)/\rho}`.
+
+What the donor-mean fill does not remove comes from the rank. The
+cumulative-variance rule reads the filled block, and the noise the fill
+adds spreads the spectrum, so the rule picks a larger rank under
+missing cells: on Proposition 99 it picks 5 to 11 (11 to 15 under
+zero-fill) where the complete panel gives 4, and on Basque 1 to 6 (3 to
+10) where the complete panel gives 1. On Basque this accounts for all of
+the remaining shift: at the complete panel's rank the donor-mean fill is
+within 0.01 of the complete ATT. On Proposition 99 the fill leaves -0.9
+to -2.4 at the complete panel's rank, and the larger rank the rule picks
+partly offsets it. A rank rule that holds up under missing cells is
+`#1157 <https://github.com/jgreathouse9/mlsynth/issues/1157>`_.
 
 The path covers ``method="pcr"`` with OLS weights. With a missing donor
 cell, CLUSTERSC raises ``MlsynthDataError`` for the options the paper
@@ -495,29 +677,10 @@ does not cover:
 The defaults run clustering and the Shen et al. intervals, so a panel
 with missing donor cells needs ``clustering=False`` and
 ``compute_shen_ci=False``. A missing treated cell is refused on every
-branch, since Step I regresses on the complete treated series. A
-period with no observed donor is refused, since its zero-filled row
-would give a counterfactual of 0.
-
-The rescaling is unbiased in expectation, but it does not remove all
-finite-sample error. On the latent-variable model of Amjad, Shah and
-Shen (2018, Section 5.3), with 100 units and 400 or 800 pre-periods,
-the post-period error has no detectable bias at missing fractions of
-up to 30%, with the pre- and post-period rates equal or different.
-When the donor outcomes sit far from zero, as cigarette sales do, the
-zero-fill adds noise in proportion to that level. Missing cells in the
-post block then widen the spread of the estimate without biasing it.
-Missing cells in the pre block bias the weights, because Step I is an
-errors-in-variables regression. On Proposition 99 at the default rank,
-with 50 random masks per rate:
-
-* pre and post blocks 10% missing: the ATT moves from -19.4 to -27.9,
-  standard deviation 1.6;
-* post block only, 20% missing: -20.3, standard deviation 3.4.
-
-On Basque at the default rank, 10% missing in each block gives -1.52
-against -1.67. In simulation the pre-block bias shrinks as the panel
-grows.
+branch, since Step I regresses on the complete treated series. A period
+with no observed donor is refused, since its filled row would carry only
+the donor means, and so is a donor with no observed pre-period cell,
+which has no mean to fill with.
 
 JMLR 2025's Assumption 4.2 (the post-period donor signal lies in the
 row space of the pre-period signal) has a hypothesis test in their
@@ -1858,8 +2021,9 @@ The obfuscation itself runs through the missing-donor-cell path
 (Missing donor cells, above): hide a random share of the donor cells
 and refit with ``clustering=False`` and ``compute_shen_ci=False``. At
 rank 1 the complete-panel ATT is -29.61; over 50 random masks it is
--29.27 (standard deviation 0.63) with 5% of donor cells hidden, -28.85
-(0.84) with 10%, and -27.79 (1.46) with 20%. Agarwal et al. (2021)
+-29.60 (standard deviation 0.14) with 5% of donor cells hidden, -29.60
+(0.21) with 10%, and -29.55 (0.35) with 20%. With the paper's zero-fill
+the same masks gave -29.27 (0.63), -28.85 (0.84) and -27.79 (1.46). Agarwal et al. (2021)
 de-noise the full horizon and CLUSTERSC the pre-period block, so these
 numbers check the same robustness claim with the other family's
 estimator.
