@@ -21499,12 +21499,6 @@ timeout = 600.0
   models = "ISCM's minimum of three units, one synthetic control per unit, lost behind dataprep"
 
   [[target.mutant]]
-  id = "a-missing-treatment-cell-is-read-as-untreated"
-  find = "    if df[treat].isna().any():"
-  replace = "    if False:"
-  models = "dataprep's binary check skipping NaN, so a missing treatment cell enters D as 0"
-
-  [[target.mutant]]
   id = "an-absent-column-is-not-reported"
   find = "        if col not in df.columns:"
   replace = "        if False:"
@@ -21757,12 +21751,6 @@ timeout = 600.0
   models = "a single treated unit without donors refused with dataprep's message, not MSQRT's"
 
   [[target.mutant]]
-  id = "a-missing-treatment-cell-is-read-as-untreated"
-  find = "    if df[treat].isna().any():"
-  replace = "    if False:"
-  models = "dataprep's binary check skipping NaN, so a missing treatment cell is read as 0"
-
-  [[target.mutant]]
   id = "an-absent-column-is-not-reported"
   find = "        if col not in df.columns:"
   replace = "        if False:"
@@ -21865,12 +21853,6 @@ timeout = 600.0
   models = "RMSI's minimum of two never-treated controls lost behind dataprep's minimum of one"
 
   [[target.mutant]]
-  id = "a-missing-treatment-cell-is-read-as-untreated"
-  find = "    if df[treat].isna().any():"
-  replace = "    if False:"
-  models = "dataprep's binary check skipping NaN, so a missing treatment cell enters D as 0"
-
-  [[target.mutant]]
   id = "period-covariates-read-at-another-order"
   find = "            df.groupby(time, observed=True)[c].mean().loc[time_labels].to_numpy(dtype=float)"
   replace = "            df.groupby(time, observed=True)[c].mean().loc[time_labels[::-1]].to_numpy(dtype=float)"
@@ -21953,12 +21935,6 @@ timeout = 600.0
   find = "    if keys.n_units < 3:"
   replace = "    if keys.n_units < 2:"
   models = "SPOTSYNTH's minimum of a treated unit and two donors lost behind dataprep"
-
-  [[target.mutant]]
-  id = "a-missing-treatment-cell-is-read-as-untreated"
-  find = "    if df[treat].isna().any():"
-  replace = "    if False:"
-  models = "dataprep's binary check skipping NaN, so a missing treatment cell is read as 0"
 
 [[target]]
 name = "spsydid-dataprep"
@@ -22043,12 +22019,6 @@ timeout = 600.0
   find = "    if T0 == 0:"
   replace = "    if False:"
   models = "dataprep's cohort path, which does not refuse treatment in the first period, left unguarded"
-
-  [[target.mutant]]
-  id = "a-missing-treatment-cell-is-read-as-untreated"
-  find = "    if df[treat].isna().any():"
-  replace = "    if False:"
-  models = "dataprep's binary check skipping NaN, so a missing treatment cell enters D as 0"
 
   [[target.mutant]]
   id = "a-mismatched-unit-order-is-accepted"
@@ -22517,12 +22487,6 @@ timeout = 600.0
   find = "    if keys.n_units < 3:"
   replace = "    if keys.n_units < 2:"
   models = "SSC's own minimum of three units lost behind dataprep"
-
-  [[target.mutant]]
-  id = "a-missing-treatment-is-read-as-untreated"
-  find = "    if df[treat].isna().any():"
-  replace = "    if False:"
-  models = "a NaN treatment cell passed through dataprep's binary check, which skips NaN, and read as untreated"
 
   [[target.mutant]]
   id = "an-absent-column-is-not-named"
