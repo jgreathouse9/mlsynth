@@ -21312,3 +21312,75 @@ timeout = 600.0
   find = "    if len(starts) == len(units):"
   replace = "    if False:"
   models = "a panel with no never-treated unit reaching the solver"
+
+[[target]]
+name = "snn-dataprep"
+module-path = "mlsynth/utils/snn_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_snn_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat)"
+  models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
+
+  [[target.mutant]]
+  id = "treatment-lasts-one-period"
+  find = "            D[i, starts[name]:] = 1.0"
+  replace = "            D[i, starts[name]] = 1.0"
+  models = "the rebuilt treatment matrix marking only the adoption period, so later treated cells are read as observed and never imputed"
+
+  [[target.mutant]]
+  id = "adoption-one-period-late"
+  find = "            D[i, starts[name]:] = 1.0"
+  replace = "            D[i, starts[name] + 1:] = 1.0"
+  models = "an off-by-one between dataprep's pre-period count and the adoption index"
+
+  [[target.mutant]]
+  id = "the-latest-adoption-sets-t0"
+  find = "    T0 = min(starts.values())"
+  replace = "    T0 = max(starts.values())"
+  models = "staggered adoption with T0 at the last cohort, so earlier cohorts' effects drop out of att_by_period"
+
+  [[target.mutant]]
+  id = "a-single-treated-unit-starts-at-its-post-count"
+  find = "        return {prep.treated_unit_name: int(prep.pre_periods)}"
+  replace = "        return {prep.treated_unit_name: int(prep.post_periods)}"
+  models = "the single-treated branch reading the wrong side of dataprep's period split"
+
+  [[target.mutant]]
+  id = "only-the-first-cohort-is-treated"
+  find = "            for cohort in prep.cohorts.values() for unit in cohort.treated_units}"
+  replace = "            for cohort in list(prep.cohorts.values())[:1] for unit in cohort.treated_units}"
+  models = "later cohorts dropped from the treatment matrix and used as never-treated donors"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-not-transposed"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float))"
+  models = "dataprep's period-by-unit matrix used as SNN's unit-by-period matrix"
+
+  [[target.mutant]]
+  id = "units-in-another-order"
+  find = "    unit_names = sorted(prep.Ywide.columns)"
+  replace = "    unit_names = sorted(prep.Ywide.columns, reverse=True)"
+  models = "rows of Y and D in a different unit order from the names the results report"
+
+  [[target.mutant]]
+  id = "one-control-is-accepted"
+  find = "    if N - treated_idx.size < 2:"
+  replace = "    if N - treated_idx.size < 1:"
+  models = "SNN's own minimum of two donor units lost when its checks moved behind dataprep"
+
+  [[target.mutant]]
+  id = "two-units-are-accepted"
+  find = "    if N < 3:"
+  replace = "    if N < 2:"
+  models = "SNN's own minimum of three units lost when its checks moved behind dataprep"
+
+  [[target.mutant]]
+  id = "a-missing-column-is-not-named"
+  find = "        if col not in df.columns:"
+  replace = "        if False:"
+  models = "an absent outcome, treatment, unit or time column surfacing as dataprep's error, not SNN's message naming the column"
