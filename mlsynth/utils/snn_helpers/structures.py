@@ -40,6 +40,10 @@ class SNNInputs:
         Length-``N`` unit identifiers.
     time_labels : np.ndarray
         Length-``T`` period labels.
+    observed : np.ndarray
+        Boolean, shape ``(N, T)``; ``False`` where the panel's outcome is
+        missing (``dataprep``'s ``observed`` mask). The pipeline marks those
+        cells missing before the completion, whatever ``Y`` holds there.
     """
 
     Y: np.ndarray
@@ -48,6 +52,7 @@ class SNNInputs:
     T0: int
     unit_names: List[Any]
     time_labels: np.ndarray
+    observed: np.ndarray
 
     @property
     def N(self) -> int:

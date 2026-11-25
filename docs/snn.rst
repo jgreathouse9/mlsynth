@@ -74,6 +74,47 @@ completion, and forms the treatment effect as observed minus imputed:
    \widehat{\tau} \coloneqq \frac{1}{|\{(i,t): d_{it}=1\}|}
        \sum_{d_{it}=1} \tau_{it}.
 
+The long panel is read through :func:`mlsynth.utils.datautils.dataprep`, so
+a treated unit stays treated from its adoption period to the end of the panel,
+with one adoption period or staggered ones. ``dataprep`` refuses with
+``MlsynthDataError`` an infinite outcome in any cell, an absent or duplicate
+unit-period, a missing or non-binary treatment, and a treatment that switches
+off after it starts.
+
+Missing outcome cells
+^^^^^^^^^^^^^^^^^^^^^
+
+A row of the panel whose outcome is ``NaN`` is accepted. SNN is a
+matrix-completion method: it imputes any missing entry :math:`(i, t)` from a
+fully observed block of anchor rows and columns (Agarwal, Dahleh, Shah and
+Shen 2021, Algorithm 1), and in the panel setting the treated post-treatment
+cells are already such entries. A missing outcome cell is one more of them.
+``dataprep`` keeps the cell (``missing_outcomes="keep"``) and its
+``observed`` mask reaches the completion, which marks the cell missing
+whatever value the matrix holds there. The cell is left out of every anchor
+block that would contain it, and SNN imputes its untreated outcome: a missing
+control or pre-period cell carries that imputation in
+``counterfactual_matrix``. ``metadata["missing_outcome_cells"]`` counts the
+missing cells. The leave-one-control jackknife refits with the same mask.
+
+The donor weights in ``weights`` are the principal-component-regression
+coefficients of each treated unit's first treated cell. With missing cells
+elsewhere in the panel, later treated cells can have different anchor rows,
+so those weights reproduce the counterfactual of the first post-treatment
+period and need not reproduce the others.
+
+A missing outcome of a treated unit at or after its own adoption period is
+refused, with the unit and period named. The effect at a treated cell is
+:math:`y_{it} - \widehat{y}_{it}^N`, and with :math:`y_{it}` missing it is
+not defined; neither the paper nor the reference implementation
+(``deshen24/syntheticNN``, a completion routine with no effect estimand) says
+whether such a cell should be dropped from :math:`\widehat{\tau}` or reported
+as missing. A treated unit's missing pre-period cell is imputed like any
+other; the pre-period fit diagnostics of the treated path (``rmse_pre``,
+``r_squared_pre``) are ``NaN`` when the treated path itself has a missing
+period. An infinite outcome, an absent unit-period row and a missing
+treatment value are still refused.
+
 The general matrix-completion engine is exposed directly as
 :func:`mlsynth.utils.snn_helpers.snn_complete` for non-causal MNAR
 completion (e.g. recommender systems): pass a matrix with ``NaN`` for

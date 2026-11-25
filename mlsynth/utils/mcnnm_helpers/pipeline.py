@@ -1,4 +1,9 @@
-"""Orchestration for the MC-NNM estimator (Athey et al. 2021)."""
+"""Orchestration for the MC-NNM estimator (Athey et al. 2021).
+
+The engine reads only the entries inside the mask. A missing outcome is
+``NaN`` in ``inputs.Y``, and ``0 * NaN`` is ``NaN``, so the engine gets
+:func:`_engine_matrix`, which holds zero at every missing cell.
+"""
 
 from __future__ import annotations
 
@@ -63,6 +68,16 @@ def _factors_and_weights(inputs: MCNNMInputs, L: np.ndarray):
     return unit_factors, time_factors, s[:r], weights
 
 
+def _engine_matrix(Y: np.ndarray, mask: np.ndarray, D: np.ndarray) -> np.ndarray:
+    """``Y`` with every missing cell (untreated and outside the mask) set to zero.
+
+    Only the entries inside the mask enter the fit. The treated cells keep
+    their values, which the engine multiplies by zero, and a missing cell's
+    stored value (``NaN`` or anything else) is replaced.
+    """
+    return np.where((mask == 0) & (D == 0), 0.0, Y)
+
+
 def _att_from_fit(Y, D, completed, T0, time_labels):
     treated = D > 0
     effects = np.full_like(Y, np.nan)
@@ -103,6 +118,7 @@ def _staggered_aggregations(inputs, completed, adoption_times):
     Y, D = inputs.Y, inputs.D
     adopt = _adoption_indices(inputs, adoption_times)
     gap = Y - completed                       # full gap matrix
+    present = (inputs.mask > 0) | (D > 0)     # cells whose outcome is in the panel
 
     # Cohort ATTs: group treated units by adoption index; average post cells.
     cohort_att = {}
@@ -115,14 +131,18 @@ def _staggered_aggregations(inputs, completed, adoption_times):
         if vals.size:
             cohort_att[inputs.time_labels[a]] = float(np.mean(vals))
 
-    # Event study: average gap by relative time e = t - adoption (all t).
+    # Event study: average gap by relative time e = t - adoption (all t), over
+    # the cells whose outcome is present; NaN where none is.
     by_e = {}
     for i in inputs.treated_idx:
         a = adopt[i]
         for t in range(inputs.T):
             e = t - a
-            by_e.setdefault(e, []).append(gap[i, t])
-    event_study = {int(e): float(np.mean(v)) for e, v in sorted(by_e.items())}
+            vals = by_e.setdefault(e, [])
+            if present[i, t]:
+                vals.append(gap[i, t])
+    event_study = {int(e): float(np.mean(v)) if v else float("nan")
+                   for e, v in sorted(by_e.items())}
     return cohort_att, event_study
 
 
@@ -159,16 +179,17 @@ def run_mcnnm(
         threshold) for the ATT SE / CI.
     """
     Y, mask, D, T0 = inputs.Y, inputs.mask, inputs.D, inputs.T0
+    Y_fit = _engine_matrix(Y, mask, D)
 
     # A given threshold skips the search entirely: no folds are drawn, so the
     # fit does not depend on random_state (#484).
     if lam is None:
-        fit = mcnnm_cv(Y, mask, est_u=est_u, est_v=est_v, n_lam=n_lam,
+        fit = mcnnm_cv(Y_fit, mask, est_u=est_u, est_v=est_v, n_lam=n_lam,
                        n_folds=n_folds, max_iter=max_iter, tol=tol,
                        random_state=random_state)
         lambda_source = "cv"
     else:
-        fit = mcnnm_fit(Y, mask, float(lam), est_u=est_u, est_v=est_v,
+        fit = mcnnm_fit(Y_fit, mask, float(lam), est_u=est_u, est_v=est_v,
                         max_iter=max_iter, tol=tol)
         fit["best_lambda"] = float(lam)
         lambda_source = "user"
@@ -196,6 +217,7 @@ def run_mcnnm(
         "n_control": int(inputs.N - inputs.treated_idx.size),
         "estimate_unit_fe": est_u, "estimate_time_fe": est_v,
         "n_missing": int((1.0 - mask).sum()),
+        "missing_outcome_cells": int(((mask == 0) & (D == 0)).sum()),
     }
     # Cross-treated-unit observed / imputed paths drive the standardized time
     # series (and result.plot()); T0 is the common adoption reference.
@@ -240,12 +262,13 @@ def run_mcnnm(
 def _jackknife(inputs, thr, est_u, est_v, max_iter, tol, alpha_level):
     """Leave-one-control-out jackknife ATT SE at the fixed CV threshold."""
     Y, mask, D = inputs.Y, inputs.mask, inputs.D
+    Y_fit = _engine_matrix(Y, mask, D)
     control_idx = np.array([i for i in range(inputs.N)
                             if i not in set(inputs.treated_idx.tolist())])
     atts = []
     for c in control_idx:
         keep = np.array([i for i in range(inputs.N) if i != c])
-        fit = mcnnm_fit(Y[keep], mask[keep], thr, est_u=est_u, est_v=est_v,
+        fit = mcnnm_fit(Y_fit[keep], mask[keep], thr, est_u=est_u, est_v=est_v,
                         max_iter=max_iter, tol=tol)
         Dk = D[keep]
         tp = Dk > 0
