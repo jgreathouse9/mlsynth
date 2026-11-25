@@ -21038,13 +21038,13 @@ timeout = 300.0
 [[target]]
 name = "mcnnm-dataprep"
 module-path = "mlsynth/utils/mcnnm_helpers/setup.py"
-test-command = "python -m pytest mlsynth/tests/test_mcnnm_dataprep.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest mlsynth/tests/test_mcnnm_dataprep.py mlsynth/tests/test_mcnnm_missing_keep.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
   [[target.mutant]]
   id = "the-panel-is-not-balanced-first"
-  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
-  replace = "    prep = dataprep(df, unitid, time, outcome, treat)"
+  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys,\n"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat,\n"
   models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
 
   [[target.mutant]]
@@ -21100,6 +21100,30 @@ timeout = 600.0
   find = "    if N < 3:"
   replace = "    if N < 2:"
   models = "MC-NNM's own minimum of three units lost when its checks moved behind dataprep"
+
+  [[target.mutant]]
+  id = "mcnnm-missing-outcomes-refused"
+  find = "                    missing_outcomes=\"keep\")"
+  replace = "                    missing_outcomes=\"refuse\")"
+  models = "the opt-in dropped, so a panel with one missing outcome cell is refused although MC-NNM imputes every cell outside its observed set"
+
+  [[target.mutant]]
+  id = "mcnnm-missing-cells-inside-the-mask"
+  find = "    mask = ((D == 0) & observed).astype(float)"
+  replace = "    mask = (D == 0).astype(float)"
+  models = "a missing cell left inside the observed set, so the fit reads its stored value"
+
+  [[target.mutant]]
+  id = "mcnnm-treated-post-cell-not-refused"
+  find = "    _refuse_missing_treated_post(~observed, D, unit_names, time_labels, outcome)\n"
+  replace = "    pass\n"
+  models = "a missing treated post-treatment outcome passed on, so its effect is undefined and drops out of the ATT"
+
+  [[target.mutant]]
+  id = "mcnnm-treated-post-rule-checks-one-unit"
+  find = "    bad = (D > 0) & Y_nan"
+  replace = "    bad = (D[:1] > 0) & Y_nan[:1]"
+  models = "the treated post-treatment rule read on the first treated unit only, so a later cohort's missing treated cell passes"
 
 [[target]]
 name = "syndes-geoex"
@@ -23254,3 +23278,51 @@ timeout = 600.0
   find = "        \"missing_outcome_cells\": int((~inputs.observed).sum()),"
   replace = "        \"missing_outcome_cells\": int((~inputs.observed).any()),"
   models = "the metadata reporting whether a cell is missing instead of how many"
+
+[[target]]
+name = "mcnnm-missing-keep"
+module-path = "mlsynth/utils/mcnnm_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_mcnnm_missing_keep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-engine-reads-the-stored-value"
+  find = "    return np.where((mask == 0) & (D == 0), 0.0, Y)"
+  replace = "    return np.array(Y, dtype=float)"
+  models = "the stored NaN of a missing cell handed to the engine, where 0 * NaN poisons every fitted entry"
+
+  [[target.mutant]]
+  id = "the-engine-zeroes-the-wrong-cells"
+  find = "    return np.where((mask == 0) & (D == 0), 0.0, Y)"
+  replace = "    return np.where((mask == 0) & (D > 0), 0.0, Y)"
+  models = "the zero placeholder put on the treated cells instead of the missing ones"
+
+  [[target.mutant]]
+  id = "the-cv-search-reads-the-raw-matrix"
+  find = "        fit = mcnnm_cv(Y_fit, mask, est_u=est_u,"
+  replace = "        fit = mcnnm_cv(Y, mask, est_u=est_u,"
+  models = "the cross-validated fit given the outcome matrix with its NaN cells"
+
+  [[target.mutant]]
+  id = "the-pinned-fit-reads-the-raw-matrix"
+  find = "        fit = mcnnm_fit(Y_fit, mask, float(lam), est_u=est_u,"
+  replace = "        fit = mcnnm_fit(Y, mask, float(lam), est_u=est_u,"
+  models = "the fit at a user threshold given the outcome matrix with its NaN cells"
+
+  [[target.mutant]]
+  id = "the-jackknife-reads-the-raw-matrix"
+  find = "        fit = mcnnm_fit(Y_fit[keep], mask[keep], thr,"
+  replace = "        fit = mcnnm_fit(Y[keep], mask[keep], thr,"
+  models = "the leave-one-control refits given the outcome matrix with its NaN cells"
+
+  [[target.mutant]]
+  id = "the-event-study-averages-missing-cells"
+  find = "            if present[i, t]:\n                vals.append(gap[i, t])"
+  replace = "            if True:\n                vals.append(gap[i, t])"
+  models = "a missing treated pre-period cell entering the event study as NaN"
+
+  [[target.mutant]]
+  id = "the-missing-count-includes-treated-cells"
+  find = "        \"missing_outcome_cells\": int(((mask == 0) & (D == 0)).sum()),"
+  replace = "        \"missing_outcome_cells\": int((mask == 0).sum()),"
+  models = "the missing-cell count conflated with the treated cells MC-NNM imputes by design"
