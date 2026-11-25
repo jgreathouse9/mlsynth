@@ -21694,9 +21694,9 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "period-labels-change-type"
-  find = "    time_labels = np.array(list(prep.time_labels))"
-  replace = "    time_labels = np.asarray(prep.time_labels)"
-  models = "datetime periods returned as datetime64 and string periods as objects, unlike the old labels"
+  find = "    time_labels = np.array(list(prep.time_labels.array))"
+  replace = "    time_labels = np.array(list(prep.time_labels))"
+  models = "float32 and int32 periods widened to 64 bits through Python scalars, unlike the old labels"
 
   [[target.mutant]]
   id = "a-single-treated-unit-reads-its-post-count"
@@ -21790,9 +21790,9 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "period-labels-change-type"
-  find = "    time_labels = np.array(list(prep.time_labels))"
-  replace = "    time_labels = np.asarray(prep.time_labels)"
-  models = "datetime periods returned as datetime64 and string periods as objects, unlike the old labels"
+  find = "    time_labels = np.array(list(prep.time_labels.array))"
+  replace = "    time_labels = np.array(list(prep.time_labels))"
+  models = "float32 and int32 periods widened to 64 bits through Python scalars, unlike the old labels"
 
   [[target.mutant]]
   id = "the-treatment-matrix-is-float"

@@ -81,9 +81,11 @@ def prepare_rmsi_inputs(
     prep = dataprep(df, unitid, time, outcome, treat, keys=keys)
 
     unit_names = sorted(np.asarray(prep.Ywide.columns))
-    # Built from the labels one by one, as the old setup's sorted list was, so
-    # datetime periods stay an object array of Timestamps.
-    time_labels = np.array(list(prep.time_labels))
+    # Built from the index's array one label at a time, as the old setup's
+    # sorted list was: datetime periods stay an object array of Timestamps and
+    # 32-bit periods stay 32-bit (iterating the index itself yields Python
+    # scalars, which widen them).
+    time_labels = np.array(list(prep.time_labels.array))
     T = int(time_labels.size)
     # RMSI's Y is unit x time; the C-order copy keeps the row-major layout
     # the old pivot produced.
