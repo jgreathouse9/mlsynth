@@ -140,6 +140,17 @@ spatial weight matrix with zero diagonal. The *spillover exposure* of unit
    \qquad
    \mathbf{d}_t \coloneqq (d_{1t}, \dots, d_{Nt})^\top .
 
+The panel is long and balanced, one row per unit and period, and is read
+through :func:`mlsynth.utils.datautils.dataprep`. Treatment is absorbing:
+:math:`d_{it} = 1` from unit :math:`i`'s adoption period to the end of the
+panel, and with staggered adoption :math:`T_0` is the last period before any
+unit is treated. A non-binary treatment, a treatment that switches off, a
+duplicate or absent unit-period, a row without a unit or period, and a missing
+or non-finite outcome in any period are refused with ``MlsynthDataError``.
+SpSyDiD also refuses a missing treatment value, a unit treated in the first
+period, a ``unit_order`` that does not name the panel's units, and a partition
+with no pure control.
+
 The estimator auto-partitions :math:`\mathcal{N}` into
 
 * :math:`\mathcal{I}_{\mathrm{tr}}` -- directly treated units
