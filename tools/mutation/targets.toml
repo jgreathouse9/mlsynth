@@ -23824,3 +23824,117 @@ timeout = 1200.0
   models = "every leaf summing the true costs along the path again although no clique shifts them, the cost the running sum saves"
   expected = "survived"
   accepted-because = "EQUIVALENT in result: without shifts the path sum and the running sum are the same numbers added in the same order, so every bound and design is bit for bit the same (pinned by test_unshifted_costs_give_the_leaf_bound_of_the_running_sum). The difference is time: on the seasonal arm of 32 geos at Q = 3 the search's 1,383,220 nodes took 11.1 to 11.8 s with the path sum against 9.6 s without, single-threaded, mirrored runs."
+
+[[target]]
+name = "dual-simplex"
+module-path = "mlsynth/utils/solvers/dual_simplex.py"
+test-command = "python -m pytest mlsynth/tests/test_dual_simplex.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-zero-slope-is-read-as-infeasible"
+  find = "                if slope <= PRIMAL_TOL:"
+  replace = "                if slope < 0:"
+  models = "the bound flipping ratio test declaring the dual unbounded when the slope reaches exactly zero at the last breakpoint, which on 0/1 cover rows means the row is met there: a feasible LP reported infeasible (found by the child warm-start property before this target existed)"
+
+  [[target.mutant]]
+  id = "the-slope-is-not-spent-at-breakpoints"
+  find = "                slope -= width[cand[order[k]]] * mag[order[k]]"
+  replace = "                slope -= 0.0 * width[cand[order[k]]] * mag[order[k]]"
+  models = "a ratio test that never charges a passed breakpoint's bound flip against the slope (Koberstein 2005, equations 3.33-3.34), so it flips every candidate and reports infeasibility"
+
+  [[target.mutant]]
+  id = "the-leaving-variable-takes-the-wrong-bound"
+  find = "        at_upper[p] = delta[r] > 0                                    # leaves at the bound it violated"
+  replace = "        at_upper[p] = delta[r] < 0                                    # leaves at the bound it violated"
+  models = "the leaving variable set to the bound opposite the one it violated (Koberstein 2005, equation 3.17a)"
+
+  [[target.mutant]]
+  id = "no-flip-to-the-upper-bound"
+  find = "        at_upper[nb & (d < -DUAL_TOL)] = True\n"
+  replace = "        pass\n"
+  models = "nonbasic variables with negative reduced cost left at their lower bound, so the basis is dual infeasible and the bound is not a Lagrangian minimum"
+
+  [[target.mutant]]
+  id = "harris-takes-the-smallest-pivot"
+  find = "            pick = window[np.argmax(mag[window])] if window.size else order[k]"
+  replace = "            pick = window[np.argmin(mag[window])] if window.size else order[k]"
+  models = "Harris' ratio test choosing the smallest pivot in its window, the choice it exists to avoid (Koberstein 2005, Algorithm 18, step 22)"
+
+  [[target.mutant]]
+  id = "pricing-ignores-the-steepest-edge-weights"
+  find = "        r = int(infeasible[np.argmin(basic[infeasible])]) if bland else int(np.argmax(delta * delta / beta))"
+  replace = "        r = int(infeasible[np.argmin(basic[infeasible])]) if bland else int(np.argmax(delta * delta))"
+  models = "Dantzig's largest-infeasibility rule in place of dual steepest edge (Koberstein 2005, rule 3.53)"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in every answer: the pricing rule picks the path, not the optimum, and the bound is valid at every iterate either way. Measured over 40 cover LPs (30 units, 300 groups, 20 clique rows), 40 equal-cost covers and 150 ill-conditioned LPs (coefficients 1e-4 to 1e4): Dantzig took 3,529, 2,513 and 9,396 iterations against steepest edge's 3,929, 2,759 and 6,340, with the same answers. Steepest edge stays for the ill-conditioned case; no iteration ceiling separates the two on cover LPs without pinning noise."
+
+  [[target.mutant]]
+  id = "the-perturbed-optimum-is-returned"
+  find = "            if stage == 1:                                            # the perturbed LP's optimum: true costs back"
+  replace = "            if False:                                                 # the perturbed LP's optimum: true costs back"
+  models = "the perturbed LP's optimum reported as the optimum, without restoring the true costs (Koberstein 2005, section 6.3.1, last paragraph)"
+
+  [[target.mutant]]
+  id = "no-perturbation-on-a-stall"
+  find = "            if stage == 0:\n"
+  replace = "            if False:\n"
+  models = "a stall on distinct costs left to run on without perturbation"
+
+  [[target.mutant]]
+  id = "bland-takes-the-largest-index"
+  find = "    return int(tie[np.argmin(cand[tie])])"
+  replace = "    return int(tie[np.argmax(cand[tie])])"
+  models = "Bland's entering rule taking the largest index among ties, which loses its finiteness guarantee (Bland 1977)"
+
+  [[target.mutant]]
+  id = "the-bound-is-the-perturbed-lagrangian"
+  find = "    return BoxedLPResult(status=status, x=x, row_activity=np.asarray(A @ x).ravel(), y=y, d=c - A.T @ y,"
+  replace = "    bound = bound if status == \"infeasible\" else lagrangian_bound(work[:n], A, rl, ru, l, u, y)\n    return BoxedLPResult(status=status, x=x, row_activity=np.asarray(A @ x).ravel(), y=y, d=c - A.T @ y,"
+  models = "the bound evaluated with the perturbed working costs, which is not a bound on the true LP"
+
+  [[target.mutant]]
+  id = "the-pivot-check-is-skipped"
+  find = "        if abs(aq[r] - alpha[q]) > PIVOT_CHECK_TOL * (1.0 + abs(aq[r])) and not fresh:"
+  replace = "        if False:"
+  models = "no pivot element test, so a drifted basis inverse is used for the change (Koberstein 2005, equations 6.27-6.29)"
+  expected = "survived"
+  accepted-because = "EQUIVALENT on every input measured: the test guards against drift in the updated inverse, and on the bases met here (0/1 cover rows; also 150 ill-conditioned LPs of 40 rows, 120 columns and coefficients from 1e-4 to 1e4) the product-form updates stay accurate between refactorizations, so the check never fires and the answers and iteration counts are identical with and without it. It stays as the guard Koberstein's section 6.2.3.2 prescribes for badly scaled models."
+
+  [[target.mutant]]
+  id = "the-basis-is-never-refactored"
+  find = "        if since >= REFACTOR_EVERY:"
+  replace = "        if False:"
+  models = "product-form updates accumulated without refactorization (Koberstein 2005, section 6.2.3.1)"
+  expected = "survived"
+  accepted-because = "EQUIVALENT on every input measured, for the reason of the-pivot-check-is-skipped: the same 230 LPs give identical answers and iteration counts without refactorization. The refactorization stays as the guard of Koberstein's section 6.2.3.1."
+
+  [[target.mutant]]
+  id = "an-unverified-ray-is-trusted"
+  find = "        return math.fsum(terms.tolist()) > INFEASIBILITY_MARGIN * math.fsum(np.abs(terms).tolist())"
+  replace = "        return True"
+  models = "infeasibility reported from the ratio test alone, without checking the ray's Lagrangian: a branch pruned on a rounding artefact"
+
+  [[target.mutant]]
+  id = "the-ray-has-the-wrong-sign"
+  find = "                if certified(sgn * rho):                              # the dual is unbounded along rho"
+  replace = "                if certified(-sgn * rho):                             # the dual is unbounded along rho"
+  models = "the ray taken against the direction the dual objective rises in (Koberstein 2005, equation 3.7), so no certificate is found and an infeasible LP is not reported"
+
+  [[target.mutant]]
+  id = "the-cutoff-is-ignored"
+  find = "        if cutoff is not None and lagrangian_bound(c, A, rl, ru, l, u, y) >= cutoff:"
+  replace = "        if False:"
+  models = "a cutoff accepted and never checked, so a branch whose bound passes the incumbent is solved to the end"
+
+  [[target.mutant]]
+  id = "restrict-keeps-a-removed-rows-logical"
+  find = "            return int(new_col[j]) if j < n else (n2 + int(new_row[j - n]) if new_row[j - n] >= 0 else -1)"
+  replace = "            return int(new_col[j]) if j < n else n2 + int(new_row[j - n])"
+  models = "a basis restricted to a child keeping the logical of a removed row, mapped to the wrong child row"
+
+  [[target.mutant]]
+  id = "repair-keeps-dependent-columns"
+  find = "    if rank == m:"
+  replace = "    if True:"
+  models = "a singular warm-start basis accepted as it is"

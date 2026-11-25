@@ -130,11 +130,13 @@
   "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
   "mlsynth/estimators/ppscm.py",
+  "mlsynth/utils/datautils.py",
   "mlsynth/utils/ppscm_helpers/config.py",
   "mlsynth/utils/ppscm_helpers/engine.py",
   "mlsynth/utils/ppscm_helpers/inference.py",
   "mlsynth/utils/ppscm_helpers/setup.py",
   "mlsynth/utils/ppscm_helpers/structures.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/scpi_helpers/intervals.py",
   "mlsynth/utils/scpi_helpers/moments.py"
  ],
@@ -597,7 +599,8 @@
   "mlsynth/utils/pda_helpers/orchestration.py",
   "mlsynth/utils/pda_helpers/results_assembly.py",
   "mlsynth/utils/pda_helpers/setup.py",
-  "mlsynth/utils/pda_helpers/structures.py"
+  "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "cscipca_brexit": [
   "basedata/fdi_oecd_brexit.csv",
@@ -945,11 +948,13 @@
   "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
   "mlsynth/estimators/dscar.py",
+  "mlsynth/utils/datautils.py",
   "mlsynth/utils/dscar_helpers/inference.py",
   "mlsynth/utils/dscar_helpers/pipeline.py",
   "mlsynth/utils/dscar_helpers/setup.py",
   "mlsynth/utils/dscar_helpers/structures.py",
-  "mlsynth/utils/dscar_helpers/weights.py"
+  "mlsynth/utils/dscar_helpers/weights.py",
+  "mlsynth/utils/prepared.py"
  ],
  "dtwsc_basque": [
   "basedata/basque_data.csv",
@@ -1290,6 +1295,7 @@
   "mlsynth/utils/fscm_helpers/estimation.py",
   "mlsynth/utils/fscm_helpers/setup.py",
   "mlsynth/utils/fscm_helpers/structures.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/solvers/active_set.py",
   "mlsynth/utils/weights/solution.py",
   "mlsynth/utils/weights/solve.py",
@@ -1354,7 +1360,8 @@
   "mlsynth/utils/pda_helpers/orchestration.py",
   "mlsynth/utils/pda_helpers/results_assembly.py",
   "mlsynth/utils/pda_helpers/setup.py",
-  "mlsynth/utils/pda_helpers/structures.py"
+  "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "fspda_table1": [
   "benchmarks/compare.py",
@@ -1378,7 +1385,8 @@
   "mlsynth/utils/pda_helpers/results_assembly.py",
   "mlsynth/utils/pda_helpers/setup.py",
   "mlsynth/utils/pda_helpers/simulation.py",
-  "mlsynth/utils/pda_helpers/structures.py"
+  "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "geox_augsynth_geolift": [
   "basedata/geolift_market_data.csv",
@@ -2110,6 +2118,7 @@
   "mlsynth/utils/masc_helpers/orchestration.py",
   "mlsynth/utils/masc_helpers/setup.py",
   "mlsynth/utils/masc_helpers/structures.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/solvers/active_set.py",
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/ridge_augment.py",
@@ -2132,7 +2141,8 @@
   "mlsynth/utils/masc_helpers/estimation.py",
   "mlsynth/utils/masc_helpers/orchestration.py",
   "mlsynth/utils/masc_helpers/setup.py",
-  "mlsynth/utils/masc_helpers/structures.py"
+  "mlsynth/utils/masc_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "mcnnm_prop99": [
   "basedata/smoking_data.csv",
@@ -2145,6 +2155,7 @@
   "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
   "mlsynth/estimators/mcnnm.py",
+  "mlsynth/utils/datautils.py",
   "mlsynth/utils/effectutils.py",
   "mlsynth/utils/fitutils.py",
   "mlsynth/utils/mcnnm_helpers/completion.py",
@@ -2152,6 +2163,7 @@
   "mlsynth/utils/mcnnm_helpers/pipeline.py",
   "mlsynth/utils/mcnnm_helpers/setup.py",
   "mlsynth/utils/mcnnm_helpers/structures.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/results_helpers.py"
  ],
  "medsc_prop99": [
@@ -2183,7 +2195,8 @@
   "mlsynth/utils/microsynth_helpers/diagnostics.py",
   "mlsynth/utils/microsynth_helpers/panel_qp.py",
   "mlsynth/utils/microsynth_helpers/setup.py",
-  "mlsynth/utils/microsynth_helpers/structures.py"
+  "mlsynth/utils/microsynth_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "microsynth_seattle": [
   "benchmarks/compare.py",
@@ -2196,7 +2209,8 @@
   "mlsynth/utils/microsynth_helpers/panel_inference.py",
   "mlsynth/utils/microsynth_helpers/panel_qp.py",
   "mlsynth/utils/microsynth_helpers/setup.py",
-  "mlsynth/utils/microsynth_helpers/structures.py"
+  "mlsynth/utils/microsynth_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "mlsc_bottmer": [
   "benchmarks/compare.py",
@@ -2287,6 +2301,7 @@
   "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
   "mlsynth/estimators/msqrt.py",
+  "mlsynth/utils/datautils.py",
   "mlsynth/utils/effectutils.py",
   "mlsynth/utils/fitutils.py",
   "mlsynth/utils/msqrt_helpers/optimization.py",
@@ -2295,6 +2310,7 @@
   "mlsynth/utils/msqrt_helpers/setup.py",
   "mlsynth/utils/msqrt_helpers/simulation.py",
   "mlsynth/utils/msqrt_helpers/structures.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/results_helpers.py"
  ],
  "mvbbsc_germany": [
@@ -2412,6 +2428,7 @@
   "benchmarks/registry.py",
   "benchmarks/run_benchmarks.py",
   "mlsynth/estimators/pangeo.py",
+  "mlsynth/utils/datautils.py",
   "mlsynth/utils/pangeo_helpers/config.py",
   "mlsynth/utils/pangeo_helpers/fast_partition.py",
   "mlsynth/utils/pangeo_helpers/parallelism.py",
@@ -2470,7 +2487,8 @@
   "mlsynth/utils/pda_helpers/orchestration.py",
   "mlsynth/utils/pda_helpers/results_assembly.py",
   "mlsynth/utils/pda_helpers/setup.py",
-  "mlsynth/utils/pda_helpers/structures.py"
+  "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "pda_hcw_hongkong": [
   "basedata/HongKong.csv",
@@ -2492,7 +2510,8 @@
   "mlsynth/utils/pda_helpers/orchestration.py",
   "mlsynth/utils/pda_helpers/results_assembly.py",
   "mlsynth/utils/pda_helpers/setup.py",
-  "mlsynth/utils/pda_helpers/structures.py"
+  "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "pda_hongkong": [
   "basedata/HongKong.csv",
@@ -2519,7 +2538,8 @@
   "mlsynth/utils/pda_helpers/orchestration.py",
   "mlsynth/utils/pda_helpers/results_assembly.py",
   "mlsynth/utils/pda_helpers/setup.py",
-  "mlsynth/utils/pda_helpers/structures.py"
+  "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "pda_l2_sim": [
   "benchmarks/compare.py",
@@ -2547,7 +2567,8 @@
   "mlsynth/utils/pda_helpers/results_assembly.py",
   "mlsynth/utils/pda_helpers/setup.py",
   "mlsynth/utils/pda_helpers/simulation.py",
-  "mlsynth/utils/pda_helpers/structures.py"
+  "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "pda_luxurywatch": [
   "basedata/china_watches_long.csv",
@@ -2569,7 +2590,8 @@
   "mlsynth/utils/pda_helpers/orchestration.py",
   "mlsynth/utils/pda_helpers/results_assembly.py",
   "mlsynth/utils/pda_helpers/setup.py",
-  "mlsynth/utils/pda_helpers/structures.py"
+  "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "pda_pi_coverage": [
   "benchmarks/compare.py",
@@ -2589,7 +2611,8 @@
   "mlsynth/utils/pda_helpers/orchestration.py",
   "mlsynth/utils/pda_helpers/results_assembly.py",
   "mlsynth/utils/pda_helpers/setup.py",
-  "mlsynth/utils/pda_helpers/structures.py"
+  "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "pda_ppi": [
   "basedata/china_ppi_long.csv",
@@ -2612,7 +2635,8 @@
   "mlsynth/utils/pda_helpers/orchestration.py",
   "mlsynth/utils/pda_helpers/results_assembly.py",
   "mlsynth/utils/pda_helpers/setup.py",
-  "mlsynth/utils/pda_helpers/structures.py"
+  "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "pda_table1": [
   "benchmarks/compare.py",
@@ -2632,7 +2656,8 @@
   "mlsynth/utils/pda_helpers/results_assembly.py",
   "mlsynth/utils/pda_helpers/setup.py",
   "mlsynth/utils/pda_helpers/simulation.py",
-  "mlsynth/utils/pda_helpers/structures.py"
+  "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "pda_wheeler_lassosynth": [
   "benchmarks/compare.py",
@@ -2652,6 +2677,7 @@
   "mlsynth/utils/pda_helpers/results_assembly.py",
   "mlsynth/utils/pda_helpers/setup.py",
   "mlsynth/utils/pda_helpers/structures.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/supt.py"
  ],
  "pioid_overid_jtest": [
@@ -2669,12 +2695,14 @@
   "mlsynth/estimators/ppscm.py",
   "mlsynth/utils/conformal/cumulative.py",
   "mlsynth/utils/conformal/quantile.py",
+  "mlsynth/utils/datautils.py",
   "mlsynth/utils/ppscm_helpers/config.py",
   "mlsynth/utils/ppscm_helpers/engine.py",
   "mlsynth/utils/ppscm_helpers/inference.py",
   "mlsynth/utils/ppscm_helpers/setup.py",
   "mlsynth/utils/ppscm_helpers/simulation.py",
   "mlsynth/utils/ppscm_helpers/structures.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/scpi_helpers/intervals.py",
   "mlsynth/utils/scpi_helpers/moments.py"
  ],
@@ -2699,11 +2727,13 @@
   "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
   "mlsynth/estimators/ppscm.py",
+  "mlsynth/utils/datautils.py",
   "mlsynth/utils/ppscm_helpers/config.py",
   "mlsynth/utils/ppscm_helpers/engine.py",
   "mlsynth/utils/ppscm_helpers/inference.py",
   "mlsynth/utils/ppscm_helpers/setup.py",
   "mlsynth/utils/ppscm_helpers/structures.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/scpi_helpers/intervals.py",
   "mlsynth/utils/scpi_helpers/moments.py"
  ],
@@ -2716,10 +2746,12 @@
   "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
   "mlsynth/estimators/ppscm.py",
+  "mlsynth/utils/datautils.py",
   "mlsynth/utils/ppscm_helpers/config.py",
   "mlsynth/utils/ppscm_helpers/engine.py",
   "mlsynth/utils/ppscm_helpers/setup.py",
-  "mlsynth/utils/ppscm_helpers/structures.py"
+  "mlsynth/utils/ppscm_helpers/structures.py",
+  "mlsynth/utils/prepared.py"
  ],
  "propsc_spain": [
   "basedata/spain_propsc.csv",
@@ -2838,6 +2870,7 @@
   "mlsynth/utils/laxscm_helpers/specs.py",
   "mlsynth/utils/laxscm_helpers/structures.py",
   "mlsynth/utils/pda_helpers/inference.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/resultutils.py"
  ],
  "rescm_brexit_2020": [
@@ -2862,6 +2895,7 @@
   "mlsynth/utils/laxscm_helpers/specs.py",
   "mlsynth/utils/laxscm_helpers/structures.py",
   "mlsynth/utils/pda_helpers/inference.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/resultutils.py"
  ],
  "rescm_relax_behavior": [
@@ -2887,6 +2921,7 @@
   "mlsynth/utils/laxscm_helpers/specs.py",
   "mlsynth/utils/laxscm_helpers/structures.py",
   "mlsynth/utils/pda_helpers/inference.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/resultutils.py"
  ],
  "rescm_relax_mc": [
@@ -2912,6 +2947,7 @@
   "mlsynth/utils/laxscm_helpers/specs.py",
   "mlsynth/utils/laxscm_helpers/structures.py",
   "mlsynth/utils/pda_helpers/inference.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/resultutils.py"
  ],
  "rfpda_watches": [
@@ -2935,6 +2971,8 @@
   "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
   "mlsynth/estimators/rolldid.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/rolldid_helpers/config.py",
   "mlsynth/utils/rolldid_helpers/pipeline.py",
   "mlsynth/utils/rolldid_helpers/setup.py"
@@ -3531,10 +3569,12 @@
   "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
   "mlsynth/estimators/snn.py",
+  "mlsynth/utils/datautils.py",
   "mlsynth/utils/effectutils.py",
   "mlsynth/utils/fitutils.py",
   "mlsynth/utils/pcr/core.py",
   "mlsynth/utils/pcr/rank.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/results_helpers.py",
   "mlsynth/utils/snn_helpers/completion.py",
   "mlsynth/utils/snn_helpers/pipeline.py",
@@ -3804,8 +3844,10 @@
   "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
   "mlsynth/estimators/spotsynth.py",
+  "mlsynth/utils/datautils.py",
   "mlsynth/utils/effectutils.py",
   "mlsynth/utils/fitutils.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/results_helpers.py",
   "mlsynth/utils/solvers/active_set.py",
   "mlsynth/utils/spotsynth_helpers/bayes.py",
@@ -3833,6 +3875,7 @@
   "mlsynth/config_models.py",
   "mlsynth/estimators/src.py",
   "mlsynth/utils/datautils.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/src_helpers/config.py",
   "mlsynth/utils/src_helpers/estimation.py",
   "mlsynth/utils/src_helpers/orchestration.py",
@@ -3851,6 +3894,8 @@
   "benchmarks/run_benchmarks.py",
   "mlsynth/config_models.py",
   "mlsynth/estimators/ssc.py",
+  "mlsynth/utils/datautils.py",
+  "mlsynth/utils/prepared.py",
   "mlsynth/utils/ssc_helpers/estimation.py",
   "mlsynth/utils/ssc_helpers/pipeline.py",
   "mlsynth/utils/ssc_helpers/setup.py",
