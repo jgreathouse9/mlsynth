@@ -245,12 +245,13 @@ class TestRefusals:
             prepare_msqrt_inputs(df, **COLS)
 
     def test_a_missing_treatment_cell_is_refused(self):
-        # dataprep's binary check skips NaN; the old pivot refused it as an
-        # absent cell, and MSQRT keeps that refusal.
+        # dataprep refuses it and names the cell; the setup has no check of
+        # its own.
         df = _panel(shuffle=False)
         df["d"] = df["d"].astype(float)
         df.loc[(df.unit == 5) & (df.time == 2002), "d"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Treatment column"):
+        with pytest.raises(MlsynthDataError, match=r"Missing treatment values: 1 of .*"
+                           r"the first at unit '5', time 2002\."):
             prepare_msqrt_inputs(df, **COLS)
 
     def test_no_treated_cell_is_refused(self):

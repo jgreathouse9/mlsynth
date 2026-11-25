@@ -68,7 +68,7 @@ class TestSetupGuards:
         df = _panel(n_donors=6, T0=18, n_post=5, seed=0)
         df["treated"] = df["treated"].astype(float)
         df.loc[0, "treated"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Treatment column contains NaN"):
+        with pytest.raises(MlsynthDataError, match="Missing treatment values: 1 of"):
             prepare_spotsynth_inputs(df, "Y", "treated", "unit", "time")
 
     def test_duplicate_unit_time(self):

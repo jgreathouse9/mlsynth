@@ -154,12 +154,14 @@ def test_fdid_stops_on_a_donors_missing_outcome():
 # --- edge: what is not an outcome is not checked here ---
 
 def test_a_missing_treatment_value_is_not_an_outcome():
-    """The treatment indicator keeps its own handling (logictreat ignores missing values); only the outcome is
-    checked here."""
+    """A missing treatment value has its own refusal (test_dataprep_missing_treatment.py); it is not counted
+    against the outcome column."""
     df = _panel()
     df.loc[(df.id == "b") & (df.time == 2), "d"] = np.nan
-    prep = _prep(df)
-    assert np.isfinite(prep["Ywide"].to_numpy(dtype=float)).all()
+    with pytest.raises(MlsynthDataError) as excinfo:
+        _prep(df)
+    assert "Missing treatment values" in str(excinfo.value)
+    assert "Missing outcome" not in str(excinfo.value)
 
 
 def test_a_missing_value_in_another_column_is_not_checked():

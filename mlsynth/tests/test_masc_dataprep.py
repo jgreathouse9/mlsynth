@@ -296,7 +296,8 @@ class TestRefusals:
         df = _panel(shuffle=False)
         df["d"] = df["d"].astype(float)
         df.loc[(df.unit == 0) & (df.time == 2008), "d"] = np.nan
-        with pytest.raises(MlsynthDataError, match="not sustained"):
+        with pytest.raises(MlsynthDataError, match=r"Missing treatment values: 1 of .*"
+                           r"the first at unit '0', time 2008\."):
             prepare_masc_inputs(df, **COLS)
 
     @pytest.mark.parametrize("unit", [0, 4])

@@ -4,9 +4,9 @@ SPOTSYNTH used to pivot the long panel itself, outcome and treatment both. It
 now takes the outcome matrix, the time labels, the treated unit and its
 adoption period from ``balance`` and ``dataprep``. It gets the same refusals as
 every other estimator: a missing or non-finite outcome cell, an absent or
-duplicate unit-period, a non-binary treatment, and a treatment that switches
-off after it starts. SPOTSYNTH's own checks (three units, one treated unit,
-three pre-periods, no missing treatment value) stay on top.
+duplicate unit-period, a non-binary treatment, a treatment that switches
+off after it starts, and a missing treatment value. SPOTSYNTH's own checks
+(three units, one treated unit, three pre-periods) stay on top.
 
 ``_reference`` is the old setup, kept as the oracle the new path must match on
 every panel both accept. The setup only slices and reorders the outcome
@@ -234,11 +234,13 @@ class TestRefusals:
             prepare_spotsynth_inputs(df, **COLS)
 
     def test_a_missing_treatment_cell_is_refused(self):
-        # dataprep's binary check skips NaN; SPOTSYNTH refuses it first.
+        # dataprep refuses it and names the cell; the setup has no check of
+        # its own.
         df = _panel(shuffle=False)
         df["d"] = df["d"].astype(float)
         df.loc[(df.unit == 5) & (df.time == 2002), "d"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Treatment column contains NaN"):
+        with pytest.raises(MlsynthDataError, match=r"Missing treatment values: 1 of .*"
+                           r"the first at unit '5', time 2002\."):
             prepare_spotsynth_inputs(df, **COLS)
 
     def test_no_treated_cell_is_refused(self):

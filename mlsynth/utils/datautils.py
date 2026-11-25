@@ -319,6 +319,45 @@ def _refuse_missing_outcomes(wide: pd.DataFrame, outcome: str, n_rows: int,
     )
 
 
+def _refuse_missing_treatment(
+    df: pd.DataFrame, wide: pd.DataFrame, treatment: str, unit: str, time: str,
+    n_rows: int,
+) -> None:
+    """Raise if a row of the panel has a missing treatment value.
+
+    The treatment indicator says which cells are treated, and every estimator
+    reads its treated unit, its donors and its pre- and post-periods from it.
+    A unit-period whose treatment status is unknown is neither treated nor
+    untreated, and the library already refuses the other way a status goes
+    missing, an absent unit-period row. A missing value in a present row is the
+    same case, so it is refused here and not read as untreated.
+
+    In the pivot ``wide`` an absent row is also a NaN cell, and absent rows
+    are counted and named by the outcome refusal. ``n_rows`` is the number of
+    rows the pivot scattered (keys are unique, as in
+    :func:`_refuse_missing_outcomes`), so the grid size minus ``n_rows`` is
+    the number of absent cells, and a panel passes on the pivot alone, with no
+    pass over the long frame. Only a refusal reads the long column, to tell a
+    missing value from an absent row; ``wide`` supplies the sorted axes, so the
+    first missing cell is the first in time order, then unit order.
+    """
+    values = wide.to_numpy()
+    if int(pd.isna(values).sum()) <= values.size - n_rows:
+        return
+    missing = df[treatment].isna().to_numpy()
+    n_missing = int(missing.sum())
+    t = wide.index.get_indexer(df[time].to_numpy()[missing])
+    j = wide.columns.get_indexer(df[unit].to_numpy()[missing])
+    first = np.lexsort((j, t))[0]
+    raise MlsynthDataError(
+        f"Missing treatment values: {n_missing} of {wide.size} cells of the treatment column "
+        f"'{treatment}' are missing, "
+        f"the first at unit '{wide.columns[j[first]]}', time {wide.index[t[first]]}. "
+        "A unit-period with no treatment status is neither treated nor untreated, and "
+        "mlsynth does not impute it: fill or drop the rows with a missing treatment before fitting."
+    )
+
+
 def logictreat(treatment_matrix: np.ndarray) -> Dict[str, Any]:
     """Analyze a treatment matrix to determine treatment timings and unit counts.
 
@@ -376,6 +415,9 @@ def logictreat(treatment_matrix: np.ndarray) -> Dict[str, Any]:
     ------
     MlsynthDataError
         If `treatment_matrix` is not a NumPy array.
+        If any cell is missing (NaN or None): a cell with no treatment status
+        is not read as untreated.
+        If any cell is other than 0 or 1.
         If no treated units are found (zero treated observations).
         If a treated unit has no post-treatment period.
         If treatment is not sustained for a treated unit (i.e., a 0 appears
@@ -384,12 +426,17 @@ def logictreat(treatment_matrix: np.ndarray) -> Dict[str, Any]:
     if not isinstance(treatment_matrix, np.ndarray):
         raise MlsynthDataError("treatment_matrix must be a NumPy array")
 
-    # Validate that treatment_matrix contains only binary values (0, 1), ignoring NaNs.
-    # NaNs are excluded from this validation as they might represent missing data,
-    # not necessarily invalid treatment states.
+    # A missing cell has no treatment status: it is neither a 0 nor a 1, so it
+    # is refused before the binary check and not read as untreated.
+    missing = pd.isna(treatment_matrix)
+    if missing.any():
+        t, j = np.argwhere(missing)[0]
+        raise MlsynthDataError(
+            f"Missing treatment values: {int(missing.sum())} of {missing.size} cells of the "
+            f"treatment matrix are missing, the first at row {t}, column {j}."
+        )
     unique_values = np.unique(treatment_matrix)
-    valid_treatment_values = unique_values[~np.isnan(unique_values)] # Exclude NaNs from validation
-    if not np.all(np.isin(valid_treatment_values, [0, 1])):
+    if not np.all(np.isin(unique_values, [0, 1])):
         raise MlsynthDataError("Treatment indicator must be a binary variable (0 or 1).")
 
     num_treated_observations = np.count_nonzero(treatment_matrix == 1) # Count only 1s for "treated"
@@ -675,6 +722,12 @@ def dataprep(
           infinite value and an absent row are still refused.
         - If ``missing_outcomes`` is neither ``"refuse"`` nor ``"keep"``, or
           is ``"keep"`` together with ``marex=True``.
+        - If any treatment value is missing (NaN or None) in a row that is
+          present, under either ``missing_outcomes`` mode. The message gives
+          the count and the first unit and period in time order
+          (:func:`_refuse_missing_treatment`). A unit-period with
+          no treatment status is neither treated nor untreated, the same case
+          as an absent row, which the outcome check refuses and names.
     """
     if missing_outcomes not in ("refuse", "keep"):
         raise MlsynthDataError(
@@ -701,6 +754,19 @@ def dataprep(
         values=treatment_indicator_column_name,
         keys=keys,
     )
+    _refuse_missing_treatment(
+        df, treatment_matrix_wide, treatment_indicator_column_name,
+        unit_id_column_name, time_period_column_name, len(df),
+    )
+    if treatment_matrix_wide.size > len(df):
+        # A unit-period row is absent, so its treatment status is unknown too.
+        # The outcome refusal counts absent rows and names the first, so it
+        # reports them here, before logictreat reads the gap in the pivot.
+        _refuse_missing_outcomes(
+            _wide_pivot(df, index=time_period_column_name, columns=unit_id_column_name,
+                        values=outcome_column_name, keys=keys),
+            outcome_column_name, len(df),
+        )
     treatment_array_wide = treatment_matrix_wide.to_numpy()
     treatment_analysis_results = logictreat(treatment_array_wide)
 

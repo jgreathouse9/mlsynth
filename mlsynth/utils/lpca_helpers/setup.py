@@ -71,7 +71,7 @@ def prepare_lpca_inputs(
 
     treatment = df.pivot(index=time, columns=unitid, values=treat)
     D = treatment.loc[time_labels, unit_names].to_numpy(dtype=float).T
-    if np.isnan(D).any():
+    if np.isnan(D).any():  # pragma: no cover - dataprep refuses a missing treatment first
         raise MlsynthDataError("Treatment indicator has missing unit-time cells.")
     if D[:, 0].max() == 1:  # pragma: no cover - dataprep rejects this first
         # Kept as a local invariant: the block split below indexes off T0, and

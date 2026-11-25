@@ -62,10 +62,10 @@ def prepare_spsydid_inputs(
     directly treated unit's adoption period, and the treatment matrix is built
     from the adoption periods. ``balance`` and ``dataprep`` refuse a missing
     or non-finite outcome, an absent or duplicate unit-period, a non-binary
-    treatment, a treatment that switches off after it starts and a single
-    treated unit treated in the first period. SpSyDiD's own checks (no
-    missing treatment value, ``unit_order``, the spatial matrix, a pure
-    control, no unit treated in the first period) stay on top. Staggered
+    or missing treatment value, a treatment that switches off after it
+    starts and a single treated unit treated in the first period. SpSyDiD's
+    own checks (``unit_order``, the spatial matrix, a pure control, no unit
+    treated in the first period) stay on top. Staggered
     adoption is accepted: ``T0`` is the first period any unit is treated.
 
     Parameters
@@ -93,10 +93,6 @@ def prepare_spsydid_inputs(
             raise MlsynthDataError(
                 f"Required column {col!r} missing from input DataFrame."
             )
-    # dataprep's binary check skips NaN, so a missing treatment cell would be
-    # read as untreated.
-    if df[treat].isna().any():
-        raise MlsynthDataError("Treatment column contains NaN values.")
 
     if unit_order is not None:
         unit_names = list(unit_order)

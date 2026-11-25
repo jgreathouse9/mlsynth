@@ -31,20 +31,15 @@ def prepare_spotsynth_inputs(
 
     ``dataprep`` supplies the outcome matrix, the time labels, the treated unit
     and its adoption period. ``balance`` and ``dataprep`` refuse a missing or
-    non-finite outcome, an absent or duplicate unit-period, a non-binary
-    treatment, a treatment that switches off after it starts and a single
-    treated unit treated in the first period. SPOTSYNTH's own checks (no
-    missing treatment value, three units, one treated unit, three
-    pre-periods) stay on top.
+    non-finite outcome, an absent or duplicate unit-period, a non-binary or
+    missing treatment value, a treatment that switches off after it starts
+    and a single treated unit treated in the first period. SPOTSYNTH's own
+    checks (three units, one treated unit, three pre-periods) stay on top.
     """
     required = {outcome, treat, unitid, time}
     missing = required - set(df.columns)
     if missing:
         raise MlsynthDataError(f"Missing columns: {', '.join(sorted(missing))}.")
-    # dataprep's binary check skips NaN, so a missing treatment cell would be
-    # read as untreated.
-    if df[treat].isna().any():
-        raise MlsynthDataError("Treatment column contains NaN values.")
 
     # balance() refuses a duplicate or absent unit-period, and its key scan is
     # reused by dataprep instead of being built twice.
