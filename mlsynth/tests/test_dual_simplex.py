@@ -501,3 +501,102 @@ def test_a_warm_start_on_an_lp_without_rows_is_accepted():
 def test_a_cost_matrix_in_place_of_a_cost_vector_is_refused():
     with pytest.raises(MlsynthConfigError, match="vector"):
         ds.solve_boxed_lp(np.ones((1, 2)), np.ones((1, 2)), [0.0], [1.0], np.zeros(2), np.ones(2))
+
+
+# --- the second round: stalls on distinct costs, iteration ceilings, certified infeasibility, cutoffs -------------------
+
+def _tied_cover(seed):
+    """A small cover LP with integer costs 1-3: ties, but at least n/4 distinct values, so no perturbation at the
+    start."""
+    rng = np.random.default_rng(seed)
+    units = int(rng.integers(4, 9))
+    groups = int(rng.integers(units, 13))
+    lp = _set_partitioning(rng, units, groups, 3, int(rng.integers(0, 3)), int(rng.integers(0, 3)))
+    return (rng.integers(1, 4, groups).astype(float),) + lp[1:]
+
+
+def test_a_stall_on_distinct_enough_costs_perturbs_them():
+    """Unit: on costs with ties but no fewer than n/4 distinct values nothing is perturbed at the start; with the stall
+    window at zero the first iteration that does not raise the dual objective perturbs them, and the solve still ends
+    at the optimum after restoring them."""
+    lp = _tied_cover(1)
+    assert np.unique(lp[0]).size >= lp[0].size / 4
+    res = _with({"STALL_AFTER": 0}, lambda: ds.solve_boxed_lp(*lp))
+    assert res.degeneracy_stage == "restored" and res.status == "optimal"
+    assert res.objective == pytest.approx(_highs(*lp), abs=1e-9)
+
+
+def test_equal_cost_covers_take_few_iterations():
+    """Unit, a ceiling: the forty equal-cost covers of the stress run took 2,759 iterations in all with the start
+    perturbation and Harris' largest-pivot choice. Without the perturbation they took 6,313, and with the smallest
+    pivot 35,424 (one reaching the iteration cap). The ceiling is 4,000."""
+    assert sum(ds.solve_boxed_lp(*_stress_cover(s)).iterations for s in range(40)) <= 4000
+
+
+def test_a_solve_stopped_while_perturbed_bounds_with_the_true_costs():
+    """Unit: stopped after three iterations on the perturbed costs of an equal-cost cover, the bound is the Lagrangian
+    value of the multipliers under the true costs, and it bounds the true optimum."""
+    lp = _stress_cover(9)
+    res = ds.solve_boxed_lp(*lp, max_iterations=3)
+    assert res.status == "iteration_limit" and res.degeneracy_stage == "perturbed"
+    assert res.bound == pytest.approx(ds.lagrangian_bound(*lp, res.y), abs=1e-12)
+    assert res.bound <= _highs(*lp) + 1e-9
+
+
+def test_blands_entering_rule_takes_the_smallest_index_among_the_tied_ratios():
+    cand = np.array([9, 4, 7, 2, 5])
+    ratio = np.array([0.5, 0.2, 0.2 + 1e-14, 0.3, 0.2])
+    assert ds._bland_entering(cand, ratio) == 1                     # index 4 among the ties 4, 7, 5
+    assert ds._bland_entering(np.array([3]), np.array([1.0])) == 0
+
+
+@settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**6), m=st.integers(1, 7), n=st.integers(1, 10))
+def test_property_infeasibility_is_reported_only_with_a_verified_ray(seed, m, n):
+    """Property: ``infeasible`` comes with a ray whose Lagrangian under zero costs is positive (a Farkas certificate
+    for the boxed LP: Bazaraa, Jarvis and Sherali, Linear Programming and Network Flows, Lemma 5.1; Pan, Linear
+    Programming Computation, Lemma 8.3.5), HiGHS agrees there is no point, and a solve with a point has no ray."""
+    rng = np.random.default_rng(seed)
+    lp = _random_lp(rng, m, n)
+    res = ds.solve_boxed_lp(*lp)
+    if res.status == "infeasible":
+        assert res.ray is not None and _highs(*lp) is None
+        assert ds.lagrangian_bound(np.zeros(n), *lp[1:], res.ray) > 0
+    else:
+        assert res.ray is None
+
+
+def test_an_unverified_ray_is_not_reported_as_infeasibility():
+    """Edge: with the margin raised past any ray's Lagrangian, the infeasible LP of the earlier test is not reported
+    infeasible; the solve returns its multipliers' bound with ``iteration_limit``, so a caller cannot prune on it."""
+    lp = (np.array([1.0, 1.0]), np.array([[1.0, 1.0]]), [3.0], [5.0], [0.0, 0.0], [1.0, 1.0])
+    res = _with({"INFEASIBILITY_MARGIN": 1e300}, lambda: ds.solve_boxed_lp(*lp))
+    assert res.status == "iteration_limit" and np.isfinite(res.bound) and res.ray is None
+
+
+@settings(max_examples=120, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**6), units=st.integers(4, 10), groups=st.integers(6, 40), k=st.integers(0, 3),
+       below=st.floats(1e-6, 0.5))
+def test_property_a_cutoff_stops_the_solve_once_the_bound_reaches_it(seed, units, groups, k, below):
+    """Property: a cutoff under the optimum stops the solve with ``cutoff`` and a bound at or above it, in no more
+    iterations than the full solve; a cutoff above the optimum is never reached, and the solve ends ``optimal``."""
+    rng = np.random.default_rng(seed)
+    lp = _set_partitioning(rng, units, groups, 3, k)
+    full = ds.solve_boxed_lp(*lp)
+    if full.status != "optimal":
+        return
+    gap = below * (1.0 + abs(full.objective))
+    low = ds.solve_boxed_lp(*lp, cutoff=full.objective - gap)
+    assert low.status in ("cutoff", "optimal") and low.bound >= full.objective - gap - 1e-12
+    assert low.iterations <= full.iterations
+    if low.status == "optimal":                            # the cutoff was first met at the optimal basis itself
+        assert low.iterations == full.iterations
+    else:
+        assert ds.solve_boxed_lp(*lp, max_iterations=low.iterations).bound == pytest.approx(low.bound, abs=1e-12)
+    high = ds.solve_boxed_lp(*lp, cutoff=full.objective + gap)
+    assert high.status == "optimal" and high.objective == pytest.approx(full.objective, abs=1e-12)
+
+
+def test_a_cutoff_that_is_not_a_number_is_refused():
+    with pytest.raises(MlsynthConfigError, match="cutoff"):
+        ds.solve_boxed_lp(np.ones(2), np.ones((1, 2)), [0.0], [1.0], np.zeros(2), np.ones(2), cutoff=float("nan"))

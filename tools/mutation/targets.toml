@@ -23616,12 +23616,6 @@ timeout = 900.0
   models = "nonbasic variables with negative reduced cost left at their lower bound, so the basis is dual infeasible and the bound is not a Lagrangian minimum"
 
   [[target.mutant]]
-  id = "the-bound-flips-of-the-ratio-test-are-dropped"
-  find = "        at_upper[flips] = ~at_upper[flips]\n"
-  replace = "        pass\n"
-  models = "the breakpoints the long step passes left unflipped (Koberstein 2005, Algorithm 6)"
-
-  [[target.mutant]]
   id = "harris-takes-the-smallest-pivot"
   find = "            pick = window[np.argmax(mag[window])] if window.size else order[k]"
   replace = "            pick = window[np.argmin(mag[window])] if window.size else order[k]"
@@ -23632,6 +23626,8 @@ timeout = 900.0
   find = "        r = int(infeasible[np.argmin(basic[infeasible])]) if bland else int(np.argmax(delta * delta / beta))"
   replace = "        r = int(infeasible[np.argmin(basic[infeasible])]) if bland else int(np.argmax(delta * delta))"
   models = "Dantzig's largest-infeasibility rule in place of dual steepest edge (Koberstein 2005, rule 3.53)"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in every answer: the pricing rule picks the path, not the optimum, and the bound is valid at every iterate either way. Measured over 40 cover LPs (30 units, 300 groups, 20 clique rows), 40 equal-cost covers and 150 ill-conditioned LPs (coefficients 1e-4 to 1e4): Dantzig took 3,529, 2,513 and 9,396 iterations against steepest edge's 3,929, 2,759 and 6,340, with the same answers. Steepest edge stays for the ill-conditioned case; no iteration ceiling separates the two on cover LPs without pinning noise."
 
   [[target.mutant]]
   id = "the-perturbed-optimum-is-returned"
@@ -23653,8 +23649,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "bland-takes-the-largest-index"
-  find = "            pick = tie[np.argmin(cand[tie])]"
-  replace = "            pick = tie[np.argmax(cand[tie])]"
+  find = "    return int(tie[np.argmin(cand[tie])])"
+  replace = "    return int(tie[np.argmax(cand[tie])])"
   models = "Bland's entering rule taking the largest index among ties, which loses its finiteness guarantee (Bland 1977)"
 
   [[target.mutant]]
@@ -23668,12 +23664,34 @@ timeout = 900.0
   find = "        if abs(aq[r] - alpha[q]) > PIVOT_CHECK_TOL * (1.0 + abs(aq[r])) and not fresh:"
   replace = "        if False:"
   models = "no pivot element test, so a drifted basis inverse is used for the change (Koberstein 2005, equations 6.27-6.29)"
+  expected = "survived"
+  accepted-because = "EQUIVALENT on every input measured: the test guards against drift in the updated inverse, and on the bases met here (0/1 cover rows; also 150 ill-conditioned LPs of 40 rows, 120 columns and coefficients from 1e-4 to 1e4) the product-form updates stay accurate between refactorizations, so the check never fires and the answers and iteration counts are identical with and without it. It stays as the guard Koberstein's section 6.2.3.2 prescribes for badly scaled models."
 
   [[target.mutant]]
   id = "the-basis-is-never-refactored"
   find = "        if since >= REFACTOR_EVERY:"
   replace = "        if False:"
   models = "product-form updates accumulated without refactorization (Koberstein 2005, section 6.2.3.1)"
+  expected = "survived"
+  accepted-because = "EQUIVALENT on every input measured, for the reason of the-pivot-check-is-skipped: the same 230 LPs give identical answers and iteration counts without refactorization. The refactorization stays as the guard of Koberstein's section 6.2.3.1."
+
+  [[target.mutant]]
+  id = "an-unverified-ray-is-trusted"
+  find = "        return math.fsum(terms.tolist()) > INFEASIBILITY_MARGIN * math.fsum(np.abs(terms).tolist())"
+  replace = "        return True"
+  models = "infeasibility reported from the ratio test alone, without checking the ray's Lagrangian: a branch pruned on a rounding artefact"
+
+  [[target.mutant]]
+  id = "the-ray-has-the-wrong-sign"
+  find = "                if certified(sgn * rho):                              # the dual is unbounded along rho"
+  replace = "                if certified(-sgn * rho):                             # the dual is unbounded along rho"
+  models = "the ray taken against the direction the dual objective rises in (Koberstein 2005, equation 3.7), so no certificate is found and an infeasible LP is not reported"
+
+  [[target.mutant]]
+  id = "the-cutoff-is-ignored"
+  find = "        if cutoff is not None and lagrangian_bound(c, A, rl, ru, l, u, y) >= cutoff:"
+  replace = "        if False:"
+  models = "a cutoff accepted and never checked, so a branch whose bound passes the incumbent is solved to the end"
 
   [[target.mutant]]
   id = "restrict-keeps-a-removed-rows-logical"

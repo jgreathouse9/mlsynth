@@ -64,6 +64,9 @@ PIVOT_CHECK_TOL = 1e-9
 #: Iterations without a rise in the dual objective before the costs are perturbed, and again (after they are
 #: restored) before Bland's rule takes over: Koberstein's maxcycle = 3 * phi (section 6.3.1).
 STALL_AFTER = 3 * REFACTOR_EVERY
+#: A ray proves infeasibility only when its Lagrangian under zero costs exceeds this share of the sum of its terms'
+#: magnitudes, a margin for the rounding of that sum; a ray that falls short is not reported as infeasibility.
+INFEASIBILITY_MARGIN = 1e-9
 #: The cost perturbation's size: a fixed part of 100 times the dual tolerance and a part psi = 1e-5 relative to the
 #: cost, randomised by a factor in [0.5, 1) (Koberstein, section 6.3.1, steps 1 and 2).
 PERTURB_ABS = 100.0 * DUAL_TOL
@@ -124,7 +127,11 @@ class BoxedLPResult:
     ``basis`` the final basis (a warm start for a related LP), ``basis_repaired`` whether a singular warm-start
     basis had dependent columns replaced by logicals, and ``degeneracy_stage`` the furthest of the degeneracy
     measures of :func:`solve_boxed_lp` the solve used: ``"none"``, ``"perturbed"`` (perturbed costs, not yet
-    restored), ``"restored"`` (true costs back after a perturbed optimum) or ``"bland"`` (Bland's rule)."""
+    restored), ``"restored"`` (true costs back after a perturbed optimum) or ``"bland"`` (Bland's rule). With ``status == "infeasible"``, ``ray`` holds row multipliers whose
+    Lagrangian under zero costs is positive, a Farkas certificate for the boxed LP (Bazaraa, Jarvis and Sherali,
+    Linear Programming and Network Flows, 4th ed., Lemma 5.1, p. 234): a caller that prunes on it can re-evaluate it
+    rigorously. ``"cutoff"`` means the Lagrangian bound under the true costs reached the ``cutoff`` given, and the
+    solve stopped there."""
 
     status: str
     x: np.ndarray
@@ -137,18 +144,29 @@ class BoxedLPResult:
     basis: BoxedBasis
     basis_repaired: bool = False
     degeneracy_stage: str = "none"
+    ray: Optional[np.ndarray] = None
+
+
+def _lagrangian_terms(c, A, rl, ru, l, u, y) -> np.ndarray:
+    A = sp.csc_matrix(A) if not sp.issparse(A) else A.tocsc()
+    y = np.asarray(y, dtype=float)
+    d = np.asarray(c, dtype=float) - A.T @ y
+    return np.concatenate([np.minimum(np.asarray(l, float) * d, np.asarray(u, float) * d),
+                           np.minimum(np.asarray(rl, float) * y, np.asarray(ru, float) * y)])
 
 
 def lagrangian_bound(c, A, rl, ru, l, u, y) -> float:
     """The Lagrangian lower bound of multipliers ``y`` on the boxed LP: ``sum_j min(l_j d_j, u_j d_j) + sum_i
     min(rl_i y_i, ru_i y_i)`` with ``d = c - A'y``. It bounds the optimum from below for every ``y`` (weak duality with
     every variable boxed; Koberstein 2005, section 2.3), in floating point; it is summed with ``math.fsum``."""
-    A = sp.csc_matrix(A) if not sp.issparse(A) else A.tocsc()
-    y = np.asarray(y, dtype=float)
-    d = np.asarray(c, dtype=float) - A.T @ y
-    terms = np.concatenate([np.minimum(np.asarray(l, float) * d, np.asarray(u, float) * d),
-                            np.minimum(np.asarray(rl, float) * y, np.asarray(ru, float) * y)])
-    return math.fsum(terms.tolist())
+    return math.fsum(_lagrangian_terms(c, A, rl, ru, l, u, y).tolist())
+
+
+def _bland_entering(cand: np.ndarray, ratio: np.ndarray) -> int:
+    """Bland's entering choice: among the candidates whose ratio ties the smallest (within ``ZERO_TOL``), the one of
+    smallest variable index. Returns its position in ``cand``."""
+    tie = np.flatnonzero(ratio <= np.min(ratio) + ZERO_TOL)
+    return int(tie[np.argmin(cand[tie])])
 
 
 def _vector(v, name: str) -> np.ndarray:
@@ -212,13 +230,20 @@ def _repair(F: sp.csc_matrix, basic: np.ndarray, n: int, m: int) -> tuple:
 
 
 def solve_boxed_lp(c, A, rl, ru, l, u, *, basis: Optional[BoxedBasis] = None,
-                   max_iterations: Optional[int] = None) -> BoxedLPResult:
+                   max_iterations: Optional[int] = None, cutoff: Optional[float] = None) -> BoxedLPResult:
     """Minimise ``c'x`` subject to ``rl <= A x <= ru`` and ``l <= x <= u``, every bound finite, by the dual simplex
     of the module docstring, from ``basis`` when given (else the slack basis) and for at most ``max_iterations``
-    basis changes (None: ``100 * (m + n) + 1000``, a cap on a solve that should never reach it).
+    basis changes (None: ``100 * (m + n) + 1000``, a cap on a solve that should never reach it). With ``cutoff``,
+    the solve stops as soon as the Lagrangian bound under the true costs reaches it (Pan, Linear Programming
+    Computation, 2nd ed., Lemma 8.3.4, p. 216: the dual objective does not decrease): a branch whose bound reaches the
+    incumbent is pruned without solving its LP to the end.
 
-    Raises :class:`MlsynthConfigError` for a non-finite bound, a shape mismatch, a negative iteration limit or a
-    malformed basis, and :class:`MlsynthDataError` for non-finite costs or coefficients or crossed bounds."""
+    Raises :class:`MlsynthConfigError` for a non-finite bound, a shape mismatch, a negative iteration limit, a cutoff
+    that is not a number or a malformed basis, and :class:`MlsynthDataError` for non-finite costs or coefficients or
+    crossed bounds."""
+    if cutoff is not None and (isinstance(cutoff, bool) or not isinstance(cutoff, (int, float, np.floating, np.integer))
+                               or math.isnan(float(cutoff))):
+        raise MlsynthConfigError(f"cutoff must be a number or None; got {cutoff!r}.")
     c, A, rl, ru, l, u = _validate(c, A, rl, ru, l, u, basis, max_iterations)
     m, n = A.shape
     N = n + m
@@ -268,6 +293,14 @@ def solve_boxed_lp(c, A, rl, ru, l, u, *, basis: Optional[BoxedBasis] = None,
     if n and np.unique(c).size < n / 4:
         work, stage = perturbed(), 1
     best, last_rise = -np.inf, 0
+    ray = None
+
+    def certified(direction: np.ndarray) -> bool:
+        """Whether the row multipliers ``direction`` prove the LP infeasible: their Lagrangian under zero costs
+        exceeds the rounding margin."""
+        terms = _lagrangian_terms(np.zeros(n), A, rl, ru, l, u, direction)
+        return math.fsum(terms.tolist()) > INFEASIBILITY_MARGIN * math.fsum(np.abs(terms).tolist())
+
     while True:
         y = Binv.T @ work[basic]
         d = work - FT @ y
@@ -291,6 +324,9 @@ def solve_boxed_lp(c, A, rl, ru, l, u, *, basis: Optional[BoxedBasis] = None,
             break
         if iterations >= cap:
             break
+        if cutoff is not None and lagrangian_bound(c, A, rl, ru, l, u, y) >= cutoff:
+            status = "cutoff"
+            break
         z = float(np.sum(np.minimum(lo * d, up * d)))
         if z > best + 1e-12 * (1.0 + abs(best if np.isfinite(best) else 0.0)):
             best, last_rise = z, iterations
@@ -312,39 +348,36 @@ def solve_boxed_lp(c, A, rl, ru, l, u, *, basis: Optional[BoxedBasis] = None,
         cand = np.flatnonzero((width > 0) & ~is_basic & (((~at_upper) & (at > PIVOT_TOL))
                                                          | (at_upper & (at < -PIVOT_TOL))))
         if cand.size == 0:
-            status = "infeasible"
+            if certified(sgn * rho):
+                status, ray = "infeasible", sgn * rho
             break
         mag = np.abs(at[cand])
         ratio = np.maximum(np.abs(d[cand]) / mag, 0.0)
         order = np.argsort(ratio, kind="stable")
         slope = abs(delta[r])
-        k = 0
         if bland:                                                     # plain ratio test, smallest index among ties
-            k = 0
-            tie = np.flatnonzero(ratio <= ratio[order[0]] + ZERO_TOL)
-            pick = tie[np.argmin(cand[tie])]
+            pick = _bland_entering(cand, ratio)
         else:
             for k in range(order.size):                               # Algorithm 4: pass breakpoints while improving
                 slope -= width[cand[order[k]]] * mag[order[k]]
                 if slope <= PRIMAL_TOL:                               # zero slope: the row is met at this breakpoint
                     break
-            else:
-                status = "infeasible"                                 # every breakpoint flipped, slope still positive:
-                break                                                 # the dual is unbounded
+            else:                                                     # every breakpoint passed, slope still positive:
+                if certified(sgn * rho):                              # the dual is unbounded along rho
+                    status, ray = "infeasible", sgn * rho
+                break
             rest = order[k:]
             theta_max = np.min((np.abs(d[cand[rest]]) + DUAL_TOL) / mag[rest])
             window = rest[ratio[rest] <= theta_max]                   # Harris: the largest pivot within tolerance
             pick = window[np.argmax(mag[window])] if window.size else order[k]
         q = int(cand[pick])
-        flips = cand[order[:k]]
-        flips = flips[flips != q]
         col = F[:, q].toarray().ravel()
         aq = Binv @ col                                               # FTran
         if abs(aq[r] - alpha[q]) > PIVOT_CHECK_TOL * (1.0 + abs(aq[r])) and not fresh:
             Binv, beta = factor()                                     # pivot element test (6.27-6.29)
             since, fresh = 0, True
             continue
-        at_upper[flips] = ~at_upper[flips]
+        # the breakpoints the long step passed are flipped by the dual feasibility pass that opens the next iteration
         tau = Binv @ rho
         beta_r = float(rho @ rho)
         ratio_q = aq / aq[r]
@@ -369,4 +402,4 @@ def solve_boxed_lp(c, A, rl, ru, l, u, *, basis: Optional[BoxedBasis] = None,
     return BoxedLPResult(status=status, x=x, row_activity=np.asarray(A @ x).ravel(), y=y, d=c - A.T @ y,
                          objective=float(c @ x), bound=bound, iterations=iterations,
                          basis=BoxedBasis(basic.copy(), at_upper.copy()), basis_repaired=bool(repaired),
-                         degeneracy_stage=("none", "perturbed", "restored", "bland")[stage])
+                         degeneracy_stage=("none", "perturbed", "restored", "bland")[stage], ray=ray)
