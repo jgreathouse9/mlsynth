@@ -147,13 +147,16 @@ class TestSameInputs:
         assert list(inputs.adoption) == [4, -1, 4, -1, -1, 9, -1, -1]
         assert inputs.D[5, :9].sum() == 0 and inputs.D[5, 9:].min() == 1
 
-    @pytest.mark.parametrize("label", ["datetime", "str", "float"])
+    @pytest.mark.parametrize("label", ["datetime", "str", "float", "float32", "int32"])
     def test_period_labels_keep_their_type(self, label):
+        # A 32-bit period column stays 32-bit, as np.array(sorted(...)) kept it.
         df = _panel(adopt={1: 7})
         step = df["time"] - 2000
         df["time"] = {"datetime": pd.to_datetime("2001-01-01") + pd.to_timedelta(step, unit="D"),
                       "str": "p" + step.map("{:02d}".format),
-                      "float": step / 4.0}[label]
+                      "float": step / 4.0,
+                      "float32": (step / 4.0).astype("float32"),
+                      "int32": df["time"].astype("int32")}[label]
         _both(df)
 
     def test_a_boolean_treatment_is_read_as_before(self):
