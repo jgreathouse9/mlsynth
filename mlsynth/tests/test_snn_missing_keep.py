@@ -40,6 +40,7 @@ from hypothesis import strategies as st
 from mlsynth import SNN
 from mlsynth.exceptions import MlsynthDataError
 from mlsynth.utils.snn_helpers import setup as SETUP
+from mlsynth.utils.snn_helpers.completion import snn_donor_weights
 from mlsynth.utils.snn_helpers.pipeline import run_snn
 from mlsynth.utils.snn_helpers.setup import prepare_snn_inputs
 
@@ -182,10 +183,40 @@ class TestFitWithMissingCells:
         inp = res.inputs
         i = int(inp.treated_idx[0])
         w = res.weights.donor_weights
-        donors = [inp.unit_names.index(n) for n in w]
-        assert inp.unit_names.index(4) not in donors     # missing at the first post period
+        row = {str(n): k for k, n in enumerate(inp.unit_names)}
+        donors = [row[n] for n in w]
+        assert len(donors) == 6
+        assert row["4"] not in donors                    # missing at the first post period
         pred = sum(w[n] * inp.Y[d, inp.T0] for n, d in zip(w, donors))
         assert pred == pytest.approx(res.counterfactual_matrix[i, inp.T0], abs=1e-9)
+
+
+class TestDonorWeightsColumn:
+    def _matrix(self):
+        rng = np.random.default_rng(3)
+        X = rng.normal(size=(6, 2)) @ rng.normal(size=(2, 8))
+        X[0, 5:] = np.nan       # treated row
+        X[0, 1] = np.nan        # a missing pre-period cell of the treated row
+        X[3, 5] = np.nan        # a donor missing at the first post period
+        return X, (~np.isnan(X)).astype(float)
+
+    def test_the_default_column_is_the_row_s_first_missing_cell(self):
+        X, mask = self._matrix()
+        a = snn_donor_weights(X, mask, 0)
+        b = snn_donor_weights(X, mask, 0, column=1)
+        np.testing.assert_array_equal(a[0], b[0])
+        np.testing.assert_array_equal(a[1], b[1])
+
+    def test_the_column_chooses_the_anchor_rows(self):
+        X, mask = self._matrix()
+        AR, _ = snn_donor_weights(X, mask, 0, column=5)
+        assert 3 not in AR.tolist() and AR.size == 4
+        assert 3 in snn_donor_weights(X, mask, 0)[0].tolist()
+
+    def test_a_row_with_no_missing_cell_has_no_weights(self):
+        X, mask = self._matrix()
+        AR, w = snn_donor_weights(X, mask, 1)
+        assert AR.size == 0 and w.size == 0
 
 
 class TestMaskReachesTheMethod:
