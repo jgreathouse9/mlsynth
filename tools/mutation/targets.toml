@@ -23769,8 +23769,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-leaf-sum-misses-its-last-group"
-  find = "            for t in range(c1):\n                T1 += tlo[path[t]]"
-  replace = "            for t in range(depth):\n                T1 += tlo[path[t]]"
+  find = "                for t in range(c1):\n                    T1 += tlo[path[t]]"
+  replace = "                for t in range(depth):\n                    T1 += tlo[path[t]]"
   models = "a leaf's true-cost lower bound without the group that completed it, so the certified gap opens by that group's cost"
 
   [[target.mutant]]
@@ -23784,3 +23784,17 @@ timeout = 1200.0
   find = "    lo = np.ascontiguousarray(shifted[keep], dtype=float)"
   replace = "    lo = np.ascontiguousarray(pool.cost_lo[keep], dtype=float)"
   models = "the node bound over the unshifted costs against the raised threshold, valid but below the clique LP's bound"
+
+  [[target.mutant]]
+  id = "the-leaf-reads-the-shifted-running-sum"
+  find = "    has_shift = shifted is not None"
+  replace = "    has_shift = False"
+  models = "a leaf's lower bound read from the running sum of the clique-shifted costs, which exceeds the design's true cost by the duals of the cliques it hits, so the search reports a lower bound above the optimum"
+
+  [[target.mutant]]
+  id = "the-leaf-sums-the-path-again-without-shifts"
+  find = "    has_shift = shifted is not None"
+  replace = "    has_shift = True"
+  models = "every leaf summing the true costs along the path again although no clique shifts them, the cost the running sum saves"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in result: without shifts the path sum and the running sum are the same numbers added in the same order, so every bound and design is bit for bit the same (pinned by test_unshifted_costs_give_the_leaf_bound_of_the_running_sum). The difference is time: on the seasonal arm of 32 geos at Q = 3 the search's 1,383,220 nodes took 11.1 to 11.8 s with the path sum against 9.6 s without, single-threaded, mirrored runs."

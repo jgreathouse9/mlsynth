@@ -337,6 +337,29 @@ def test_no_cliques_leave_the_search_unchanged():
     assert np.array_equal(a.rows, b.rows)
 
 
+@pytest.mark.parametrize("seed,n,Q,fixed", [(4, 12, 2, False), (2, 12, 2, True), (5, 14, 3, False)])
+def test_unshifted_costs_give_the_leaf_bound_of_the_running_sum(seed, n, Q, fixed):
+    """Unit: without clique shifts the node sums and the leaves' true-cost sums are the same numbers added in the
+    same order, so the search may read the running sum at a leaf instead of summing the path again. Forcing the
+    leaf sum (duals that carry shifted costs equal to the true ones) and taking the running sum (duals with none)
+    must give the same search, bit for bit: status, nodes, bounds and design, with and without a fixed group."""
+    Y, idx, pool, k, root = _setup(seed, n, Q)
+    keep = np.arange(len(pool))
+    fx = ()
+    if fixed:
+        j = int(np.argmin(pool.cost))
+        g = _units(pool, j)
+        keep = np.array([r for r in keep if not (_units(pool, r) & g)])
+        fx = (j,)
+    plain = columns._Duals(np.asarray(root.pi, dtype=float), float(root.sigma), np.asarray(root.reduced_costs))
+    forced = columns._Duals(plain.pi, plain.sigma, plain.reduced_costs, cost_lo=np.array(pool.cost_lo, copy=True))
+    a = cover.search(pool, plain, keep, k, Q, np.inf, 10**7, fixed=fx)
+    b = cover.search(pool, forced, keep, k, Q, np.inf, 10**7, fixed=fx)
+    assert a.status == b.status == "proved" and a.nodes == b.nodes
+    assert (a.upper, a.lower) == (b.upper, b.lower)
+    assert np.array_equal(a.rows, b.rows)
+
+
 def test_credited_cliques_place_fewer_nodes_in_the_reoptimised_search(monkeypatch):
     """Unit: from the optimum on a 16-geo arm at Q = 2, the depth-1 search with credited cliques places fewer nodes
     than without cliques."""
