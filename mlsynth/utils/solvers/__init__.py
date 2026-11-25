@@ -18,6 +18,10 @@ them knows what an estimator is:
   simplex QP (Augmented SCM).
 * :mod:`~mlsynth.utils.solvers.sunny` -- Becker and Klossner's sunny/shady donor
   screen, which decides by linear program which donors can hold weight at all.
+* :mod:`~mlsynth.utils.solvers.dual_simplex` -- a bounded dual simplex for linear
+  programs whose every variable is boxed (Koberstein 2005): multipliers and a
+  Lagrangian lower bound at every iterate, iteration limits, and warm starts
+  from a related LP's basis.
 
 They lived under ``bilevel`` because the bilevel V-optimisation was the first
 caller. It was never the only one, and the gap has widened: at the time of this
