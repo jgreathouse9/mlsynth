@@ -12,8 +12,9 @@ with one-time and staggered adoption as its panel designs.
 
 The matrix-completion engine, ``snn_complete``, still takes a matrix with
 ``NaN`` for its missing entries; only the panel path goes through ``dataprep``.
-What the panel path does with a missing outcome cell is left to the
-``missing_outcomes`` opt-in that ``dataprep`` is getting, and is not pinned here.
+The panel path keeps a missing outcome cell (``missing_outcomes="keep"``,
+#1146) and refuses one only on a treated unit after its adoption; that opt-in
+is pinned in ``test_snn_missing_keep.py``.
 
 ``_reference`` below is the old pivot, kept as the oracle the new path must
 match on every panel both accept.
@@ -234,9 +235,13 @@ def cases(draw):
     df = _panel(n_units=n_units, n_periods=n_periods, adopt=adopt, seed=seed,
                 names=names, boolean=boolean)
     defect = draw(st.sampled_from(
-        ["none", "none", "none", "inf", "gap", "dup", "off", "nonbinary"]))
+        ["none", "none", "none", "nan", "inf", "gap", "dup", "off", "nonbinary"]))
     i = draw(st.integers(0, len(df) - 1))
-    if defect == "inf":
+    if defect == "nan":
+        df.iloc[i, df.columns.get_loc("y")] = np.nan
+        # a missing cell is kept unless it is a treated post-treatment cell
+        defect = "nan-treated" if bool(df.iloc[i, df.columns.get_loc("d")]) else "none"
+    elif defect == "inf":
         df.iloc[i, df.columns.get_loc("y")] = -np.inf
     elif defect == "gap":
         df = df.drop(df.index[i])
