@@ -5,6 +5,7 @@ from typing import Optional, Tuple, Dict, List
 import pandas as pd
 from typing import Any, Dict, Iterable
 from ...exceptions import MlsynthDataError
+from ..datautils import geoex_dataprep
 from .inference import compute_moving_block_conformal_ci
 from.structure import IndexSet
 
@@ -114,9 +115,16 @@ def build_Y_matrix(working_df, outcome, time, unitid, unit_index):
     -------
     np.ndarray, shape (T, J)
         Wide-format outcome matrix.
+
+    Raises
+    ------
+    MlsynthDataError
+        If the rows passed in are not a balanced panel (an absent or duplicate
+        unit-period) or an outcome is missing or not finite
+        (:func:`~mlsynth.utils.datautils.geoex_dataprep`).
     """
     Y_wide = (
-        working_df.pivot(index=time, columns=unitid, values=outcome)
+        geoex_dataprep(working_df, unitid, time, outcome)["Ywide"]
         .reindex(columns=unit_index)
     )
     return Y_wide.to_numpy(dtype=float)
@@ -144,17 +152,27 @@ def build_Z_matrix(working_df, covariates, time, unitid, unit_index):
     -------
     np.ndarray or None
         Stacked covariate matrix (N rows x Units).
+
+    Raises
+    ------
+    MlsynthDataError
+        If a covariate is absent, missing or not finite in any unit-period, or
+        the rows passed in are not a balanced panel.
     """
     if not covariates:
         return None
 
     covariate_list = []
     for col in covariates:
-        # Pivot to get (Time x Units)
-        cov_wide = (
-            working_df.pivot(index=time, columns=unitid, values=col)
-            .reindex(columns=unit_index)
-        )
+        # (Time x Units), read through geoex_dataprep as its outcome, so a
+        # missing or non-finite covariate value is refused under its name.
+        try:
+            cov_wide = geoex_dataprep(working_df, unitid, time, col)["Ywide"]
+        except MlsynthDataError as exc:
+            raise MlsynthDataError(
+                f"Covariate '{col}' is incomplete; LEXSCM needs every covariate "
+                f"observed and finite in every unit-period. {exc}") from exc
+        cov_wide = cov_wide.reindex(columns=unit_index)
 
         # Check if the covariate is time-invariant for each unit.
         # If the number of unique values in every column is 1, it's invariant.
