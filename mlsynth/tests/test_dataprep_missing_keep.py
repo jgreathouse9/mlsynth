@@ -159,11 +159,13 @@ class TestKeepStillRefuses:
         with pytest.raises(MlsynthDataError):
             dataprep(df, *ARGS, missing_outcomes="keep")
 
-    def test_a_duplicate_unit_period(self):
-        df = _panel(shuffle=False)
-        with pytest.raises(MlsynthDataError):
-            dataprep(pd.concat([df, df.iloc[[3]]]), *ARGS, missing_outcomes="keep",
-                     keys=None)
+    def test_a_duplicate_unit_period_is_balances_to_refuse(self):
+        # dataprep never refused duplicates itself (without a key scan pandas
+        # raises); callers run balance() first and hand its scan over, and a
+        # kept NaN does not change that.
+        df = _plant(_panel(shuffle=False), [(1, 2001)])
+        with pytest.raises(MlsynthDataError, match="Duplicate"):
+            balance(pd.concat([df, df.iloc[[3]]]), "unit", "time")
 
     def test_keep_with_the_marex_predictor_matrix(self):
         # marex stacks pre-period outcomes into a predictor matrix; a kept NaN
