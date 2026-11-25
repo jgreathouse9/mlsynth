@@ -180,13 +180,6 @@ class TestSameInputs:
         df["w"] = df["w"].astype(bool)
         _assert_same(rolldid_setup(df, *ARGS), _reference(df, *ARGS))
 
-    def test_a_missing_treatment_before_adoption_is_read_as_untreated_as_before(self):
-        df = _panel(adopt={0: 6, 1: 4})
-        df["w"] = df["w"].astype(float)
-        df.loc[(df.unit == 3) & (df.time == 2002), "w"] = np.nan
-        df.loc[(df.unit == 0) & (df.time == 2001), "w"] = np.nan
-        _assert_same(rolldid_setup(df, *ARGS), _reference(df, *ARGS))
-
     def test_the_caller_frame_is_not_changed(self):
         df = _panel()
         before = df.copy()
@@ -247,7 +240,19 @@ class TestRefusals:
         df = _panel(shuffle=False)
         df["w"] = df["w"].astype(float)
         df.loc[(df.unit == 0) & (df.time == 2008), "w"] = np.nan
-        with pytest.raises(MlsynthDataError, match="not sustained"):
+        with pytest.raises(MlsynthDataError, match=r"Missing treatment values: 1 of .*"
+                           r"the first at unit '0', time 2008\."):
+            rolldid_setup(df, *ARGS)
+
+    def test_a_missing_treatment_before_adoption_is_refused(self):
+        # The old setup read both cells as untreated. The refusal counts both
+        # and names the first in time order.
+        df = _panel(adopt={0: 6, 1: 4})
+        df["w"] = df["w"].astype(float)
+        df.loc[(df.unit == 3) & (df.time == 2002), "w"] = np.nan
+        df.loc[(df.unit == 0) & (df.time == 2001), "w"] = np.nan
+        with pytest.raises(MlsynthDataError, match=r"Missing treatment values: 2 of .*"
+                           r"the first at unit '0', time 2001\."):
             rolldid_setup(df, *ARGS)
 
     def test_one_treated_unit_in_the_first_period_is_refused(self):

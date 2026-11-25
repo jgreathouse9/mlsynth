@@ -242,15 +242,18 @@ class TestRefusals:
         df = _panel(shuffle=False)
         df["d"] = df["d"].astype(float)
         df.loc[(df.unit == 0) & (df.time == 2008), "d"] = np.nan
-        with pytest.raises(MlsynthDataError, match="not sustained"):
+        with pytest.raises(MlsynthDataError, match=r"Missing treatment values: 1 of .*"
+                           r"the first at unit '0', time 2008\."):
             prepare_pda_inputs(df, **COLS)
 
-    def test_a_missing_donor_treatment_is_read_as_untreated_as_before(self):
-        # dataprep's binary check skips NaN, and the old setup ignored it.
+    def test_a_missing_donor_treatment_is_refused(self):
+        # The old setup ignored it and read the donor as untreated.
         df = _panel()
         df["d"] = df["d"].astype(float)
         df.loc[(df.unit == 3) & (df.time == 2004), "d"] = np.nan
-        _assert_same(prepare_pda_inputs(df, **COLS), _reference(df, **COLS))
+        with pytest.raises(MlsynthDataError, match=r"Missing treatment values: 1 of .*"
+                           r"the first at unit '3', time 2004\."):
+            prepare_pda_inputs(df, **COLS)
 
     def test_the_estimator_reports_the_switch_off(self):
         df = _panel(shuffle=False, T=24, T0=16)
