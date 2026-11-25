@@ -23630,6 +23630,12 @@ timeout = 900.0
   accepted-because = "EQUIVALENT in every answer: the pricing rule picks the path, not the optimum, and the bound is valid at every iterate either way. Measured over 40 cover LPs (30 units, 300 groups, 20 clique rows), 40 equal-cost covers and 150 ill-conditioned LPs (coefficients 1e-4 to 1e4): Dantzig took 3,529, 2,513 and 9,396 iterations against steepest edge's 3,929, 2,759 and 6,340, with the same answers. Steepest edge stays for the ill-conditioned case; no iteration ceiling separates the two on cover LPs without pinning noise."
 
   [[target.mutant]]
+  id = "the-steepest-edge-cross-term-is-dropped"
+  find = "        beta = np.maximum(beta - 2.0 * ratio_q * tau + ratio_q * ratio_q * beta_r, 1e-12)"
+  replace = "        beta = np.maximum(beta + ratio_q * ratio_q * beta_r, 1e-12)"
+  models = "the dual steepest-edge weight update without its cross term (Koberstein 2005, equation 3.50): the same answers on a longer path, 3,580 iterations on the forty equal-cost covers against 2,485"
+
+  [[target.mutant]]
   id = "the-perturbed-optimum-is-returned"
   find = "            if stage == 1:                                            # the perturbed LP's optimum: true costs back"
   replace = "            if False:                                                 # the perturbed LP's optimum: true costs back"
@@ -23752,7 +23758,7 @@ timeout = 1500.0
   id = "kernel-the-steepest-edge-cross-term-is-dropped"
   find = "            beta[i] = max(beta[i] - 2.0 * rq[i] * tau[i] + rq[i] * rq[i] * beta_r, 1e-12)"
   replace = "            beta[i] = max(beta[i] + rq[i] * rq[i] * beta_r, 1e-12)"
-  models = "the dual steepest-edge weight update without its cross term (Koberstein 2005, equation 3.50)"
+  models = "the dual steepest-edge weight update without its cross term (Koberstein 2005, equation 3.50): the same answers on a longer path, 3,664 iterations on the forty equal-cost covers against 2,377"
 
   [[target.mutant]]
   id = "a-stale-inverse-is-trusted"

@@ -547,6 +547,17 @@ def test_equal_cost_covers_take_few_iterations():
     assert sum(ds.solve_boxed_lp(*_stress_cover(s)).iterations for s in range(40)) <= 4000
 
 
+def test_the_steepest_edge_weights_keep_their_cross_term():
+    """Unit, a ceiling: the dual steepest-edge weights are updated by Koberstein (2005), equation 3.50, whose
+    cross term -2 (alpha_iq / alpha_rq) tau_i keeps each weight equal to the squared norm of its row of the basis
+    inverse. The forty equal-cost covers take 2,485 iterations on the numpy path and 2,377 in the kernel. Dropped
+    from the update, the cross term lets the weights drift from those norms with each pivot, and the covers take
+    3,580 and 3,664, with the same answers: the weights steer the path, not the optimum. Over 200 covers the kernel
+    took 12,700 iterations with the term and 19,400 without, more in 156 of them and fewer in 32. The ceiling is
+    3,000."""
+    assert sum(ds.solve_boxed_lp(*_stress_cover(s)).iterations for s in range(40)) <= 3000
+
+
 def test_a_solve_stopped_while_perturbed_bounds_with_the_true_costs():
     """Unit: stopped after three iterations, the last on costs a stall has perturbed, the bound is the Lagrangian
     value of the multipliers under the true costs, and it bounds the true optimum."""
