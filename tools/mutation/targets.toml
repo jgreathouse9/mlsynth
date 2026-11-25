@@ -22646,15 +22646,21 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-treated-series-is-the-first-column"
-  find = "    y = wide[treated_unit].to_numpy(dtype=float)"
-  replace = "    y = wide.iloc[:, 0].to_numpy(dtype=float)"
+  find = "    y = np.ascontiguousarray(wide[treated_unit].to_numpy(dtype=float))"
+  replace = "    y = np.ascontiguousarray(wide.iloc[:, 0].to_numpy(dtype=float))"
   models = "y read by position from dataprep's sorted columns, not by the treated label"
 
   [[target.mutant]]
-  id = "the-donor-matrix-is-column-major"
-  find = "    X = wide[donors].to_numpy(dtype=float)"
-  replace = "    X = np.asfortranarray(wide[donors].to_numpy(dtype=float))"
-  models = "X in a different memory layout from the old pivot, so the solvers' sums move in the last bits"
+  id = "treated-series-strided"
+  find = "    y = np.ascontiguousarray(wide[treated_unit].to_numpy(dtype=float))"
+  replace = "    y = wide[treated_unit].to_numpy(dtype=float)"
+  models = "a value-equal strided y where the old pivot gave a contiguous one under pandas 2, so the solvers' sums move in the last bits"
+
+  [[target.mutant]]
+  id = "donor-matrix-row-major"
+  find = "    X = np.asfortranarray(wide[donors].to_numpy(dtype=float))"
+  replace = "    X = wide[donors].to_numpy(dtype=float)"
+  models = "a value-equal row-major X where the old pivot gave a column-major one under pandas 2, so the solvers' sums move in the last bits"
 
   [[target.mutant]]
   id = "period-labels-change-type"
