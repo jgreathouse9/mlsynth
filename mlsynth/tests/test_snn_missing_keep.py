@@ -145,6 +145,9 @@ class TestFitWithMissingCells:
         res = _fit(_plant(_panel(), [(0, 2002)]))
         assert np.isfinite(res.att)
         assert all(np.isfinite(v) for v in res.att_by_period.values())
+        # the treated path has a missing period, so its pre-period fit is undefined
+        assert np.isnan(res.time_series.observed_outcome[2])
+        assert np.isnan(res.fit_diagnostics.rmse_pre)
 
     def test_a_missing_untreated_cell_gets_an_imputation(self):
         df = _plant(_panel(), [(3, 2004)])
