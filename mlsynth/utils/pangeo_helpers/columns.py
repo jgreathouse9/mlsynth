@@ -640,15 +640,23 @@ def _incidence(members: np.ndarray, n: int) -> np.ndarray:
 
 
 def _clique_rows(x: np.ndarray, members: np.ndarray, cap: int = CLIQUE_PER_ROUND) -> List[Tuple[int, ...]]:
-    """The cliques of the conflict graph on the support of the LP point ``x`` that it violates: groups pairwise
-    sharing a unit, at least three of them, no unit common to all (a cover row already holds those), with
-    ``sum x > 1``. Every maximal clique of the support is listed by the Bron-Kerbosch algorithm with the pivot of
-    Tomita, Tanaka and Takahashi ("The worst-case time complexity for generating all maximal cliques", Theor.
-    Comput. Sci. 363 (2006) 28-42), as clique separation for set packing does (Marzi, Rossi and Smriglio, "Computational
-    study of separation algorithms for clique inequalities", Soft Comput. 23 (2019) 3013-3027). Returns the ``cap``
-    most violated, as row indices of ``members``."""
+    """Cliques of the conflict graph on the support of the LP point ``x`` that it violates: groups pairwise sharing a
+    unit, at least three of them, no unit common to all (a cover row already holds those), with ``sum x > 1``.
+
+    Finding a violated clique is a maximum-weight clique problem, strongly NP-hard, and a graph on m vertices can
+    have 3^(m/3) maximal cliques (Moon and Moser, Israel J. Math. 3 (1965) 23-28), so the support's cliques are not
+    listed (Atamturk, Nemhauser and Savelsbergh, "Conflict graphs in solving integer programming problems", EJOR 121
+    (2000) 40-55, p. 50). The separation is the root-vertex scheme of Hoffman and Padberg as Marzi, Rossi and Smriglio
+    state it ("Computational study of separation algorithms for clique inequalities", Soft Comput. 23 (2019)
+    3013-3027, section 2, Algorithms 1 and 2): the roots in order of nondecreasing degree; a root whose weight plus
+    its remaining neighbours' weights cannot pass 1 is skipped (Algorithm 1, step 5); otherwise its clique is grown
+    greedily, the heaviest remaining neighbour first (Algorithm 2 with f = x, ties to the lower index); then the root
+    leaves the graph. Each root costs at most its degree times the clique's size, so a round is polynomial in the
+    support; the cliques it returns are valid cuts whether or not they are the most violated. Returns at most ``cap``
+    of them, distinct, most violated first, as row indices of ``members``."""
     supp = np.flatnonzero(x > _EPS)
     sets = [frozenset(int(u) for u in members[j][members[j] >= 0]) for j in supp]
+    w = [float(x[j]) for j in supp]
     m = supp.size
     adj = [set() for _ in range(m)]
     for a in range(m):
@@ -656,26 +664,21 @@ def _clique_rows(x: np.ndarray, members: np.ndarray, cap: int = CLIQUE_PER_ROUND
             if sets[a] & sets[b]:
                 adj[a].add(b)
                 adj[b].add(a)
-    found = []
-
-    def extend(R, P, X):
-        if not P and not X:
-            found.append(R)
-            return
-        u = max(sorted(P | X), key=lambda v: len(adj[v] & P))
-        for v in sorted(P - adj[u]):
-            extend(R + [v], P & adj[v], X & adj[v])
-            P = P - {v}
-            X = X | {v}
-
-    extend([], set(range(m)), set())
+    alive = set(range(m))
     out = []
-    for R in found:
-        if len(R) < 3 or frozenset.intersection(*(sets[a] for a in R)):
-            continue
-        v = math.fsum(float(x[supp[a]]) for a in R) - 1.0
-        if v > _VIOLATION:
-            out.append((-v, tuple(sorted(int(supp[a]) for a in R))))
+    for i in sorted(range(m), key=lambda a: (len(adj[a]), a)):
+        near = adj[i] & alive
+        if w[i] + math.fsum(w[j] for j in near) - 1.0 > _VIOLATION:
+            R, cand = [i], set(near)
+            while cand:
+                j = min(cand, key=lambda v: (-w[v], v))
+                R.append(j)
+                cand &= adj[j]
+            v = math.fsum(w[a] for a in R) - 1.0
+            key = tuple(sorted(int(supp[a]) for a in R))
+            if len(R) >= 3 and v > _VIOLATION and not frozenset.intersection(*(sets[a] for a in R)):
+                out.append((-v, key))        # distinct: every clique holds its root, which then leaves the graph
+        alive.discard(i)
     out.sort()
     return [K for _, K in out[:cap]]
 

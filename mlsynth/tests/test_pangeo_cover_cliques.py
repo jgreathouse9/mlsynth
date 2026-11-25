@@ -141,6 +141,101 @@ def test_clique_rows_orders_by_violation_and_caps_the_count():
     assert [tuple(sorted(K)) for K in columns._clique_rows(x, members, cap=1)] == [(3, 4, 5)]
 
 
+def _moon_moser(triples: int):
+    """Groups whose conflict graph is the complete multipartite graph K(3, ..., 3): ``3 * triples`` groups, two of
+    them adjacent exactly when they come from different triples. It has 3^triples maximal cliques (Moon and Moser,
+    Israel J. Math. 3 (1965) 23-28), the most any graph on that many vertices has. Each pair of groups from different
+    triples shares a unit of its own, so no unit is common to three groups."""
+    verts = [(t, a) for t in range(triples) for a in range(3)]
+    units = {}
+    for p, q in itertools.combinations(range(len(verts)), 2):
+        if verts[p][0] != verts[q][0]:
+            units[(p, q)] = len(units)
+    width = 3 * (triples - 1)
+    members = -np.ones((len(verts), width), dtype=np.int64)
+    fill = np.zeros(len(verts), dtype=np.int64)
+    for (p, q), u in units.items():
+        for v in (p, q):
+            members[v, fill[v]] = u
+            fill[v] += 1
+    return members
+
+
+class _Deadline(Exception):
+    pass
+
+
+def test_clique_rows_does_bounded_work_on_a_graph_with_exponentially_many_maximal_cliques():
+    """Edge: separation is a maximum-weight clique problem, strongly NP-hard, and the methods in use solve it one
+    root vertex at a time with a greedy or size-limited search, never by listing every maximal clique (Marzi, Rossi
+    and Smriglio, Soft Comput. 23 (2019) 3013-3027, section 2; Atamturk, Nemhauser and Savelsbergh, EJOR 121 (2000)
+    40-55, p. 50). On K(3, ..., 3) with 15 triples, 3^15 = 14.3 million maximal cliques: listing them does not finish
+    in 10 seconds; the separation must, and it must still return violated cliques."""
+    import signal
+
+    members = _moon_moser(15)
+    x = np.full(members.shape[0], 0.34)                     # one group per triple: 15 * 0.34 = 5.1 > 1
+
+    def _stop(signum, frame):
+        raise _Deadline
+
+    old = signal.signal(signal.SIGALRM, _stop)
+    signal.alarm(10)
+    try:
+        found = columns._clique_rows(x, members)
+    except _Deadline:
+        pytest.fail("clique separation did not finish in 10 seconds on a graph with 3^15 maximal cliques")
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
+    assert found
+    sets = [set(int(u) for u in row if u >= 0) for row in members]
+    for K in found:
+        assert len(K) >= 3 and all(sets[a] & sets[b] for a, b in itertools.combinations(K, 2))
+        assert float(x[list(K)].sum()) > 1.0 + columns._VIOLATION
+
+
+@settings(max_examples=150, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**6), groups=st.integers(3, 24), units=st.integers(3, 10), size=st.integers(1, 4),
+       cap=st.integers(1, 8))
+def test_property_clique_rows_returns_distinct_violated_cliques_by_violation_within_the_cap(seed, groups, units,
+                                                                                         size, cap):
+    """Property: whatever the point and the groups, every returned set is a clique of the support's conflict graph
+    (pairwise sharing a unit), of three or more groups with no unit common to all, violated by more than the
+    tolerance, the list sorted by violation, without repeats, and at most ``cap`` long."""
+    rng = np.random.default_rng(seed)
+    members = -np.ones((groups, size), dtype=np.int64)
+    for j in range(groups):
+        g = rng.choice(units, size=int(rng.integers(1, min(size, units) + 1)), replace=False)
+        members[j, :g.size] = np.sort(g)
+    x = np.where(rng.random(groups) < 0.2, 0.0, rng.random(groups))
+    found = columns._clique_rows(x, members, cap=cap)
+    sets = [set(int(u) for u in row if u >= 0) for row in members]
+    assert len(found) <= cap and len(set(map(tuple, found))) == len(found)
+    viol = []
+    for K in found:
+        assert len(K) >= 3 and all(x[a] > columns._EPS for a in K)
+        assert all(sets[a] & sets[b] for a, b in itertools.combinations(K, 2))
+        assert not set.intersection(*(sets[a] for a in K))
+        viol.append(float(np.sum(x[list(K)])) - 1.0)
+        assert viol[-1] > columns._VIOLATION
+    assert viol == sorted(viol, reverse=True)
+
+
+def test_each_root_grows_its_clique_by_the_heaviest_remaining_neighbour():
+    """Unit: Algorithm 2 of Marzi, Rossi and Smriglio (2019) with f = x. Root r (lowest degree, first) meets h1, h2
+    and l; h1 and h2 meet each other, l meets neither. Heaviest first, r takes h1 then h2: {r, h1, h2} weighs 1.2.
+    Lightest first, r would take l and stop at two groups. The fillers f1..f3 meet h1, h2 and l only, raising
+    those degrees above r's, and weigh too little to make a violated clique of their own."""
+    groups = [(0, 1, 2), (0, 3, 10, 11, 12), (1, 3, 13, 14, 15), (2, 16, 17, 18), (10, 13, 16), (11, 14, 17),
+              (12, 15, 18)]
+    members = -np.ones((len(groups), 5), dtype=np.int64)
+    for j, g in enumerate(groups):
+        members[j, :len(g)] = g
+    x = np.array([0.3, 0.45, 0.45, 0.1, 0.01, 0.01, 0.01])
+    assert columns._clique_rows(x, members) == [(0, 1, 2)]
+
+
 def test_lifting_adds_a_group_only_when_it_meets_every_member_so_far():
     """Unit: the support clique {1,2,3,4}, {1,5}, {2,5} has no common unit. {1,2,9,10} and {3,5,11,12} each meet all
     three, but not each other, so both cannot join: lifting takes the first in order and refuses the second."""

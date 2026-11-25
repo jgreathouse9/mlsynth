@@ -23683,23 +23683,49 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "a-clique-with-a-common-unit-is-kept"
-  find = "        if len(R) < 3 or frozenset.intersection(*(sets[a] for a in R)):"
-  replace = "        if len(R) < 3:"
+  find = "            if len(R) >= 3 and v > _VIOLATION and not frozenset.intersection(*(sets[a] for a in R)):"
+  replace = "            if len(R) >= 3 and v > _VIOLATION:"
   models = "cliques whose groups all hold one unit, which that unit's cover row already implies: cuts that add LP rows and never move the bound"
 
   [[target.mutant]]
   id = "an-unviolated-clique-is-kept"
-  find = "        if v > _VIOLATION:"
-  replace = "        if True:"
-  models = "every maximal clique of the support added whether the LP point violates it or not"
+  find = "            if len(R) >= 3 and v > _VIOLATION and not"
+  replace = "            if len(R) >= 3 and not"
+  models = "every clique a root grows added whether the LP point violates it or not"
 
   [[target.mutant]]
   id = "two-groups-make-a-clique"
-  find = "        if len(R) < 3 or frozenset"
-  replace = "        if len(R) < 2 or frozenset"
+  find = "            if len(R) >= 3 and v"
+  replace = "            if len(R) >= 2 and v"
   models = "two-group cliques, which two groups sharing a unit never violate in a cover LP, kept as rows"
   expected = "survived"
   accepted-because = "EQUIVALENT. Two groups are adjacent in the conflict graph only when they share a unit, so every two-group clique has a common unit and the second test on the same line (the intersection of the members' unit sets is nonempty) skips it whether the length test reads < 3 or < 2. A one-group clique is skipped by the same test. The length test stays as the statement of the rule the docstring gives (three or more groups)."
+
+  [[target.mutant]]
+  id = "the-root-stays-in-the-graph"
+  find = "        alive.discard(i)\n"
+  replace = "        pass\n"
+  models = "a root left in the graph after its subproblem, so a later root can grow the same clique again and the round returns repeats (Marzi, Rossi and Smriglio 2019, Algorithm 1, step 15 deletes it)"
+
+  [[target.mutant]]
+  id = "the-greedy-takes-the-lightest"
+  find = "                j = min(cand, key=lambda v: (-w[v], v))"
+  replace = "                j = min(cand, key=lambda v: (w[v], v))"
+  models = "Algorithm 2 growing each root's clique from its lightest neighbour, which stops at small, unviolated cliques where heaviest-first finds the violated one"
+
+  [[target.mutant]]
+  id = "the-roots-in-index-order"
+  find = "    for i in sorted(range(m), key=lambda a: (len(adj[a]), a)):"
+  replace = "    for i in range(m):"
+  models = "the roots taken in index order, not by nondecreasing degree (Hoffman and Padberg's order, which keeps the early subproblems small and lets later roots work on a smaller graph)"
+
+  [[target.mutant]]
+  id = "the-violation-bound-skips-no-root"
+  find = "        if w[i] + math.fsum(w[j] for j in near) - 1.0 > _VIOLATION:"
+  replace = "        if True:"
+  models = "no upper bound on a root's violation before its clique is grown (Marzi, Rossi and Smriglio 2019, Algorithm 1, step 5)"
+  expected = "survived"
+  accepted-because = "EQUIVALENT. A clique grown from root i lies inside i and its remaining neighbours, so its weight is at most the bound plus 1; when the bound is at or below the tolerance no clique from i passes the violation test on the line that records it, and the output is the same. The check saves the greedy growth on roots that cannot yield a cut."
 
   [[target.mutant]]
   id = "no-clique-is-lifted"
