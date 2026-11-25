@@ -84,9 +84,12 @@ def rolldid_setup(
     # The pipeline's sums depend on the memory layout. This is the layout the
     # old df.pivot gave under pandas 2.x (the version CI runs): column-major
     # values, so each unit's series is contiguous. dataprep's matrix is
-    # row-major.
+    # row-major. copy=False keeps the array's layout, so the pin decides it
+    # under both pandas versions (pandas 3's default copy is column-major
+    # whatever it is given).
     Ywide = pd.DataFrame(np.asfortranarray(prep.Ywide.to_numpy()),
-                         index=prep.Ywide.index, columns=prep.Ywide.columns)
+                         index=prep.Ywide.index, columns=prep.Ywide.columns,
+                         copy=False)
     times = Ywide.index.to_numpy()
 
     # Per-unit cohort g = first period the indicator is on, in the panel's unit
