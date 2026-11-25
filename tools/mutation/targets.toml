@@ -21038,13 +21038,13 @@ timeout = 300.0
 [[target]]
 name = "mcnnm-dataprep"
 module-path = "mlsynth/utils/mcnnm_helpers/setup.py"
-test-command = "python -m pytest mlsynth/tests/test_mcnnm_dataprep.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest mlsynth/tests/test_mcnnm_dataprep.py mlsynth/tests/test_mcnnm_missing_keep.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
   [[target.mutant]]
   id = "the-panel-is-not-balanced-first"
-  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
-  replace = "    prep = dataprep(df, unitid, time, outcome, treat)"
+  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys,\n"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat,\n"
   models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
 
   [[target.mutant]]
@@ -21100,6 +21100,30 @@ timeout = 600.0
   find = "    if N < 3:"
   replace = "    if N < 2:"
   models = "MC-NNM's own minimum of three units lost when its checks moved behind dataprep"
+
+  [[target.mutant]]
+  id = "mcnnm-missing-outcomes-refused"
+  find = "                    missing_outcomes=\"keep\")"
+  replace = "                    missing_outcomes=\"refuse\")"
+  models = "the opt-in dropped, so a panel with one missing outcome cell is refused although MC-NNM imputes every cell outside its observed set"
+
+  [[target.mutant]]
+  id = "mcnnm-missing-cells-inside-the-mask"
+  find = "    mask = ((D == 0) & observed).astype(float)"
+  replace = "    mask = (D == 0).astype(float)"
+  models = "a missing cell left inside the observed set, so the fit reads its stored value"
+
+  [[target.mutant]]
+  id = "mcnnm-treated-post-cell-not-refused"
+  find = "    _refuse_missing_treated_post(~observed, D, unit_names, time_labels, outcome)\n"
+  replace = "    pass\n"
+  models = "a missing treated post-treatment outcome passed on, so its effect is undefined and drops out of the ATT"
+
+  [[target.mutant]]
+  id = "mcnnm-treated-post-rule-checks-one-unit"
+  find = "    bad = (D > 0) & Y_nan"
+  replace = "    bad = (D[:1] > 0) & Y_nan[:1]"
+  models = "the treated post-treatment rule read on the first treated unit only, so a later cohort's missing treated cell passes"
 
 [[target]]
 name = "syndes-geoex"
@@ -23122,3 +23146,255 @@ timeout = 300.0
   find = "    if int(pd.isna(values).sum()) <= values.size - n_rows:"
   replace = "    if int(pd.isna(values).sum()) <= 0:"
   models = "the absent cells of an unbalanced panel counted as missing treatment values, so the refusal reads the long column for a NaN that is not there and fails with an index error, not the outcome refusal's report of the absent rows"
+
+[[target]]
+name = "snn-dataprep"
+module-path = "mlsynth/utils/snn_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_snn_dataprep.py mlsynth/tests/test_snn_missing_keep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys,\n"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat,\n"
+  models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
+
+  [[target.mutant]]
+  id = "treatment-lasts-one-period"
+  find = "            D[i, starts[name]:] = 1.0"
+  replace = "            D[i, starts[name]] = 1.0"
+  models = "the rebuilt treatment matrix marking only the adoption period, so later treated cells are read as observed and never imputed"
+
+  [[target.mutant]]
+  id = "adoption-one-period-late"
+  find = "            D[i, starts[name]:] = 1.0"
+  replace = "            D[i, starts[name] + 1:] = 1.0"
+  models = "an off-by-one between dataprep's pre-period count and the adoption index"
+
+  [[target.mutant]]
+  id = "the-latest-adoption-sets-t0"
+  find = "    T0 = min(starts.values())"
+  replace = "    T0 = max(starts.values())"
+  models = "staggered adoption with T0 at the last cohort, so earlier cohorts' effects drop out of att_by_period"
+
+  [[target.mutant]]
+  id = "a-single-treated-unit-starts-at-its-post-count"
+  find = "        return {prep.treated_unit_name: int(prep.pre_periods)}"
+  replace = "        return {prep.treated_unit_name: int(prep.post_periods)}"
+  models = "the single-treated branch reading the wrong side of dataprep's period split"
+
+  [[target.mutant]]
+  id = "only-the-first-cohort-is-treated"
+  find = "            for cohort in prep.cohorts.values() for unit in cohort.treated_units}"
+  replace = "            for cohort in list(prep.cohorts.values())[:1] for unit in cohort.treated_units}"
+  models = "later cohorts dropped from the treatment matrix and used as never-treated donors"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-not-transposed"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float))"
+  models = "dataprep's period-by-unit matrix used as SNN's unit-by-period matrix"
+
+  [[target.mutant]]
+  id = "units-in-another-order"
+  find = "    unit_names = sorted(prep.Ywide.columns)"
+  replace = "    unit_names = sorted(prep.Ywide.columns, reverse=True)"
+  models = "rows of Y and D in a different unit order from the names the results report"
+
+  [[target.mutant]]
+  id = "one-control-is-accepted"
+  find = "    if N - treated_idx.size < 2:"
+  replace = "    if N - treated_idx.size < 1:"
+  models = "SNN's own minimum of two donor units lost when its checks moved behind dataprep"
+
+  [[target.mutant]]
+  id = "two-units-are-accepted"
+  find = "    if N < 3:"
+  replace = "    if N < 2:"
+  models = "SNN's own minimum of three units lost when its checks moved behind dataprep"
+
+  [[target.mutant]]
+  id = "a-missing-column-is-not-named"
+  find = "        if col not in df.columns:"
+  replace = "        if False:"
+  models = "an absent outcome, treatment, unit or time column surfacing as dataprep's error, not SNN's message naming the column"
+
+  [[target.mutant]]
+  id = "snn-missing-outcomes-refused"
+  find = "                    missing_outcomes=\"keep\")"
+  replace = "                    missing_outcomes=\"refuse\")"
+  models = "the opt-in dropped, so a panel with one missing outcome cell is refused although SNN imputes missing entries"
+
+  [[target.mutant]]
+  id = "snn-treated-post-cell-not-refused"
+  find = "    _refuse_missing_treated_post(~observed, D, unit_names, time_labels, outcome)\n"
+  replace = "    pass\n"
+  models = "a missing treated post-treatment outcome passed on, so its effect is undefined and drops out of the ATT"
+
+  [[target.mutant]]
+  id = "snn-treated-post-rule-checks-one-unit"
+  find = "    bad = (D > 0) & Y_nan"
+  replace = "    bad = (D[:1] > 0) & Y_nan[:1]"
+  models = "the treated post-treatment rule read on the first treated unit only, so a later cohort's missing treated cell passes"
+
+[[target]]
+name = "snn-missing-keep"
+module-path = "mlsynth/utils/snn_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_snn_missing_keep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-mask-is-not-passed"
+  find = "    X[(D > 0) | ~observed] = np.nan"
+  replace = "    X[D > 0] = np.nan"
+  models = "the completion reading the value stored in a missing cell instead of imputing it"
+
+  [[target.mutant]]
+  id = "missing-cells-read-as-zero"
+  find = "    X[(D > 0) | ~observed] = np.nan"
+  replace = "    X[~observed] = 0.0\n    X[D > 0] = np.nan"
+  models = "a missing outcome cell entering the anchor block as a zero"
+
+  [[target.mutant]]
+  id = "a-missing-untreated-cell-loses-its-imputation"
+  find = "    kept = observed & ~treated_cells"
+  replace = "    kept = ~treated_cells"
+  models = "the stored NaN copied over SNN's imputation of a missing untreated cell, so the counterfactual has holes"
+
+  [[target.mutant]]
+  id = "weights-fitted-on-the-first-missing-cell"
+  find = "            X, mask, int(i), column=int(np.argmax(inputs.D[i] > 0)),"
+  replace = "            X, mask, int(i), column=None,"
+  models = "the donor weights fitted on a missing pre-period cell's anchor block, so they do not reproduce the post-period counterfactual"
+
+  [[target.mutant]]
+  id = "the-jackknife-drops-the-mask"
+  find = "            Yk, Dk, observed[keep], n_neighbors=n_neighbors,"
+  replace = "            Yk, Dk, np.ones_like(Dk, dtype=bool), n_neighbors=n_neighbors,"
+  models = "the leave-one-control refits reading missing cells as values, so the jackknife SE moves with what is stored there"
+
+  [[target.mutant]]
+  id = "the-missing-count-is-a-flag"
+  find = "        \"missing_outcome_cells\": int((~inputs.observed).sum()),"
+  replace = "        \"missing_outcome_cells\": int((~inputs.observed).any()),"
+  models = "the metadata reporting whether a cell is missing instead of how many"
+
+[[target]]
+name = "mcnnm-missing-keep"
+module-path = "mlsynth/utils/mcnnm_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_mcnnm_missing_keep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-engine-reads-the-stored-value"
+  find = "    return np.where((mask == 0) & (D == 0), 0.0, Y)"
+  replace = "    return np.array(Y, dtype=float)"
+  models = "the stored NaN of a missing cell handed to the engine, where 0 * NaN poisons every fitted entry"
+
+  [[target.mutant]]
+  id = "the-engine-zeroes-the-wrong-cells"
+  find = "    return np.where((mask == 0) & (D == 0), 0.0, Y)"
+  replace = "    return np.where((mask == 0) & (D > 0), 0.0, Y)"
+  models = "the zero placeholder put on the treated cells instead of the missing ones"
+
+  [[target.mutant]]
+  id = "the-cv-search-reads-the-raw-matrix"
+  find = "        fit = mcnnm_cv(Y_fit, mask, est_u=est_u,"
+  replace = "        fit = mcnnm_cv(Y, mask, est_u=est_u,"
+  models = "the cross-validated fit given the outcome matrix with its NaN cells"
+
+  [[target.mutant]]
+  id = "the-pinned-fit-reads-the-raw-matrix"
+  find = "        fit = mcnnm_fit(Y_fit, mask, float(lam), est_u=est_u,"
+  replace = "        fit = mcnnm_fit(Y, mask, float(lam), est_u=est_u,"
+  models = "the fit at a user threshold given the outcome matrix with its NaN cells"
+
+  [[target.mutant]]
+  id = "the-jackknife-reads-the-raw-matrix"
+  find = "        fit = mcnnm_fit(Y_fit[keep], mask[keep], thr,"
+  replace = "        fit = mcnnm_fit(Y[keep], mask[keep], thr,"
+  models = "the leave-one-control refits given the outcome matrix with its NaN cells"
+
+  [[target.mutant]]
+  id = "the-event-study-averages-missing-cells"
+  find = "            if present[i, t]:\n                vals.append(gap[i, t])"
+  replace = "            if True:\n                vals.append(gap[i, t])"
+  models = "a missing treated pre-period cell entering the event study as NaN"
+
+  [[target.mutant]]
+  id = "the-missing-count-includes-treated-cells"
+  find = "        \"missing_outcome_cells\": int(((mask == 0) & (D == 0)).sum()),"
+  replace = "        \"missing_outcome_cells\": int((mask == 0).sum()),"
+  models = "the missing-cell count conflated with the treated cells MC-NNM imputes by design"
+
+[[target]]
+name = "dscar-missing-keep"
+module-path = "mlsynth/utils/dscar_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_dscar_dataprep.py -q -p no:cacheprovider -x -W ignore -k 'not planted and not beijing_fit'"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-outcome-opt-in-is-dropped"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, keys=keys,\n                    missing_outcomes=\"keep\")"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat, keys=keys,\n                    missing_outcomes=\"refuse\")"
+  models = "a missing outcome cell refused, so the Beijing panels no longer fit although DSCAR matches on complete cases"
+
+  [[target.mutant]]
+  id = "the-covariate-opt-in-is-dropped"
+  find = "        prep = dataprep(df, unitid, time, column, treat, keys=keys,\n                        missing_outcomes=\"keep\")"
+  replace = "        prep = dataprep(df, unitid, time, column, treat, keys=keys,\n                        missing_outcomes=\"refuse\")"
+  models = "a missing covariate or lag value refused, so the red-alert panel no longer fits"
+
+  [[target.mutant]]
+  id = "missing-cells-read-as-zero"
+  find = "    return prep.Ywide.reindex(columns=unit_order).sort_index().to_numpy(dtype=float).T"
+  replace = "    return prep.Ywide.reindex(columns=unit_order).sort_index().fillna(0.0).to_numpy(dtype=float).T"
+  models = "a missing cell handed to the complete-case match as a zero, so the donor stays in that period's match"
+
+  [[target.mutant]]
+  id = "the-old-layout-is-lost"
+  find = "    return prep.Ywide.reindex(columns=unit_order).sort_index().to_numpy(dtype=float).T"
+  replace = "    return np.ascontiguousarray(prep.Ywide.reindex(columns=unit_order).sort_index().to_numpy(dtype=float).T)"
+  models = "the outcome matrix in a fixed row-major layout, which moves the orange-alert ATT by about 1e-6 on pandas 3"
+
+  [[target.mutant]]
+  id = "dscar-treated-post-cell-not-refused"
+  find = "    _refuse_missing_treated_post(Y, n_treated, T0, treated_labels, time_labels, outcome)\n"
+  replace = "    pass\n"
+  models = "a missing treated post-treatment outcome passed on, so the treated mean and the ATT come out NaN"
+
+  [[target.mutant]]
+  id = "the-treated-post-rule-reads-one-unit"
+  find = "    bad = np.isnan(Y[:n_treated, T0:])"
+  replace = "    bad = np.isnan(Y[:1, T0:])"
+  models = "the rule read on the first treated unit only"
+
+  [[target.mutant]]
+  id = "the-treated-post-rule-skips-the-intervention-period"
+  find = "    bad = np.isnan(Y[:n_treated, T0:])"
+  replace = "    bad = np.isnan(Y[:n_treated, T0 + 1:])"
+  models = "an off-by-one that lets a missing outcome at the intervention period through"
+
+  [[target.mutant]]
+  id = "the-lag-is-read-at-the-last-period"
+  find = "                               unit_order, \"Lagged outcome\")[:, 0]"
+  replace = "                               unit_order, \"Lagged outcome\")[:, -1]"
+  models = "the first-period lag taken from the wrong row of the lag column"
+
+  [[target.mutant]]
+  id = "treated-units-in-numeric-order"
+  find = "    treated_labels = tuple(sorted((u for u in columns if u in starts), key=str))"
+  replace = "    treated_labels = tuple(sorted(u for u in columns if u in starts))"
+  models = "the treated block in a different unit order from the old setup's"
+
+  [[target.mutant]]
+  id = "staggered-adoption-accepted"
+  find = "    if len(set(starts.values())) > 1:"
+  replace = "    if False:"
+  models = "treated units with different intervention periods read at the first unit's period"
+
+  [[target.mutant]]
+  id = "every-unit-treated-accepted"
+  find = "    if not donor_labels:"
+  replace = "    if False:"
+  models = "a panel with no donor reaching the weight solver"

@@ -169,9 +169,9 @@ def snn_predict(
 
 def snn_donor_weights(
     X: np.ndarray, mask: np.ndarray, i: int,
-    *, n_neighbors: int = 1, max_rank: Optional[int] = None,
-    spectral_energy: float = 0.95, universal: bool = False,
-    random_state: int = 0,
+    *, column: Optional[int] = None, n_neighbors: int = 1,
+    max_rank: Optional[int] = None, spectral_energy: float = 0.95,
+    universal: bool = False, random_state: int = 0,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Effective PCR donor weights for treated unit ``i``.
 
@@ -182,12 +182,19 @@ def snn_donor_weights(
     Y_{jt}`. Returns ``(donor_indices, weights)``; the weights are the
     (unconstrained) PCR coefficients -- they need not be non-negative nor
     sum to one. Returns empty arrays if no anchor block exists.
+
+    ``column`` names the missing cell of row ``i`` whose anchor block the
+    weights are fitted on; by default the first missing cell of the row. When
+    other cells of the panel are missing, cells of row ``i`` need not share an
+    anchor block, and the weights reproduce the imputation at ``column``.
     """
-    # Find anchors using any missing column of row i (all share the same AR/AC).
-    missing_cols = np.where(mask[i] == 0)[0]
-    if missing_cols.size == 0:
-        return np.array([], dtype=int), np.array([])
-    AR, AC = _find_anchors(mask, i, int(missing_cols[0]))
+    if column is None:
+        # Find anchors using the first missing column of row i.
+        missing_cols = np.where(mask[i] == 0)[0]
+        if missing_cols.size == 0:
+            return np.array([], dtype=int), np.array([])
+        column = int(missing_cols[0])
+    AR, AC = _find_anchors(mask, i, int(column))
     if AR.size == 0 or AC.size == 0:
         return np.array([], dtype=int), np.array([])
 
@@ -203,7 +210,7 @@ def snn_donor_weights(
             continue
         ar = AR[g]
         S = X[np.ix_(ar, AC)]
-        _, beta, _ = _pcr(S, q, X[ar, missing_cols[0]], max_rank=max_rank,
+        _, beta, _ = _pcr(S, q, X[ar, column], max_rank=max_rank,
                           spectral_energy=spectral_energy, universal=universal)
         weights[g] = beta / n_groups   # averaged across neighbour groups
     return AR, weights

@@ -4,6 +4,10 @@ In the causal/panel setting, SNN masks the treated post-treatment cells
 as missing, imputes their untreated potential outcomes by synthetic
 nearest-neighbors matrix completion, and forms treatment effects as
 observed minus imputed.
+
+A cell whose outcome is missing from the panel (``inputs.observed`` is
+``False``) is masked the same way before the completion runs, so the value
+stored in ``inputs.Y`` there is never read; SNN imputes its ``Y(0)``.
 """
 
 from __future__ import annotations
@@ -27,14 +31,16 @@ def _build_weights(
     """Assemble a standardized WeightsResults from the per-treated-unit
     PCR donor weights.
     """
-    X = inputs.Y.copy()
-    X[inputs.D > 0] = np.nan
+    X = _masked(inputs.Y, inputs.D, inputs.observed)
+    mask = (~np.isnan(X)).astype(float)
     names = inputs.unit_names
     per_unit = {}
     for i in inputs.treated_idx:
+        # The weights are the PCR coefficients of the unit's first treated
+        # cell; a missing pre-period cell of the unit is not a treated cell.
         AR, w = snn_donor_weights(
-            X, inputs.mask if hasattr(inputs, "mask") else (inputs.D == 0).astype(float),
-            int(i), n_neighbors=n_neighbors, max_rank=max_rank,
+            X, mask, int(i), column=int(np.argmax(inputs.D[i] > 0)),
+            n_neighbors=n_neighbors, max_rank=max_rank,
             spectral_energy=spectral_energy, universal=universal,
             random_state=random_state,
         )
@@ -65,14 +71,27 @@ def _build_weights(
     return WeightsResults(donor_weights=donor_weights, summary_stats=summary)
 
 
-def _impute_counterfactual(
-    Y: np.ndarray, D: np.ndarray, *, n_neighbors: int, max_rank: Optional[int],
-    spectral_energy: float, universal: bool, clip: bool, random_state: int,
-) -> tuple:
-    """Return (counterfactual matrix, feasible mask) with treated cells imputed."""
+def _masked(Y: np.ndarray, D: np.ndarray, observed: np.ndarray) -> np.ndarray:
+    """``Y`` with its treated and its missing cells set to ``NaN``, the
+    completion engine's marker for an entry to impute."""
     X = Y.copy()
+    X[(D > 0) | ~observed] = np.nan
+    return X
+
+
+def _impute_counterfactual(
+    Y: np.ndarray, D: np.ndarray, observed: np.ndarray, *, n_neighbors: int,
+    max_rank: Optional[int], spectral_energy: float, universal: bool, clip: bool,
+    random_state: int,
+) -> tuple:
+    """Return (counterfactual matrix, feasible mask) with treated cells imputed.
+
+    A missing untreated cell keeps SNN's imputation of its ``Y(0)`` and its
+    feasibility; an observed untreated cell keeps its observed value.
+    """
+    X = _masked(Y, D, observed)
     treated_cells = D > 0
-    X[treated_cells] = np.nan
+    kept = observed & ~treated_cells
     lo = float(np.nanmin(X)) if clip else None
     hi = float(np.nanmax(X)) if clip else None
     completed, feasible = snn_complete(
@@ -81,8 +100,8 @@ def _impute_counterfactual(
         min_value=lo, max_value=hi, random_state=random_state,
     )
     # Observed (control / pre) cells keep their observed values.
-    completed[~treated_cells] = Y[~treated_cells]
-    feasible[~treated_cells] = True
+    completed[kept] = Y[kept]
+    feasible[kept] = True
     return completed, feasible
 
 
@@ -138,7 +157,7 @@ def run_snn(
     Y, D, T0 = inputs.Y, inputs.D, inputs.T0
 
     counterfactual, feasible = _impute_counterfactual(
-        Y, D, n_neighbors=n_neighbors, max_rank=max_rank,
+        Y, D, inputs.observed, n_neighbors=n_neighbors, max_rank=max_rank,
         spectral_energy=spectral_energy, universal=universal,
         clip=clip, random_state=random_state,
     )
@@ -168,6 +187,7 @@ def run_snn(
         "treated_cells": int((D > 0).sum()),
         "imputed_cells": int(treated_post.sum()),
         "infeasible_cells": int(((D > 0) & ~feasible).sum()),
+        "missing_outcome_cells": int((~inputs.observed).sum()),
     }
     # Cross-treated-unit observed / imputed paths drive the standardized
     # time series (and result.plot()).
@@ -209,7 +229,7 @@ def _jackknife_inference(
     alpha_level, random_state,
 ) -> SNNInference:
     """Leave-one-control-out jackknife ATT standard error."""
-    Y, D = inputs.Y, inputs.D
+    Y, D, observed = inputs.Y, inputs.D, inputs.observed
     control_idx = np.array([i for i in range(inputs.N)
                             if i not in set(inputs.treated_idx.tolist())])
     atts = []
@@ -217,7 +237,7 @@ def _jackknife_inference(
         keep = np.array([i for i in range(inputs.N) if i != c])
         Yk, Dk = Y[keep], D[keep]
         cf, feas = _impute_counterfactual(
-            Yk, Dk, n_neighbors=n_neighbors, max_rank=max_rank,
+            Yk, Dk, observed[keep], n_neighbors=n_neighbors, max_rank=max_rank,
             spectral_energy=spectral_energy, universal=universal,
             clip=clip, random_state=random_state,
         )
@@ -234,7 +254,7 @@ def _jackknife_inference(
     from scipy.stats import norm
     z = float(norm.ppf(1.0 - alpha_level / 2.0))
     point = float(np.nanmean((Y - _impute_counterfactual(
-        Y, D, n_neighbors=n_neighbors, max_rank=max_rank,
+        Y, D, observed, n_neighbors=n_neighbors, max_rank=max_rank,
         spectral_energy=spectral_energy, universal=universal, clip=clip,
         random_state=random_state)[0])[(D > 0)]))
     ci = (point - z * se, point + z * se)

@@ -2,8 +2,11 @@
 
 MC-NNM used to pivot the long panel itself. It now takes the outcome matrix,
 the time labels and the adoption times from ``dataprep``, so it gets the same
-refusals as every other estimator: a missing or non-finite outcome cell, an
-unbalanced panel, and a treatment that switches off after it starts. The last
+refusals as every other estimator: an infinite outcome cell, an unbalanced
+panel, and a treatment that switches off after it starts. A missing (NaN)
+outcome cell is kept for MC-NNM to impute (``missing_outcomes="keep"``, #1146),
+except a treated unit's after its adoption; that opt-in is pinned in
+``test_mcnnm_missing_keep.py``. The last
 one is a change: the old pivot built its mask cell by cell and accepted a
 treatment that stops, while the docs describe one-time and staggered adoption
 only (Athey, Bayati, Doudchenko, Imbens and Khosravi, "Matrix Completion
@@ -145,10 +148,10 @@ class TestRefusals:
         with pytest.raises(MlsynthDataError, match="not sustained"):
             MCNNM(dict(df=df, display_graphs=False, **COLS)).fit()
 
-    def test_a_missing_outcome_cell_is_refused(self):
+    def test_a_missing_treated_post_treatment_outcome_is_refused(self):
         df = _panel(shuffle=False)
-        df.loc[(df.unit == 3) & (df.time == 2004), "y"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Missing outcome values"):
+        df.loc[(df.unit == 0) & (df.time == 2008), "y"] = np.nan
+        with pytest.raises(MlsynthDataError, match="treated post-treatment"):
             MCNNM(dict(df=df, display_graphs=False, **COLS)).fit()
 
     def test_a_non_finite_outcome_is_refused(self):
