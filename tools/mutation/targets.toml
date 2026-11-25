@@ -21853,3 +21853,87 @@ timeout = 900.0
   find = "    if not never:"
   replace = "    if False:"
   models = "a panel with no never-treated comparison group passed to the pipeline"
+
+[[target]]
+name = "musc-dataprep"
+module-path = "mlsynth/utils/musc_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_musc_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)"
+  replace = "    keys = None"
+  models = "a duplicate unit-period reaching pandas' pivot as a raw ValueError, not balance()'s refusal"
+
+  [[target.mutant]]
+  id = "the-key-scan-is-not-shared"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True,\n                    keys=keys)"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True,\n                    keys=None)"
+  models = "dataprep rescanning the panel's keys instead of reading balance()'s scan"
+
+  [[target.mutant]]
+  id = "dataprep-refuses-a-lone-unit-first"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True,"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=False,"
+  models = "dataprep's no-donor message in place of MUSC's three-donor refusal"
+
+  [[target.mutant]]
+  id = "y-is-not-transposed"
+  find = "    Y = np.ascontiguousarray(wide.to_numpy(dtype=float)).T        # (N, T)"
+  replace = "    Y = np.ascontiguousarray(wide.to_numpy(dtype=float))        # (N, T)"
+  models = "dataprep's period-by-unit matrix used as MUSC's unit-by-period Y"
+
+  [[target.mutant]]
+  id = "y-in-another-layout"
+  find = "    Y = np.ascontiguousarray(wide.to_numpy(dtype=float)).T        # (N, T)"
+  replace = "    Y = np.ascontiguousarray(wide.to_numpy(dtype=float).T)        # (N, T)"
+  models = "Y C-ordered where the old pivot's transpose was F-ordered, so the QP's sums move in the last bits"
+
+  [[target.mutant]]
+  id = "period-labels-change-type"
+  find = "    times = list(wide.index.to_numpy())"
+  replace = "    times = list(wide.index)"
+  models = "datetime periods returned as Timestamp objects where the old labels were datetime64"
+
+  [[target.mutant]]
+  id = "the-synthetic-unit-comes-first"
+  find = "    collapsed = pd.concat([wide[donors], synthetic.rename(label)], axis=1)"
+  replace = "    collapsed = pd.concat([synthetic.rename(label), wide[donors]], axis=1)"
+  models = "the collapsed cohort placed before the donors, where the old long panel appended it"
+
+  [[target.mutant]]
+  id = "other-cohorts-stay-donors"
+  find = "    dropped = set(treated_units) | set(other_treated_units)"
+  replace = "    dropped = set(treated_units)"
+  models = "later-treated units used as donors for an earlier cohort"
+
+  [[target.mutant]]
+  id = "the-cohort-is-summed"
+  find = "    synthetic = wide[list(treated_units)].mean(axis=1)"
+  replace = "    synthetic = wide[list(treated_units)].sum(axis=1)"
+  models = "the uniform-weight collapse losing its 1/N_T"
+
+  [[target.mutant]]
+  id = "a-colliding-label-is-accepted"
+  find = "    if label in set(wide.columns):"
+  replace = "    if False:"
+  models = "a synthetic label equal to a real unit's, so two columns share a name"
+
+  [[target.mutant]]
+  id = "a-cohort-is-never-collapsed"
+  find = "    if not collapse:"
+  replace = "    if True:"
+  models = "a multi-unit cohort fitted as its first unit alone"
+
+  [[target.mutant]]
+  id = "two-donors-are-accepted"
+  find = "    if donor_idx.size < 3:"
+  replace = "    if donor_idx.size < 2:"
+  models = "MUSC's minimum of three donors lost"
+
+  [[target.mutant]]
+  id = "one-pre-period-is-accepted"
+  find = "    if T0 < 2:"
+  replace = "    if T0 < 1:"
+  models = "MUSC's minimum of two pre-treatment periods lost"
