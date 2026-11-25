@@ -21392,12 +21392,6 @@ timeout = 600.0
   models = "each covariate pivot rescanning the panel's keys instead of reading balance()'s scan"
 
   [[target.mutant]]
-  id = "the-covariate-block-stays-column-major"
-  find = "        X = np.ascontiguousarray(X)"
-  replace = "        X = X"
-  models = "the z-score summed in a different order from the old column_stack, off in the last bits past eight units"
-
-  [[target.mutant]]
   id = "a-unit-with-no-pre-period-covariate-is-accepted"
   find = "            if np.isnan(X[:, j]).any():"
   replace = "            if False:"

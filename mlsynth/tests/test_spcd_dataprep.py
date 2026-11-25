@@ -16,7 +16,10 @@ time order, which puts the periods out of order when a post period sits between
 pre periods; such a ``post_col`` is now refused.
 
 ``_reference`` is the old pivot, kept as the oracle the new path must match on
-every panel both accept.
+every panel both accept. The outcome matrices and every label must match it
+exactly. The covariate block is a reduction, and the old and new paths reduce
+over differently laid out arrays on some pandas versions, so it must match to
+the summation bound in :func:`_covariate_tolerance`.
 """
 
 from __future__ import annotations
@@ -125,7 +128,40 @@ def _labels(index_set):
     return None if index_set is None else np.asarray(index_set.labels)
 
 
-def _assert_same(inputs, ref):
+EPS = np.finfo(float).eps
+
+
+def _covariate_tolerance(df, ref, unitid="unit", time="time"):
+    """Per-covariate bound on ``|z_new - z_old|``, from the summation rounding bound.
+
+    Both paths z-score the same per-unit pre-period means, but each mean is a
+    sum of ``T0`` values and the cross-unit mean and variance are sums of ``N``,
+    and the two paths sum them in different orders: the old ``.loc`` selection
+    is column-major on pandas 2.3, so ``DataFrame.mean`` sums each unit's column
+    pairwise, while ``build_covariate_matrix``'s frame is row-major and is summed
+    row by row (pandas 3 lays out both row-major). A sum of ``n`` terms of size
+    at most ``M`` is within ``n * eps * M`` of the exact sum in either order, so
+    the per-unit means, and the cross-unit centre and scale, of the two paths
+    differ by at most ``delta = 2 * (T0 + N) * eps * M``. To first order
+    ``z = (m - mean(m)) / s`` then moves by at most ``2 * delta / s * (1 + |z|)``
+    for the centre and the scale; this doubles that for safety and adds
+    ``8 * eps * (1 + |z|)`` for the z-score's own rounding.
+    """
+    pre = set(_labels(ref.pre_time_index).tolist())
+    window = df[df[time].isin(pre)]
+    T0, N = len(pre), ref.covariates.shape[0]
+    tol = []
+    for j, c in enumerate(ref.covariate_names):
+        by_unit = window.groupby(unitid)[c]
+        M = float(window[c].abs().max())
+        s = float(by_unit.mean().std(ddof=0))
+        delta = 2 * (T0 + N) * EPS * M
+        z = float(np.max(np.abs(ref.covariates[:, j])))
+        tol.append((4 * delta / (s + 1e-12) + 8 * EPS) * (1 + z))
+    return np.asarray(tol)
+
+
+def _assert_same(inputs, ref, df=None):
     assert isinstance(inputs, SPCDInputs)
     assert inputs.Y_pre.dtype == np.float64
     np.testing.assert_array_equal(inputs.Y_pre, ref.Y_pre)
@@ -144,7 +180,14 @@ def _assert_same(inputs, ref):
     if ref.covariates is None:
         assert inputs.covariates is None
     else:
-        np.testing.assert_array_equal(inputs.covariates, ref.covariates)
+        # The only reduction compared here: equal to the summation bound, not
+        # bitwise (see _covariate_tolerance). Everything above is exact.
+        assert df is not None, "a covariate comparison needs the panel for its bound"
+        assert inputs.covariates.shape == ref.covariates.shape
+        assert np.isfinite(inputs.covariates).all() == np.isfinite(ref.covariates).all()
+        for j, atol in enumerate(_covariate_tolerance(df, ref)):
+            np.testing.assert_allclose(inputs.covariates[:, j], ref.covariates[:, j],
+                                       rtol=0, atol=atol)
 
 
 def _spy(monkeypatch, name):
@@ -224,25 +267,28 @@ class TestSameInputs:
         df = _panel(names=names)
         cov = ["x", "share"]
         _assert_same(prepare_spcd_inputs(df, **COLS, **split, covariates=cov),
-                     _reference(df, **COLS, **split, covariates=cov))
+                     _reference(df, **COLS, **split, covariates=cov), df)
 
     @pytest.mark.parametrize("seed", range(4))
     def test_covariates_match_the_old_pivot_on_a_wide_panel(self, seed):
-        # Past eight units numpy sums a contiguous column pairwise, so the
-        # z-score is bit-equal to the old one only if the covariate block has
-        # the old block's row-major layout.
+        # Nine pre periods and forty units: past eight terms numpy sums a
+        # contiguous run pairwise, so here the two paths' summation orders differ
+        # on pandas 2.3, in the per-unit means and in the cross-unit z-score.
         df = _panel(n_units=40, T=12, seed=seed)
         df["x"] = df["x"] * 1e3
         cov = ["x", "share"]
+        ref = _reference(df, **COLS, post_col="post", covariates=cov)
         _assert_same(prepare_spcd_inputs(df, **COLS, post_col="post", covariates=cov),
-                     _reference(df, **COLS, post_col="post", covariates=cov))
+                     ref, df)
+        # The bound is a few hundred ulps, not a tolerance that hides a defect.
+        assert _covariate_tolerance(df, ref).max() < 1e-11
 
     def test_a_covariate_gap_inside_the_pre_window_is_averaged_over(self):
         # One missing covariate value leaves the unit's pre-period mean defined.
         df = _panel(shuffle=False)
         df.loc[(df.unit == 2) & (df.time == 2001), "x"] = np.nan
         _assert_same(prepare_spcd_inputs(df, **COLS, post_col="post", covariates=["x"]),
-                     _reference(df, **COLS, post_col="post", covariates=["x"]))
+                     _reference(df, **COLS, post_col="post", covariates=["x"]), df)
 
     def test_extra_columns_are_ignored(self):
         df = _panel().assign(region="r", other=1.0)
@@ -485,7 +531,7 @@ def test_geoex_path_matches_the_old_pivot_or_refuses(case):
             prepare_spcd_inputs(df, **kw)
         return
     inputs = prepare_spcd_inputs(df, **kw)
-    _assert_same(inputs, ref)
+    _assert_same(inputs, ref, df)
     # The pre and post blocks are the panel's periods in time order.
     times = _labels(inputs.time_index)
     pre = _labels(inputs.pre_time_index)

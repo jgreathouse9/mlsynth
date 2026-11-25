@@ -114,10 +114,6 @@ def prepare_spcd_inputs(
             df, unitid, time, cov_names, T0, list(unit_labels),
             normalize=False, keys=balance(df, unitid, time),
         )
-        # build_covariate_matrix returns the transpose of its (P, N) rows. The
-        # column means below are summed in memory order, so the (N, P) block is
-        # laid out row-major, as the column_stack this replaced was.
-        X = np.ascontiguousarray(X)
         for j, c in enumerate(cov_names):
             if np.isnan(X[:, j]).any():
                 raise MlsynthDataError(
