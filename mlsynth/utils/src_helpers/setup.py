@@ -1,4 +1,10 @@
-"""Long-DataFrame -> NumPy boundary for SRC (the only pandas touchpoint)."""
+"""Long-DataFrame -> NumPy boundary for SRC (the only pandas touchpoint).
+
+The outcome matrix, the treated unit, the time labels and the adoption period
+come from :func:`mlsynth.utils.datautils.balance` and
+:func:`mlsynth.utils.datautils.dataprep`, and each covariate panel from its own
+``dataprep`` call (see :func:`_covariate_panel`).
+"""
 
 from __future__ import annotations
 
@@ -8,7 +14,32 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
+from ..datautils import balance, dataprep
+from ..prepared import SinglePanel
 from .structures import SRCInputs
+
+
+def _covariate_panel(df: pd.DataFrame, unitid: str, time: str, treat: str,
+                     column: str, keys) -> pd.DataFrame:
+    """One covariate as a period-by-unit frame, each unit's gaps filled.
+
+    The covariate is read as the outcome of its own ``dataprep`` call on the
+    same panel, so its axes are the outcome matrix's. A covariate need not be
+    observed in every period, and SRC fills each unit's gaps forward and then
+    backward before it averages over the covariate's window (the Basque sector
+    shares are observed in a handful of years), so a NaN cell is kept
+    (``missing_outcomes="keep"``); an infinite value is refused under the
+    covariate's name.
+    """
+    try:
+        prep = dataprep(df, unitid, time, column, treat, keys=keys,
+                        missing_outcomes="keep")
+    except MlsynthDataError as exc:
+        raise MlsynthDataError(
+            f"Covariate {column!r} cannot be read; SRC needs every covariate "
+            f"finite where it is observed. {exc}"
+        ) from exc
+    return prep.Ywide.ffill().bfill()
 
 
 def prepare_src_inputs(
@@ -22,63 +53,52 @@ def prepare_src_inputs(
     covariate_windows: Optional[Dict[str, Tuple[Any, Any]]] = None,
     fit_window: Optional[Tuple[Any, Any]] = None,
 ) -> SRCInputs:
-    """Pivot ``df`` into SRC's ``(Y_treated, Y_donors, T0)`` matrices.
+    """Build SRC's ``(Y_treated, Y_donors, T0)`` matrices through ``dataprep``.
 
     Single treated unit only: the treated unit is the one with any ``treat == 1``
-    row, the donor pool is every never-treated unit. Requires a balanced panel
-    with a complete outcome column. Optional ``covariates`` are aggregated over
-    their window (``covariate_windows``, else the whole pre-period). ``fit_window``
-    restricts the pre-treatment periods used as outcome matching rows.
+    row, the donor pool is every other unit, in the order units first appear in
+    ``df``. Optional ``covariates`` are aggregated over their window
+    (``covariate_windows``, else the whole pre-period). ``fit_window`` restricts
+    the pre-treatment periods used as outcome matching rows.
+
+    ``balance`` and ``dataprep`` refuse a missing or non-finite outcome, an
+    absent or duplicate unit-period, a non-binary treatment and a treatment
+    that switches off after it starts. SRC's own checks (one treated unit, two
+    pre-periods, the covariate columns and windows, the fit window) stay on top.
     """
-    treated_rows = df.loc[df[treat] == 1, [unitid, time]]
-    if treated_rows.empty:
+    for col in (outcome, treat, unitid, time):
+        if col not in df.columns:
+            raise MlsynthDataError(f"Required column {col!r} missing.")
+    # balance() refuses a duplicate or absent unit-period, and its key scan is
+    # reused by every dataprep call instead of being built again.
+    keys = balance(df, unitid, time)
+    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)
+    if not isinstance(prep, SinglePanel):
+        n_treated = sum(len(c.treated_units) for c in prep.cohorts.values())
         raise MlsynthDataError(
-            f"SRC requires at least one row with {treat}=1; none found."
+            f"SRC supports a single treated unit; found {n_treated}."
         )
-    treated_units = treated_rows[unitid].unique()
-    if treated_units.size != 1:
-        raise MlsynthDataError(
-            f"SRC supports a single treated unit; found {treated_units.size}."
-        )
-    treated_label = treated_units[0]
-    intervention_time = treated_rows[time].min()
-
-    # Donors are the units whose treatment column is all zeros. Totalling it
-    # once per unit with a groupby costs one pass over the panel; asking
-    # ``df.loc[df[unitid] == u, treat]`` per unit costs one pass *per unit*,
-    # which is the whole panel scanned J times. ``sort=False`` plus the reindex
-    # keeps the donor order as first-appearance, which downstream code reads
+    treated_label = prep.treated_unit_name
+    # dataprep orders the donors by label; the old setup listed them in the
+    # order units first appear in the frame, which downstream code reads
     # positionally.
-    all_units = list(df[unitid].unique())
-    treat_totals = (df.groupby(unitid, sort=False, observed=True)[treat].sum()
-                    .reindex(all_units).to_numpy())
-    donors = [
-        u for u, total in zip(all_units, treat_totals)
-        if u != treated_label and total == 0
-    ]
-    if len(donors) == 0:
-        raise MlsynthDataError("SRC: donor pool is empty.")
+    donors = [u for u in df[unitid].unique() if u != treated_label]
 
-    Y_wide = df.pivot(index=time, columns=unitid, values=outcome).sort_index()
-    time_index = Y_wide.index.to_numpy()
-    Y_treated = Y_wide[treated_label].to_numpy(dtype=float)
-    Y_donors = Y_wide[donors].to_numpy(dtype=float)
-    if not (np.isfinite(Y_treated).all() and np.isfinite(Y_donors).all()):
-        raise MlsynthDataError(
-            "SRC requires a balanced panel with no missing outcomes."
-        )
+    time_index = prep.time_labels.to_numpy()
+    T0 = int(prep.pre_periods)
+    intervention_time = prep.time_labels[T0]
+    # The fit's sums depend on the memory layout. These are the layouts the old
+    # df.pivot gave under pandas 2.x (the version CI runs): a contiguous
+    # treated series and a column-major donor matrix.
+    Y_treated = np.ascontiguousarray(prep.Ywide[treated_label].to_numpy(dtype=float))
+    Y_donors = np.asfortranarray(prep.Ywide[donors].to_numpy(dtype=float))
 
-    treatment_period = int(np.argmax(time_index >= intervention_time)) + 1
+    treatment_period = T0 + 1
     T = int(time_index.size)
-    T0 = treatment_period - 1
     T1 = T - T0
     if T0 < 2:
         raise MlsynthDataError(
             f"SRC needs at least 2 pre-treatment periods; got T0={T0}."
-        )
-    if T1 < 1:  # pragma: no cover - unreachable: a treated period forces T1 >= 1
-        raise MlsynthDataError(
-            f"SRC needs at least 1 post-treatment period; got T1={T1}."
         )
 
     pre_mask = time_index < intervention_time
@@ -89,8 +109,9 @@ def prepare_src_inputs(
     if cov_names:
         treated_vals, donor_vals = [], []
         for c in cov_names:
-            cwide = df.pivot(index=time, columns=unitid, values=c).sort_index()
-            cwide = cwide.reindex(index=time_index).ffill().bfill()
+            if c not in df.columns:
+                raise MlsynthDataError(f"Covariate {c!r} not found in df.columns.")
+            cwide = _covariate_panel(df, unitid, time, treat, c, keys)
             block = cwide[[treated_label, *donors]]
             if block.isna().any().any():
                 raise MlsynthDataError(
