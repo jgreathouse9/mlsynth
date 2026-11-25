@@ -1854,6 +1854,30 @@ rank-1 HSVT PCR fit matches the canonical estimate.
    }).fit()
    print(f"rank-1 PCR ATT = {res.att:+.2f}")
 
+The obfuscation itself runs through the missing-donor-cell path
+(Missing donor cells, above): hide a random share of the donor cells
+and refit with ``clustering=False`` and ``compute_shen_ci=False``. At
+rank 1 the complete-panel ATT is -29.61; over 50 random masks it is
+-29.27 (standard deviation 0.63) with 5% of donor cells hidden, -28.85
+(0.84) with 10%, and -27.79 (1.46) with 20%. Agarwal et al. (2021)
+de-noise the full horizon and CLUSTERSC the pre-period block, so these
+numbers check the same robustness claim with the other family's
+estimator.
+
+.. code-block:: python
+
+   rng = np.random.default_rng(0)
+   hide = (df["state"] != "California") & (rng.uniform(size=len(df)) < 0.10)
+   masked = df.assign(cigsale=df["cigsale"].mask(hide))
+   res = CLUSTERSC({
+       "df": masked, "outcome": "cigsale", "treat": "Proposition 99",
+       "unitid": "state", "time": "year", "method": "pcr",
+       "clustering": False, "compute_shen_ci": False, "rank": 1,
+   }).fit()
+   params = res.method_details.parameters_used
+   print(f"ATT = {res.att:+.2f}, rho-hat = {params['missing_p_hat']:.3f}, "
+         f"rho-hat' = {params['missing_p_hat_post']:.3f}")
+
 PCR-SC -- de-noising and the Bayesian posterior (Amjad-Shah-Shen 2018)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
