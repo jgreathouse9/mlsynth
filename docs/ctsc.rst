@@ -81,6 +81,14 @@ The population-weighted average marginal effect is
 :math:`\alpha^{AE} \coloneqq \sum_{i \in \mathcal{N}} \pi_i\,
 \boldsymbol{\alpha}_i`, with population shares :math:`\pi_i`.
 
+The panel is long and balanced, one row per unit and period. It is read through
+:func:`mlsynth.utils.datautils.geoex_dataprep`, since
+:func:`~mlsynth.utils.datautils.dataprep` accepts only a 0/1 treatment: once for
+:math:`y_{it}` and once for each of the :math:`K` treatment columns. A duplicate
+or absent unit-period, a row without a unit or period, and a missing or
+non-finite value of the outcome or of any treatment column are refused with
+``MlsynthDataError``, which names the treatment column at fault.
+
 Assumptions (and how to spot violations)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
