@@ -21781,6 +21781,108 @@ timeout = 600.0
   models = "the builder returns NaN cells it never wrote instead of raising on them"
 
 [[target]]
+name = "fscm-dataprep"
+module-path = "mlsynth/utils/fscm_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_fscm_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
+  replace = "    keys = None\n    prep = dataprep(df, unitid, time, outcome, treat)"
+  models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
+
+  [[target.mutant]]
+  id = "covariates-scan-the-panel-again"
+  find = "c, treat, keys=keys,"
+  replace = "c, treat,"
+  models = "each covariate's dataprep call rescanning the keys balance already scanned"
+
+  [[target.mutant]]
+  id = "a-covariate-reads-the-outcome"
+  find = "cprep = dataprep(df, unitid, time, c, treat,"
+  replace = "cprep = dataprep(df, unitid, time, outcome, treat,"
+  models = "the covariate's dataprep call reading the outcome column"
+
+  [[target.mutant]]
+  id = "a-covariate-gap-is-refused"
+  find = "missing_outcomes=\"keep\")"
+  replace = "missing_outcomes=\"refuse\")"
+  models = "a covariate read with dataprep's default refusal, so a NaN cell FSCM would fill is refused"
+
+  [[target.mutant]]
+  id = "the-covariate-refusal-loses-its-name"
+  find = "f\"Covariate '{c}' cannot be read: {exc}\") from exc"
+  replace = "f\"{exc}\") from exc"
+  models = "an infinite covariate refused under dataprep's outcome wording, without the covariate's name"
+
+  [[target.mutant]]
+  id = "several-treated-units-are-accepted"
+  find = "    if not isinstance(prep, SinglePanel):"
+  replace = "    if False:"
+  models = "dataprep's cohort panel reaching FSCM as an AttributeError, not its one-treated-unit error"
+
+  [[target.mutant]]
+  id = "treated-units-counted-by-cohort"
+  find = "        n_treated = sum(len(c.treated_units) for c in prep.cohorts.values())"
+  replace = "        n_treated = len(prep.cohorts)"
+  models = "the refusal reporting the number of adoption periods as the number of treated units"
+
+  [[target.mutant]]
+  id = "time-labels-in-another-order"
+  find = "    times = np.asarray(prep.time_labels)"
+  replace = "    times = np.asarray(prep.time_labels)[::-1]"
+  models = "the time index out of step with the rows of y and Y"
+
+  [[target.mutant]]
+  id = "the-treated-unit-is-a-donor"
+  find = "    donors = list(prep.donor_names)"
+  replace = "    donors = list(wide.columns)"
+  models = "the treated unit left in the donor pool"
+
+  [[target.mutant]]
+  id = "the-treated-path-is-a-donor"
+  find = "    y = wide[treated_unit].to_numpy(dtype=float)"
+  replace = "    y = wide[donors[0]].to_numpy(dtype=float)"
+  models = "y read from the wrong column of dataprep's wide frame"
+
+  [[target.mutant]]
+  id = "an-integer-outcome-stays-integer"
+  find = "    Y = wide[donors].to_numpy(dtype=float)"
+  replace = "    Y = wide[donors].to_numpy()"
+  models = "an integer outcome column reaching the solver as an integer matrix"
+
+  [[target.mutant]]
+  id = "adoption-one-period-late"
+  find = "    T0 = int(prep.pre_periods)"
+  replace = "    T0 = int(prep.pre_periods) + 1"
+  models = "an off-by-one between dataprep's pre-period count and FSCM's T0"
+
+  [[target.mutant]]
+  id = "intervention-time-is-the-last-pre-period"
+  find = "    intervention_time = prep.time_labels[T0]"
+  replace = "    intervention_time = prep.time_labels[T0 - 1]"
+  models = "the intervention time read one period early, moving the pre mask and the plot line"
+
+  [[target.mutant]]
+  id = "intervention-time-loses-its-type"
+  find = "    intervention_time = prep.time_labels[T0]"
+  replace = "    intervention_time = times[T0]"
+  models = "a datetime intervention time reported as numpy.datetime64, not the Timestamp the old setup gave"
+
+  [[target.mutant]]
+  id = "three-pre-periods-are-accepted"
+  find = "    if T0 < 4:"
+  replace = "    if T0 < 3:"
+  models = "FSCM's own minimum of four pre-treatment periods lost behind dataprep"
+
+  [[target.mutant]]
+  id = "covariate-gaps-are-filled-forward-only"
+  find = "            cwide = cwide.ffill().bfill()"
+  replace = "            cwide = cwide.ffill()"
+  models = "a covariate gap at a unit's first period no longer filled from the next observation"
+
+[[target]]
 name = "dataprep-missing-treatment"
 module-path = "mlsynth/utils/datautils.py"
 test-command = "python -m pytest mlsynth/tests/test_dataprep_missing_treatment.py mlsynth/tests/test_dataprep_missing_outcomes.py -q -p no:cacheprovider"

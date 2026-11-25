@@ -53,6 +53,12 @@ Let :math:`j = 1` denote the treated unit, with all units
 :math:`\mathcal{T}_1 \coloneqq \{t \in \mathcal{T} : t \le T_0\}` (of length
 :math:`T_0`) and the post-period
 :math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}`.
+The panel is read through :func:`mlsynth.utils.datautils.dataprep`, which
+refuses with ``MlsynthDataError`` a duplicate or absent unit-period, a missing or
+non-finite outcome in any period, a non-binary treatment, and a treatment that
+switches off after it starts: unit 1 is treated from :math:`T_0 + 1` to the end
+of the panel. FSCM then requires exactly one treated unit and
+:math:`T_0 \ge 4`.
 
 The treated series is :math:`\mathbf{y}_1` with scalar outcomes :math:`y_{1t}`,
 and each donor :math:`j \in \mathcal{N}_0` contributes a series
@@ -333,7 +339,11 @@ Matching on the author's full predictor specification
 ``lnincome``, ``beer``, ``age15to24``, ``retprice`` and cigarette sales in
 1975, 1980 and 1988. Abadie averages the covariates over 1980--1988 (beer over
 1984--1988); these aggregation windows are given through ``covariate_windows``,
-and the lagged smoking values through ``match_periods``. With
+and the lagged smoking values through ``match_periods``. The covariates have
+gaps. Each one is read through ``dataprep`` with ``missing_outcomes="keep"``,
+its gaps are filled forward and then backward within each state before the
+window average, and an infinite covariate value is refused with the covariate
+named in the error. With
 ``forward_selection=False`` the estimator returns the full bilevel SCM
 optimum over all donors:
 
