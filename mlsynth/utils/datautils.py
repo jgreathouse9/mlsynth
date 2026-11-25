@@ -258,7 +258,8 @@ def _wide_pivot(
     return df.pivot(index=index, columns=columns, values=values)
 
 
-def _refuse_missing_outcomes(wide: pd.DataFrame, outcome: str, n_rows: int) -> None:
+def _refuse_missing_outcomes(wide: pd.DataFrame, outcome: str, n_rows: int,
+                             keep_nan: bool = False) -> None:
     """Raise if any cell of the pivoted outcome matrix is missing or not finite.
 
     Every estimator reads its outcomes from this matrix, and none of them
@@ -281,6 +282,14 @@ def _refuse_missing_outcomes(wide: pd.DataFrame, outcome: str, n_rows: int) -> N
 
     An outcome column that does not convert to float is not this check's
     concern: estimators that validate a numeric outcome report it themselves.
+
+    With ``keep_nan`` (``dataprep(missing_outcomes="keep")``) a NaN in a row
+    that is present passes, for the methods built for missing cells: robust
+    synthetic control (Amjad, Shah and Shen, JMLR 19 (2018), section 3), robust
+    PCR (Agarwal, Shah, Shen and Song, JASA 116 (2021), section 2), SNN and
+    MC-NNM. An infinite value and an absent row are still refused: an infinity
+    is a value no method can read as missing, and an absent row has no
+    treatment status either.
     """
     values = wide.to_numpy()
     if values.dtype.kind not in "fc":
@@ -295,6 +304,8 @@ def _refuse_missing_outcomes(wide: pd.DataFrame, outcome: str, n_rows: int) -> N
     n_absent = values.size - n_rows
     n_inf = int(np.isinf(values).sum())
     n_nan = n_bad - n_inf - n_absent
+    if keep_nan and n_inf == 0 and n_absent == 0:
+        return
     t, j = np.argwhere(bad)[0]
     parts = [f"{n} {what}" for n, what in (
         (n_absent, "absent unit-period row(s), so the panel is not balanced"),
@@ -603,6 +614,7 @@ def dataprep(
     normalize_covariates: bool = True,
     marex: bool = False,
     keys: Optional[PanelKeys] = None,
+    missing_outcomes: Literal["refuse", "keep"] = "refuse",
 ) -> "SinglePanel | CohortPanel":
     """Prepare data for synthetic control methods.
 
@@ -656,6 +668,14 @@ def dataprep(
         caller that validated the same frame first can supply its scan and the
         panel is read once for the whole fit. A scan taken from a different
         frame or different columns is refused.
+    missing_outcomes : {"refuse", "keep"}, default "refuse"
+        What to do with a NaN outcome in a row that is present. ``"refuse"``
+        raises, as every synthetic control that fits weights on each donor cell
+        needs. ``"keep"`` leaves the cell NaN and sets the panel's ``observed``
+        mask, for the methods built for missing cells: robust synthetic
+        control (Amjad, Shah and Shen, JMLR 19 (2018)), robust PCR (Agarwal,
+        Shah, Shen and Song, JASA 116 (2021)), SNN and MC-NNM. Infinite values
+        and absent rows are refused either way.
 
     Returns
     -------
@@ -697,13 +717,29 @@ def dataprep(
         - If ``covariate_aggregation`` is unknown.
         - If any outcome cell is missing or not finite: a NaN or infinite
           value, or a unit-period row absent from the panel. mlsynth does not
-          impute outcomes (:func:`_refuse_missing_outcomes`).
+          impute outcomes (:func:`_refuse_missing_outcomes`). With
+          ``missing_outcomes="keep"`` a NaN in a present row passes; an
+          infinite value and an absent row are still refused.
+        - If ``missing_outcomes`` is neither ``"refuse"`` nor ``"keep"``, or
+          is ``"keep"`` together with ``marex=True``.
         - If any treatment value is missing (NaN or None) in a row that is
-          present. The message gives the count and the first unit and period
-          in time order (:func:`_refuse_missing_treatment`). A unit-period with
+          present, under either ``missing_outcomes`` mode. The message gives
+          the count and the first unit and period in time order
+          (:func:`_refuse_missing_treatment`). A unit-period with
           no treatment status is neither treated nor untreated, the same case
           as an absent row, which the outcome check refuses and names.
     """
+    if missing_outcomes not in ("refuse", "keep"):
+        raise MlsynthDataError(
+            f"Unknown missing_outcomes: {missing_outcomes!r}; use 'refuse' or 'keep'."
+        )
+    keep_nan = missing_outcomes == "keep"
+    if keep_nan and marex:
+        raise MlsynthDataError(
+            "missing_outcomes='keep' cannot be combined with marex=True: the marex "
+            "predictor matrix stacks pre-period outcomes and would carry the NaN cells."
+        )
+
     # Both pivots below key on the same two columns and differ only in which
     # values they scatter, so the panel is scanned once here and the scan is
     # handed to each of them. A scan supplied by the caller is checked against
@@ -748,7 +784,10 @@ def dataprep(
             values=outcome_column_name,
             keys=keys,
         )
-        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df))
+        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df),
+                                 keep_nan=keep_nan)
+        observed = (~np.isnan(outcome_matrix_wide.to_numpy(dtype=float))
+                    if keep_nan else None)
         treated_unit_name = outcome_matrix_wide.columns[treated_unit_column_index[0]]
         treated_unit_outcome_vector = outcome_matrix_wide[treated_unit_name].to_numpy()
         donor_outcome_df_wide = outcome_matrix_wide.drop(
@@ -834,7 +873,8 @@ def dataprep(
                 population_mean=Y_pre_all @ f,
             )
 
-        return SinglePanel(**core, covariates=cov_block, predictors=pred_block)
+        return SinglePanel(**core, covariates=cov_block, predictors=pred_block,
+                           observed=observed)
 
     # ─── Multiple treated units (cohort mode) ──────────────────────────
     else:
@@ -845,7 +885,10 @@ def dataprep(
             values=outcome_column_name,
             keys=keys,
         )
-        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df))
+        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df),
+                                 keep_nan=keep_nan)
+        observed = (~np.isnan(outcome_matrix_wide.to_numpy(dtype=float))
+                    if keep_nan else None)
         # The treatment pivot built before the branch. It is read only above
         # (``.to_numpy()`` into ``logictreat``), so rebuilding it here produced
         # an equal frame from unchanged inputs.
@@ -921,7 +964,7 @@ def dataprep(
 
         return CohortPanel(Ywide=outcome_matrix_wide, cohorts=cohort_details_map,
                            time_labels=outcome_matrix_wide.index, covariates=multi_cov,
-                           predictors=multi_pred)
+                           predictors=multi_pred, observed=observed)
 
 
 def geoex_dataprep(

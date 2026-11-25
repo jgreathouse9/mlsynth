@@ -123,6 +123,23 @@ def test_a_none_in_an_object_treatment_column_is_refused():
     assert msg.startswith("Missing treatment values") and "unit '3', time 4" in msg
 
 
+@pytest.mark.parametrize("treated", [(0,), {0: 5, 1: 3}], ids=["single", "cohort"])
+def test_keeping_missing_outcomes_does_not_keep_a_missing_treatment(treated):
+    """``missing_outcomes="keep"`` passes a NaN outcome for the methods built for missing cells; a missing
+    treatment is a different thing and is refused under both modes."""
+    df = _blank(_panel(treated=treated), [(2, 3)])
+    df.loc[(df.id == 4) & (df.time == 1), "y"] = np.nan
+    msg = _refusal(df, missing_outcomes="keep")
+    assert msg.startswith("Missing treatment values") and "unit '2', time 3" in msg
+
+
+def test_keeping_missing_outcomes_still_reports_an_absent_row_as_absent():
+    df = _panel()
+    df = df[~((df.id == 0) & (df.time == 6))]
+    msg = _refusal(df, missing_outcomes="keep")
+    assert "absent unit-period row(s)" in msg and "not sustained" not in msg
+
+
 def test_a_missing_treatment_is_not_reported_as_a_missing_outcome():
     """The two refusals are distinct: a NaN treatment is not counted against the outcome column."""
     msg = _refusal(_blank(_panel(), [(2, 3)]))

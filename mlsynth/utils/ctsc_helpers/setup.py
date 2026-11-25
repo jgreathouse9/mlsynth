@@ -1,9 +1,15 @@
 """Panel ingestion for the CTSC estimator.
 
 Unlike a binary-treatment estimator, CTSC takes one or more
-**treatment / explanatory** columns (continuous or discrete) that vary
-over units and time, and pivots them into a ``(n, T, K)`` array
+treatment / explanatory columns (continuous or discrete) that vary
+over units and time, and reads them into a ``(n, T, K)`` array
 alongside the ``(n, T)`` outcome.
+
+:func:`~mlsynth.utils.datautils.dataprep` refuses a non-binary treatment,
+which is what CTSC's treatments are, so the panel is read through
+:func:`~mlsynth.utils.datautils.geoex_dataprep`, the treatment-agnostic
+reader: once for the outcome, and once for each treatment variable read as
+that call's outcome.
 """
 
 from __future__ import annotations
@@ -14,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthConfigError, MlsynthDataError
+from ..datautils import geoex_dataprep
 from .structures import CTSCInputs
 
 
@@ -25,12 +32,20 @@ def prepare_ctsc_inputs(
     time: str,
     population_col: Optional[str] = None,
 ) -> CTSCInputs:
-    """Pivot a long panel into :class:`CTSCInputs`.
+    """Read a long panel into :class:`CTSCInputs` through ``geoex_dataprep``.
+
+    ``geoex_dataprep`` refuses a duplicate or absent unit-period, a row with
+    a missing unit or period, and a missing or non-finite outcome. Each
+    treatment variable is read the same way, and a missing or non-finite
+    treatment value is refused under the variable's name. CTSC's own checks
+    (at least one treatment variable, at least 3 units, valid population
+    weights) stay on top.
 
     Parameters
     ----------
     df : pd.DataFrame
-        Balanced long panel; one row per ``(unit, time)``.
+        Balanced long panel; one row per ``(unit, time)``. It is not
+        modified.
     outcome : str
         Outcome column.
     treatment_vars : sequence of str
@@ -48,12 +63,17 @@ def prepare_ctsc_inputs(
     for col in (outcome, unitid, time, *treatment_vars):
         if col not in df.columns:
             raise MlsynthDataError(f"Required column {col!r} missing.")
-    if df[outcome].isna().any():
-        raise MlsynthDataError("Outcome column contains NaN values.")
-
-    time_labels = np.array(sorted(df[time].unique()))
+    # geoex_dataprep runs balance() first, so a duplicate or absent
+    # unit-period and a missing key are refused before the matrix is built,
+    # and a missing or non-finite outcome after it.
+    panel = geoex_dataprep(df, unitid, time, outcome)
+    wide = panel["Ywide"]                                # (T, n), both axes sorted
+    # Iterating the axes' arrays gives the scalars sorted(df[col].unique())
+    # gave the old setup (numpy integers, Timestamps, str), so the labels keep
+    # their types and time_labels its dtype.
+    time_labels = np.array(list(wide.index.array))
     T = int(time_labels.size)
-    unit_names = sorted(df[unitid].unique())
+    unit_names = list(wide.columns.array)
     n = len(unit_names)
     if n < 3:
         raise MlsynthDataError(
@@ -61,18 +81,23 @@ def prepare_ctsc_inputs(
             "every unit from the others)."
         )
 
-    y_wide = df.pivot(index=unitid, columns=time, values=outcome)
-    if y_wide.isna().any().any():
-        raise MlsynthDataError("Panel is unbalanced (missing unit-time cells).")
-    Y = y_wide.loc[unit_names, time_labels].to_numpy(dtype=float)
+    # CTSC's Y is unit x time; the C-order copy keeps the row-major layout
+    # the old pivot produced.
+    Y = np.ascontiguousarray(panel["Y"].T)
 
     K = len(treatment_vars)
     D = np.empty((n, T, K), dtype=float)
     for k, col in enumerate(treatment_vars):
-        w = df.pivot(index=unitid, columns=time, values=col)
-        if w.isna().any().any():
-            raise MlsynthDataError(f"Treatment variable {col!r} has missing cells.")
-        D[:, :, k] = w.loc[unit_names, time_labels].to_numpy(dtype=float)
+        # The same panel, so the same sorted axes as the outcome's matrix.
+        try:
+            dose = geoex_dataprep(df, unitid, time, col)
+        except MlsynthDataError as exc:
+            raise MlsynthDataError(
+                f"Treatment variable {col!r} is incomplete; CTSC needs every "
+                f"treatment variable observed and finite in every unit-period. "
+                f"{exc}"
+            ) from exc
+        D[:, :, k] = dose["Y"].T
 
     if population_col is not None:
         if population_col not in df.columns:
