@@ -291,6 +291,30 @@ class TestOwnChecks:
 
 
 # --------------------------------------------------------------------------- #
+# the design matrix built from the inputs, in the same module
+# --------------------------------------------------------------------------- #
+class TestDesignMatrix:
+    @pytest.mark.parametrize("pre_r,pre_z,blocks", [
+        (False, False, ("Y",)), (True, False, ("Y", "R")),
+        (False, True, ("Y", "Z")), (True, True, ("Y", "R", "Z")),
+    ])
+    def test_default_stacks_the_series_with_pre_period_variation(self, pre_r, pre_z, blocks):
+        inputs = prepare_siv_inputs(_panel(pre_r=pre_r, pre_z=pre_z), **COLS, T0=8)
+        want = np.concatenate([getattr(inputs, b)[:, :8] for b in blocks], axis=1)
+        np.testing.assert_array_equal(SETUP.build_design_matrix(inputs), want)
+
+    def test_outcome_only_ignores_r_and_z(self):
+        inputs = prepare_siv_inputs(_panel(pre_r=True, pre_z=True), **COLS, T0=8)
+        np.testing.assert_array_equal(
+            SETUP.build_design_matrix(inputs, series="outcome_only"), inputs.Y[:, :8])
+
+    def test_an_unknown_series_mode_is_refused(self):
+        inputs = prepare_siv_inputs(_panel(), **COLS, T0=8)
+        with pytest.raises(MlsynthConfigError, match="Unknown design-matrix series mode"):
+            SETUP.build_design_matrix(inputs, series="both")
+
+
+# --------------------------------------------------------------------------- #
 # properties over the domain, defects included
 # --------------------------------------------------------------------------- #
 @st.composite
