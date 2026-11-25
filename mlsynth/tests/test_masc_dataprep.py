@@ -7,12 +7,13 @@ non-finite outcome cell, an absent or duplicate unit-period, a non-binary
 treatment, and a treatment that switches off after it starts. MASC's own checks
 (one treated unit, two pre-periods, the covariate columns) stay on top.
 
-The covariate panels keep their pivot. A covariate need not be observed in
-every period: MASC fills each unit's gaps forward and then backward, and the
-Basque application relies on it (its sector shares are observed in a handful of
-years). ``dataprep`` and ``geoex_dataprep`` refuse a missing cell, and
-``build_covariate_matrix`` returns a per-unit mean, not the period-by-unit panel
-each cross-validation fold averages over its own window.
+Each covariate panel is read the same way, as the outcome of its own
+``dataprep`` call with ``missing_outcomes="keep"``. A covariate need not be
+observed in every period: MASC fills each unit's gaps forward and then backward,
+and the Basque application relies on it (its sector shares are observed in a
+handful of years), so a NaN covariate cell is kept for the fill. An infinite
+covariate value is refused under the covariate's name; the old setup passed it
+to the fit.
 
 ``_reference`` is the old setup, verbatim, kept as the oracle the new path must
 match on every panel both accept. Nothing in the setup sums or averages, so the
@@ -146,33 +147,29 @@ def _both(df, **kw):
 # routing
 # --------------------------------------------------------------------------- #
 class TestRouting:
-    def test_setup_calls_dataprep_once(self, monkeypatch):
+    def test_setup_calls_dataprep_once_per_column(self, monkeypatch):
         calls = []
         real = SETUP.dataprep
 
         def spy(*a, **k):
-            calls.append(k.get("keys"))
+            calls.append((a[3], k.get("keys"), k.get("missing_outcomes", "refuse")))
             return real(*a, **k)
 
         monkeypatch.setattr(SETUP, "dataprep", spy)
-        prepare_masc_inputs(_panel(), **COLS, covariates=["x1"])
-        assert len(calls) == 1
-        assert calls[0] is not None          # balance()'s key scan is reused
+        prepare_masc_inputs(_panel(cov_gaps=5), **COLS, covariates=["x1", "x2"])
+        assert [(c, m) for c, _, m in calls] == [
+            ("y", "refuse"), ("x1", "keep"), ("x2", "keep")]
+        # balance()'s key scan is taken once and reused by every call.
+        assert calls[0][1] is not None
+        assert all(k is calls[0][1] for _, k, _ in calls)
 
-    def test_only_the_covariate_panel_pivots(self):
+    def test_setup_does_not_pivot(self):
         # A runtime patch of DataFrame.pivot cannot test this: dataprep's
         # _wide_pivot falls back to df.pivot on some pandas versions.
         tree = ast.parse(inspect.getsource(SETUP))
-        found = []
-        for fn in ast.walk(tree):
-            if isinstance(fn, ast.FunctionDef):
-                for node in ast.walk(fn):
-                    if (isinstance(node, ast.Call)
-                            and isinstance(node.func, ast.Attribute)
-                            and node.func.attr in {"pivot", "pivot_table",
-                                                   "unstack", "crosstab"}):
-                        found.append(fn.name)
-        assert found == ["_covariate_panel"], found
+        called = {node.func.attr for node in ast.walk(tree)
+                  if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)}
+        assert not called & {"pivot", "pivot_table", "unstack", "crosstab"}, called
 
 
 # --------------------------------------------------------------------------- #
@@ -327,7 +324,7 @@ class TestOwnChecks:
 
     def test_two_treated_units(self):
         df = _panel(shuffle=False)
-        df.loc[(df.unit == 2) & (df.time >= 2008), "d"] = 1
+        df.loc[(df.unit == 2) & (df.time >= 2006), "d"] = 1      # same cohort
         with pytest.raises(MlsynthDataError, match="single treated unit; found 2"):
             prepare_masc_inputs(df, **COLS)
 
@@ -341,6 +338,22 @@ class TestOwnChecks:
     def test_an_absent_covariate_is_refused(self):
         with pytest.raises(MlsynthDataError, match="Covariate 'zz' not found"):
             prepare_masc_inputs(_panel(), **COLS, covariates=["x1", "zz"])
+
+    @pytest.mark.parametrize("value", [np.inf, -np.inf])
+    def test_an_infinite_covariate_is_refused_under_its_name(self, value):
+        # The old setup passed an infinite covariate value to the fit.
+        df = _panel(shuffle=False, cov_gaps=4)
+        df.loc[(df.unit == 2) & (df.time == 2003), "x2"] = value
+        with pytest.raises(MlsynthDataError, match="Covariate 'x2' cannot be read") as info:
+            prepare_masc_inputs(df, **COLS, covariates=["x1", "x2"])
+        assert "infinite" in str(info.value)          # dataprep's cause is kept
+        assert isinstance(info.value.__cause__, MlsynthDataError)
+
+    def test_the_estimator_reports_an_infinite_covariate(self):
+        df = _panel(n_periods=20, adopt=14)
+        df.loc[df.index[5], "x1"] = np.inf
+        with pytest.raises(MlsynthDataError, match="Covariate 'x1' cannot be read"):
+            MASC(dict(df=df, **COLS, covariates=["x1"], display_graphs=False)).fit()
 
     def test_a_covariate_missing_for_a_whole_unit_is_refused(self):
         df = _panel()
@@ -364,7 +377,7 @@ def cases(draw):
     df = _panel(n_units=n_units, n_periods=T, treated=treated, adopt=adopt,
                 seed=seed, names=names, cov_gaps=gaps)
     defect = draw(st.sampled_from(
-        ["none", "none", "none", "nan", "inf", "gap", "dup", "off", "dose"]))
+        ["none", "none", "none", "nan", "inf", "gap", "dup", "off", "dose", "cinf"]))
     i = draw(st.integers(0, len(df) - 1))
     if defect == "nan":
         df.iloc[i, df.columns.get_loc("y")] = np.nan
@@ -381,6 +394,8 @@ def cases(draw):
             df.loc[(df.unit == _name(treated, names)) & (df.time == 2000 + T - 1), "d"] = 0
     elif defect == "dose":
         df.iloc[i, df.columns.get_loc("d")] = 2
+    elif defect == "cinf":
+        df.iloc[i, df.columns.get_loc("x2")] = np.inf
     return df, defect
 
 
