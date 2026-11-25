@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
+from mlsynth.exceptions import MlsynthEstimationError
 from mlsynth.utils.pangeo_helpers import columns, cover, mip
 from mlsynth.utils.pangeo_helpers.parallelism import enumerate_candidate_pairs
 
@@ -41,12 +42,15 @@ def _reference(idx, Y, Q, min_pairs=1, **kw):
 
 def _optimum_with(pool, idx, Y, Q, k, row):
     """The least cost over designs holding pool row ``row``: the MIP over that row and the groups disjoint from
-    it, with the row forced by being the only group holding its first unit."""
+    it, with the row forced by being the only group holding its first unit. A design that cannot exist is ``inf``;
+    any other failure (no mixed-integer solver installed, a solver error) is raised, so it is never read as one."""
     g = set(int(p) for p in pool.members[row][pool.members[row] >= 0])
     rows = [j for j in range(len(pool)) if j == row or not (g & set(int(p) for p in pool.members[j][pool.members[j] >= 0]))]
     try:
         _, d = mip.solve_partition(pool.candidates(rows), idx, min_pairs=k, return_diagnostics=True)
-    except Exception:
+    except MlsynthEstimationError as exc:
+        if not str(exc).startswith("PANGEO partition MIP did not solve"):
+            raise
         return np.inf
     return d["objective_value"]
 
