@@ -25,6 +25,17 @@ from mlsynth.utils.solvers import dual_simplex as ds
 TOL = 1e-7
 
 
+@pytest.fixture(autouse=True, scope="module", params=["numpy", "numba"])
+def engine(request):
+    """Every test in this module runs once per engine: the NumPy reference and the compiled kernel."""
+    if request.param == "numba" and not ds._NUMBA:  # pragma: no cover - the suite runs with numba installed
+        pytest.skip("numba is not installed")
+    old = ds.DEFAULT_ENGINE
+    ds.DEFAULT_ENGINE = request.param
+    yield request.param
+    ds.DEFAULT_ENGINE = old
+
+
 def _highs(c, A, rl, ru, l, u):
     """The reference optimum by HiGHS, or None when the LP has no solution."""
     A = sp.csr_matrix(A)
@@ -440,12 +451,13 @@ def _with(constants, fn):
             setattr(ds, k, v)
 
 
-def test_the_result_reports_which_degeneracy_stage_the_solve_reached():
+def test_the_result_reports_which_degeneracy_stage_the_solve_reached(engine):
     """Unit: solves that never stall report ``"none"``, the equal-cost cover of the regression test included. With the
     stall window at zero the first iteration that does not raise the dual objective perturbs the costs, and once the
     perturbed optimum is found the solve reports ``"restored"``. With a perturbation as large as the costs (psi = 1)
-    the perturbed optimum lies far from the true one and the restored phase stalls into Bland's rule. Each reaches
-    HiGHS's optimum."""
+    the perturbed optimum lies far from the true one and the restored phase stalls into Bland's rule; the engines take
+    different paths through ties, so the cover that reaches it is pinned per engine (seeds 5, 7 and 26 for the NumPy
+    reference, 4, 10 and 17 for the kernel). Each reaches HiGHS's optimum."""
     rng = np.random.default_rng(3)
     assert ds.solve_boxed_lp(*_set_partitioning(rng, 8, 30, 3, 3, cliques=2)).degeneracy_stage == "none"
     eq = _stress_cover(9)
@@ -453,7 +465,7 @@ def test_the_result_reports_which_degeneracy_stage_the_solve_reached():
     res = _with({"STALL_AFTER": 0}, lambda: ds.solve_boxed_lp(*eq))
     assert res.status == "optimal" and res.degeneracy_stage == "restored"
     assert res.objective == pytest.approx(_highs(*eq), abs=1e-9)
-    lp = _equal_cover(5)
+    lp = _equal_cover({"numpy": 5, "numba": 4}[engine])
     res = _with({"STALL_AFTER": 0, "PERTURB_REL": 1.0}, lambda: ds.solve_boxed_lp(*lp))
     assert res.status == "optimal" and res.degeneracy_stage == "bland"
     assert res.objective == pytest.approx(_highs(*lp), abs=1e-9)
@@ -535,6 +547,17 @@ def test_equal_cost_covers_take_few_iterations():
     assert sum(ds.solve_boxed_lp(*_stress_cover(s)).iterations for s in range(40)) <= 4000
 
 
+def test_the_steepest_edge_weights_keep_their_cross_term():
+    """Unit, a ceiling: the dual steepest-edge weights are updated by Koberstein (2005), equation 3.50, whose
+    cross term -2 (alpha_iq / alpha_rq) tau_i keeps each weight equal to the squared norm of its row of the basis
+    inverse. The forty equal-cost covers take 2,485 iterations on the numpy path and 2,377 in the kernel. Dropped
+    from the update, the cross term lets the weights drift from those norms with each pivot, and the covers take
+    3,580 and 3,664, with the same answers: the weights steer the path, not the optimum. Over 200 covers the kernel
+    took 12,700 iterations with the term and 19,400 without, more in 156 of them and fewer in 32. The ceiling is
+    3,000."""
+    assert sum(ds.solve_boxed_lp(*_stress_cover(s)).iterations for s in range(40)) <= 3000
+
+
 def test_a_solve_stopped_while_perturbed_bounds_with_the_true_costs():
     """Unit: stopped after three iterations, the last on costs a stall has perturbed, the bound is the Lagrangian
     value of the multipliers under the true costs, and it bounds the true optimum."""
@@ -604,3 +627,108 @@ def test_property_a_cutoff_stops_the_solve_once_the_bound_reaches_it(seed, units
 def test_a_cutoff_that_is_not_a_number_is_refused():
     with pytest.raises(MlsynthConfigError, match="cutoff"):
         ds.solve_boxed_lp(np.ones(2), np.ones((1, 2)), [0.0], [1.0], np.zeros(2), np.ones(2), cutoff=float("nan"))
+
+
+
+# --- engines: the compiled kernel against the NumPy reference --------------------------------------------------------
+
+@settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**6), cover=st.booleans())
+def test_property_the_engines_agree(seed, cover):
+    """Property: the compiled kernel and the NumPy reference give the same status and the same optimum, and each
+    returns the Lagrangian value of its own multipliers as its bound."""
+    rng = np.random.default_rng(seed)
+    if cover:
+        units = int(rng.integers(4, 16))
+        lp = _set_partitioning(rng, units, int(rng.integers(units, 80)), 4, int(rng.integers(0, 4)),
+                               int(rng.integers(0, 8)))
+    else:
+        lp = _random_lp(rng, int(rng.integers(1, 12)), int(rng.integers(1, 30)))
+    a = ds.solve_boxed_lp(*lp, engine="numpy")
+    b = ds.solve_boxed_lp(*lp, engine="numba")
+    assert a.engine == "numpy" and b.engine == "numba"
+    assert a.status == b.status
+    if a.status == "optimal":
+        assert b.objective == pytest.approx(a.objective, abs=1e-9 * (1 + abs(a.objective)))
+    for r in (a, b):
+        if r.status != "infeasible":
+            assert r.bound == pytest.approx(ds.lagrangian_bound(*lp, r.y), abs=1e-12)
+
+
+def test_auto_takes_the_compiled_kernel_when_numba_is_installed_and_numpy_when_not():
+    lp = _set_partitioning(np.random.default_rng(2), 6, 20, 3, 2)
+    assert ds.solve_boxed_lp(*lp, engine="auto").engine == ("numba" if ds._NUMBA else "numpy")
+    saved = ds._NUMBA
+    ds._NUMBA = False
+    try:
+        assert ds.solve_boxed_lp(*lp, engine="auto").engine == "numpy"
+        with pytest.raises(MlsynthConfigError, match="numba"):
+            ds.solve_boxed_lp(*lp, engine="numba")
+    finally:
+        ds._NUMBA = saved
+
+
+def test_an_unknown_engine_is_refused():
+    with pytest.raises(MlsynthConfigError, match="engine"):
+        ds.solve_boxed_lp(np.ones(2), np.ones((1, 2)), [0.0], [1.0], np.zeros(2), np.ones(2), engine="glpk")
+
+
+def _bound_fixed_child(lp, parent):
+    """The child of Pan's section 7.3: the parent LP with its largest group fixed at 1 and every group sharing a unit
+    with it fixed at 0, bounds changed and rows kept, so the parent's basis is still a basis."""
+    c, A, rl, ru, l, u = lp
+    j = int(np.argmax(parent.x))
+    cover = np.flatnonzero((rl == 1.0) & (ru == 1.0))
+    hit = cover[A[cover, j] > 0]
+    clash = np.any(A[hit] > 0, axis=0)
+    lo, up = l.copy(), np.where(clash, 0.0, u)
+    lo[j] = up[j] = 1.0
+    return c, A, rl, ru, lo, up
+
+
+def test_a_bound_fixed_child_reuses_the_parents_inverse_and_reaches_the_cold_optimum():
+    """Unit: the parent's basis carries its inverse; a child that only changes bounds keeps the same basis matrix, so
+    the solve starts from that inverse without refactoring (``warm_inverse_used``) and reaches the cold optimum."""
+    rng = np.random.default_rng(11)
+    lp = _set_partitioning(rng, 9, 40, 3, 2, cliques=3)
+    parent = ds.solve_boxed_lp(*lp)
+    assert parent.basis.inverse is not None
+    child = _bound_fixed_child(lp, parent)
+    warm = ds.solve_boxed_lp(*child, basis=parent.basis)
+    cold = ds.solve_boxed_lp(*child)
+    assert warm.warm_inverse_used and not cold.warm_inverse_used
+    assert warm.status == cold.status
+    if cold.status == "optimal":
+        assert warm.objective == pytest.approx(cold.objective, abs=1e-9)
+
+
+def test_a_stale_inverse_is_detected_and_refactored():
+    """Edge: an inverse carried from a different LP fails the residual check B (B^-1 v) = v on one vector; the solve
+    refactors (``warm_inverse_used`` is false) and still reaches the optimum."""
+    rng = np.random.default_rng(4)
+    lp1 = _set_partitioning(rng, 8, 30, 3, 2)
+    lp2 = _set_partitioning(rng, 8, 30, 3, 2)
+    first = ds.solve_boxed_lp(*lp1)
+    res = ds.solve_boxed_lp(*lp2, basis=first.basis)
+    assert not res.warm_inverse_used
+    ref = _highs(*lp2)
+    if ref is not None:
+        assert res.status == "optimal" and res.objective == pytest.approx(ref, abs=1e-9)
+
+
+@settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**6), units=st.integers(4, 10), groups=st.integers(8, 40), k=st.integers(1, 3))
+def test_property_bound_fixed_children_warm_started_from_the_parent_agree_with_highs(seed, units, groups, k):
+    """Property: every bound-fixed child solved from the parent's basis and inverse has HiGHS's status and optimum."""
+    rng = np.random.default_rng(seed)
+    lp = _set_partitioning(rng, units, groups, 3, k, cliques=int(rng.integers(0, 4)))
+    parent = ds.solve_boxed_lp(*lp)
+    if parent.status != "optimal":
+        return
+    child = _bound_fixed_child(lp, parent)
+    res = ds.solve_boxed_lp(*child, basis=parent.basis)
+    ref = _highs(*child)
+    if ref is None:
+        assert res.status == "infeasible"
+    else:
+        assert res.status == "optimal" and res.objective == pytest.approx(ref, abs=1e-7 * (1 + abs(ref)))

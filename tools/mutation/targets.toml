@@ -23870,6 +23870,12 @@ timeout = 900.0
   accepted-because = "EQUIVALENT in every answer: the pricing rule picks the path, not the optimum, and the bound is valid at every iterate either way. Measured over 40 cover LPs (30 units, 300 groups, 20 clique rows), 40 equal-cost covers and 150 ill-conditioned LPs (coefficients 1e-4 to 1e4): Dantzig took 3,529, 2,513 and 9,396 iterations against steepest edge's 3,929, 2,759 and 6,340, with the same answers. Steepest edge stays for the ill-conditioned case; no iteration ceiling separates the two on cover LPs without pinning noise."
 
   [[target.mutant]]
+  id = "the-steepest-edge-cross-term-is-dropped"
+  find = "        beta = np.maximum(beta - 2.0 * ratio_q * tau + ratio_q * ratio_q * beta_r, 1e-12)"
+  replace = "        beta = np.maximum(beta + ratio_q * ratio_q * beta_r, 1e-12)"
+  models = "the dual steepest-edge weight update without its cross term (Koberstein 2005, equation 3.50): the same answers on a longer path, 3,580 iterations on the forty equal-cost covers against 2,485"
+
+  [[target.mutant]]
   id = "the-perturbed-optimum-is-returned"
   find = "            if stage == 1:                                            # the perturbed LP's optimum: true costs back"
   replace = "            if False:                                                 # the perturbed LP's optimum: true costs back"
@@ -23877,8 +23883,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "no-perturbation-on-a-stall"
-  find = "            if stage == 0:\n"
-  replace = "            if False:\n"
+  find = "            if stage == 0:\n                work, stage, best, last_rise = perturbed(), 1, -np.inf, iterations"
+  replace = "            if False:\n                work, stage, best, last_rise = perturbed(), 1, -np.inf, iterations"
   models = "a stall on distinct costs left to run on without perturbation"
 
   [[target.mutant]]
@@ -23889,8 +23895,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-bound-is-the-perturbed-lagrangian"
-  find = "    return BoxedLPResult(status=status, x=x, row_activity=np.asarray(A @ x).ravel(), y=y, d=c - A.T @ y,"
-  replace = "    bound = bound if status == \"infeasible\" else lagrangian_bound(work[:n], A, rl, ru, l, u, y)\n    return BoxedLPResult(status=status, x=x, row_activity=np.asarray(A @ x).ravel(), y=y, d=c - A.T @ y,"
+  find = "    return BoxedLPResult(status=status, x=x, row_activity=np.asarray(A @ x).ravel(), y=y, d=c - A.T @ y,\n                         objective=float(c @ x), bound=bound, iterations=iterations,"
+  replace = "    bound = bound if status == \"infeasible\" else lagrangian_bound(work[:n], A, rl, ru, l, u, y)\n    return BoxedLPResult(status=status, x=x, row_activity=np.asarray(A @ x).ravel(), y=y, d=c - A.T @ y,\n                         objective=float(c @ x), bound=bound, iterations=iterations,"
   models = "the bound evaluated with the perturbed working costs, which is not a bound on the true LP"
 
   [[target.mutant]]
@@ -23938,3 +23944,70 @@ timeout = 900.0
   find = "    if rank == m:"
   replace = "    if True:"
   models = "a singular warm-start basis accepted as it is"
+
+
+[[target]]
+name = "dual-simplex-kernel"
+module-path = "mlsynth/utils/solvers/dual_simplex.py"
+test-command = "python -m pytest mlsynth/tests/test_dual_simplex.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1500.0
+
+  [[target.mutant]]
+  id = "kernel-a-zero-slope-is-read-as-infeasible"
+  find = "                    if slope <= primal_tol:"
+  replace = "                    if slope < 0:"
+  models = "the compiled ratio test declaring the dual unbounded when the slope reaches exactly zero at the last breakpoint, as the NumPy engine once did"
+
+  [[target.mutant]]
+  id = "kernel-the-dual-step-has-the-wrong-sign"
+  find = "        tstep = d[q] / alpha[q]"
+  replace = "        tstep = -d[q] / alpha[q]"
+  models = "the incremental reduced-cost update d <- d - t alpha_r taken with the wrong sign of t (Koberstein 2005, equation 3.16)"
+
+  [[target.mutant]]
+  id = "kernel-the-flips-leave-the-basic-values"
+  find = "            xB -= Binv @ abar"
+  replace = "            xB -= 0.0 * (Binv @ abar)"
+  models = "bound flips applied to the nonbasic variables but not to the basic values (Koberstein 2005, Algorithm 5, the solve with a~)"
+
+  [[target.mutant]]
+  id = "kernel-the-leaving-variable-takes-the-wrong-bound"
+  find = "        at_upper[p] = delta[r] > 0\n        is_basic[p] = False"
+  replace = "        at_upper[p] = delta[r] < 0\n        is_basic[p] = False"
+  models = "the compiled engine's leaving variable set to the bound opposite the one it violated"
+
+  [[target.mutant]]
+  id = "kernel-the-multipliers-have-the-wrong-sign"
+  find = "    y = d[n:].copy()"
+  replace = "    y = -d[n:].copy()"
+  models = "the multipliers read from the logicals' reduced costs with the sign of the -e_i column dropped"
+
+  [[target.mutant]]
+  id = "kernel-the-cutoff-is-ignored"
+  find = "            if zt >= cutoff:"
+  replace = "            if False:"
+  models = "the compiled engine accepting a cutoff and never checking it"
+
+  [[target.mutant]]
+  id = "kernel-an-unverified-ray-is-trusted"
+  find = "            if s > infeas_margin * sa:"
+  replace = "            if True:"
+  models = "the compiled engine reporting infeasibility from the ratio test alone"
+
+  [[target.mutant]]
+  id = "kernel-the-steepest-edge-cross-term-is-dropped"
+  find = "            beta[i] = max(beta[i] - 2.0 * rq[i] * tau[i] + rq[i] * rq[i] * beta_r, 1e-12)"
+  replace = "            beta[i] = max(beta[i] + rq[i] * rq[i] * beta_r, 1e-12)"
+  models = "the dual steepest-edge weight update without its cross term (Koberstein 2005, equation 3.50): the same answers on a longer path, 3,664 iterations on the forty equal-cost covers against 2,377"
+
+  [[target.mutant]]
+  id = "a-stale-inverse-is-trusted"
+  find = "    if not np.all(np.isfinite(res)) or np.max(np.abs(res)) > 1e-9 * (1.0 + np.max(np.abs(w))):"
+  replace = "    if False:"
+  models = "a warm-start inverse used without checking it belongs to the new LP's basis matrix"
+
+  [[target.mutant]]
+  id = "auto-never-takes-the-kernel"
+  find = "    if engine == \"numba\" or (engine == \"auto\" and _NUMBA):"
+  replace = "    if engine == \"numba\":"
+  models = "engine='auto' running the NumPy reference even with numba installed"

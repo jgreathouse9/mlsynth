@@ -38,13 +38,28 @@ with the basis.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
 import numpy as np
 import scipy.sparse as sp
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthDataError
+
+try:  # numba is the optional ``fast`` extra; without it the NumPy engine runs
+    from numba import njit
+    _NUMBA = True
+except ImportError:  # pragma: no cover - the suite runs with numba installed
+    _NUMBA = False
+
+    def njit(*args, **kwargs):
+        if args and callable(args[0]):
+            return args[0]
+        return lambda f: f
+
+#: Compiled code is cached on disk only under this module name.
+CANONICAL_NAME = "mlsynth.utils.solvers.dual_simplex"
+_CACHE = __name__ == CANONICAL_NAME
 
 #: Primal feasibility tolerance, absolute and relative to the bound's size (Koberstein, Table 6.1 sets 1e-7 and
 #: 1e-9 for general LPs; the cover LPs here have 0/1 rows, so the absolute tolerance is tightened to 1e-9).
@@ -64,6 +79,9 @@ PIVOT_CHECK_TOL = 1e-9
 #: Iterations without a rise in the dual objective before the costs are perturbed, and again (after they are
 #: restored) before Bland's rule takes over: Koberstein's maxcycle = 3 * phi (section 6.3.1).
 STALL_AFTER = 3 * REFACTOR_EVERY
+#: The engine when ``solve_boxed_lp`` is not told one: ``"auto"`` is the compiled kernel when numba is installed and
+#: the NumPy reference when it is not.
+DEFAULT_ENGINE = "auto"
 #: A ray proves infeasibility only when its Lagrangian under zero costs exceeds this share of the sum of its terms'
 #: magnitudes, a margin for the rounding of that sum; a ray that falls short is not reported as infeasibility.
 INFEASIBILITY_MARGIN = 1e-9
@@ -77,10 +95,14 @@ PERTURB_REL = 1e-5
 class BoxedBasis:
     """A basis of the computational form: ``basic`` lists the ``m`` basic variables, structural ``j < n`` and logical
     (row ``i``) as ``n + i``; ``at_upper`` marks, for all ``n + m`` variables, those nonbasic at their upper bound
-    (entries of basic variables are ignored)."""
+    (entries of basic variables are ignored). ``inverse`` is the basis matrix's inverse when the basis came from a
+    solve: an LP that changes only bounds or costs keeps the same basis matrix (Pan, Linear Programming Computation,
+    2nd ed., section 7.3), so a solve started from it skips the factorization once a residual check confirms it
+    belongs to the new LP's matrix."""
 
     basic: np.ndarray
     at_upper: np.ndarray
+    inverse: Optional[np.ndarray] = field(default=None, compare=False, repr=False)
 
     def restrict(self, cols: Sequence[int], rows: Sequence[int]) -> "BoxedBasis":
         """The basis carried to the LP over the structural columns ``cols`` and rows ``rows`` of this one (both in
@@ -131,7 +153,8 @@ class BoxedLPResult:
     Lagrangian under zero costs is positive, a Farkas certificate for the boxed LP (Bazaraa, Jarvis and Sherali,
     Linear Programming and Network Flows, 4th ed., Lemma 5.1, p. 234): a caller that prunes on it can re-evaluate it
     rigorously. ``"cutoff"`` means the Lagrangian bound under the true costs reached the ``cutoff`` given, and the
-    solve stopped there."""
+    solve stopped there. ``engine`` names the engine that ran, and ``warm_inverse_used`` whether the solve started
+    from the warm-start basis's own inverse."""
 
     status: str
     x: np.ndarray
@@ -145,6 +168,8 @@ class BoxedLPResult:
     basis_repaired: bool = False
     degeneracy_stage: str = "none"
     ray: Optional[np.ndarray] = None
+    engine: str = "numpy"
+    warm_inverse_used: bool = False
 
 
 def _lagrangian_terms(c, A, rl, ru, l, u, y) -> np.ndarray:
@@ -229,8 +254,366 @@ def _repair(F: sp.csc_matrix, basic: np.ndarray, n: int, m: int) -> tuple:
     return np.asarray(kept, dtype=np.int64), True
 
 
+# --- the compiled engine --------------------------------------------------------------------------------------------
+# The same algorithm as the NumPy loop of solve_boxed_lp, with Koberstein's incremental updates (Algorithm 2) in place
+# of the reference's recomputation each iteration: d <- d - t alpha_r with t = d_q / alpha_q, Algorithm 5's flip pass
+# (only reduced costs past the dual tolerance flip), x_B <- x_B - B^-1 a~ for the flips, then the primal step along
+# alpha_q. The pivot element test runs before any update, and every refactorization recomputes everything from the
+# basis. Logical i's column is -e_i, so its reduced cost is y_i: the multipliers are the logical part of d.
+
+
+@njit(cache=_CACHE)
+def _col_into(Ap, Ai, Ax, n, j, out):  # pragma: no cover - compiled; checked through the engine tests
+    out[:] = 0.0
+    if j < n:
+        for t in range(Ap[j], Ap[j + 1]):
+            out[Ai[t]] = Ax[t]
+    else:
+        out[j - n] = -1.0
+
+
+@njit(cache=_CACHE)
+def _dot_col(Ap, Ai, Ax, n, j, v):  # pragma: no cover - compiled; checked through the engine tests
+    if j < n:
+        s = 0.0
+        for t in range(Ap[j], Ap[j + 1]):
+            s += Ax[t] * v[Ai[t]]
+        return s
+    return -v[j - n]
+
+
+@njit(cache=_CACHE)
+def _factor_nb(Ap, Ai, Ax, n, m, basic):  # pragma: no cover - compiled; checked through the engine tests
+    B = np.zeros((m, m))
+    col = np.zeros(m)
+    for r in range(m):
+        _col_into(Ap, Ai, Ax, n, basic[r], col)
+        B[:, r] = col
+    Binv = np.linalg.inv(B)
+    beta = np.empty(m)
+    for i in range(m):
+        beta[i] = Binv[i] @ Binv[i]
+    return Binv, beta
+
+
+@njit(cache=_CACHE)
+def _recompute_nb(Ap, Ai, Ax, n, m, work, lo, up, width, basic, is_basic, at_upper, Binv, d, xB,
+                  dual_tol):  # pragma: no cover - compiled; checked through the engine tests
+    cB = np.empty(m)
+    for r in range(m):
+        cB[r] = work[basic[r]]
+    y = Binv.T @ cB
+    N = n + m
+    for j in range(N):
+        d[j] = 0.0 if is_basic[j] else work[j] - _dot_col(Ap, Ai, Ax, n, j, y)
+    for j in range(N):
+        if not is_basic[j] and width[j] > 0:
+            if d[j] > dual_tol:
+                at_upper[j] = False
+            elif d[j] < -dual_tol:
+                at_upper[j] = True
+    rhs = np.zeros(m)
+    for j in range(N):
+        if not is_basic[j]:
+            v = up[j] if at_upper[j] else lo[j]
+            if v != 0.0:
+                if j < n:
+                    for t in range(Ap[j], Ap[j + 1]):
+                        rhs[Ai[t]] += Ax[t] * v
+                else:
+                    rhs[j - n] -= v
+    xB[:] = -(Binv @ rhs)
+
+
+@njit(cache=_CACHE)
+def _ray_lagrangian(Ap, Ai, Ax, n, m, lo, up, direction):  # pragma: no cover - compiled; checked through tests
+    s = 0.0
+    sa = 0.0
+    for j in range(n + m):
+        dj = -_dot_col(Ap, Ai, Ax, n, j, direction)
+        t = min(lo[j] * dj, up[j] * dj)
+        s += t
+        sa += abs(t)
+    return s, sa
+
+
+@njit(cache=_CACHE)
+def _kernel(Ap, Ai, Ax, n, m, cost, lo, up, basic, at_upper, cap, use_cut, cutoff, Binv0, warm, primal_tol,
+            primal_rel_tol, dual_tol, pivot_tol, zero_tol, refactor_every, pivot_check_tol, stall_after, perturb_abs,
+            perturb_rel, infeas_margin):  # pragma: no cover - compiled; checked through the engine tests
+    N = n + m
+    width = up - lo
+    is_basic = np.zeros(N, dtype=np.bool_)
+    for r in range(m):
+        is_basic[basic[r]] = True
+    work = cost.copy()
+    d = np.zeros(N)
+    xB = np.zeros(m)
+    if warm:
+        Binv = Binv0.copy()
+        beta = np.empty(m)
+        for i in range(m):
+            beta[i] = Binv[i] @ Binv[i]
+    else:
+        Binv, beta = _factor_nb(Ap, Ai, Ax, n, m, basic)
+    _recompute_nb(Ap, Ai, Ax, n, m, work, lo, up, width, basic, is_basic, at_upper, Binv, d, xB, dual_tol)
+    np.random.seed(0)
+    stage = 0
+    best = -np.inf
+    last_rise = 0
+    it = 0
+    since = 0
+    fresh = True
+    status = 1                                           # 0 optimal, 1 iteration_limit, 2 infeasible, 3 cutoff
+    ray = np.zeros(m)
+    alpha = np.zeros(N)
+    col = np.zeros(m)
+    abar = np.zeros(m)
+    cidx = np.empty(N, dtype=np.int64)
+    while True:
+        delta = np.zeros(m)
+        anyinf = False
+        for r in range(m):
+            lb = lo[basic[r]]
+            ub = up[basic[r]]
+            tol = primal_tol + primal_rel_tol * max(abs(lb), abs(ub))
+            if xB[r] < lb - tol:
+                delta[r] = xB[r] - lb
+                anyinf = True
+            elif xB[r] > ub + tol:
+                delta[r] = xB[r] - ub
+                anyinf = True
+        if not anyinf:
+            if stage == 1:
+                work = cost.copy()
+                stage = 2
+                best = -np.inf
+                last_rise = it
+                _recompute_nb(Ap, Ai, Ax, n, m, work, lo, up, width, basic, is_basic, at_upper, Binv, d, xB,
+                              dual_tol)
+                continue
+            status = 0
+            break
+        if it >= cap:
+            break
+        z = 0.0
+        for j in range(N):
+            z += min(lo[j] * d[j], up[j] * d[j])
+        if use_cut:
+            zt = z
+            if stage == 1:
+                zt = 0.0
+                for j in range(N):
+                    dj = (d[j] - (work[j] - cost[j])) if not is_basic[j] else -(work[j] - cost[j])
+                    zt += min(lo[j] * dj, up[j] * dj)
+            if zt >= cutoff:
+                status = 3
+                break
+        if z > best + 1e-12 * (1.0 + (abs(best) if best > -np.inf else 0.0)):
+            best = z
+            last_rise = it
+        elif it - last_rise >= stall_after:
+            if stage == 0:
+                pert = (perturb_abs + perturb_rel * np.abs(cost[:n])) * 0.5 * (1.0 + np.random.random(n))
+                work = cost.copy()
+                for j in range(n):
+                    if width[j] > 0:
+                        work[j] += pert[j]
+                stage = 1
+                best = -np.inf
+                last_rise = it
+                _recompute_nb(Ap, Ai, Ax, n, m, work, lo, up, width, basic, is_basic, at_upper, Binv, d, xB,
+                              dual_tol)
+                continue
+            if stage == 2:
+                stage = 3
+        bland = stage == 3
+        r = -1
+        if bland:
+            bi = N + 1
+            for i in range(m):
+                if delta[i] != 0.0 and basic[i] < bi:
+                    bi = basic[i]
+                    r = i
+        else:
+            bv = -1.0
+            for i in range(m):
+                if delta[i] != 0.0:
+                    v = delta[i] * delta[i] / beta[i]
+                    if v > bv:
+                        bv = v
+                        r = i
+        p = basic[r]
+        rho = Binv[r].copy()
+        sgn = 1.0 if delta[r] > 0 else -1.0
+        nc = 0
+        for j in range(N):
+            alpha[j] = 0.0
+            if is_basic[j]:
+                continue
+            a = _dot_col(Ap, Ai, Ax, n, j, rho)
+            alpha[j] = a
+            if width[j] > 0:
+                at = sgn * a
+                if ((not at_upper[j]) and at > pivot_tol) or (at_upper[j] and at < -pivot_tol):
+                    cidx[nc] = j
+                    nc += 1
+        certify = nc == 0
+        pick = -1
+        if not certify:
+            cand = cidx[:nc]
+            mag = np.empty(nc)
+            ratio = np.empty(nc)
+            for t in range(nc):
+                mag[t] = abs(alpha[cand[t]])
+                ratio[t] = max(abs(d[cand[t]]) / mag[t], 0.0)
+            order = np.argsort(ratio, kind="mergesort")
+            if bland:
+                mn = ratio[order[0]]
+                bi = N + 1
+                for t in range(nc):
+                    if ratio[t] <= mn + zero_tol and cand[t] < bi:
+                        bi = cand[t]
+                        pick = t
+            else:
+                slope = abs(delta[r])
+                k = -1
+                for kk in range(nc):
+                    slope -= width[cand[order[kk]]] * mag[order[kk]]
+                    if slope <= primal_tol:
+                        k = kk
+                        break
+                if k < 0:
+                    certify = True
+                else:
+                    tmax = np.inf
+                    for kk in range(k, nc):
+                        o = order[kk]
+                        v = (abs(d[cand[o]]) + dual_tol) / mag[o]
+                        if v < tmax:
+                            tmax = v
+                    bm = -1.0
+                    for kk in range(k, nc):
+                        o = order[kk]
+                        if ratio[o] <= tmax and mag[o] > bm:
+                            bm = mag[o]
+                            pick = o
+        if certify:
+            s, sa = _ray_lagrangian(Ap, Ai, Ax, n, m, lo, up, sgn * rho)
+            if s > infeas_margin * sa:
+                status = 2
+                ray = sgn * rho
+            break
+        q = cidx[pick]
+        _col_into(Ap, Ai, Ax, n, q, col)
+        aq = Binv @ col
+        if abs(aq[r] - alpha[q]) > pivot_check_tol * (1.0 + abs(aq[r])) and not fresh:
+            Binv, beta = _factor_nb(Ap, Ai, Ax, n, m, basic)
+            _recompute_nb(Ap, Ai, Ax, n, m, work, lo, up, width, basic, is_basic, at_upper, Binv, d, xB, dual_tol)
+            since = 0
+            fresh = True
+            continue
+        tstep = d[q] / alpha[q]
+        abar[:] = 0.0
+        anyflip = False
+        for j in range(N):
+            if is_basic[j] or j == q:
+                continue
+            d[j] -= tstep * alpha[j]
+            if width[j] > 0 and j != p:
+                w = 0.0
+                if (not at_upper[j]) and d[j] < -dual_tol:
+                    at_upper[j] = True
+                    w = width[j]
+                elif at_upper[j] and d[j] > dual_tol:
+                    at_upper[j] = False
+                    w = -width[j]
+                if w != 0.0:
+                    anyflip = True
+                    if j < n:
+                        for t in range(Ap[j], Ap[j + 1]):
+                            abar[Ai[t]] += w * Ax[t]
+                    else:
+                        abar[j - n] -= w
+        d[p] = -tstep
+        d[q] = 0.0
+        if anyflip:
+            xB -= Binv @ abar
+        target = up[p] if delta[r] > 0 else lo[p]
+        thp = (xB[r] - target) / aq[r]
+        xq = (up[q] if at_upper[q] else lo[q]) + thp
+        xB -= thp * aq
+        xB[r] = xq
+        tau = Binv @ rho
+        beta_r = rho @ rho
+        rq = aq / aq[r]
+        newr = Binv[r] / aq[r]
+        for i in range(m):
+            if i != r:
+                Binv[i] -= aq[i] * newr
+        Binv[r] = newr
+        for i in range(m):
+            beta[i] = max(beta[i] - 2.0 * rq[i] * tau[i] + rq[i] * rq[i] * beta_r, 1e-12)
+        beta[r] = max(beta_r / (aq[r] * aq[r]), 1e-12)
+        at_upper[p] = delta[r] > 0
+        is_basic[p] = False
+        is_basic[q] = True
+        basic[r] = q
+        at_upper[q] = False
+        it += 1
+        since += 1
+        fresh = False
+        if since >= refactor_every:
+            Binv, beta = _factor_nb(Ap, Ai, Ax, n, m, basic)
+            _recompute_nb(Ap, Ai, Ax, n, m, work, lo, up, width, basic, is_basic, at_upper, Binv, d, xB, dual_tol)
+            since = 0
+            fresh = True
+    xfull = np.empty(N)
+    for j in range(N):
+        xfull[j] = up[j] if at_upper[j] else lo[j]
+    for r in range(m):
+        xfull[basic[r]] = xB[r]
+    y = d[n:].copy()
+    return status, xfull, y, it, stage, ray, Binv
+
+
+def _checked_inverse(F, basic, inverse, m):
+    """``inverse`` when it is the inverse of the basis matrix ``F[:, basic]``: one residual ``B (B^-1 v) - v`` on a
+    fixed vector, within 1e-9 relative. Otherwise None, and the solve factors the basis itself."""
+    if inverse is None or m == 0 or np.shape(inverse) != (m, m):
+        return None
+    v = 1.0 + np.arange(m) / m
+    w = np.asarray(inverse, dtype=float) @ v
+    res = np.asarray(F[:, basic] @ w).ravel() - v
+    if not np.all(np.isfinite(res)) or np.max(np.abs(res)) > 1e-9 * (1.0 + np.max(np.abs(w))):
+        return None
+    return np.array(inverse, dtype=float)
+
+
+def _solve_compiled(c, A, rl, ru, l, u, lo, up, cost, basic, at_upper, warm, cap, cutoff, repaired):
+    m, n = A.shape
+    A = A.tocsc()
+    A.sort_indices()
+    status, xfull, y, it, stage, ray, Binv = _kernel(
+        A.indptr.astype(np.int64), A.indices.astype(np.int64), A.data.astype(float), n, m, cost, lo, up, basic,
+        at_upper, cap, cutoff is not None, float(cutoff) if cutoff is not None else 0.0,
+        np.ascontiguousarray(warm if warm is not None else np.zeros((m, m))), warm is not None, PRIMAL_TOL,
+        PRIMAL_REL_TOL, DUAL_TOL, PIVOT_TOL, ZERO_TOL, REFACTOR_EVERY, PIVOT_CHECK_TOL, STALL_AFTER, PERTURB_ABS,
+        PERTURB_REL, INFEASIBILITY_MARGIN)
+    status = ("optimal", "iteration_limit", "infeasible", "cutoff")[status]
+    x = xfull[:n].copy()
+    bound = np.inf if status == "infeasible" else lagrangian_bound(c, A, rl, ru, l, u, y)
+    return BoxedLPResult(status=status, x=x, row_activity=np.asarray(A @ x).ravel(), y=y, d=c - A.T @ y,
+                         objective=float(c @ x), bound=bound, iterations=int(it),
+                         basis=BoxedBasis(basic.copy(), at_upper.copy(), Binv), basis_repaired=bool(repaired),
+                         degeneracy_stage=("none", "perturbed", "restored", "bland")[stage],
+                         ray=ray if status == "infeasible" else None, engine="numba",
+                         warm_inverse_used=warm is not None)
+
+
 def solve_boxed_lp(c, A, rl, ru, l, u, *, basis: Optional[BoxedBasis] = None,
-                   max_iterations: Optional[int] = None, cutoff: Optional[float] = None) -> BoxedLPResult:
+                   max_iterations: Optional[int] = None, cutoff: Optional[float] = None,
+                   engine: Optional[str] = None) -> BoxedLPResult:
     """Minimise ``c'x`` subject to ``rl <= A x <= ru`` and ``l <= x <= u``, every bound finite, by the dual simplex
     of the module docstring, from ``basis`` when given (else the slack basis) and for at most ``max_iterations``
     basis changes (None: ``100 * (m + n) + 1000``, a cap on a solve that should never reach it). With ``cutoff``,
@@ -238,9 +621,20 @@ def solve_boxed_lp(c, A, rl, ru, l, u, *, basis: Optional[BoxedBasis] = None,
     Computation, 2nd ed., Lemma 8.3.4, p. 216: the dual objective does not decrease): a branch whose bound reaches the
     incumbent is pruned without solving its LP to the end.
 
+    ``engine`` (``DEFAULT_ENGINE`` when None) is ``"numba"``, the compiled kernel, ``"numpy"``, the reference, or
+    ``"auto"``, the kernel when numba is installed. The two run the same algorithm and are tested against each other
+    and HiGHS; the kernel updates its vectors incrementally where the reference recomputes them, so their iteration
+    counts can differ on ties. A ``basis`` carrying the inverse of its basis matrix for this LP's matrix (one from a
+    solve of an LP with the same rows and columns and other bounds) starts without a factorization.
+
     Raises :class:`MlsynthConfigError` for a non-finite bound, a shape mismatch, a negative iteration limit, a cutoff
-    that is not a number or a malformed basis, and :class:`MlsynthDataError` for non-finite costs or coefficients or
-    crossed bounds."""
+    that is not a number, an unknown engine, ``engine="numba"`` without numba or a malformed basis, and
+    :class:`MlsynthDataError` for non-finite costs or coefficients or crossed bounds."""
+    engine = DEFAULT_ENGINE if engine is None else engine
+    if engine not in ("auto", "numpy", "numba"):
+        raise MlsynthConfigError(f"engine must be 'auto', 'numpy' or 'numba'; got {engine!r}.")
+    if engine == "numba" and not _NUMBA:
+        raise MlsynthConfigError("engine='numba' needs numba (the optional 'fast' extra), which is not installed.")
     if cutoff is not None and (isinstance(cutoff, bool) or not isinstance(cutoff, (int, float, np.floating, np.integer))
                                or math.isnan(float(cutoff))):
         raise MlsynthConfigError(f"cutoff must be a number or None; got {cutoff!r}.")
@@ -256,12 +650,19 @@ def solve_boxed_lp(c, A, rl, ru, l, u, *, basis: Optional[BoxedBasis] = None,
     cap = 100 * (m + n) + 1000 if max_iterations is None else int(max_iterations)
 
     repaired = False
+    warm = None
     if basis is None:
         basic = n + np.arange(m, dtype=np.int64)
         at_upper = np.zeros(N, dtype=bool)
     else:
-        basic, repaired = _repair(F, np.asarray(basis.basic, dtype=np.int64), n, m)
+        basic = np.asarray(basis.basic, dtype=np.int64).copy()
+        warm = _checked_inverse(F, basic, basis.inverse, m)
+        if warm is None:
+            basic, repaired = _repair(F, basic, n, m)
         at_upper = np.asarray(basis.at_upper, dtype=bool).copy()
+    if engine == "numba" or (engine == "auto" and _NUMBA):
+        return _solve_compiled(c, A, rl, ru, l, u, lo, up, cost, np.asarray(basic, dtype=np.int64).copy(),
+                               at_upper.astype(np.bool_), warm, cap, cutoff, repaired)
     is_basic = np.zeros(N, dtype=bool)
     is_basic[basic] = True
 
@@ -269,7 +670,10 @@ def solve_boxed_lp(c, A, rl, ru, l, u, *, basis: Optional[BoxedBasis] = None,
         Binv = np.linalg.inv(F[:, basic].toarray()) if m else np.zeros((0, 0))
         return Binv, np.einsum("ij,ij->i", Binv, Binv)               # exact DSE weights: squared row norms
 
-    Binv, beta = factor()
+    if warm is not None:
+        Binv, beta = warm, np.einsum("ij,ij->i", warm, warm)
+    else:
+        Binv, beta = factor()
     since = 0
     iterations = 0
     status = "iteration_limit"
@@ -401,5 +805,6 @@ def solve_boxed_lp(c, A, rl, ru, l, u, *, basis: Optional[BoxedBasis] = None,
     bound = np.inf if status == "infeasible" else lagrangian_bound(c, A, rl, ru, l, u, y)
     return BoxedLPResult(status=status, x=x, row_activity=np.asarray(A @ x).ravel(), y=y, d=c - A.T @ y,
                          objective=float(c @ x), bound=bound, iterations=iterations,
-                         basis=BoxedBasis(basic.copy(), at_upper.copy()), basis_repaired=bool(repaired),
-                         degeneracy_stage=("none", "perturbed", "restored", "bland")[stage], ray=ray)
+                         basis=BoxedBasis(basic.copy(), at_upper.copy(), Binv.copy()), basis_repaired=bool(repaired),
+                         degeneracy_stage=("none", "perturbed", "restored", "bland")[stage], ray=ray,
+                         engine="numpy", warm_inverse_used=warm is not None)
