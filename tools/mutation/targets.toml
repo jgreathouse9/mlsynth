@@ -21751,3 +21751,111 @@ timeout = 600.0
   find = "        if col not in df.columns:"
   replace = "        if False:"
   models = "an absent column surfacing as pandas' KeyError, not MSQRT's error"
+
+[[target]]
+name = "rmsi-dataprep"
+module-path = "mlsynth/utils/rmsi_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_rmsi_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    N = keys.n_units"
+  replace = "    keys = None\n    N = df[unitid].nunique()"
+  models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-not-transposed"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float))"
+  models = "dataprep's period-by-unit matrix used as RMSI's unit-by-period Y"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-column-major"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = prep.Ywide[unit_names].to_numpy(dtype=float).T"
+  models = "Y in Fortran order, so the imputation's sums differ from main in the last bits"
+
+  [[target.mutant]]
+  id = "units-in-another-order"
+  find = "    unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    unit_names = sorted(np.asarray(prep.Ywide.columns), reverse=True)"
+  models = "rows of Y, D and X in a different order from the unit labels the results report"
+
+  [[target.mutant]]
+  id = "unit-labels-change-type"
+  find = "    unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    unit_names = sorted(prep.Ywide.columns)"
+  models = "integer unit labels returned as Python ints where the old setup returned NumPy integers"
+
+  [[target.mutant]]
+  id = "period-labels-change-type"
+  find = "    time_labels = np.array(list(prep.time_labels))"
+  replace = "    time_labels = np.asarray(prep.time_labels)"
+  models = "datetime periods returned as datetime64 and string periods as objects, unlike the old labels"
+
+  [[target.mutant]]
+  id = "the-treatment-matrix-is-float"
+  find = "    D = np.zeros((N, T), dtype=int)"
+  replace = "    D = np.zeros((N, T), dtype=float)"
+  models = "D returned as floats where the old setup returned integers"
+
+  [[target.mutant]]
+  id = "adoption-one-period-late"
+  find = "            D[i, starts[name]:] = 1"
+  replace = "            D[i, starts[name] + 1:] = 1"
+  models = "an off-by-one between dataprep's pre-period count and RMSI's treatment matrix"
+
+  [[target.mutant]]
+  id = "a-single-treated-unit-reads-its-post-count"
+  find = "        return {prep.treated_unit_name: int(prep.pre_periods)}"
+  replace = "        return {prep.treated_unit_name: int(prep.post_periods)}"
+  models = "the single-treated branch reading the wrong side of dataprep's period split"
+
+  [[target.mutant]]
+  id = "only-the-first-cohort-is-treated"
+  find = "            for cohort in prep.cohorts.values() for unit in cohort.treated_units}"
+  replace = "            for cohort in list(prep.cohorts.values())[:1] for unit in cohort.treated_units}"
+  models = "a later cohort fitted as never-treated controls, so staggered adoption passes the block check"
+
+  [[target.mutant]]
+  id = "staggered-adoption-is-accepted"
+  find = "    if len(set(starts.values())) > 1:"
+  replace = "    if False:"
+  models = "the block-design check lost, so the missing cells are not one rectangular block"
+
+  [[target.mutant]]
+  id = "a-block-in-the-first-period-is-accepted"
+  find = "    if T0 == 0:"
+  replace = "    if False:"
+  models = "dataprep's cohort path, which does not refuse treatment in the first period, left unguarded"
+
+  [[target.mutant]]
+  id = "one-pre-period-is-accepted"
+  find = "    if T0 < 2:"
+  replace = "    if T0 < 1:"
+  models = "RMSI's own minimum of two pre-treatment periods lost behind dataprep"
+
+  [[target.mutant]]
+  id = "two-units-are-accepted"
+  find = "    if N < 3:"
+  replace = "    if N < 2:"
+  models = "RMSI's minimum of three units lost behind dataprep"
+
+  [[target.mutant]]
+  id = "one-control-is-accepted"
+  find = "    if control_idx.size < 2:"
+  replace = "    if control_idx.size < 1:"
+  models = "RMSI's minimum of two never-treated controls lost behind dataprep's minimum of one"
+
+  [[target.mutant]]
+  id = "a-missing-treatment-cell-is-read-as-untreated"
+  find = "    if df[treat].isna().any():"
+  replace = "    if False:"
+  models = "dataprep's binary check skipping NaN, so a missing treatment cell enters D as 0"
+
+  [[target.mutant]]
+  id = "period-covariates-read-at-another-order"
+  find = "            df.groupby(time, observed=True)[c].mean().loc[time_labels].to_numpy(dtype=float)"
+  replace = "            df.groupby(time, observed=True)[c].mean().loc[time_labels[::-1]].to_numpy(dtype=float)"
+  models = "rows of Z out of step with the period axis dataprep returned"
