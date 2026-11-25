@@ -81,7 +81,12 @@ def rolldid_setup(
     prep = dataprep(df, unit_id, time_id, outcome, treat, allow_no_donors=True,
                     keys=keys)
 
-    Ywide = prep.Ywide
+    # The pipeline's sums depend on the memory layout. This is the layout the
+    # old df.pivot gave under pandas 2.x (the version CI runs): column-major
+    # values, so each unit's series is contiguous. dataprep's matrix is
+    # row-major.
+    Ywide = pd.DataFrame(np.asfortranarray(prep.Ywide.to_numpy()),
+                         index=prep.Ywide.index, columns=prep.Ywide.columns)
     times = Ywide.index.to_numpy()
 
     # Per-unit cohort g = first period the indicator is on, in the panel's unit
