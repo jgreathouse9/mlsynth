@@ -17,10 +17,10 @@ work unchanged) plus a handful of paper-aligned knobs:
 * ``k_clusters`` and ``k_max`` for the silhouette-driven clustering step;
 * ``alpha`` and ``n_bayes_samples`` for the Bayesian credible band.
 
-Missing donor cells (NaN in ``donor_outcomes``) take the two-block PCR of
-Agarwal, Shah and Shen (JMLR 2025), Section 2.2, in :mod:`.missing`; with
-every cell observed that path is the complete-data one bit for bit, so the
-complete-data code below runs unchanged.
+Missing donor cells (NaN in ``donor_outcomes``) take the two-step PCR of
+Agarwal, Shah and Shen (JMLR 2025), Section 2.2, with a donor-mean fill, in
+:mod:`.missing`; with every cell observed that path is the complete-data one
+bit for bit, so the complete-data code below runs unchanged.
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ from .inference import shen_inference
 from .missing import (
     check_missing_supported,
     denoise_observed,
+    pre_period_means,
     refuse_empty_periods,
     rescale_observed,
     two_block_counterfactual,
@@ -121,12 +122,14 @@ def run_pcr(
     time_labels : sequence, optional
         Length-``T`` period labels, used to name a period in an error.
 
-    Missing donor cells (NaN) are handled by the two-block PCR of Agarwal,
-    Shah and Shen (JMLR 2025, Section 2.2; :mod:`.missing`) on the
+    Missing donor cells (NaN) are handled by the two-step PCR of Agarwal,
+    Shah and Shen (JMLR 2025, Section 2.2), with each donor centred at its
+    observed mean before the rescaling (:mod:`.missing`), on the
     frequentist OLS path without clustering, projection through the
     de-noised matrix, or Shen / scpi inference; other options raise
     :class:`~mlsynth.exceptions.MlsynthDataError`. A missing treated
-    cell, and a period with no observed donor, are refused.
+    cell, a period with no observed donor and a donor with no observed
+    pre-period cell are refused.
 
     Returns
     -------
@@ -247,10 +250,11 @@ def run_pcr(
     effective_rank_method = "fixed" if rank is not None else rank_method
     if has_missing:
         # Agarwal, Shah and Shen (2025), Step I: the rank rule and the
-        # truncation both read Z-tilde, the zero-filled block over rho-hat.
-        # Clustering is refused with missing cells, so selected_full is the
-        # whole pool.
-        z_tilde, _ = rescale_observed(pre_donors, observed[:T0])
+        # truncation both read Z-tilde, the block filled at the donor means
+        # and rescaled by rho-hat. Clustering is refused with missing cells,
+        # so selected_full is the whole pool.
+        pre_means = pre_period_means(pre_donors, observed[:T0], selected_names)
+        z_tilde, _ = rescale_observed(pre_donors, observed[:T0], pre_means)
         r = select_rank(
             z_tilde,
             method=effective_rank_method,
@@ -258,7 +262,8 @@ def run_pcr(
             r=rank,
             standardize=standardize_for_rank,
         )
-        observed_fit = denoise_observed(pre_donors, observed[:T0], r)
+        observed_fit = denoise_observed(pre_donors, observed[:T0], r,
+                                        selected_names)
         denoised_pre = observed_fit.M_hat
     else:
         r = select_rank(
@@ -307,10 +312,11 @@ def run_pcr(
                 donor_names=selected_names,
             )
         if has_missing:
-            # Step II at full rank on the post block, with its own rho-hat';
-            # the in-sample fit Z-tilde @ f_hat on the pre block.
-            counterfactual, p_hat_post = two_block_counterfactual(
-                selected_full, observed, T0, f_hat,
+            # Step II at full rank on the post block, with its own rho-hat'
+            # and post-period means; the in-sample fit Z-tilde @ f_hat on the
+            # pre block.
+            counterfactual, p_hat_post, n_fallback = two_block_counterfactual(
+                selected_full, observed, T0, f_hat, observed_fit.means,
             )
         else:
             counterfactual = projection_full @ f_hat
@@ -385,6 +391,8 @@ def run_pcr(
     if has_missing:
         metadata["missing_p_hat"] = float(observed_fit.p_hat)
         metadata["missing_p_hat_post"] = float(p_hat_post)
+        metadata["missing_fill"] = "donor_mean"
+        metadata["missing_post_mean_fallbacks"] = int(n_fallback)
         metadata["missing_donor_cells"] = int((~observed).sum())
     if shen_obj is not None:
         metadata["shen_inference"] = shen_obj
