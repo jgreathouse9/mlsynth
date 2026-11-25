@@ -23326,3 +23326,75 @@ timeout = 900.0
   find = "        \"missing_outcome_cells\": int(((mask == 0) & (D == 0)).sum()),"
   replace = "        \"missing_outcome_cells\": int((mask == 0).sum()),"
   models = "the missing-cell count conflated with the treated cells MC-NNM imputes by design"
+
+[[target]]
+name = "dscar-missing-keep"
+module-path = "mlsynth/utils/dscar_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_dscar_dataprep.py -q -p no:cacheprovider -x -W ignore -k 'not planted and not beijing_fit'"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-outcome-opt-in-is-dropped"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, keys=keys,\n                    missing_outcomes=\"keep\")"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat, keys=keys,\n                    missing_outcomes=\"refuse\")"
+  models = "a missing outcome cell refused, so the Beijing panels no longer fit although DSCAR matches on complete cases"
+
+  [[target.mutant]]
+  id = "the-covariate-opt-in-is-dropped"
+  find = "        prep = dataprep(df, unitid, time, column, treat, keys=keys,\n                        missing_outcomes=\"keep\")"
+  replace = "        prep = dataprep(df, unitid, time, column, treat, keys=keys,\n                        missing_outcomes=\"refuse\")"
+  models = "a missing covariate or lag value refused, so the red-alert panel no longer fits"
+
+  [[target.mutant]]
+  id = "missing-cells-read-as-zero"
+  find = "    return prep.Ywide.reindex(columns=unit_order).sort_index().to_numpy(dtype=float).T"
+  replace = "    return prep.Ywide.reindex(columns=unit_order).sort_index().fillna(0.0).to_numpy(dtype=float).T"
+  models = "a missing cell handed to the complete-case match as a zero, so the donor stays in that period's match"
+
+  [[target.mutant]]
+  id = "the-old-layout-is-lost"
+  find = "    return prep.Ywide.reindex(columns=unit_order).sort_index().to_numpy(dtype=float).T"
+  replace = "    return np.ascontiguousarray(prep.Ywide.reindex(columns=unit_order).sort_index().to_numpy(dtype=float).T)"
+  models = "the outcome matrix in a fixed row-major layout, which moves the orange-alert ATT by about 1e-6 on pandas 3"
+
+  [[target.mutant]]
+  id = "dscar-treated-post-cell-not-refused"
+  find = "    _refuse_missing_treated_post(Y, n_treated, T0, treated_labels, time_labels, outcome)\n"
+  replace = "    pass\n"
+  models = "a missing treated post-treatment outcome passed on, so the treated mean and the ATT come out NaN"
+
+  [[target.mutant]]
+  id = "the-treated-post-rule-reads-one-unit"
+  find = "    bad = np.isnan(Y[:n_treated, T0:])"
+  replace = "    bad = np.isnan(Y[:1, T0:])"
+  models = "the rule read on the first treated unit only"
+
+  [[target.mutant]]
+  id = "the-treated-post-rule-skips-the-intervention-period"
+  find = "    bad = np.isnan(Y[:n_treated, T0:])"
+  replace = "    bad = np.isnan(Y[:n_treated, T0 + 1:])"
+  models = "an off-by-one that lets a missing outcome at the intervention period through"
+
+  [[target.mutant]]
+  id = "the-lag-is-read-at-the-last-period"
+  find = "                               unit_order, \"Lagged outcome\")[:, 0]"
+  replace = "                               unit_order, \"Lagged outcome\")[:, -1]"
+  models = "the first-period lag taken from the wrong row of the lag column"
+
+  [[target.mutant]]
+  id = "treated-units-in-numeric-order"
+  find = "    treated_labels = tuple(sorted((u for u in columns if u in starts), key=str))"
+  replace = "    treated_labels = tuple(sorted(u for u in columns if u in starts))"
+  models = "the treated block in a different unit order from the old setup's"
+
+  [[target.mutant]]
+  id = "staggered-adoption-accepted"
+  find = "    if len(set(starts.values())) > 1:"
+  replace = "    if False:"
+  models = "treated units with different intervention periods read at the first unit's period"
+
+  [[target.mutant]]
+  id = "every-unit-treated-accepted"
+  find = "    if not donor_labels:"
+  replace = "    if False:"
+  models = "a panel with no donor reaching the weight solver"
