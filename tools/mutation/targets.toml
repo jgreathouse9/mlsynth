@@ -22856,15 +22856,15 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "y-is-not-transposed"
-  find = "    Y = np.ascontiguousarray(wide.to_numpy(dtype=float)).T        # (N, T)"
+  find = "    Y = np.ascontiguousarray(wide.to_numpy(dtype=float).T)        # (N, T)"
   replace = "    Y = np.ascontiguousarray(wide.to_numpy(dtype=float))        # (N, T)"
   models = "dataprep's period-by-unit matrix used as MUSC's unit-by-period Y"
 
   [[target.mutant]]
-  id = "y-in-another-layout"
-  find = "    Y = np.ascontiguousarray(wide.to_numpy(dtype=float)).T        # (N, T)"
-  replace = "    Y = np.ascontiguousarray(wide.to_numpy(dtype=float).T)        # (N, T)"
-  models = "Y C-ordered where the old pivot's transpose was F-ordered, so the QP's sums move in the last bits"
+  id = "y-column-major"
+  find = "    Y = np.ascontiguousarray(wide.to_numpy(dtype=float).T)        # (N, T)"
+  replace = "    Y = wide.to_numpy(dtype=float).T        # (N, T)"
+  models = "a value-equal F-ordered Y where the old pivot's transpose was C-ordered under pandas 2, so the QP's sums move in the last bits"
 
   [[target.mutant]]
   id = "period-labels-change-type"
