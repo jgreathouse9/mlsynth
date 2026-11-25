@@ -23126,13 +23126,13 @@ timeout = 300.0
 [[target]]
 name = "snn-dataprep"
 module-path = "mlsynth/utils/snn_helpers/setup.py"
-test-command = "python -m pytest mlsynth/tests/test_snn_dataprep.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest mlsynth/tests/test_snn_dataprep.py mlsynth/tests/test_snn_missing_keep.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
   [[target.mutant]]
   id = "the-panel-is-not-balanced-first"
-  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)"
-  replace = "    prep = dataprep(df, unitid, time, outcome, treat)"
+  find = "    keys = balance(df, unitid, time)\n    prep = dataprep(df, unitid, time, outcome, treat, keys=keys,\n"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat,\n"
   models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
 
   [[target.mutant]]
@@ -23194,3 +23194,63 @@ timeout = 600.0
   find = "        if col not in df.columns:"
   replace = "        if False:"
   models = "an absent outcome, treatment, unit or time column surfacing as dataprep's error, not SNN's message naming the column"
+
+  [[target.mutant]]
+  id = "snn-missing-outcomes-refused"
+  find = "                    missing_outcomes=\"keep\")"
+  replace = "                    missing_outcomes=\"refuse\")"
+  models = "the opt-in dropped, so a panel with one missing outcome cell is refused although SNN imputes missing entries"
+
+  [[target.mutant]]
+  id = "snn-treated-post-cell-not-refused"
+  find = "    _refuse_missing_treated_post(~observed, D, unit_names, time_labels, outcome)\n"
+  replace = "    pass\n"
+  models = "a missing treated post-treatment outcome passed on, so its effect is undefined and drops out of the ATT"
+
+  [[target.mutant]]
+  id = "snn-treated-post-rule-checks-one-unit"
+  find = "    bad = (D > 0) & Y_nan"
+  replace = "    bad = (D[:1] > 0) & Y_nan[:1]"
+  models = "the treated post-treatment rule read on the first treated unit only, so a later cohort's missing treated cell passes"
+
+[[target]]
+name = "snn-missing-keep"
+module-path = "mlsynth/utils/snn_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_snn_missing_keep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-mask-is-not-passed"
+  find = "    X[(D > 0) | ~observed] = np.nan"
+  replace = "    X[D > 0] = np.nan"
+  models = "the completion reading the value stored in a missing cell instead of imputing it"
+
+  [[target.mutant]]
+  id = "missing-cells-read-as-zero"
+  find = "    X[(D > 0) | ~observed] = np.nan"
+  replace = "    X[~observed] = 0.0\n    X[D > 0] = np.nan"
+  models = "a missing outcome cell entering the anchor block as a zero"
+
+  [[target.mutant]]
+  id = "a-missing-untreated-cell-loses-its-imputation"
+  find = "    kept = observed & ~treated_cells"
+  replace = "    kept = ~treated_cells"
+  models = "the stored NaN copied over SNN's imputation of a missing untreated cell, so the counterfactual has holes"
+
+  [[target.mutant]]
+  id = "weights-fitted-on-the-first-missing-cell"
+  find = "            X, mask, int(i), column=int(np.argmax(inputs.D[i] > 0)),"
+  replace = "            X, mask, int(i), column=None,"
+  models = "the donor weights fitted on a missing pre-period cell's anchor block, so they do not reproduce the post-period counterfactual"
+
+  [[target.mutant]]
+  id = "the-jackknife-drops-the-mask"
+  find = "            Yk, Dk, observed[keep], n_neighbors=n_neighbors,"
+  replace = "            Yk, Dk, np.ones_like(Dk, dtype=bool), n_neighbors=n_neighbors,"
+  models = "the leave-one-control refits reading missing cells as values, so the jackknife SE moves with what is stored there"
+
+  [[target.mutant]]
+  id = "the-missing-count-is-a-flag"
+  find = "        \"missing_outcome_cells\": int((~inputs.observed).sum()),"
+  replace = "        \"missing_outcome_cells\": int((~inputs.observed).any()),"
+  models = "the metadata reporting whether a cell is missing instead of how many"
