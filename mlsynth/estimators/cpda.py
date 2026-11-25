@@ -38,7 +38,6 @@ from ..utils.cpda_helpers import (
     prepare_cpda_inputs,
     run_cpda,
 )
-from ..utils.datautils import balance
 
 
 class CPDA:
@@ -102,7 +101,6 @@ class CPDA:
             coefficients and the pre-period fit, with the slope, the selector,
             the kept donors and any sensitivity sweep on ``fit``.
         """
-        balance(self.df, self.unitid, self.time)
         inputs = prepare_cpda_inputs(
             self.df, unitid=self.unitid, time=self.time, outcome=self.outcome,
             treat=self.treat, covariates=self.config.covariates,
