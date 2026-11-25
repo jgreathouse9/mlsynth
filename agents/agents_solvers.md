@@ -7,7 +7,7 @@ written here (`utils/solvers/`, `utils/bilevel/`, a study's LP code) or called
 from a package (`cvxpy`, `scipy.optimize`). It exists so that "this tolerance is
 fine" becomes a claim with a citation and a test, not a matter of taste.
 
-Five books supply the rules:
+Eight books supply the rules:
 
 - Nocedal and Wright, *Numerical Optimization*, 2nd ed. (Springer, 2006), cited
   as NW with page numbers. Appendix A (floating point, conditioning, stability),
@@ -21,7 +21,17 @@ Five books supply the rules:
   B with page numbers. Section 2.2.2 (the least squares condition number,
   Theorem 2.2.6), Section 2.7.3 (least squares with linear inequality
   constraints, the least distance reduction, rank-deficient solutions),
-  Sections 1.4.6 and 2.3.8 (iterative refinement).
+  Sections 1.4.6 and 2.3.8 (iterative refinement). Also Section 2.2.1 (the
+  pseudoinverse solution and the effective condition number, pp. 229-232),
+  Section 2.2.3 (Eckart-Young-Mirsky, singular value interlacing, pp. 237-239),
+  Section 2.2.5 (principal angles computed from sines, pp. 243-244), Section
+  2.4.1 (numerical rank at the data's error level, pp. 291-292), Sections 2.4.2
+  and 2.3.8 (pivoted QR does not reveal rank; inverse iteration does,
+  pp. 285-286, 296), Section 2.4.6 (updating, and which direction loses rank,
+  pp. 305-311), Section 2.4.7 (stepwise regression, pp. 311-314), Section 2.6.1
+  (filter factors, GCV, L-curve, pp. 345-348), Section 2.7.2 (equality
+  constraints by elimination, pp. 368-369) and Section 4.5.6 (semiconvergence,
+  pp. 733-734).
 - Björck, *Numerical Methods for Least Squares Problems* (SIAM, 1996), cited as
   B96 with page numbers. The earlier and narrower book: Section 1.4.6 (the
   backward error of an approximate least squares solution, pp. 34-36), Sections
@@ -29,10 +39,56 @@ Five books supply the rules:
   Section 2.9.3 (iterative refinement in working precision, pp. 124-125),
   Section 5.1.5 (equality constraints imposed by a weight, pp. 192-194) and
   Section 5.2 (active set methods for inequality-constrained least squares,
-  pp. 196-203).
+  pp. 196-203). Also Section 1.4.2 (the pseudoinverse is continuous only where
+  the rank is, pp. 26-27), Section 2.7 (numerical rank, Tikhonov as a filter,
+  the representative of a rank-deficient problem, rank-revealing QR,
+  pp. 99-110), Sections 3.1-3.3 (modifying and downdating QR and Cholesky,
+  pp. 127-143), Section 4.6 (total least squares, pp. 176-180), Section 5.1.1
+  (uniqueness under equality constraints, p. 187), Section 5.3 (quadratic
+  constraints and GCV, pp. 203-213) and Section 7.7.2 (regularisation by
+  stopping an iteration, pp. 314-316).
 - Golub and Van Loan, *Matrix Computations*, 4th ed. (Johns Hopkins, 2013),
   cited as GvL with page numbers. Section 3.5.3 (mixed-precision iterative
-  improvement, Heuristic III, p. 140).
+  improvement, Heuristic III, p. 140). Also Sections 5.4.3-5.4.4 (the Kahan
+  matrix; pivoted QR as a heuristic rank indicator, pp. 279-280), Section 5.5
+  (the rank-deficient problem, pp. 288-294), Section 6.1.3 (column weighting
+  moves the rank estimate, pp. 306-307), Section 6.1.4 (ridge and its
+  leave-one-out identity, pp. 307-308), Section 6.2.3 (equality constraints by
+  a change of variables, pp. 315-316), Section 6.4.3 (principal angles,
+  p. 331) and Section 6.5 (updating, and hyperbolic downdating, pp. 334-345).
+- Yanai, Takeuchi and Takane, *Projection Matrices, Generalized Inverse
+  Matrices, and Singular Value Decomposition* (Springer, 2011), cited as YTT
+  with page numbers. Projectors and their inclusion (Theorems 2.11, 2.24, 2.25,
+  pp. 36-50), the g-inverse families and the minimiser set (Theorem 3.19 and
+  (3.89), p. 80), equality constraints by a null-space basis (Theorem 4.10,
+  p. 101), the Tikhonov inverse (4.123), p. 120, and the SVD forms of the
+  g-inverses (pp. 138-148).
+- Hastie, Tibshirani and Friedman, *The Elements of Statistical Learning*, 2nd
+  ed. (Springer, 2009), cited as ESL with page numbers. Ridge, PCR and the lasso
+  as filters (pp. 64-80), forward selection and its inference (pp. 57-60, 78-79),
+  and cross-validation of a multistep procedure (Sections 7.10-7.12,
+  pp. 241-255).
+- Bueno Cachadiña and Pérez Álvaro, *Matrix Methods in Data Analysis*
+  (Springer, Texts in Applied Mathematics 80, 2025), cited as BP with page
+  numbers. Pivoted QR and the rank-deficient solution set (pp. 407-410,
+  481-483), regularised and constrained least squares (pp. 489-491), QR
+  updating (pp. 424-428), the pseudoinverse as a ridge limit (pp. 842-843) and
+  rank from Gram eigenvalues (pp. 843-844).
+
+Two papers supply what the books leave to low-rank iterations:
+
+- Hastie, Mazumder, Lee and Zadeh (2015). Matrix completion and low-rank SVD
+  via fast alternating least squares. *Journal of Machine Learning Research*
+  16, 3367-3402. Cited as HMLZ with page and equation numbers: the
+  rank-restricted soft-thresholded SVD (Theorem 1, p. 3370), when a factored
+  problem equals the nuclear-norm problem (pp. 3369, 3383, 3385), the
+  stationarity condition (47), p. 3384, and the stopping measure (Theorem 4,
+  p. 3381).
+- Wang, Zhang, Li and Zhang (2025). High-dimensional low-rank matrix regression
+  with unknown latent structures. arXiv:2510.22106v1. Cited as WZLZ: an
+  estimator defined as the T-th iterate of scaled gradient descent, with local
+  convergence only (Algorithm 1 and Theorem 3.3, pp. 9-10), and a rank ratio
+  with an additive constant that is not scale invariant ((3.2), p. 12).
 
 A paper supplies the rules for proofs computed in floating point (17 to 27):
 
@@ -88,15 +144,19 @@ Status, as in `agents_unix.md`: binding means new code must follow it and
 existing code that breaks it is backlog (counted at the end); adopted means this
 file makes it a rule where it was not one.
 
+Numbers 11 to 16 belong to the testing refinements under "Testing a solver: the
+floor of rounding", which other files cite by number, so rules added after the
+verification block continue at 28.
+
 | # | Rule | Status | Book basis |
 | --- | --- | --- | --- |
 | 1 | Every outcome is explicit | binding (invariant 7) | NW p. 57, p. 370, p. 607 |
 | 2 | Optimality is certified on the original data | adopted | NW p. 370, pp. 381-382, p. 386; B96 pp. 34-36 |
-| 3 | Tolerances are relative to what they compare, with no floor | adopted | NW pp. 26-27, p. 131 |
+| 3 | Tolerances are relative to what they compare, with no floor | adopted | NW pp. 26-27, p. 131; GvL p. 331 |
 | 4 | A computed zero is a zero only to the rounding of its terms | adopted | R Lemma 6.45, Lemma 6.101 |
-| 5 | Do not difference what you can avoid differencing | adopted | NW p. 615; B96 pp. 50-51 |
-| 6 | Do not square the condition number; name rank deficiency | adopted | NW pp. 251-253, p. 610, p. 617; B p. 235, pp. 371-373; B96 p. 49, pp. 192-203 |
-| 7 | Iterations are safeguarded and end | adopted | NW p. 37, p. 61, p. 62 |
+| 5 | Do not difference what you can avoid differencing | adopted | NW p. 615; B96 pp. 50-51; B p. 244 |
+| 6 | Do not square the condition number; name rank deficiency | adopted | NW pp. 251-253, p. 610, p. 617; B p. 235, pp. 291-292, p. 296, pp. 371-373; B96 pp. 26-27, p. 49, pp. 99-107, pp. 192-203; GvL pp. 279, 288-292, 307; YTT p. 80; BP pp. 482-483, 843-844 |
+| 7 | Iterations are safeguarded and end | adopted | NW p. 37, p. 61, p. 62; HMLZ p. 3381, p. 3384 |
 | 8 | Repairs to a solver's output are reported | binding (invariant 7) | none; invariant 7 |
 | 9 | Form quantities so the failure mode is underflow | adopted | NW p. 616 |
 | 10 | Degeneracy: perturb to pivot, evaluate and certify on the original | adopted | NW pp. 381-382 |
@@ -111,6 +171,10 @@ file makes it a rule where it was not one.
 | 25 | Bounds in matrix form, by products of magnitudes | adopted | Rump (9.10)-(9.14), Algorithm 9.1, Tables 9.1-9.3, pp. 327-331 |
 | 26 | A relaxation's bound is postprocessed from any multipliers, never read from the solver | binding (rule 2) | Rump Section 14, Theorem 14.2, pp. 392-397 |
 | 27 | A directed bound is rounded in its own direction, and says which | adopted | Rump (4.1)-(4.3), Theorem 4.2, pp. 308-310 |
+| 28 | A rewrite is the solver's only if it keeps the set of minimisers | adopted | B96 p. 101, p. 187; BP pp. 489-491; YTT p. 80, p. 120; B p. 369; ESL p. 66 |
+| 29 | Regularisation is a filter, and its parameter is part of the estimand | adopted | B pp. 345-348, pp. 733-734; B96 pp. 101-102, pp. 211-213, pp. 314-316; ESL pp. 66-80; BP pp. 842-843 |
+| 30 | Remove a row with Q in hand, or refit; never downdate R alone | adopted | B96 pp. 129-143; B pp. 305-311; GvL pp. 335-340 |
+| 31 | Cross-validation contains every step that reads the outcome | adopted | ESL pp. 60, 231, 242, 245-248 |
 
 ## 1. Every outcome is explicit
 
@@ -208,6 +272,14 @@ the design and the weights by `10^k` (k from -8 to 8) and asserts the same
 answer, certified (`TestUnits` in `test_rrma_lp.py` and
 `test_rrma_pairfree_solver.py`).
 
+Place a tolerance on the quantity that is well conditioned at the boundary it
+tests. Two subspaces are nested when the sines of their principal angles are
+zero; a computed cosine `sigma >= 1 - delta` (GvL's "intelligently chosen small
+parameter delta", p. 331) bounds `sin^2` by `2 delta` only, so a cosine test at
+`delta = 1e-9` cannot see an angle below `sqrt(2e-9)`, about `4.5e-5` (derived).
+State subspace tolerances on `sin^2`, relative to the dimension the statistic
+sums over.
+
 ## 4. A computed zero is a zero only to the rounding of its terms
 
 One rounding errs by at most half a unit in the last place of its result (R
@@ -254,6 +326,17 @@ possible" (NW p. 615). In practice:
 - Centre before a sum whose weights sum to zero: `a'e = a'(e - c)` when
   `sum(a) = 0`.
 - Near a root, form `log(f / t)` as `log1p((f - t) / t)`, not `log f - log t`.
+- Measure a small angle by its sine, not by `sqrt(1 - cos^2)`. "Since small
+  angles theta_k are not well defined by cos theta_k, it is preferable to
+  compute sin theta_k more directly": the sines are the singular values of
+  `(I - P_F) Q_G` (B Definition 2.2.3 and the SVD after it, p. 244). GvL's
+  distance `sqrt(1 - cos(theta_p)^2)` (p. 331) differences two numbers equal to
+  about `u`. Measured (2026-11-25, `D1` in the reading notes): on nested
+  subspaces the sine route returns `1.1e-15` and the cosine route `3.3e-8`, the
+  `sqrt(2u)` floor; at a true angle of `1e-9` the cosine route returns 0. A
+  statistic `||(I - H) H'||_F^2` is the sum of squared sines (it equals
+  `rank(H') - tr(H H')`, YTT Theorem 2.24, p. 48), so it is computed from the
+  residual block, never from cosines.
 - Compute a small tail directly, not as `1 - (something near 1)`. The
   subtraction itself is exact for `1/2 <= p <= 2` (Sterbenz, R Corollary 4.16);
   the loss is in the stored operand, which in `[1/2, 1)` already errs by up to
@@ -308,13 +391,62 @@ have the idea sees it fail.
   error grows with the condition number (NW p. 617, A.32). Either estimate the
   condition number (from the triangular factor, NW p. 610) or let a certificate
   computed from the result (rule 2) measure it, and say which.
-- Rank is decided by the usual threshold, `max(n, p) eps` times the largest
-  singular value, measured against the size of the entries when the matrix has
-  been centred: a column of ones centres to noise near 1e-16, which a threshold
-  relative to the centred matrix alone counts as a direction.
-- A rank-deficient problem has a family of minimisers (NW p. 253). Name it,
-  choose a documented representative (the minimum-norm point of the face), and
-  report it (rule 1).
+- Rank is a decision about the data's error, and `max(n, p) eps` times the
+  largest singular value is only its floor. The numerical delta-rank counts
+  singular values above `delta`; with entry errors `|e_ij| <= e`, "an
+  appropriate choice is `delta = (mn)^(1/2) e`", and where the error sizes
+  differ widely the rows and columns are scaled first (B96 Definition 2.7.1,
+  pp. 99-100; B Definition 2.4.1, pp. 291-292). The rank is well determined
+  only across a gap: "There are matrices for which no gap exists for any k"
+  (B96 p. 100), and "overestimating the rank of A can lead to a computed
+  solution of very large norm" (p. 99). A rounding-level cutoff counts noise
+  directions as signal. NumPy's defaults are all rounding-level: `pinv` cuts at
+  `1e-15` times the largest singular value unless `rcond` or `rtol` is passed,
+  `lstsq(rcond=None)` and `matrix_rank` at `max(m, n) eps` (NumPy 2.5 source).
+  A cutoff passed to them is the rank decision and is reported with the result.
+- The rounding floor is measured against the size of the entries when the
+  matrix has been centred: a column of ones centres to noise near 1e-16, which
+  a threshold relative to the centred matrix alone counts as a direction.
+- Column scaling moves the rank. "Column weighting affects singular values.
+  Consequently, a scheme for determining numerical rank may not return the same
+  estimate when applied to A and AG^-1" (GvL p. 307). One donor scaled by
+  `1e8` turns NumPy's default rank 5 into 4 on the same column space (measured,
+  2026-11-25). So the rank is decided on the matrix whose minimiser is reported,
+  after its scaling and centring are fixed; a rank chosen on one matrix and
+  applied to another (a standardised matrix for the rule, the raw one for the
+  truncation) is a modelling choice and is reported as one (backlog).
+- The diagonal of a pivoted QR is not a rank certificate. `|r_nn|` bounds
+  `sigma_n` from above only, and Kahan's matrix has `sigma_n = 0.368e-8` with
+  `r_nn = 0.133` (B96 Example 2.7.1, p. 105; GvL p. 279; B Example 2.4.2,
+  p. 296). Decide rank from singular values, or certify a pivoted QR by one or
+  two steps of inverse iteration on `R'R`, about `2 n^2` flops (B (2.3.83)-
+  (2.3.84), pp. 285-286), or by Chan's ordering, `|r_nn| <= sqrt(n)
+  sigma_min` (GvL Theorem 5.4.1, pp. 279-280). Rank read from eigenvalues of
+  `A'A` loses everything below about `sqrt(eps)` times the largest singular
+  value (BP Example 48.10, pp. 843-844).
+- The pseudoinverse is continuous only where the rank is: if `rank(A + E) !=
+  rank(A)`, `||(A + E)^+ - A^+||` can be `1/||E||` (B96 Theorem 1.4.1 and
+  Corollary 1.4.1, pp. 26-27; GvL p. 290: "not even a continuous function of
+  the data"). Refits on perturbed data (placebo, conformal, leave-one-out)
+  compare each refit's rank with the full fit's and report a change.
+- A rank-deficient problem has a family of minimisers (NW p. 253): every
+  minimiser is `A^+ b + (I - A^+ A) z`, the fitted values `A x` are the same for
+  all of them, and only the component in `Ker(A)` is free (YTT (3.89), p. 80;
+  BP Theorem 32.13, p. 481). Name the family and choose the representative in
+  the specification, not in the solver: the minimum-norm point `A^+ b` (what
+  `pinv` and `gelsd` return; GvL Theorem 5.5.1, p. 289), a basic solution with
+  at most `r` nonzeros (what pivoted QR and `gelsy` return, "not the minimal
+  2-norm solution unless the submatrix R12 is zero", GvL p. 292; BP p. 482), or
+  the minimiser of `||B x||` for a stated `B`, since minimum norm "is not
+  always a good way to resolve rank deficiency" (B96 p. 107). Report which, and
+  the rank (rule 1). A small ridge reaches the minimum-norm point only in the
+  limit (rule 28).
+
+Test pattern: on a design with more donors than periods, `pinv`, `gelsd`,
+`gelsy` and a ridge of `1e-8` return the same fit and different weights; the
+spec's representative is the one returned, and the result names it. A
+`hypothesis` property scales one column by `10^k` and asserts the reported rank
+is the one the spec's rule gives on the scaled matrix, not the default's.
 
 What it looked like. RRMA's Algorithm 1 on the Basque data puts 10 donors in one
 group at `m = 6` and fits it on GWCV windows of 10 to 19 pre-periods; on the
@@ -335,6 +467,9 @@ the problem costs from what the method costs.
   ||y||))`, and the fitted values' is about `kappa(E)` (B Theorem 2.2.6, p. 235,
   (2.2.29)-(2.2.31)). With a nonzero residual the weights carry a
   `kappa^2`-sized term that no algorithm removes; the fitted values do not.
+  The estimate overstates the true condition number by at most `sqrt(2)`
+  (Malyshev, B p. 235), and only the singular values whose left singular
+  vectors meet the target enter it (the effective condition number, B p. 230).
   Certify what the caller needs on the scale its condition allows: a check on
   `y` at `1e-7` is out of reach once `kappa^2 ||r|| / ||y||` times `eps` passes
   it, while the same point's fit and loss may still be accurate to `kappa eps`.
@@ -406,6 +541,15 @@ solve a simplex problem, Lawson and Hanson's method of weighting (B96 Section
 - `gamma` is sized by the variation of the data, not their level (rule 5), and
   closing the remaining `O(gamma^-2)` gap by renormalising is a repair (rule 8):
   allowed within the tolerance a certificate has checked, reported beyond it.
+- Elimination is exact and is the books' first choice: "The most efficient way
+  to solve problem LSE is to derive an equivalent unconstrained least squares
+  problem of lower dimension" (B p. 369; GvL Algorithm 6.2.2, p. 316; YTT
+  Theorem 4.10, p. 101). For `1'w = 1`, write `w = 1/J + Z v` with `Z` an
+  orthonormal basis of `{1'd = 0}`, as `utils/weights/solve.py` `_affine` does.
+  The minimiser is unique if and only if `Ker(B)` and `Ker(1')` meet only in 0
+  (B96 (5.1.2)-(5.1.3), p. 187), that is, `[B; 1']` has full column rank (BP
+  Theorem 33.6(b), p. 491), that is, `B Z` has full column rank. A design with
+  `B 1 = 0` is rank deficient and still has a unique sum-to-one minimiser.
 
 What it looked like. CTSC's `_simplex_ls` (`utils/ctsc_helpers/estimate.py`)
 sets `gamma = 1e3` times the root mean square of the donors, level included,
@@ -469,8 +613,33 @@ costs about a quarter on the diagonal class (California's fit 0.22 s to 0.28 s).
   `q = 1.7e-305` its exponent errs by 702 eps, the computed bound landed above
   the root, and the iteration converged onto the wrong end.
 
+- Stop on a certificate where the problem has one, and report it. A
+  convergence test on the size of a step says the iteration slowed down, not
+  that it arrived. Nuclear-norm completion has an exact one: `Z` solves the
+  problem if and only if `Z = S_lambda(P_O X + P_O^perp Z)`, the soft-thresholded
+  SVD of the data filled with `Z`'s own entries (HMLZ (47), p. 3384, with
+  Theorem 1, p. 3370; derived), and the paper's step measure goes to zero at
+  rate `1/K` (Theorem 4, (39), p. 3381). A factored or nonconvex solver's
+  stationary point need not solve the convex problem (HMLZ p. 3383), so its
+  answer passes the convex certificate before it is called an optimum.
+- An iteration whose answer depends on where it stops is an estimator with the
+  stopping index as a parameter (rule 29). A step or gradient test with a cap
+  is a convergence test; the cap reached is an outcome (rule 1), and the
+  iteration count, the test that stopped it and the certificate residual are
+  fields on the result.
+
 Test pattern: count evaluations over a grid and bound the worst; corrupt the
-derivative (multiply it by 1000) and assert convergence to the right root.
+derivative (multiply it by 1000) and assert convergence to the right root. For a
+fixed-point iteration, assert that the reported certificate residual is the one
+recomputed from the returned point on the caller's data, and that a run capped
+at two iterations reports the cap.
+
+What it looked like. MC-NNM stops when `||L - L_prev|| / ||L_prev||` falls
+below `1e-5`, with a cap of 400 and no flag (`utils/mcnnm_helpers/completion.py`).
+On 8 synthetic panels (2026-11-25) the default stop left a fixed-point residual
+of `6.7e-7` to `8.5e-6` and an ATT `1.4e-6` to `1.2e-3` (relative) from a
+`1e-12` stop; the cap was not reached, and the result could not have said so if
+it had.
 
 ## 8. Repairs to a solver's output are reported
 
@@ -909,6 +1078,169 @@ reveal an error" (Rump p. 300). The test is the enclosure, not the value.
 
 ---
 
+# Least squares weight problems: layers, filters, refits (28 to 31)
+
+Rules 1 to 10 make one solve accurate and its outcome explicit. Rules 28 to 31
+cover what sits around a least squares weight fit: which transformations belong
+to the solver and which change the estimator, how a regularisation parameter is
+carried, how a fit is refitted after a row leaves, and what a cross-validated
+error measures. They were extracted from a reading of B, B96, GvL, YTT, ESL,
+BP, HMLZ and WZLZ done for the single least squares front door (#1065).
+
+## 28. A rewrite is the solver's only if it keeps the set of minimisers
+
+A weight fit has three layers: the design (which matrix and target go in: rows
+kept, truncation, filling, centring, scaling), the problem (objective and
+feasible set), and the solver (how a minimiser is found and certified). A
+transformation belongs to the solver when the transformed problem has the same
+minimisers as the stated one; otherwise it is a modelling choice and lives in
+the specification and the result.
+
+- Stacking a ridge is a solver rewrite of the penalised problem:
+  `||b - Ax||^2 + lambda ||x||^2 = ||[b; 0] - [A; sqrt(lambda) I] x||^2` for
+  every `x`, so the two have the same unique minimiser and the stacked matrix
+  has full column rank (B96 p. 101; BP Theorem 33.4 and (33.5), pp. 489-490).
+  The ridge itself is a problem choice: at every `lambda > 0` its minimiser
+  differs from every unpenalised minimiser and its fitted values
+  `U diag(sigma^2 / (sigma^2 + lambda)) U'b` differ from `P_A b` (YTT (4.123),
+  p. 120; ESL (3.47), p. 66). It tends to the minimum-norm point only as
+  `lambda -> 0` (BP Theorem 48.9, pp. 842-843). A tiny ridge added "to make the
+  Gram invertible" therefore changes the problem and names no representative.
+- Eliminating an equality constraint through a null-space basis is a change of
+  variables and keeps the minimisers (B p. 369; YTT p. 101). Centring away an
+  unpenalised common level keeps them (B96 pp. 50-51, rule 5). Centring or
+  scaling before a truncation, a ridge or a rank rule does not: principal
+  components "depend on the scaling of the inputs" (ESL p. 79), and PCA is
+  defined on the centred matrix (BP pp. 868-870).
+- Truncating singular values, filling missing cells, and stopping an iteration
+  early change the minimisers (rule 29).
+
+The post-period counterfactual inherits the face. The minimisers are
+`A^+ b + Ker(A)` (YTT (3.89), p. 80), so `B_post w` is the same for every
+minimiser if and only if `B_post` annihilates `Ker(B_pre)`, that is, every row
+of `B_post` lies in the row space of `B_pre` (derived; the subspace inclusion
+of #1156). On the sum-to-one set the face is unique if and only if `[B; 1']`
+has full column rank (rule 6's equality bullet). `WeightSolution.unique` and
+`WeightSolution.identifies(B_post)` (`utils/weights/solution.py`) implement
+both tests; their null space is taken at the rounding floor, and rule 6 says
+where the decision belongs.
+
+Failure it prevents: two code paths that state the same problem and return
+different counterfactuals because one used `pinv`, one `lstsq` and one a Gram
+plus `1e-8 I`, none of which named its tie-break. Measured (2026-11-25): stacked
+`lstsq` and the SVD ridge agree to `1.7e-15` at `lambda = 1`; the ridge and the
+minimum-norm point differ by `0.15` at `lambda = 1`, `2.3e-4` at `1e-3` and
+`2.3e-9` at `1e-8`.
+
+Test pattern: for each rewrite a solver performs, a `hypothesis` property that
+the original and rewritten objectives agree at random points (an identity of
+functions, not of answers). For a problem-layer choice, a test that the result
+records it. For the counterfactual, a design with post rows inside the pre row
+space (`identifies` true, counterfactual equal across representatives) and one
+with a generic post row (`identifies` false, counterfactuals differ).
+
+## 29. Regularisation is a filter, and its parameter is part of the estimand
+
+On the SVD of the design, every regulariser in use multiplies the component
+along `v_i` by a filter factor: 0 or 1 for truncation (PCR, hard singular value
+thresholding), `sigma_i^2 / (sigma_i^2 + mu^2)` for ridge and Tikhonov
+("called filter factors or, in statistical applications, shrinkage factors",
+B p. 346; B96 (2.7.9), p. 101; ESL p. 66 and p. 80), `(sigma_i - lambda)_+ /
+sigma_i` for nuclear-norm shrinkage (HMLZ Theorem 1, p. 3370), and soft
+thresholding for the lasso on an orthonormal design (ESL Table 3.4, p. 71). An
+iteration stopped early is one more: Landweber after `k` steps "is roughly
+similar to truncating the SVD expansion for sigma_i <= k^(-1/2)", and LSQR and
+CGLS share the semiconvergence (B p. 733); "it is essential to stop the
+iterations after the optimal number of steps" (B96 p. 316). PLS after `m` steps
+is the `m`-th conjugate gradient iterate (ESL p. 82).
+
+So the family, the parameter (`k`, `mu`, `lambda`, the iteration count) and the
+rule that chose it are fields on the result, and the default is documented as a
+choice. The rules are not interchangeable: the discrepancy principle needs the
+noise level; GCV needs none, "can have a very flat minimum" (B p. 347) and
+cancels for small `mu` (B96 p. 213); the L-curve corner is a heuristic (B96
+p. 102); cross-validation with the one-standard-error rule picks the simplest
+model within one standard error (ESL p. 244). A cumulative-variance threshold
+sums squared singular values; a sum of singular values is a different rule (BP
+uses both, pp. 855 and 869-870), and the result names which. A stopping index
+chosen to regularise is distinct from a convergence test (rule 7) and is
+reported as a parameter.
+
+Failure it prevents: an estimate that changes with an undocumented default (a
+`1e-5` step test, a `0.95` energy threshold) while the result reports the
+number as if it had none. The truncation error is computable and reported with
+the rank: `sigma_{k+1}` in the spectral norm and the tail sum of squares in the
+Frobenius norm (B Theorem 2.2.11, p. 239), unique only when `sigma_k >
+sigma_{k+1}` (BP p. 854).
+
+Test pattern: the parameter and its rule appear on the result; a mutant that
+changes the default threshold changes a reported field; for a truncation, the
+reported tail equals the discarded singular values of the matrix truncated.
+
+## 30. Remove a row with Q in hand, or refit; never downdate R alone
+
+Refit loops (leave-one-out, placebo, conformal, forward selection) change one
+row or column at a time. "Deleting a column and adding a row are 'easy'
+operations, whereas adding a column and deleting a row are more delicate ...
+the modified matrix may become rank deficient" (B96 p. 132; B p. 305). The
+rules:
+
+- Delete a row with the orthogonal factor available (B96 Section 3.2.6,
+  p. 137; BP Section 28.2.2, pp. 425-427), or refit from the data. Downdating a
+  Cholesky or `R` factor alone is at best backward stable for `R'R`, not for
+  the data, and can return `R = 0` without an error (B96 pp. 141-142); the
+  LINPACK downdate is the less stable variant (B p. 311); hyperbolic downdating
+  has "clearly numerical issues if |x1| is just slightly greater than |x2|"
+  (GvL p. 340).
+- In a sliding window, add the new row before deleting the old (B p. 306).
+- Sherman-Morrison and Woodbury updates of an inverse "will not always lead to
+  stable methods" (B96 p. 129). The recursive least squares deletion divides by
+  `1 - w'(A'A)^{-1} w`, one minus the deleted row's leverage (B96 (3.1.19),
+  p. 131; derived); a leverage near 1 is a rank drop (rule 6) and is reported,
+  not divided by.
+- Cost: with `Q` stored explicitly a rank-one QR update costs `O(m^2)` against
+  `O(m n^2)` for a refactorization, `O(m n)` with the Gram-Schmidt factor, "if
+  n is small updating may still be more expensive than computing the
+  decomposition from scratch" (B96 pp. 130, 133); an exact SVD update costs as
+  much as a new SVD (B96 p. 145). For linear smoothers the leave-one-out
+  residuals need no refit: `(y_i - yhat_i) / (1 - S_ii)` (ESL (7.51), p. 244;
+  GvL (6.1.16)-(6.1.17), p. 308), which does not apply to a simplex or L1 fit.
+
+Failure it prevents: a refit distribution built from factors that are not the
+factors of any nearby data, with no error raised. No code on `main` downdates;
+the rule binds the per-call work #1065 plans for refit loops.
+
+Test pattern: the downdated solution against a refit from the data on a case
+where the deleted row dominates (B96 Example 3.3.1), and a property over random
+designs that the two agree within the rule 13 tolerance for the refit's
+condition number.
+
+## 31. Cross-validation contains every step that reads the outcome
+
+"With a multistep modeling procedure, cross-validation must be applied to the
+entire sequence of modeling steps. In particular, samples must be 'left out'
+before any selection or filtering steps are applied" (ESL p. 245); screening on
+all samples gave a cross-validated error near 3 percent where the true error was
+50 percent (ESL pp. 245-246), and "the model must be completely retrained for
+each fold" (p. 247). Unsupervised steps (a rank rule on the donors alone) may
+precede the folds; a rank, penalty or donor choice that reads the treated
+unit's outcome may not.
+
+Three corollaries. Standard errors computed on a selected model "are not valid,
+since they do not account for the search process" (ESL p. 60). The complexity
+of a selected fit exceeds the count of what was selected: "by choosing the
+best-fitting model with d inputs, the effective number of parameters fit is
+more than d" (ESL p. 231), so a count is not a degrees-of-freedom in Cp, AIC,
+BIC or GCV. And a cross-validated error estimates the procedure's average error
+over training sets, not the error of the weights fitted to this panel (ESL
+p. 242, p. 254).
+
+Test pattern: assert that the selection function runs inside the fold loop (a
+counter, or a mutant that hoists it out and is killed by a null simulation
+whose cross-validated error then falls below its true error).
+
+---
+
 # Testing a solver: the floor of rounding
 
 The four levels and two instruments of `agents_tests.md` apply. These
@@ -965,6 +1297,21 @@ them are the rough check and over-count.
 | 1 | `solve_simplex_qp` callers asking for `converged` | 5 of 43 |
 | 8 | `np.clip(..., 0, None)` on solver output | 56, none reported |
 
+A second sweep, for rules 3, 6, 7 and 28 to 31, at commit `1b35b871`
+(2026-11-25), read the same way: grep, then every hit on an estimate or
+interval path read by hand.
+
+| Rule | Pattern | Count |
+| --- | --- | --- |
+| 6 | normal-equation solves, the sweep below, re-run | 25, plus 9 `pinv(X'X)` |
+| 6 | `pinv` with NumPy's default cutoff (`1e-15 sigma_1`) | 50 of 52; 1 decides a reported rank |
+| 6 | `lstsq(rcond=None)` with the rank discarded | 74 of 75 |
+| 28 | a tiny ridge added to a Gram as a rank fix | 11 |
+| 28, 29 | a rank chosen on one matrix and applied to another | 1 (shared by CLUSTERSC, SI, SNN) |
+| 1, 7 | iterations ending at a cap with no flag on the result | 3, plus 1 that reports only the count |
+| 3 | absolute thresholds in outcome or covariate units on an estimate or interval path | 4 |
+| 30 | QR or Cholesky downdating | 0 |
+
 Representative sites, for whoever takes the backlog:
 
 - Floors: `utils/solvers/simplex.py:274` (`prev - obj <= tol * max(1.0,
@@ -996,7 +1343,56 @@ Representative sites, for whoever takes the backlog:
   condition cap `COND_MAX = 1e4` that sat beside them is gone: each face fit is
   certified instead (rule 6, the Basque measurement).
 
+- Rank chosen on one matrix, truncation on another (rules 6, 28, 29):
+  `utils/pcr/rank.py` `select_rank` picks `k` on the column-standardised
+  (centred, scaled) donor matrix, and `utils/pcr/core.py` `hsvt` truncates the
+  raw one, whose first singular direction on level data is the level. On 300
+  synthetic panels (`T0 = 30`, `J = 40`, level 100, three factors) the raw
+  rank-`k` truncation's time space kept a median 95.3 percent (minimum 77.8)
+  of the factor signal, the centred matrix at the same `k` 99.9 percent
+  (minimum 98.9) (measured 2026-11-25).
+- Cap with no flag and a step test where a certificate exists (rules 1, 7):
+  `utils/mcnnm_helpers/completion.py` `mcnnm_fit` (cap 400, relative step
+  `1e-5`) and `_two_way_fe` (cap 100, absolute `1e-7`); the measurement is under
+  rule 7. `utils/clustersc_helpers/rpca/hqf.py:173` stops on an absolute RMSE
+  decrease of `1e-6` with a cap of 1000 reported only as `iterations`;
+  `utils/gsynth_helpers/ife.py:221` stops on an absolute `||delta beta||` and
+  reports `n_iterations` with no flag.
+- Absolute thresholds in data units (rule 3):
+  `utils/clustersc_helpers/pcr/inference.py` `_threshold` zeroes residual
+  entries below `1e-10` (a port of the reference `var.py`); the standard errors
+  divided by the data scale agree to six digits at scales 1 and `1e-6`, move by
+  13 percent at `1e-10` and are exactly zero at `1e-12` (measured
+  2026-11-25). `utils/gsynth_helpers/ife.py:203` drops a covariate whose
+  absolute sum is below `1e-5`.
+- Default `pinv` cutoff deciding a reported rank (rule 6):
+  `utils/clustersc_helpers/pcr/inference.py` computes
+  `R = round(trace(Y0 pinv(Y0)))` on the rank-`k` reconstruction. Its trailing
+  singular values were at most `1.9e-16 sigma_1` over 2,000 draws (`T0` 15 to
+  40, `J` 16 to 100) against the `1e-15` cutoff, and `R = k` held in 400 of 400
+  calls: safe at these sizes by a factor of five, and the rank is already known
+  from the SVD taken beside it.
+- Different representatives for a point and its placebo distribution (rules 6,
+  28): `utils/ssc_helpers/estimation.py` solves the point estimate by LU on the
+  Gram, falling back to `lstsq` only on an exact `LinAlgError`, and the placebo
+  draws by `pinv` of the same Gram. They part only when the Gram is singular,
+  which the paper's Assumption 2.1 excludes and `gram_min_eig` records.
+- Tiny ridges (rule 28): `utils/rrsc_helpers/pipeline.py:98` (`1e-8`,
+  absolute, on the fixed-N effect regression), `utils/fma_helpers/fit.py:67`
+  (`1e-10` times `max(mean diagonal, 1)`, a floored relative ridge, on the
+  counterfactual's normal equations), and nine more listed in the 2026-11-25
+  audit.
+
 Already right, and the models to copy:
+
+- `utils/weights/solve.py` `_affine` eliminates the sum-to-one row through a
+  null-space basis (rule 6's equality bullet), and `utils/weights/solution.py`
+  `unique` and `identifies(B_post)` are rule 28's uniqueness verdict and
+  inclusion test.
+- `utils/pda_helpers/fs/estimation.py` ranks forward-selection candidates by
+  Elden's criterion, the reduction in residual sum of squares from each
+  orthogonalised column (B pp. 312-313), and refits the near-tied leaders
+  exactly; refit loops elsewhere refit from the data (rule 30).
 
 - `benchmarks/studies/tbr_bnb/certificate.py`: `hull_bound_float`,
   `joint_bound_float` and `lambda_min_lower_float` verify in floating point with
@@ -1081,6 +1477,17 @@ grep -rnE "(solve|inv|cholesky)\([A-Za-z_]+\.T @" mlsynth/ --include=*.py | grep
   the postprocessed bound is proved.
 - No tolerance for the band where a float certificate defers to the exact one.
   Its width is the a priori error bound itself (rule 19), not a choice.
+- No value for a rank tolerance. B96 and B give its form, `delta = (mn)^(1/2)
+  e` with `e` the entries' error (rule 6), and `e` is the analyst's; GvL, YTT,
+  ESL and BP give none ("small enough", BP p. 410). No source here justifies a
+  cumulative-variance threshold for a truncation rank.
+- No complete theory for stopping a Krylov iteration as a regulariser: "a
+  complete understanding of the regularizing effect of Krylov subspace methods
+  is still lacking" (B96 p. 316). No global optimality for alternating least
+  squares: each block solve lowers the objective (GvL pp. 734-737; HMLZ
+  Theorem 3, p. 3379), and a limit point is stationary only (HMLZ Theorem 5,
+  p. 3382). WZLZ's estimator converges locally, from a start inside a ball set
+  by unknown constants (Theorem 3.3, pp. 9-10).
 
 Mark claims accordingly in docstrings and reviews: what a book or paper states
 (with the page or equation), what was measured (with the number), and what is
