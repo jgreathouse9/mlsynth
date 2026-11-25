@@ -63,6 +63,13 @@ T+S`, with potential outcomes :math:`y_{it}(-1) = \mu_{it} + e_{it}` and
 :math:`\sigma`, and :math:`\tau` is the treatment effect to be estimated. The
 estimand is the weighted average treatment effect on the treated (wATET).
 
+The long panel is read through :func:`mlsynth.utils.datautils.geoex_dataprep`,
+which refuses with ``MlsynthDataError`` a duplicate or absent unit-period and a
+missing or non-finite outcome in any period, pre- or post-treatment. The
+post-treatment periods ``post_col`` marks must be one block at the end of the
+panel, all pre-treatment periods first; any other pattern raises
+``MlsynthConfigError``.
+
 Throughout, :math:`\mathbf{1}` is the all-ones vector, :math:`\mathbf{I}` the
 identity, :math:`\operatorname{sgn}(\cdot)` the elementwise sign,
 :math:`\|\cdot\|_1` / :math:`\|\cdot\|_2` the :math:`\ell_1` / :math:`\ell_2`
