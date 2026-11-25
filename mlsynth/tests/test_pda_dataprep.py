@@ -31,6 +31,8 @@ from mlsynth.utils.pda_helpers.setup import prepare_pda_inputs
 from mlsynth.utils.pda_helpers.structures import PDAInputs
 
 COLS = dict(unitid="unit", time="time", outcome="y", treat="d")
+LAYOUT = {"y": "C_CONTIGUOUS", "X": "F_CONTIGUOUS"}
+PANDAS_2 = int(pd.__version__.split(".")[0]) < 3
 
 
 def _reference(df, unitid, time, outcome, treat):
@@ -72,8 +74,13 @@ def _assert_same(inputs, ref):
         assert got.dtype == np.float64, field
         assert got.shape == ref[field].shape, field
         np.testing.assert_array_equal(got, ref[field], err_msg=field)
-        # The solvers' sums depend on the layout, so it is kept too.
-        assert got.flags["C_CONTIGUOUS"] == ref[field].flags["C_CONTIGUOUS"], field
+        # The solvers' sums depend on the layout, so it is pinned too. The old
+        # pivot's layout depends on the pandas version; the arrays are pinned
+        # to what it gave under pandas 2.x, the version CI runs.
+        assert got.flags[LAYOUT[field]], f"{field} is not {LAYOUT[field]}"
+        if PANDAS_2:
+            assert got.flags["C_CONTIGUOUS"] == ref[field].flags["C_CONTIGUOUS"], field
+            assert got.flags["F_CONTIGUOUS"] == ref[field].flags["F_CONTIGUOUS"], field
     assert inputs.T0 == ref["T0"]
     assert inputs.treated_label == ref["treated_label"]
     assert type(inputs.treated_label) is type(ref["treated_label"])
