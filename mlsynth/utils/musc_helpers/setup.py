@@ -60,9 +60,11 @@ def _inputs_from_wide(
 
     times = list(wide.index.to_numpy())
     time_index = IndexSet.from_labels(times)
-    # The old pivot's reindexed frame was one C-ordered (T, N) block, and
-    # MUSC's Y is its transpose.
-    Y = np.ascontiguousarray(wide.to_numpy(dtype=float)).T        # (N, T)
+    # The QP's sums depend on the memory layout. This is the layout the old
+    # pivot's transpose had under pandas 2.x (the version CI runs): a C-ordered
+    # (N, T) matrix, one unit per contiguous row. dataprep's matrix is
+    # row-major, so its transpose is column-major.
+    Y = np.ascontiguousarray(wide.to_numpy(dtype=float).T)        # (N, T)
 
     if intervention_time not in times:
         raise MlsynthDataError(
