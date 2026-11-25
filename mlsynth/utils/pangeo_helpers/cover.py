@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 
@@ -97,6 +98,10 @@ class CoverSearch:
         the lowest leaf's lower bound. Not a bound when the cap stopped the search.
     nodes : int
         Groups placed.
+    stage : str or None
+        For the second proof search (:func:`.columns._search_gated`), the stage that ended it: ``"plain"`` when
+        the plain search proved within its budget, ``"reoptimised"`` when the re-optimised search ran. None for
+        any other search.
     """
 
     status: str
@@ -104,6 +109,7 @@ class CoverSearch:
     upper: float
     lower: float
     nodes: int
+    stage: Optional[str] = None
 
 
 @njit(cache=_CACHE)

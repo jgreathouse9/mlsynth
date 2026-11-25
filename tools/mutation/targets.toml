@@ -23642,7 +23642,7 @@ timeout = 1200.0
 [[target]]
 name = "pangeo-cover-reopt"
 module-path = "mlsynth/utils/pangeo_helpers/columns.py"
-test-command = "python -m pytest mlsynth/tests/test_pangeo_cover_reopt.py mlsynth/tests/test_pangeo_cover.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover_children.py mlsynth/tests/test_pangeo_cover_reopt.py mlsynth/tests/test_pangeo_cover.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
 
   [[target.mutant]]
@@ -23668,6 +23668,118 @@ timeout = 1200.0
   find = "        out.append((j, _down(L + lo_j), left, duals))"
   replace = "        out.append((j, _down(L), left, duals))"
   models = "the branch bound without the fixed group's cost, valid but below the root's own bound, so a branch the residual LP could prune is searched"
+
+  [[target.mutant]]
+  id = "the-fixed-group-is-closed"
+  find = "        lo[a] = up[a] = 1.0\n"
+  replace = "        pass\n"
+  models = "a child whose fixed group keeps the bound 0 of a group meeting itself: its units have no group left, the child LP is infeasible and a branch holding a design is pruned"
+
+  [[target.mutant]]
+  id = "the-fixed-group-is-left-free"
+  find = "        lo[a] = up[a] = 1.0\n"
+  replace = "        up[a] = 1.0\n"
+  models = "the fixed group bounded by [0, 1] instead of fixed at 1"
+  expected = "survived"
+  accepted-because = "EQUIVALENT: the groups meeting the fixed group are closed, so its units' rows have one open column, the fixed group, and x = 1 there is forced by the rows: the same feasible set and the same value"
+
+  [[target.mutant]]
+  id = "the-meeting-groups-stay-open"
+  find = "        up = left_mask.astype(float)\n"
+  replace = "        up = np.ones(keep.size)\n"
+  models = "the groups meeting the fixed group left open in its child"
+  expected = "survived"
+  accepted-because = "EQUIVALENT: with the fixed group at 1 its units' rows hold every other group meeting it at 0, so the feasible set and the child's value are unchanged; the bounds only take those columns out of the ratio test"
+
+  [[target.mutant]]
+  id = "the-children-start-cold"
+  find = "        res = solve_boxed_lp(c, A, rl, ru, lo, up, basis=parent.basis, cutoff=cutoff)"
+  replace = "        res = solve_boxed_lp(c, A, rl, ru, lo, up, cutoff=cutoff)"
+  models = "each child solved from the slack basis instead of the parent's optimal basis and inverse (Pan 2014, section 7.3)"
+
+  [[target.mutant]]
+  id = "the-children-ignore-the-incumbent"
+  find = "        res = solve_boxed_lp(c, A, rl, ru, lo, up, basis=parent.basis, cutoff=cutoff)"
+  replace = "        res = solve_boxed_lp(c, A, rl, ru, lo, up, basis=parent.basis, cutoff=None)"
+  models = "every child solved to its optimum although its bound already reaches the incumbent (Pan 2014, Lemma 8.3.4)"
+
+  [[target.mutant]]
+  id = "the-cutoff-is-unscaled"
+  find = "    cutoff = float(best_up) * scale if np.isfinite(best_up) else None"
+  replace = "    cutoff = float(best_up) if np.isfinite(best_up) else None"
+  models = "the incumbent handed to the children in the pool's cost scale while their LP runs in the power-of-two scale of mip._cost_scale"
+
+  [[target.mutant]]
+  id = "the-duals-are-not-unscaled"
+  find = "        y = res.y / scale\n"
+  replace = "        y = res.y\n"
+  models = "the children's multipliers read in the LP's scaled costs, so the bound is the scaled one, above the true bound when the scale exceeds 1"
+
+  [[target.mutant]]
+  id = "the-clique-duals-have-the-wrong-sign"
+  find = "        for K, m in zip(kept, np.maximum(-y[n + 1:], 0.0)):"
+  replace = "        for K, m in zip(kept, np.maximum(y[n + 1:], 0.0)):"
+  models = "the clique rows' multipliers read with the sign of a >= row, so every mu clips to 0 and the cuts' gain is lost"
+
+  [[target.mutant]]
+  id = "the-cardinality-dual-is-dropped"
+  find = "        sigma = max(float(y[n]), 0.0) if kk > 0 else 0.0\n"
+  replace = "        sigma = 0.0\n"
+  models = "the cardinality row's multiplier left out of the child's bound"
+
+  [[target.mutant]]
+  id = "the-cliques-keep-closed-groups"
+  find = "            K_left = K[np.isin(K, left)]\n"
+  replace = "            K_left = K\n"
+  models = "a clique of the parent handed to a child with members the child has closed"
+
+  [[target.mutant]]
+  id = "an-infeasible-parent-has-children-solved"
+  find = "        if left.size == 0 or parent.status == \"infeasible\":"
+  replace = "        if left.size == 0:"
+  models = "children solved from the basis of a parent LP that has no point"
+
+  [[target.mutant]]
+  id = "the-gate-is-skipped"
+  find = "    if budget > 0:\n        first = cover.search("
+  replace = "    if False:\n        first = cover.search("
+  models = "the second search re-optimised at once, with no plain stage: 48.6 s against 0.45 s on the 20-market Q = 3 arm at twice the optimum"
+
+  [[target.mutant]]
+  id = "the-plain-stage-may-overspend"
+  find = "        if first.status == \"proved\" or budget >= node_limit:"
+  replace = "        if first.status == \"proved\":"
+  models = "re-optimisation started after a plain stage that already spent the whole node limit"
+
+  [[target.mutant]]
+  id = "the-reoptimised-stage-gets-the-whole-limit"
+  find = "    rest = _search_reopt(pool, root, keep, k, Q, best, max(int(node_limit) - nodes, 0))"
+  replace = "    rest = _search_reopt(pool, root, keep, k, Q, best, int(node_limit))"
+  models = "the node limit given to each stage in full, so the gated search may place twice it"
+
+  [[target.mutant]]
+  id = "the-plain-incumbent-is-dropped"
+  find = "            best, rows = first.upper, first.rows\n"
+  replace = "            rows = first.rows\n"
+  models = "a design the plain stage found not passed to the re-optimised stage as its incumbent"
+
+  [[target.mutant]]
+  id = "the-plain-design-is-lost"
+  find = "    if rest.rows.size:\n        rows = rest.rows\n"
+  replace = "    rows = rest.rows\n"
+  models = "the plain stage's design dropped when the re-optimised stage proves nothing cheaper exists"
+
+  [[target.mutant]]
+  id = "the-budget-is-the-kept-groups"
+  find = "    return int(sum(int((~inc[:, inc[a]].any(axis=1)).sum()) for a in np.flatnonzero(inc[:, g0])))"
+  replace = "    return int(keep.size)"
+  models = "the plain stage's budget taken as the kept groups, not the children's columns"
+
+  [[target.mutant]]
+  id = "the-stage-is-not-reported"
+  find = "            info[\"second_search\"] = found[\"stage\"]\n"
+  replace = "            info[\"second_search\"] = \"reoptimised\"\n"
+  models = "the diagnostics naming re-optimisation whatever stage proved"
 
 [[target]]
 name = "pangeo-cover-cliques"
@@ -23735,8 +23847,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-branches-drop-the-cliques"
-  find = "        found = _residual_lp(pool, left, units, kk, cliques)"
-  replace = "        found = _residual_lp(pool, left, units, kk, ())"
+  find = "    A, rl, ru, kept = _parent_lp(pool, keep, k, cliques)"
+  replace = "    A, rl, ru, kept = _parent_lp(pool, keep, k, ())"
   models = "cliques separated at the root and left out of the depth-1 residual LPs, so the subtrees search on duals without them"
 
   [[target.mutant]]

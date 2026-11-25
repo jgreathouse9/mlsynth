@@ -263,11 +263,13 @@ def test_tiny_arms(n, Q):
 # --- integration ------------------------------------------------------------------------------------------------------
 
 def test_the_proof_after_the_first_mip_reoptimises_the_duals(monkeypatch):
-    """Integration: the second search, from the first MIP's design, is the re-optimised one."""
+    """Integration: with no plain-stage budget, the second search, from the first MIP's design, is the re-optimised
+    one (``test_pangeo_cover_children.py`` pins the plain stage). The oracle is the plain search run to its proof."""
     monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
     monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
     monkeypatch.setattr(columns, "FIRST_MIN", 1)
+    monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_: 0)
     calls, real = [], columns._search_reopt
 
     def rec(*a, **kw):
@@ -275,11 +277,20 @@ def test_the_proof_after_the_first_mip_reoptimises_the_duals(monkeypatch):
         return real(*a, **kw)
 
     monkeypatch.setattr(columns, "_search_reopt", rec)
-    Y = _panel(13, 14)
-    _, d = columns.solve_exact(np.arange(14), Y, 3)
-    _, d_ref = _reference(np.arange(14), Y, 3)
-    assert calls == [1] and d["search_start"] == "first_mip"
-    assert d["objective_value"] == pytest.approx(d_ref["objective_value"], rel=1e-9)
+    Y = _panel(13, 12)
+    _, d = columns.solve_exact(np.arange(12), Y, 3)
+    assert calls == [1] and d["search_start"] == "first_mip" and d["second_search"] == "reoptimised"
+    assert d["objective_value"] == pytest.approx(_plain_optimum(Y, 3), rel=1e-9)
+
+
+def _plain_optimum(Y, Q):
+    """The optimum by the plain search from the root's duals over every group, run to its proof."""
+    n = Y.shape[0]
+    pool = columns.score_columns(np.arange(n), Y, Q)
+    k = columns.min_groups(n, Q, 1)
+    res = cover.search(pool, columns.root_lp(pool, k), np.arange(len(pool)), k, Q, np.inf, 10**9)
+    assert res.status == "proved"
+    return float(pool.cost[res.rows].sum())
 
 
 # --- property ---------------------------------------------------------------------------------------------------------
