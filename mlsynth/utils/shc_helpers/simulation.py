@@ -25,9 +25,9 @@ dimensions: with :math:`h = 4` it gives :math:`T_o = m(4h+1)` (425 for
 :math:`m = 25`, 850 for :math:`m = 50`) and :math:`N = T_o - n - (m-1)`
 historical blocks (376 and 776, respectively).
 
-The post window is limited to :math:`n \le m`. The last macro-segment (the
+The post window is limited to :math:`n \\le m`. The last macro-segment (the
 treated shape) has only its cosine half, which ends at period
-:math:`T_o + m - 1`, so the DGP defines :math:`\ell_t` only through that
+:math:`T_o + m - 1`, so the DGP defines :math:`\\ell_t` only through that
 period; the paper uses :math:`n = m` throughout (25/25 and 50/50).
 :func:`simulate_shc_latent` refuses :math:`n > m` with a ``ValueError``, and
 every function built on it inherits the refusal.
