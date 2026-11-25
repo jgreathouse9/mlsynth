@@ -20692,16 +20692,26 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "single-treated-branch-unchecked"
-  find = """        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df))
+  find = """        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df),
+                                 keep_nan=keep_nan)
+        observed = (~np.isnan(outcome_matrix_wide.to_numpy(dtype=float))
+                    if keep_nan else None)
         treated_unit_name"""
-  replace = """        treated_unit_name"""
+  replace = """        observed = (~np.isnan(outcome_matrix_wide.to_numpy(dtype=float))
+                    if keep_nan else None)
+        treated_unit_name"""
   models = "the refusal dropped from the one-treated-unit branch, which every single-unit estimator takes. A missing donor cell then reaches the fit: FDID's forward search ranks the donor at an R^2 of minus infinity and re-selects a chosen one, and PROXIMAL fits with the NaN in place"
 
   [[target.mutant]]
   id = "cohort-branch-unchecked"
-  find = """        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df))
+  find = """        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df),
+                                 keep_nan=keep_nan)
+        observed = (~np.isnan(outcome_matrix_wide.to_numpy(dtype=float))
+                    if keep_nan else None)
         # The treatment pivot"""
-  replace = """        # The treatment pivot"""
+  replace = """        observed = (~np.isnan(outcome_matrix_wide.to_numpy(dtype=float))
+                    if keep_nan else None)
+        # The treatment pivot"""
   models = "the refusal dropped from the cohort branch only, so the staggered-adoption estimators see a missing outcome the single-unit ones refuse"
 
   [[target.mutant]]
@@ -21009,8 +21019,8 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "dataprep-returns-a-plain-dict"
-  find = "        return SinglePanel(**core, covariates=cov_block, predictors=pred_block)"
-  replace = "        return dict(SinglePanel(**core, covariates=cov_block, predictors=pred_block))"
+  find = "        return SinglePanel(**core, covariates=cov_block, predictors=pred_block,\n                           observed=observed)"
+  replace = "        return dict(SinglePanel(**core, covariates=cov_block, predictors=pred_block,\n                           observed=observed))"
   models = "the single-treated case returning the untyped dict the issue replaces"
 
   [[target.mutant]]
@@ -21021,8 +21031,8 @@ timeout = 300.0
 
   [[target.mutant]]
   id = "the-covariate-block-is-dropped"
-  find = "        return SinglePanel(**core, covariates=cov_block, predictors=pred_block)"
-  replace = "        return SinglePanel(**core, covariates=None, predictors=pred_block)"
+  find = "        return SinglePanel(**core, covariates=cov_block, predictors=pred_block,\n                           observed=observed)"
+  replace = "        return SinglePanel(**core, covariates=None, predictors=pred_block,\n                           observed=observed)"
   models = "covariates computed and left off the single panel"
 
 [[target]]
@@ -21312,3 +21322,81 @@ timeout = 600.0
   find = "    if len(starts) == len(units):"
   replace = "    if False:"
   models = "a panel with no never-treated unit reaching the solver"
+
+[[target]]
+name = "dataprep-missing-keep"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_dataprep_missing_keep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "keep-is-ignored"
+  find = "    keep_nan = missing_outcomes == \"keep\"\n"
+  replace = "    keep_nan = False\n"
+  models = "the opt-in accepted and then dropped, so a missing-data method is still refused"
+
+  [[target.mutant]]
+  id = "keep-lets-an-infinity-through"
+  find = "    if keep_nan and n_inf == 0 and n_absent == 0:"
+  replace = "    if keep_nan and n_absent == 0:"
+  models = "an infinite outcome passed as if it were missing"
+
+  [[target.mutant]]
+  id = "keep-lets-an-absent-row-through"
+  find = "    if keep_nan and n_inf == 0 and n_absent == 0:"
+  replace = "    if keep_nan and n_inf == 0:"
+  models = "an absent unit-period row, whose treatment is unknown, passed as a missing cell"
+
+  [[target.mutant]]
+  id = "keep-with-marex-is-accepted"
+  find = "    if keep_nan and marex:"
+  replace = "    if False:"
+  models = "NaN pre-period outcomes stacked into the marex predictor matrix"
+
+  [[target.mutant]]
+  id = "an-unknown-value-is-accepted"
+  find = "    if missing_outcomes not in (\"refuse\", \"keep\"):"
+  replace = "    if False:"
+  models = "a misspelt missing_outcomes read as the default"
+
+  [[target.mutant]]
+  id = "the-mask-is-inverted"
+  find = "        observed = (~np.isnan(outcome_matrix_wide.to_numpy(dtype=float))\n                    if keep_nan else None)\n        treated_unit_name"
+  replace = "        observed = (np.isnan(outcome_matrix_wide.to_numpy(dtype=float))\n                    if keep_nan else None)\n        treated_unit_name"
+  models = "the single panel's mask marking the missing cells as observed"
+
+  [[target.mutant]]
+  id = "the-cohort-mask-is-dropped"
+  find = "                           predictors=multi_pred, observed=observed)"
+  replace = "                           predictors=multi_pred, observed=None)"
+  models = "a cohort panel returned without its mask under keep"
+
+[[target]]
+name = "prepared-observed-mask"
+module-path = "mlsynth/utils/prepared.py"
+test-command = "python -m pytest mlsynth/tests/test_dataprep_missing_keep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-mask-is-not-checked-against-ywide"
+  find = "    _check(np.array_equal(observed, ~np.isnan(Ywide.to_numpy(dtype=float))),"
+  replace = "    _check(True,"
+  models = "a mask that disagrees with Ywide's NaN cells accepted"
+
+  [[target.mutant]]
+  id = "a-non-boolean-mask-is-accepted"
+  find = "    _check(isinstance(observed, np.ndarray) and observed.dtype == bool,"
+  replace = "    _check(isinstance(observed, np.ndarray),"
+  models = "an integer mask accepted, so ~observed flips bits instead of selecting cells"
+
+  [[target.mutant]]
+  id = "the-mask-is-left-out-of-the-view"
+  find = "    if observed is not None:\n        out[\"observed\"] = observed"
+  replace = "    if False:\n        out[\"observed\"] = observed"
+  models = "callers reading the dict view never see the mask"
+
+  [[target.mutant]]
+  id = "the-mask-shape-is-not-checked"
+  find = "    _check(observed.shape == Ywide.shape,"
+  replace = "    _check(True or observed.shape == Ywide.shape,"
+  models = "a mask of another shape reaching the equality check, which then compares broadcast arrays"

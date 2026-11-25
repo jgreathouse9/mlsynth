@@ -188,21 +188,21 @@ class TestMaskConsistency:
         p = dataprep(_panel(), *ARGS, missing_outcomes="keep")
         fields = {k: getattr(p, k) for k in p.__dataclass_fields__}
         fields["observed"] = p.observed[:, :-1]
-        with pytest.raises(MlsynthDataError, match="observed"):
+        with pytest.raises(MlsynthDataError, match="observed has shape"):
             SinglePanel(**fields)
 
     def test_a_mask_that_disagrees_with_ywide_is_refused(self):
         p = dataprep(_plant(_panel(), [(2, 2001)]), *ARGS, missing_outcomes="keep")
         fields = {k: getattr(p, k) for k in p.__dataclass_fields__}
         fields["observed"] = np.ones_like(p.observed)
-        with pytest.raises(MlsynthDataError, match="observed"):
+        with pytest.raises(MlsynthDataError, match="disagrees with the NaN cells"):
             SinglePanel(**fields)
 
     def test_a_non_boolean_mask_is_refused(self):
         p = dataprep(_panel(adopt={0: 5, 1: 7}), *ARGS, missing_outcomes="keep")
         fields = {k: getattr(p, k) for k in p.__dataclass_fields__}
         fields["observed"] = p.observed.astype(int)
-        with pytest.raises(MlsynthDataError, match="observed"):
+        with pytest.raises(MlsynthDataError, match="boolean array"):
             CohortPanel(**fields)
 
 
