@@ -21859,3 +21859,87 @@ timeout = 600.0
   find = "            df.groupby(time, observed=True)[c].mean().loc[time_labels].to_numpy(dtype=float)"
   replace = "            df.groupby(time, observed=True)[c].mean().loc[time_labels[::-1]].to_numpy(dtype=float)"
   models = "rows of Z out of step with the period axis dataprep returned"
+
+[[target]]
+name = "spotsynth-dataprep"
+module-path = "mlsynth/utils/spotsynth_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_spotsynth_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    if keys.n_units < 3:"
+  replace = "    keys = None\n    if df[unitid].nunique() < 3:"
+  models = "the key scan not shared with dataprep, so the panel is scanned twice"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-not-transposed"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float))"
+  models = "dataprep's period-by-unit matrix sliced as SPOTSYNTH's unit-by-period one"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-column-major"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = prep.Ywide[unit_names].to_numpy(dtype=float).T"
+  models = "the treated series as a strided view, unlike the old contiguous row"
+
+  [[target.mutant]]
+  id = "units-in-another-order"
+  find = "    unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    unit_names = sorted(np.asarray(prep.Ywide.columns), reverse=True)"
+  models = "donor columns in a different order from the sorted donor labels the old setup gave"
+
+  [[target.mutant]]
+  id = "unit-labels-change-type"
+  find = "    unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    unit_names = sorted(prep.Ywide.columns)"
+  models = "integer unit labels returned as Python ints where the old setup returned NumPy integers"
+
+  [[target.mutant]]
+  id = "period-labels-change-type"
+  find = "    time_labels = np.array(list(prep.time_labels.array))"
+  replace = "    time_labels = np.array(list(prep.time_labels))"
+  models = "the Panic of 1907 panel's float32 periods widened to float64 through Python scalars"
+
+  [[target.mutant]]
+  id = "the-treated-row-is-the-first-unit"
+  find = "    ti = unit_names.index(prep.treated_unit_name)"
+  replace = "    ti = 0"
+  models = "the treated series read from the first sorted unit, not from dataprep's treated unit"
+
+  [[target.mutant]]
+  id = "t0-reads-the-post-count"
+  find = "    T0 = int(prep.pre_periods)"
+  replace = "    T0 = int(prep.post_periods)"
+  models = "the wrong side of dataprep's period split taken as T0"
+
+  [[target.mutant]]
+  id = "several-treated-units-are-accepted"
+  find = "    if isinstance(prep, CohortPanel):"
+  replace = "    if False:"
+  models = "a CohortPanel reaching the single-treated path with no treated unit name"
+
+  [[target.mutant]]
+  id = "the-treated-count-is-the-cohort-count"
+  find = "        n_treated = sum(len(c.treated_units) for c in prep.cohorts.values())"
+  replace = "        n_treated = len(prep.cohorts)"
+  models = "the refusal reporting the number of adoption periods, not of treated units"
+
+  [[target.mutant]]
+  id = "two-pre-periods-are-accepted"
+  find = "    if T0 < 3:"
+  replace = "    if T0 < 2:"
+  models = "SPOTSYNTH's own minimum of three pre-periods lost behind dataprep's minimum of one"
+
+  [[target.mutant]]
+  id = "two-units-are-accepted"
+  find = "    if keys.n_units < 3:"
+  replace = "    if keys.n_units < 2:"
+  models = "SPOTSYNTH's minimum of a treated unit and two donors lost behind dataprep"
+
+  [[target.mutant]]
+  id = "a-missing-treatment-cell-is-read-as-untreated"
+  find = "    if df[treat].isna().any():"
+  replace = "    if False:"
+  models = "dataprep's binary check skipping NaN, so a missing treatment cell is read as 0"
