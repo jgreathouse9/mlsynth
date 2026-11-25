@@ -51,6 +51,13 @@ periods. Unit 1 is treated from :math:`T_0 + 1` onward and units
 :math:`y^0_{1t}` for the treated unit's untreated outcome, which is observed
 before :math:`T_0` and is the object to be predicted after it.
 
+The panel is read through :func:`mlsynth.utils.datautils.dataprep`, the
+outcome and each covariate alike, so every unit has a row for every period.
+It refuses with ``MlsynthDataError`` a duplicate or absent unit-period, a
+missing or non-finite outcome or covariate in any period, a non-binary
+treatment, and a treatment that switches off after it starts: unit 1 stays
+treated from :math:`T_0 + 1` to :math:`T`.
+
 The untreated outcome is
 
 .. math::

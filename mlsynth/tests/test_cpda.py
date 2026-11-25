@@ -466,5 +466,5 @@ class TestHelperUnits:
         from mlsynth.exceptions import MlsynthDataError
         df = _panel()
         df.loc[df.index[3], "y"] = np.nan
-        with pytest.raises(MlsynthDataError, match="complete outcome panel"):
+        with pytest.raises(MlsynthDataError, match="Missing outcome values"):
             CPDA(_cfg(df=df)).fit()

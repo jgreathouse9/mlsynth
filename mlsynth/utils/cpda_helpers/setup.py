@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
+from ..datautils import PanelKeys, balance, dataprep
 from ..fast_scm_helpers.structure import IndexSet
 from .structures import CPDAInputs
 
@@ -31,26 +32,48 @@ def derive_treatment(df: pd.DataFrame, unitid: str, time: str,
     return treated_unit, intervention_time
 
 
-def _cube(df: pd.DataFrame, cols: Sequence[str], unitid: str, time: str,
+def _covariate_wides(df: pd.DataFrame, cols: Sequence[str], unitid: str,
+                     time: str, treat: str,
+                     keys: PanelKeys) -> Dict[str, pd.DataFrame]:
+    """Each covariate's ``(T, units)`` matrix, read through ``dataprep``.
+
+    ``dataprep`` reads the named column as its outcome, so a covariate gets the
+    outcome's refusal: a missing or non-finite value in any unit-period. The
+    refusal is raised again under the covariate's name.
+    """
+    wides = {}
+    for c in cols:
+        try:
+            prep = dataprep(df, unitid, time, c, treat, allow_no_donors=True,
+                            keys=keys)
+        except MlsynthDataError as exc:
+            raise MlsynthDataError(
+                f"Covariate '{c}' is incomplete; CPDA needs every covariate "
+                f"observed and finite in every unit-period. {exc}") from exc
+        wides[c] = prep.Ywide
+    return wides
+
+
+def _cube(wides: Dict[str, pd.DataFrame], cols: Sequence[str],
           times: np.ndarray, order: List[Any]) -> np.ndarray:
     """Stack covariates into ``(T, len(order), k)``, aligned to ``times``."""
     if not cols:  # pragma: no cover - CPDAConfig refuses an empty covariate list
         return np.empty((len(times), len(order), 0))
-    planes = []
-    for c in cols:
-        wide = df.pivot(index=time, columns=unitid, values=c).reindex(times)
-        if wide.isna().any().any():
-            raise MlsynthDataError(
-                f"Covariate '{c}' is incomplete after pivoting; CPDA needs a "
-                f"balanced panel with no gaps.")
-        planes.append(wide[order].to_numpy(dtype=float))
+    planes = [wides[c][order].to_numpy(dtype=float) for c in cols]
     return np.stack(planes, axis=2)
 
 
 def prepare_cpda_inputs(df: pd.DataFrame, *, unitid: str, time: str,
                         outcome: str, treat: str,
                         covariates: Sequence[str]) -> CPDAInputs:
-    """Pivot the panel to NumPy, build ``IndexSet``\\ s, split pre and post.
+    """Read the panel through ``balance`` and ``dataprep``, build ``IndexSet``\\ s, split pre and post.
+
+    ``balance`` refuses a duplicate or absent unit-period. ``dataprep`` supplies
+    the outcome matrix, the time labels, the donor order and the pre-period
+    count, and refuses a missing or non-finite outcome anywhere in the panel, a
+    non-binary treatment and a treatment that switches off after it starts.
+    Each covariate's matrix is read through ``dataprep`` on the same key scan,
+    so a missing or non-finite covariate value is refused too.
 
     Parameters
     ----------
@@ -70,8 +93,11 @@ def prepare_cpda_inputs(df: pd.DataFrame, *, unitid: str, time: str,
     Raises
     ------
     MlsynthDataError
-        If a named column is missing, the panel has gaps, there is not exactly
-        one treated unit, or there are fewer than two pre-treatment periods.
+        If a named column is missing, the panel is unbalanced or has a
+        duplicate unit-period, an outcome or covariate value is missing or not
+        finite, the treatment is not binary or switches off, there is not
+        exactly one treated unit, there is no donor, or there are fewer than
+        two pre-treatment periods.
     """
     missing = [c for c in [outcome, treat, unitid, time, *covariates]
                if c not in df.columns]
@@ -81,27 +107,28 @@ def prepare_cpda_inputs(df: pd.DataFrame, *, unitid: str, time: str,
             f"outcome, the treatment flag, the unit and time keys, and every "
             f"named covariate.")
 
+    # balance() refuses a duplicate or absent unit-period, and its key scan is
+    # shared by every dataprep call below instead of being taken again.
+    keys = balance(df, unitid, time)
     treated_unit, intervention_time = derive_treatment(df, unitid, time, treat)
+    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True,
+                    keys=keys)
 
-    times = np.sort(pd.unique(df[time]))
+    times = np.asarray(prep.time_labels)
     time_index = IndexSet.from_labels(times)
+    wide = prep.Ywide
 
-    wide = df.pivot(index=time, columns=unitid, values=outcome).reindex(times)
-    if wide.isna().any().any():
-        raise MlsynthDataError(
-            "CPDA requires a complete outcome panel after pivoting; some "
-            "unit-period cells are missing.")
-
-    donors = [u for u in wide.columns if u != treated_unit]
+    donors = list(prep.donor_names)
     if not donors:
         raise MlsynthDataError("CPDA needs at least one donor unit.")
     unit_index = IndexSet.from_labels(donors)
 
     cov = list(covariates)
-    treated_cube = _cube(df, cov, unitid, time, times, [treated_unit])
-    donor_cube = _cube(df, cov, unitid, time, times, donors)
+    wides = _covariate_wides(df, cov, unitid, time, treat, keys)
+    treated_cube = _cube(wides, cov, times, [treated_unit])
+    donor_cube = _cube(wides, cov, times, donors)
 
-    T0 = int(np.sum(times < intervention_time))
+    T0 = int(prep.pre_periods)
     if T0 < 2:
         raise MlsynthDataError(
             f"CPDA needs at least two pre-treatment periods; found {T0}.")
