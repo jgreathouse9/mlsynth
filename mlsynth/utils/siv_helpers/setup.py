@@ -7,6 +7,12 @@ instrument ``Z``. The estimator targets shift-share-style designs
 where ``R`` and ``Z`` are zero in the pre-period (e.g., the Syrian
 refugee example), but the pipeline also handles cases where one or
 both have pre-treatment variation.
+
+``R`` and ``Z`` are continuous, which
+:func:`~mlsynth.utils.datautils.dataprep` refuses as a non-binary treatment,
+so the panel is read through :func:`~mlsynth.utils.datautils.geoex_dataprep`,
+the treatment-agnostic reader: once for each of the three columns, each read
+as that call's outcome.
 """
 
 from __future__ import annotations
@@ -17,6 +23,7 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthConfigError, MlsynthDataError
+from ..datautils import geoex_dataprep
 from ..fast_scm_helpers.structure import IndexSet
 from .structures import SIVInputs
 
@@ -32,12 +39,18 @@ def prepare_siv_inputs(
     post_col: Optional[str] = None,
     T0_train: Optional[int] = None,
 ) -> SIVInputs:
-    """Pivot a long balanced panel into the ``(J, T)`` SIV layout.
+    """Read a long balanced panel into the ``(J, T)`` SIV layout.
+
+    ``geoex_dataprep`` refuses a duplicate or absent unit-period, a row with
+    a missing unit or period, and a missing or non-finite outcome. ``R`` and
+    ``Z`` are read the same way, and a missing or non-finite value of either
+    is refused under the column's name. SIV's own checks (three units, ``T0``
+    or ``post_col``, ``T0_train``) stay on top.
 
     Parameters
     ----------
     df : pd.DataFrame
-        Long balanced panel.
+        Long balanced panel. It is not modified.
     outcome, treat, instrument, unitid, time : str
         Column names.
     T0 : Optional[int]
@@ -55,8 +68,9 @@ def prepare_siv_inputs(
     Raises
     ------
     MlsynthDataError
-        If the panel is not balanced or has missing entries in the
-        required columns.
+        If the panel is not balanced, has a duplicate unit-period or a row
+        without a unit or period, or has a missing or non-finite value in
+        the outcome, treatment or instrument column.
     MlsynthConfigError
         If T0 / post_col are missing or inconsistent.
     """
@@ -68,21 +82,24 @@ def prepare_siv_inputs(
             f"Missing required columns: {missing}"
         )
 
-    ordered = df.sort_values([unitid, time]).copy()
-    Y_wide = ordered.pivot(index=time, columns=unitid, values=outcome).sort_index()
-    R_wide = ordered.pivot(index=time, columns=unitid, values=treat).sort_index()
-    Z_wide = ordered.pivot(index=time, columns=unitid, values=instrument).sort_index()
-
-    for name, wide in [("outcome", Y_wide), ("treat", R_wide), ("instrument", Z_wide)]:
-        if wide.isna().any().any():
+    # geoex_dataprep runs balance() first, so a duplicate or absent
+    # unit-period and a missing key are refused before the matrix is built,
+    # and a missing or non-finite outcome after it.
+    panel = geoex_dataprep(df, unitid, time, outcome)
+    Y_wide = panel["Ywide"]                              # (T, J), both axes sorted
+    Y = panel["Y"].T                                     # (J, T)
+    matrices = {}
+    for role, col in (("treatment", treat), ("instrument", instrument)):
+        # The same panel, so the same sorted axes as the outcome's matrix.
+        try:
+            matrices[role] = geoex_dataprep(df, unitid, time, col)["Y"].T
+        except MlsynthDataError as exc:
             raise MlsynthDataError(
-                f"SIV requires a complete balanced panel; missing values "
-                f"in {name} column after pivoting."
-            )
-
-    Y = Y_wide.to_numpy(dtype=float).T   # (J, T)
-    R = R_wide.to_numpy(dtype=float).T
-    Z = Z_wide.to_numpy(dtype=float).T
+                f"SIV's {role} column {col!r} is incomplete; SIV needs it "
+                f"observed and finite in every unit-period. {exc}"
+            ) from exc
+    R = matrices["treatment"]
+    Z = matrices["instrument"]
     J, T = Y.shape
 
     if J < 3:
@@ -94,8 +111,9 @@ def prepare_siv_inputs(
     if post_col is not None:
         if post_col not in df.columns:
             raise MlsynthConfigError(f"post_col '{post_col}' is not in df.")
+        # Read per period from the first unit in sorted order, as before.
         post_by_time = (
-            ordered[[time, post_col]]
+            df.sort_values([unitid, time])[[time, post_col]]
             .drop_duplicates(subset=[time])
             .set_index(time)
             .reindex(Y_wide.index)[post_col]
