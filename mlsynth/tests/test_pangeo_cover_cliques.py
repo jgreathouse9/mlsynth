@@ -253,6 +253,60 @@ def test_on_triangles_the_optimum_avoiding_the_cliques_is_found(seed):
     assert float(pool.cost[res.rows].sum()) == pytest.approx(z, rel=1e-12)
 
 
+@pytest.mark.parametrize("seed", range(4))
+def test_a_fixed_group_in_a_clique_counts_as_hitting_it_against_a_tight_incumbent(seed):
+    """Unit: against an incumbent just above the best design holding the fixed group, the search still finds that
+    design. The fixed group's cliques are hit in every completion and their duals are already in its shifted cost,
+    so crediting one again raises the node bound past that design and the search returns none (it did, on every
+    seed, with the exclusion of a fixed group's cliques removed)."""
+    pool, groups = _triangles(seed)
+    keep_all = np.arange(len(pool))
+    cliques = columns._separate_cliques(pool, keep_all, 3)
+    duals, _, _ = columns._residual_lp(pool, keep_all, np.arange(6), 3, cliques)
+    j = groups.index((0, 1))
+    g = _units(pool, j)
+    assert any(j in K for K in duals.cliques) and np.all(duals.mu > 0.5)   # the fixed group sits in a binding clique
+    left = np.array([r for r in keep_all if not (_units(pool, r) & g)])
+    best = min(pool.cost[j] + pool.cost[a] + pool.cost[b]
+               for a, b in itertools.combinations(left, 2) if not (_units(pool, a) & _units(pool, b)))
+    res = cover.search(pool, duals, left, 3, 1, best * (1 + 1e-9), 10**6, fixed=(j,))
+    assert res.status == "proved" and res.rows.size
+    assert float(pool.cost[res.rows].sum()) == pytest.approx(best, rel=1e-12)
+
+
+@pytest.mark.parametrize("seed,n", [(7, 14), (2, 16)])
+def test_the_credited_search_places_no_more_nodes_than_the_clique_free_search(seed, n):
+    """Unit: from the optimum, the search on the clique LP's duals places no more nodes than the search on the
+    clique-free LP's duals over the same groups. Measured: 2,133 against 5,320 nodes (14 geos) and 3,172 against
+    11,950 (16 geos). A node bound over the unshifted costs against the threshold raised by the clique duals is
+    valid but weaker, and placed 24,045 and 40,531."""
+    Y, idx, pool, k, root = _setup(seed, n, 2)
+    _, d = _reference(idx, Y, 2)
+    best = d["objective_value"] * (1 + 1e-9)
+    keep = np.arange(len(pool))
+    cliques = columns._separate_cliques(pool, keep, k)
+    duals, _, _ = columns._residual_lp(pool, keep, np.arange(n), k, cliques)
+    plain, _, _ = columns._residual_lp(pool, keep, np.arange(n), k, ())
+    cut = cover.search(pool, duals, keep, k, 2, best, 10**8)
+    free = cover.search(pool, plain, keep, k, 2, best, 10**8)
+    assert len(cliques) > 0 and cut.status == free.status == "proved"
+    assert cut.nodes <= free.nodes
+
+
+def test_the_slack_credit_holds_the_node_count_on_a_pinned_arm():
+    """Unit: a node-count regression pin. On the 16-geo arm of seed 2 at Q = 2, from the optimum, the credited
+    search places 3,172 nodes; with the clique slack never credited (the shifted costs and the raised threshold
+    alone) it placed 5,139. The bound stays valid either way, so only the count shows the credit. The ceiling sits
+    between the two."""
+    Y, idx, pool, k, root = _setup(2, 16, 2)
+    _, d = _reference(idx, Y, 2)
+    keep = np.arange(len(pool))
+    cliques = columns._separate_cliques(pool, keep, k)
+    duals, _, _ = columns._residual_lp(pool, keep, np.arange(16), k, cliques)
+    res = cover.search(pool, duals, keep, k, 2, d["objective_value"] * (1 + 1e-9), 10**8)
+    assert res.status == "proved" and res.nodes <= 4000
+
+
 def test_a_fixed_group_in_a_clique_counts_as_hitting_it():
     """Unit: a fixed group's cliques have slack 0 in every completion: none of them is credited."""
     pool, groups = _triangles(3)

@@ -99,6 +99,24 @@ def test_a_fixed_group_search_against_a_tight_incumbent_still_finds_the_design()
     res = cover.search(pool, root, keep, k, 2, z * (1 + 1e-9) + 1e-12, 10**7, fixed=(j,))
     assert res.rows.size and float(pool.cost[res.rows].sum()) == pytest.approx(z, rel=1e-9)
 
+@pytest.mark.parametrize("seed,n", [(2, 12), (5, 14)])
+def test_a_fixed_group_whose_cost_reaches_the_incumbent_prunes_at_the_first_level(seed, n):
+    """Unit: below a fixed group whose cost alone reaches the incumbent, every group placed at the first level is
+    pruned there, so the search places at most as many nodes as there are kept groups holding the unit it branches
+    on first, and returns no design. A bound that leaves the fixed group's cost out is still valid, but it searched
+    the whole subtree: 42,735 nodes against 129 at 12 geos, 1.2 million against 231 at 14."""
+    Y, idx, pool, k, root = _setup(seed, n, 2)
+    j = int(np.argmax(pool.cost))
+    g = set(int(p) for p in pool.members[j][pool.members[j] >= 0])
+    keep = np.array([r for r in range(len(pool))
+                     if not (g & set(int(p) for p in pool.members[r][pool.members[r] >= 0]))])
+    holders = [sum(1 for r in keep if u in set(int(p) for p in pool.members[r][pool.members[r] >= 0]))
+               for u in range(n) if u not in g]
+    res = cover.search(pool, root, keep, k, 2, float(pool.cost[j]), 10**7, fixed=(j,))
+    assert res.status == "proved" and res.rows.size == 0
+    assert res.nodes <= min(holders)
+
+
 def test_a_fixed_group_that_covers_everything_is_the_design():
     """Edge: with Q large enough that one group holds every unit, fixing it leaves nothing to search."""
     Y, idx, pool, k, root = _setup(3, 4, 2)

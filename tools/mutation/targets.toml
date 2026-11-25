@@ -23433,7 +23433,7 @@ timeout = 1200.0
   id = "the-fixed-groups-cost-nothing"
   find = "    P0 = float(shifted[fixed].sum()) if fixed.size else 0.0"
   replace = "    P0 = 0.0"
-  models = "a search below a fixed group whose bound leaves out that group's cost, so it prunes on a bound below every design through the branch and can drop the optimum"
+  models = "a search below a fixed group whose bound leaves out that group's cost: the costs are nonnegative, so the bound stays valid, but it prunes nothing the group's cost would and searches the whole subtree (42,735 nodes against 129 at 12 geos below a group whose cost reaches the incumbent)"
 
   [[target.mutant]]
   id = "the-fixed-groups-do-not-count-toward-k"
@@ -23512,6 +23512,8 @@ timeout = 1200.0
   find = "        if len(R) < 3 or frozenset"
   replace = "        if len(R) < 2 or frozenset"
   models = "two-group cliques, which two groups sharing a unit never violate in a cover LP, kept as rows"
+  expected = "survived"
+  accepted-because = "EQUIVALENT. Two groups are adjacent in the conflict graph only when they share a unit, so every two-group clique has a common unit and the second test on the same line (the intersection of the members' unit sets is nonempty) skips it whether the length test reads < 3 or < 2. A one-group clique is skipped by the same test. The length test stays as the statement of the rule the docstring gives (three or more groups)."
 
   [[target.mutant]]
   id = "no-clique-is-lifted"
