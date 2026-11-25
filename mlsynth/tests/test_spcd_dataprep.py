@@ -226,6 +226,17 @@ class TestSameInputs:
         _assert_same(prepare_spcd_inputs(df, **COLS, **split, covariates=cov),
                      _reference(df, **COLS, **split, covariates=cov))
 
+    @pytest.mark.parametrize("seed", range(4))
+    def test_covariates_match_the_old_pivot_on_a_wide_panel(self, seed):
+        # Past eight units numpy sums a contiguous column pairwise, so the
+        # z-score is bit-equal to the old one only if the covariate block has
+        # the old block's row-major layout.
+        df = _panel(n_units=40, T=12, seed=seed)
+        df["x"] = df["x"] * 1e3
+        cov = ["x", "share"]
+        _assert_same(prepare_spcd_inputs(df, **COLS, post_col="post", covariates=cov),
+                     _reference(df, **COLS, post_col="post", covariates=cov))
+
     def test_a_covariate_gap_inside_the_pre_window_is_averaged_over(self):
         # One missing covariate value leaves the unit's pre-period mean defined.
         df = _panel(shuffle=False)
