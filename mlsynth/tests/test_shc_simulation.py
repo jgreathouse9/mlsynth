@@ -158,6 +158,32 @@ def test_the_builder_raises_on_a_cell_it_did_not_write():
                        Pis=np.full(h, 10.0), w_f=np.asarray(_w_f(h)))
 
 
+def test_the_builder_does_not_trust_leftover_memory(monkeypatch):
+    """An unwritten cell is reported whatever the allocator hands back.
+
+    ``np.empty`` returns reused memory, and reused memory that last held NaN
+    makes an ``np.empty`` build indistinguishable from a NaN-initialised one.
+    The module's ``np`` is swapped for one whose ``empty`` returns finite
+    garbage, so a build that relies on ``np.empty`` returns the tail instead
+    of raising, on every run.
+    """
+    import mlsynth.utils.shc_helpers.simulation as simulation
+
+    class _FiniteGarbageEmpty:
+        def __getattr__(self, name):
+            return getattr(np, name)
+
+        @staticmethod
+        def empty(shape, dtype=float, **kwargs):
+            return np.full(shape, 7.0, dtype=dtype)
+
+    monkeypatch.setattr(simulation, "np", _FiniteGarbageEmpty())
+    with pytest.raises(RuntimeError, match=r"13 of 63 latent cells"):
+        simulation._latent_series(m=5, h=2, n=18, alpha=np.zeros(2),
+                                  Pis=np.full(2, 10.0),
+                                  w_f=np.asarray(_w_f(2)))
+
+
 def test_the_builder_writes_every_cell_when_n_is_at_most_m():
     from mlsynth.utils.shc_helpers.simulation import _latent_series
 
