@@ -41,6 +41,7 @@ from ..exceptions import (
     MlsynthPlottingError,
 )
 from ..utils.clustersc_helpers.pcr import run_pcr
+from ..utils.clustersc_helpers.pcr.missing import check_missing_supported
 from ..utils.clustersc_helpers.plotter import plot_clustersc
 from ..utils.clustersc_helpers.rpca import run_rpca
 from ..utils.clustersc_helpers.setup import prepare_clustersc_inputs
@@ -231,12 +232,14 @@ class CLUSTERSC:
         )
         method_name = (f"PCR-RSC ({self.estimator})" if selected == "pcr"
                        else f"RPCA-SC ({self.rpca_method})")
-        # Two kinds of fit metadata belong on the result. The solver's own
+        # Three kinds of fit metadata belong on the result. The solver's own
         # settings, because which subspace the FGRC denoiser kept is not
-        # recoverable from the weights or the fit; and the spannability
-        # report, because donor selection can cost the treated unit its
-        # convex reach without the fit showing it (see
-        # `clustersc_helpers.spannability`). Both are read, not only warned.
+        # recoverable from the weights or the fit; the spannability report,
+        # because donor selection can cost the treated unit its convex reach
+        # without the fit showing it (see `clustersc_helpers.spannability`);
+        # and, with missing donor cells, p-hat and the cell count, because the
+        # weights carry the 1/p-hat scale (see `clustersc_helpers.pcr.missing`).
+        # All are read, not only warned.
         params = {
             "method": self.method, "clustering": self.clustering,
             "pcr_objective": self.pcr_objective, "rank_method": self.rank_method,
@@ -244,7 +247,7 @@ class CLUSTERSC:
         if primary_fit is not None:
             params.update({
                 k: v for k, v in (primary_fit.metadata or {}).items()
-                if k.startswith(("fgrc_", "spannability_"))
+                if k.startswith(("fgrc_", "spannability_", "missing_"))
             })
         method_details = MethodDetailsResults(
             method_name=method_name,
@@ -286,6 +289,16 @@ class CLUSTERSC:
                 time=self.time,
             )
 
+            if np.isnan(inputs.donor_outcomes).any():
+                check_missing_supported(
+                    method=self.method, clustering=self.clustering,
+                    estimator=self.estimator, objective=self.pcr_objective,
+                    lambda_penalty=self.lambda_penalty,
+                    project_denoised=self.project_denoised,
+                    compute_shen_ci=self.compute_shen_ci,
+                    compute_scpi_pi=self.compute_scpi_pi,
+                )
+
             pcr_fit = None
             rpca_fit = None
             credible = None
@@ -318,6 +331,7 @@ class CLUSTERSC:
                     scpi_sims=self.scpi_sims,
                     scpi_e_method=self.scpi_e_method,
                     random_state=self.random_state,
+                    time_labels=inputs.time_labels,
                 )
                 # Convert per-period credible band to an ATT-level interval:
                 # tau_t = y_t - cf_t, so a (1-alpha) CI for ATT is

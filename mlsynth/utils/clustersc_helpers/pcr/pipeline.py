@@ -16,6 +16,11 @@ work unchanged) plus a handful of paper-aligned knobs:
 * ``rank`` and ``rank_method`` (``"cumvar"`` / ``"fixed"`` / ``"usvt"``);
 * ``k_clusters`` and ``k_max`` for the silhouette-driven clustering step;
 * ``alpha`` and ``n_bayes_samples`` for the Bayesian credible band.
+
+Missing donor cells (NaN in ``donor_outcomes``) take the two-step PCR of
+Agarwal, Shah and Shen (JMLR 2025), Section 2.2, with a donor-mean fill, in
+:mod:`.missing`; with every cell observed that path is the complete-data one
+bit for bit, so the complete-data code below runs unchanged.
 """
 
 from __future__ import annotations
@@ -24,7 +29,7 @@ from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ....exceptions import MlsynthEstimationError
+from ....exceptions import MlsynthDataError, MlsynthEstimationError
 from ..structures import MethodFit
 from .bayesian import solve_bayesian
 from .clustering import ClusterPartition, assign_target, cluster_donors
@@ -33,6 +38,14 @@ from .convex import solve_simplex
 from .frequentist import solve_ols
 from .hsvt import hsvt, select_rank
 from .inference import shen_inference
+from .missing import (
+    check_missing_supported,
+    denoise_observed,
+    pre_period_means,
+    refuse_empty_periods,
+    rescale_observed,
+    two_block_counterfactual,
+)
 
 _MIN_PRE_PERIODS = 2
 _MIN_CLUSTER_DONORS = 2
@@ -74,6 +87,7 @@ def run_pcr(
     scpi_sims: int = 200,
     scpi_e_method: str = "gaussian",
     random_state: int = 0,
+    time_labels: Optional[Sequence] = None,
 ) -> Tuple[MethodFit, Optional[Tuple[np.ndarray, np.ndarray]]]:
     """Run the paper-aligned PCR-SC pipeline.
 
@@ -105,6 +119,17 @@ def run_pcr(
         Optional elastic-net knobs for the frequentist OLS path.
     random_state : int
         Seed forwarded to k-means and the Bayesian sampler.
+    time_labels : sequence, optional
+        Length-``T`` period labels, used to name a period in an error.
+
+    Missing donor cells (NaN) are handled by the two-step PCR of Agarwal,
+    Shah and Shen (JMLR 2025, Section 2.2), with each donor centred at its
+    observed mean before the rescaling (:mod:`.missing`), on the
+    frequentist OLS path without clustering, projection through the
+    de-noised matrix, or Shen / scpi inference; other options raise
+    :class:`~mlsynth.exceptions.MlsynthDataError`. A missing treated
+    cell, a period with no observed donor and a donor with no observed
+    pre-period cell are refused.
 
     Returns
     -------
@@ -137,6 +162,22 @@ def run_pcr(
             f"donor_outcomes has shape {donor_outcomes.shape}; expected "
             f"(T, J)=({T}, {len(donor_names)})."
         )
+    if np.isnan(treated_outcome).any():
+        raise MlsynthDataError(
+            "The treated outcome has missing cells; PCR regresses the treated "
+            "unit's pre-period series on the donors (Agarwal, Shah and Shen "
+            "2025, Section 2.2, Step I) and defines no missing response."
+        )
+    observed = ~np.isnan(donor_outcomes)
+    has_missing = not bool(observed.all())
+    if has_missing:
+        check_missing_supported(
+            method="pcr", clustering=clustering, estimator=estimator,
+            objective=objective, lambda_penalty=lambda_penalty,
+            project_denoised=project_denoised, compute_shen_ci=compute_shen_ci,
+            compute_scpi_pi=compute_scpi_pi,
+        )
+        refuse_empty_periods(observed, time_labels)
 
     pre_donors = donor_outcomes[:T0]
     pre_target = treated_outcome[:T0]
@@ -195,32 +236,51 @@ def run_pcr(
             }
 
     # ------------------------------------------------------------------
-    # Algorithm 2 Step 1-2 (Amjad, Shah, Shen 2018 convention):
-    # HSVT-denoise the *pre-period* donor matrix only. Using the full
-    # (T, J) matrix for the denoising step leaks post-period donor
-    # information into the rank-r reconstruction, which can wash out
-    # the very post-period deviations the synthetic control is meant
-    # to detect (we observed this on the California Proposition 99
-    # panel: HSVT-on-full collapsed the ATT from ~-19 to ~-7 at r=4).
+    # HSVT-denoise the *pre-period* donor matrix only: Step I of Agarwal,
+    # Shah and Shen (JMLR 2025, Section 2.2), the forecast of Agarwal,
+    # Amjad, Shah and Shen (2018, Section 3.3; the authors' tslib), and the
+    # PCR of Shen, Ding, Sekhon and Yu (arXiv:2207.14481). The 2018 RSC
+    # paper's Algorithm 1 (eq. 8) writes the truncation over the full
+    # (T, J) matrix instead; on the California Proposition 99 panel that
+    # moves the ATT from about -19 to about -7 at r=4.
     # If the caller passes an explicit `rank`, promote to fixed-rank
     # truncation regardless of the default `rank_method`.
     # ------------------------------------------------------------------
     pre_donors = selected_full[:T0]
     effective_rank_method = "fixed" if rank is not None else rank_method
-    r = select_rank(
-        pre_donors,
-        method=effective_rank_method,
-        cumvar_threshold=cumvar_threshold,
-        r=rank,
-        standardize=standardize_for_rank,
-    )
-    denoised_pre, _, _, _ = hsvt(pre_donors, rank=r)
+    if has_missing:
+        # Agarwal, Shah and Shen (2025), Step I: the rank rule and the
+        # truncation both read Z-tilde, the block filled at the donor means
+        # and rescaled by rho-hat. Clustering is refused with missing cells,
+        # so selected_full is the whole pool.
+        pre_means = pre_period_means(pre_donors, observed[:T0], selected_names)
+        z_tilde, _ = rescale_observed(pre_donors, observed[:T0], pre_means)
+        r = select_rank(
+            z_tilde,
+            method=effective_rank_method,
+            cumvar_threshold=cumvar_threshold,
+            r=rank,
+            standardize=standardize_for_rank,
+        )
+        observed_fit = denoise_observed(pre_donors, observed[:T0], r,
+                                        selected_names)
+        denoised_pre = observed_fit.M_hat
+    else:
+        r = select_rank(
+            pre_donors,
+            method=effective_rank_method,
+            cumvar_threshold=cumvar_threshold,
+            r=rank,
+            standardize=standardize_for_rank,
+        )
+        denoised_pre, _, _, _ = hsvt(pre_donors, rank=r)
     # Optional post-period denoising for the projection step. Default
-    # `project_denoised=False` keeps the post-period donor outcomes raw
-    # (Amjad-Shah-Shen 2018 / canonical SCM). When True, we apply HSVT
-    # to the full (T, J) matrix at the same rank so the counterfactual
-    # is projected through M̂ in both periods (Rho et al. 2025
-    # Algorithm 4 Step 5, paper-strict).
+    # `project_denoised=False` keeps the post-period donor outcomes raw,
+    # which is Step II of Agarwal, Shah and Shen (2025) at full rank. When
+    # True, we apply HSVT to the full (T, J) matrix at the same rank so the
+    # counterfactual is projected through M̂ in both periods (Rho et al.
+    # 2025 Algorithm 4 Step 5); that is not Step II, which truncates the
+    # post block on its own.
     if project_denoised:
         denoised_full, _, _, _ = hsvt(selected_full, rank=r)
         projection_full = denoised_full
@@ -251,7 +311,15 @@ def run_pcr(
                 target_pre=pre_target,
                 donor_names=selected_names,
             )
-        counterfactual = projection_full @ f_hat
+        if has_missing:
+            # Step II at full rank on the post block, with its own rho-hat'
+            # and post-period means; the in-sample fit Z-tilde @ f_hat on the
+            # pre block.
+            counterfactual, p_hat_post, n_fallback = two_block_counterfactual(
+                selected_full, observed, T0, f_hat, observed_fit.means,
+            )
+        else:
+            counterfactual = projection_full @ f_hat
         method_tag = f"pcr_{'simplex' if objective == 'SIMPLEX' else 'ols'}"
     else:
         # Bayesian: replace inner OLS with a Gaussian posterior over the
@@ -320,6 +388,12 @@ def run_pcr(
         "q": q,
         **spannability_meta,
     }
+    if has_missing:
+        metadata["missing_p_hat"] = float(observed_fit.p_hat)
+        metadata["missing_p_hat_post"] = float(p_hat_post)
+        metadata["missing_fill"] = "donor_mean"
+        metadata["missing_post_mean_fallbacks"] = int(n_fallback)
+        metadata["missing_donor_cells"] = int((~observed).sum())
     if shen_obj is not None:
         metadata["shen_inference"] = shen_obj
 
