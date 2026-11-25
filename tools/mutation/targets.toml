@@ -23122,3 +23122,153 @@ timeout = 300.0
   find = "    if int(pd.isna(values).sum()) <= values.size - n_rows:"
   replace = "    if int(pd.isna(values).sum()) <= 0:"
   models = "the absent cells of an unbalanced panel counted as missing treatment values, so the refusal reads the long column for a NaN that is not there and fails with an index error, not the outcome refusal's report of the absent rows"
+
+[[target]]
+name = "clustersc-rsc-missing"
+module-path = "mlsynth/utils/clustersc_helpers/pcr/missing.py"
+test-command = "python -m pytest mlsynth/tests/test_clustersc_missing.py -q -p no:cacheprovider -x -W ignore -k 'not simulation'"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "p-hat-dropped"
+  find = "    return np.where(mask, values, 0.0) / p_hat, p_hat"
+  replace = "    return np.where(mask, values, 0.0), p_hat"
+  models = "the zero-filled block used without the 1/rho-hat rescaling, so E[Z-tilde] is rho X and the weights and the post-period counterfactual both shrink with the missing fraction"
+
+  [[target.mutant]]
+  id = "zero-fill-replaced-by-mean-fill"
+  find = "    return np.where(mask, values, 0.0) / p_hat, p_hat"
+  replace = "    return np.where(mask, values, values[mask].mean()) / p_hat, p_hat"
+  models = "missing entries imputed with the observed mean instead of 0, which breaks E[Z-tilde] = X once the block is divided by rho-hat"
+
+  [[target.mutant]]
+  id = "mask-ignored-in-p-hat"
+  find = "    p_hat = observed_fraction(mask)"
+  replace = "    p_hat = observed_fraction(np.ones_like(mask))"
+  models = "the zero-filled cells counted as observed, so rho-hat is 1 whatever is missing and the rescaling never happens"
+
+  [[target.mutant]]
+  id = "threshold-before-fill"
+  find = "    M_hat, _, _, _ = hsvt(Z_tilde, rank)"
+  replace = "    M_hat = np.where(mask, hsvt(Z_tilde, rank)[0], 0.0)"
+  models = "the truncation applied and the missing positions zeroed afterwards, so the de-noised block carries holes where Step I imputes"
+
+  [[target.mutant]]
+  id = "post-block-shares-the-pre-p-hat"
+  find = "    Z_tilde, _ = rescale_observed(values[:T0], mask[:T0])\n    Z_prime, p_prime = rescale_observed(values[T0:], mask[T0:])"
+  replace = "    Z_tilde, p_prime = rescale_observed(values[:T0], mask[:T0])\n    Z_prime = np.where(mask[T0:], values[T0:], 0.0) / p_prime"
+  models = "the post block rescaled by the pre block's observed fraction, which biases the counterfactual when the two blocks miss at different rates"
+
+  [[target.mutant]]
+  id = "post-block-not-rescaled"
+  find = "    Z_prime, p_prime = rescale_observed(values[T0:], mask[T0:])"
+  replace = "    Z_prime, p_prime = np.where(mask[T0:], values[T0:], 0.0), 1.0"
+  models = "the post block zero-filled without 1/rho-hat', so each post-period counterfactual shrinks by about the period's observed fraction"
+
+  [[target.mutant]]
+  id = "p-hat-floor-removed"
+  find = "    return max(float(mask.mean()), 1.0 / mask.size)"
+  replace = "    return float(mask.mean())"
+  models = "rho-hat without the 1/(mn) floor, so an all-missing block divides by zero"
+
+  [[target.mutant]]
+  id = "empty-period-not-refused"
+  find = "    if empty.size:"
+  replace = "    if False:"
+  models = "a period with no observed donor passed through, so its counterfactual is 0 whatever the data"
+
+  [[target.mutant]]
+  id = "any-missing-period-refused"
+  find = "    empty = np.flatnonzero(~np.asarray(mask, dtype=bool).any(axis=1))"
+  replace = "    empty = np.flatnonzero(~np.asarray(mask, dtype=bool).all(axis=1))"
+  models = "every period with one missing donor cell refused, which turns the missing-data path into a refusal of missing data"
+
+  [[target.mutant]]
+  id = "clustering-not-refused"
+  find = "    if clustering:"
+  replace = "    if False:"
+  models = "donor clustering run on a donor matrix with missing cells, which its SVD feature map cannot read"
+
+  [[target.mutant]]
+  id = "shen-ci-not-refused"
+  find = "    if compute_shen_ci:"
+  replace = "    if False:"
+  models = "the Shen et al. intervals computed on a donor matrix with missing cells, which they assume complete"
+
+  [[target.mutant]]
+  id = "project-denoised-not-refused"
+  find = "    if project_denoised:"
+  replace = "    if False:"
+  models = "a full-period truncation used for the projection with missing cells, which is not Step II"
+
+[[target]]
+name = "clustersc-rsc-missing-pipeline"
+module-path = "mlsynth/utils/clustersc_helpers/pcr/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_clustersc_missing.py -q -p no:cacheprovider -x -W ignore -k 'not simulation'"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "mask-not-passed-to-step-one"
+  find = "        observed_fit = denoise_observed(pre_donors, observed[:T0], r)"
+  replace = "        observed_fit = denoise_observed(pre_donors, np.ones_like(observed[:T0]), r)"
+  models = "Step I run as if every pre-period cell were observed, so NaN reaches the truncation"
+
+  [[target.mutant]]
+  id = "raw-projection-with-missing-cells"
+  find = "            counterfactual, p_hat_post = two_block_counterfactual(\n                selected_full, observed, T0, f_hat,\n            )"
+  replace = "            counterfactual, p_hat_post = np.nan_to_num(selected_full) @ f_hat, 1.0"
+  models = "the counterfactual projected through the zero-filled donors without Step II's rescaling, so it shrinks with the missing fraction"
+
+  [[target.mutant]]
+  id = "empty-periods-not-checked"
+  find = "        refuse_empty_periods(observed, time_labels)"
+  replace = "        pass"
+  models = "the pipeline never checks for a period with no observed donor"
+
+  [[target.mutant]]
+  id = "run-pcr-skips-the-branch-check"
+  find = "            method=\"pcr\", clustering=clustering, estimator=estimator,"
+  replace = "            method=\"pcr\", clustering=False, estimator=estimator,"
+  models = "run_pcr called directly with clustering on a panel with missing cells, which the estimator-level check does not see"
+
+  [[target.mutant]]
+  id = "treated-nan-reaches-run-pcr"
+  find = "    if np.isnan(treated_outcome).any():"
+  replace = "    if False:"
+  models = "a missing treated cell reaching the regression through a direct run_pcr call"
+
+[[target]]
+name = "clustersc-rsc-missing-setup"
+module-path = "mlsynth/utils/clustersc_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_clustersc_missing.py mlsynth/tests/test_clustersc.py -q -p no:cacheprovider -x -W ignore -k 'not simulation'"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "treated-cell-not-refused"
+  find = "    if gaps.size:"
+  replace = "    if False:"
+  models = "a missing treated cell let through setup, so the refusal no longer names the unit and period"
+
+  [[target.mutant]]
+  id = "donor-cells-refused-at-ingestion"
+  find = "    prepared = dataprep(df, unitid, time, outcome, treat, missing_outcomes=\"keep\")"
+  replace = "    prepared = dataprep(df, unitid, time, outcome, treat)"
+  models = "the panel read with the default refusal, so no missing donor cell ever reaches the PCR path"
+
+[[target]]
+name = "clustersc-rsc-missing-estimator"
+module-path = "mlsynth/estimators/clustersc.py"
+test-command = "python -m pytest mlsynth/tests/test_clustersc_missing.py -q -p no:cacheprovider -x -W ignore -k 'not simulation'"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "rpca-runs-on-missing-cells"
+  find = "            if np.isnan(inputs.donor_outcomes).any():"
+  replace = "            if False:"
+  models = "the rpca family run on a donor matrix with missing cells, which it assumes complete"
+
+  [[target.mutant]]
+  id = "missing-metadata-not-surfaced"
+  find = "                if k.startswith((\"fgrc_\", \"spannability_\", \"missing_\"))"
+  replace = "                if k.startswith((\"fgrc_\", \"spannability_\"))"
+  models = "rho-hat and the missing-cell count left off method_details, so the 1/rho-hat scale of the weights is not reported"
