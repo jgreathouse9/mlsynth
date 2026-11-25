@@ -380,8 +380,9 @@ def _stress_cover(seed, equal=True):
 
 @pytest.mark.parametrize("seed", [9, 14])
 def test_equal_cost_cover_lps_that_stalled_reach_the_optimum(seed):
-    """Edge, regression: with every cost equal the cover LP is dual degenerate at every basis. Before the perturbation
-    of Koberstein's section 6.3.1 these two stalled at the default iteration cap; now they reach HiGHS's optimum."""
+    """Edge, regression: with every cost equal the cover LP is dual degenerate at every basis. An earlier version
+    flipped the ratio test's passed breakpoints explicitly, zero-ratio ones included, which moved the primal point
+    without moving the dual objective; these two stalled at the 39,000-iteration cap. They reach HiGHS's optimum."""
     lp = _stress_cover(seed)
     res = ds.solve_boxed_lp(*lp)
     ref = _highs(*lp)
@@ -440,15 +441,18 @@ def _with(constants, fn):
 
 
 def test_the_result_reports_which_degeneracy_stage_the_solve_reached():
-    """Unit: a solve on distinct costs that never stalls reports ``"none"``; an all-equal-cost cover LP is perturbed
-    from the start (fewer than n/4 distinct costs) and, once its perturbed optimum is found, reports ``"restored"``.
-    With a perturbation as large as the costs (psi = 1) the perturbed optimum lies far from the true one, and with no
-    stall window the restored phase stalls into Bland's rule. Each reaches HiGHS's optimum."""
+    """Unit: solves that never stall report ``"none"``, the equal-cost cover of the regression test included. With the
+    stall window at zero the first iteration that does not raise the dual objective perturbs the costs, and once the
+    perturbed optimum is found the solve reports ``"restored"``. With a perturbation as large as the costs (psi = 1)
+    the perturbed optimum lies far from the true one and the restored phase stalls into Bland's rule. Each reaches
+    HiGHS's optimum."""
     rng = np.random.default_rng(3)
     assert ds.solve_boxed_lp(*_set_partitioning(rng, 8, 30, 3, 3, cliques=2)).degeneracy_stage == "none"
     eq = _stress_cover(9)
-    res = ds.solve_boxed_lp(*eq)
+    assert ds.solve_boxed_lp(*eq).degeneracy_stage == "none"
+    res = _with({"STALL_AFTER": 0}, lambda: ds.solve_boxed_lp(*eq))
     assert res.status == "optimal" and res.degeneracy_stage == "restored"
+    assert res.objective == pytest.approx(_highs(*eq), abs=1e-9)
     lp = _equal_cover(5)
     res = _with({"STALL_AFTER": 0, "PERTURB_REL": 1.0}, lambda: ds.solve_boxed_lp(*lp))
     assert res.status == "optimal" and res.degeneracy_stage == "bland"
@@ -506,8 +510,7 @@ def test_a_cost_matrix_in_place_of_a_cost_vector_is_refused():
 # --- the second round: stalls on distinct costs, iteration ceilings, certified infeasibility, cutoffs -------------------
 
 def _tied_cover(seed):
-    """A small cover LP with integer costs 1-3: ties, but at least n/4 distinct values, so no perturbation at the
-    start."""
+    """A small cover LP with integer costs 1-3, so with ties."""
     rng = np.random.default_rng(seed)
     units = int(rng.integers(4, 9))
     groups = int(rng.integers(units, 13))
@@ -516,28 +519,26 @@ def _tied_cover(seed):
 
 
 def test_a_stall_on_distinct_enough_costs_perturbs_them():
-    """Unit: on costs with ties but no fewer than n/4 distinct values nothing is perturbed at the start; with the stall
-    window at zero the first iteration that does not raise the dual objective perturbs them, and the solve still ends
-    at the optimum after restoring them."""
+    """Unit: on tied costs, with the stall window at zero, the first iteration that does not raise the dual objective
+    perturbs them, and the solve still ends at the optimum after restoring them."""
     lp = _tied_cover(1)
-    assert np.unique(lp[0]).size >= lp[0].size / 4
     res = _with({"STALL_AFTER": 0}, lambda: ds.solve_boxed_lp(*lp))
     assert res.degeneracy_stage == "restored" and res.status == "optimal"
     assert res.objective == pytest.approx(_highs(*lp), abs=1e-9)
 
 
 def test_equal_cost_covers_take_few_iterations():
-    """Unit, a ceiling: the forty equal-cost covers of the stress run took 2,759 iterations in all with the start
-    perturbation and Harris' largest-pivot choice. Without the perturbation they took 6,313, and with the smallest
-    pivot 35,424 (one reaching the iteration cap). The ceiling is 4,000."""
+    """Unit, a ceiling: the forty equal-cost covers of the stress run take 2,485 iterations in all. With the ratio
+    test's explicit flips of zero-ratio breakpoints (an earlier version) and no perturbation, seeds 9 and 14 alone
+    reached the 39,000-iteration cap. The ceiling is 4,000."""
     assert sum(ds.solve_boxed_lp(*_stress_cover(s)).iterations for s in range(40)) <= 4000
 
 
 def test_a_solve_stopped_while_perturbed_bounds_with_the_true_costs():
-    """Unit: stopped after three iterations on the perturbed costs of an equal-cost cover, the bound is the Lagrangian
+    """Unit: stopped after three iterations, the last on costs a stall has perturbed, the bound is the Lagrangian
     value of the multipliers under the true costs, and it bounds the true optimum."""
     lp = _stress_cover(9)
-    res = ds.solve_boxed_lp(*lp, max_iterations=3)
+    res = _with({"STALL_AFTER": 0}, lambda: ds.solve_boxed_lp(*lp, max_iterations=3))
     assert res.status == "iteration_limit" and res.degeneracy_stage == "perturbed"
     assert res.bound == pytest.approx(ds.lagrangian_bound(*lp, res.y), abs=1e-12)
     assert res.bound <= _highs(*lp) + 1e-9
@@ -578,8 +579,9 @@ def test_an_unverified_ray_is_not_reported_as_infeasibility():
 @given(seed=st.integers(0, 10**6), units=st.integers(4, 10), groups=st.integers(6, 40), k=st.integers(0, 3),
        below=st.floats(1e-6, 0.5))
 def test_property_a_cutoff_stops_the_solve_once_the_bound_reaches_it(seed, units, groups, k, below):
-    """Property: a cutoff under the optimum stops the solve with ``cutoff`` and a bound at or above it, in no more
-    iterations than the full solve; a cutoff above the optimum is never reached, and the solve ends ``optimal``."""
+    """Property: a cutoff under the optimum stops the solve at the first iterate whose bound reaches it, with
+    ``cutoff`` (or ``optimal`` when that iterate is the optimal basis); a cutoff above the optimum is never reached,
+    and the solve ends ``optimal``."""
     rng = np.random.default_rng(seed)
     lp = _set_partitioning(rng, units, groups, 3, k)
     full = ds.solve_boxed_lp(*lp)
@@ -588,11 +590,12 @@ def test_property_a_cutoff_stops_the_solve_once_the_bound_reaches_it(seed, units
     gap = below * (1.0 + abs(full.objective))
     low = ds.solve_boxed_lp(*lp, cutoff=full.objective - gap)
     assert low.status in ("cutoff", "optimal") and low.bound >= full.objective - gap - 1e-12
-    assert low.iterations <= full.iterations
-    if low.status == "optimal":                            # the cutoff was first met at the optimal basis itself
-        assert low.iterations == full.iterations
+    first = next((j for j in range(full.iterations)
+                  if ds.solve_boxed_lp(*lp, max_iterations=j).bound >= full.objective - gap), None)
+    if first is None:                                      # first met at the optimal basis itself
+        assert low.status == "optimal" and low.iterations == full.iterations
     else:
-        assert ds.solve_boxed_lp(*lp, max_iterations=low.iterations).bound == pytest.approx(low.bound, abs=1e-12)
+        assert low.status == "cutoff" and low.iterations == first
     high = ds.solve_boxed_lp(*lp, cutoff=full.objective + gap)
     assert high.status == "optimal" and high.objective == pytest.approx(full.objective, abs=1e-12)
 

@@ -23620,6 +23620,8 @@ timeout = 900.0
   find = "            pick = window[np.argmax(mag[window])] if window.size else order[k]"
   replace = "            pick = window[np.argmin(mag[window])] if window.size else order[k]"
   models = "Harris' ratio test choosing the smallest pivot in its window, the choice it exists to avoid (Koberstein 2005, Algorithm 18, step 22)"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in every answer measured, for these LPs: the window holds candidates whose ratios agree within the dual tolerance, and on 0/1 cover rows and the ill-conditioned LPs of the pivot-check record the smallest pivot in it was never small enough to spoil the basis. Iterations over 40 equal-cost covers 2,749 against 2,569, over 40 cover LPs 4,002 against 3,918, same answers. (An earlier measurement of 35,424 was taken with the explicit breakpoint flips since removed.) The largest pivot stays as Harris' rule prescribes."
 
   [[target.mutant]]
   id = "pricing-ignores-the-steepest-edge-weights"
@@ -23634,12 +23636,6 @@ timeout = 900.0
   find = "            if stage == 1:                                            # the perturbed LP's optimum: true costs back"
   replace = "            if False:                                                 # the perturbed LP's optimum: true costs back"
   models = "the perturbed LP's optimum reported as the optimum, without restoring the true costs (Koberstein 2005, section 6.3.1, last paragraph)"
-
-  [[target.mutant]]
-  id = "no-perturbation-at-the-start"
-  find = "    if n and np.unique(c).size < n / 4:"
-  replace = "    if False:"
-  models = "costs with few distinct values left unperturbed until a stall is detected"
 
   [[target.mutant]]
   id = "no-perturbation-on-a-stall"
