@@ -23398,3 +23398,189 @@ timeout = 900.0
   find = "    if not donor_labels:"
   replace = "    if False:"
   models = "a panel with no donor reaching the weight solver"
+
+[[target]]
+name = "clustersc-rsc-missing"
+module-path = "mlsynth/utils/clustersc_helpers/pcr/missing.py"
+test-command = "python -m pytest mlsynth/tests/test_clustersc_missing.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "zero-fill-instead-of-mean-fill"
+  find = "    return m + np.where(mask, values - m, 0.0) / p_hat, p_hat"
+  replace = "    return np.where(mask, values, 0.0) / p_hat, p_hat"
+  models = "the paper's zero-fill restored, whose added variance grows with the outcome's squared level and biases the weights on outcomes far from zero"
+
+  [[target.mutant]]
+  id = "rho-hat-dropped"
+  find = "    return m + np.where(mask, values - m, 0.0) / p_hat, p_hat"
+  replace = "    return m + np.where(mask, values - m, 0.0), p_hat"
+  models = "the centred block used without the 1/rho-hat rescaling, so the observed deviations are not scaled up for the cells that are missing"
+
+  [[target.mutant]]
+  id = "complete-block-branch-removed"
+  find = "    if mask.all():\n        return values.copy(), 1.0"
+  replace = "    if False:\n        return values.copy(), 1.0"
+  models = "a complete block sent through m + (Z - m), which is not Z in floating point, so complete blocks are no longer the complete-data path bit for bit"
+
+  [[target.mutant]]
+  id = "pre-means-used-for-the-post-block"
+  find = "    post_means = np.where(fallback, pre_means, post_means)"
+  replace = "    post_means = pre_means"
+  models = "the post block centred at the pre-period means, which carries the pre-to-post change in each donor's level into the rescaled deviations"
+
+  [[target.mutant]]
+  id = "fallback-dropped"
+  find = "    post_means = np.where(fallback, pre_means, post_means)"
+  replace = "    post_means = post_means"
+  models = "a donor with no observed post cell left with a NaN mean, which turns the whole post-period counterfactual into NaN"
+
+  [[target.mutant]]
+  id = "mask-ignored-in-p-hat"
+  find = "    p_hat = observed_fraction(mask)"
+  replace = "    p_hat = observed_fraction(np.ones_like(mask))"
+  models = "the filled cells counted as observed, so rho-hat is 1 whatever is missing and the rescaling never happens"
+
+  [[target.mutant]]
+  id = "threshold-before-fill"
+  find = "    M_hat, _, _, _ = hsvt(Z_tilde, rank)"
+  replace = "    M_hat = np.where(mask, hsvt(Z_tilde, rank)[0], 0.0)"
+  models = "the truncation applied and the missing positions zeroed afterwards, so the de-noised block carries holes where Step I imputes"
+
+  [[target.mutant]]
+  id = "post-block-shares-the-pre-p-hat"
+  find = "    Z_prime, p_prime = rescale_observed(values[T0:], mask[T0:], post_means)"
+  replace = "    Z_prime = post_means + np.where(mask[T0:], values[T0:] - post_means, 0.0) / observed_fraction(mask[:T0])\n    p_prime = observed_fraction(mask[:T0])"
+  models = "the post block rescaled by the pre block's observed fraction, which mis-scales the post deviations when the two blocks miss at different rates"
+
+  [[target.mutant]]
+  id = "post-block-not-rescaled"
+  find = "    Z_prime, p_prime = rescale_observed(values[T0:], mask[T0:], post_means)"
+  replace = "    Z_prime, p_prime = np.where(mask[T0:], values[T0:], post_means), 1.0"
+  models = "the post block mean-filled without 1/rho-hat', so its observed deviations are not scaled up for the missing cells"
+
+  [[target.mutant]]
+  id = "p-hat-floor-removed"
+  find = "    return max(float(mask.mean()), 1.0 / mask.size)"
+  replace = "    return float(mask.mean())"
+  models = "rho-hat without the 1/(mn) floor, so an all-missing block divides by zero"
+
+  [[target.mutant]]
+  id = "donor-without-pre-cells-not-refused"
+  find = "    if empty.size:\n        who"
+  replace = "    if False:\n        who"
+  models = "a donor with no observed pre-period cell let through with a NaN mean, which turns the filled block and every weight into NaN"
+
+  [[target.mutant]]
+  id = "empty-period-not-refused"
+  find = "    if empty.size:\n        names"
+  replace = "    if False:\n        names"
+  models = "a period with no observed donor passed through, so its filled row is the donor means whatever happened in it"
+
+  [[target.mutant]]
+  id = "any-missing-period-refused"
+  find = "    empty = np.flatnonzero(~np.asarray(mask, dtype=bool).any(axis=1))"
+  replace = "    empty = np.flatnonzero(~np.asarray(mask, dtype=bool).all(axis=1))"
+  models = "every period with one missing donor cell refused, which turns the missing-data path into a refusal of missing data"
+
+  [[target.mutant]]
+  id = "clustering-not-refused"
+  find = "    if clustering:"
+  replace = "    if False:"
+  models = "donor clustering run on a donor matrix with missing cells, which its SVD feature map cannot read"
+
+  [[target.mutant]]
+  id = "shen-ci-not-refused"
+  find = "    if compute_shen_ci:"
+  replace = "    if False:"
+  models = "the Shen et al. intervals computed on a donor matrix with missing cells, which they assume complete"
+
+  [[target.mutant]]
+  id = "project-denoised-not-refused"
+  find = "    if project_denoised:"
+  replace = "    if False:"
+  models = "a full-period truncation used for the projection with missing cells, which is not Step II"
+
+[[target]]
+name = "clustersc-rsc-missing-pipeline"
+module-path = "mlsynth/utils/clustersc_helpers/pcr/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_clustersc_missing.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "mask-not-passed-to-step-one"
+  find = "        observed_fit = denoise_observed(pre_donors, observed[:T0], r,"
+  replace = "        observed_fit = denoise_observed(pre_donors, np.ones_like(observed[:T0]), r,"
+  models = "Step I run as if every pre-period cell were observed, so NaN reaches the truncation"
+
+  [[target.mutant]]
+  id = "raw-projection-with-missing-cells"
+  find = "            counterfactual, p_hat_post, n_fallback = two_block_counterfactual(\n                selected_full, observed, T0, f_hat, observed_fit.means,\n            )"
+  replace = "            counterfactual, p_hat_post, n_fallback = np.nan_to_num(selected_full) @ f_hat, 1.0, 0"
+  models = "the counterfactual projected through zero-filled donors without Step II's fill and rescaling"
+
+  [[target.mutant]]
+  id = "empty-periods-not-checked"
+  find = "        refuse_empty_periods(observed, time_labels)"
+  replace = "        pass"
+  models = "the pipeline never checks for a period with no observed donor"
+
+  [[target.mutant]]
+  id = "run-pcr-skips-the-branch-check"
+  find = "            method=\"pcr\", clustering=clustering, estimator=estimator,"
+  replace = "            method=\"pcr\", clustering=False, estimator=estimator,"
+  models = "run_pcr called directly with clustering on a panel with missing cells, which the estimator-level check does not see"
+
+  [[target.mutant]]
+  id = "treated-nan-reaches-run-pcr"
+  find = "    if np.isnan(treated_outcome).any():"
+  replace = "    if False:"
+  models = "a missing treated cell reaching the regression through a direct run_pcr call"
+
+  [[target.mutant]]
+  id = "fallback-count-not-reported"
+  find = "        metadata[\"missing_post_mean_fallbacks\"] = int(n_fallback)"
+  replace = "        metadata[\"missing_post_mean_fallbacks\"] = 0"
+  models = "the number of donors centred at their pre-period mean dropped from the result, so a reader cannot see that the post block borrowed pre-period levels"
+
+  [[target.mutant]]
+  id = "fill-not-reported"
+  find = "        metadata[\"missing_fill\"] = \"donor_mean\""
+  replace = "        metadata[\"missing_fill\"] = \"zero\""
+  models = "the result naming the paper's zero-fill when the donor-mean fill ran"
+
+[[target]]
+name = "clustersc-rsc-missing-setup"
+module-path = "mlsynth/utils/clustersc_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_clustersc_missing.py mlsynth/tests/test_clustersc.py -q -p no:cacheprovider -x -W ignore -k 'not simulation'"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "treated-cell-not-refused"
+  find = "    if gaps.size:"
+  replace = "    if False:"
+  models = "a missing treated cell let through setup, so the refusal no longer names the unit and period"
+
+  [[target.mutant]]
+  id = "donor-cells-refused-at-ingestion"
+  find = "    prepared = dataprep(df, unitid, time, outcome, treat, missing_outcomes=\"keep\")"
+  replace = "    prepared = dataprep(df, unitid, time, outcome, treat)"
+  models = "the panel read with the default refusal, so no missing donor cell ever reaches the PCR path"
+
+[[target]]
+name = "clustersc-rsc-missing-estimator"
+module-path = "mlsynth/estimators/clustersc.py"
+test-command = "python -m pytest mlsynth/tests/test_clustersc_missing.py -q -p no:cacheprovider -x -W ignore -k 'not simulation'"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "rpca-runs-on-missing-cells"
+  find = "            if np.isnan(inputs.donor_outcomes).any():"
+  replace = "            if False:"
+  models = "the rpca family run on a donor matrix with missing cells, which it assumes complete"
+
+  [[target.mutant]]
+  id = "missing-metadata-not-surfaced"
+  find = "                if k.startswith((\"fgrc_\", \"spannability_\", \"missing_\"))"
+  replace = "                if k.startswith((\"fgrc_\", \"spannability_\"))"
+  models = "rho-hat and the missing-cell count left off method_details, so the 1/rho-hat scale of the weights is not reported"

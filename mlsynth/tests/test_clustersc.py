@@ -288,13 +288,34 @@ class TestSetup:
         assert inputs.T0 == 14
         assert inputs.J == 12
 
-    def test_missing_values_rejected(self, panel):
+    def test_missing_treated_value_rejected(self, panel):
+        # Row 5 is unit 0, the treated unit. The forecast algorithm regresses
+        # on its complete pre-period series and defines no missing target
+        # cell (Agarwal, Amjad, Shah and Shen 2018, Appendix C), so it is
+        # refused for every branch.
         df, _ = panel
         df.loc[5, "y"] = np.nan
-        with pytest.raises(MlsynthDataError):
+        with pytest.raises(MlsynthDataError, match="treated unit"):
             prepare_clustersc_inputs(
                 df, outcome="y", treat="D", unitid="unit", time="time",
             )
+
+    def test_missing_donor_value_kept_for_the_pcr_path(self, panel):
+        df, _ = panel
+        df.loc[(df.unit == 3) & (df.time == 5), "y"] = np.nan
+        inputs = prepare_clustersc_inputs(
+            df, outcome="y", treat="D", unitid="unit", time="time",
+        )
+        assert int(np.isnan(inputs.donor_outcomes).sum()) == 1
+
+    def test_missing_donor_value_refused_for_the_default_config(self, panel):
+        # Defaults run clustering and the Shen et al. CIs, neither of which the
+        # missing-data algorithm covers.
+        df, _ = panel
+        df.loc[(df.unit == 3) & (df.time == 5), "y"] = np.nan
+        with pytest.raises(MlsynthDataError, match="clustering"):
+            CLUSTERSC({"df": df, "outcome": "y", "treat": "D", "unitid": "unit",
+                       "time": "time", "display_graphs": False}).fit()
 
 
 # ----------------------------------------------------------------------
