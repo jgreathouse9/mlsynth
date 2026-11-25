@@ -21565,3 +21565,93 @@ timeout = 600.0
   find = "            ) from exc"
   replace = "            ) from None"
   models = "dataprep's diagnosis of an incomplete treatment variable discarded from the chain"
+
+[[target]]
+name = "spcd-dataprep"
+module-path = "mlsynth/utils/spcd_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_spcd_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "an-unknown-post-col-is-read-first"
+  find = "    if post_col is not None and post_col not in df.columns:\n        raise MlsynthDataError(f\"post_col '{post_col}' is not present in df.\")"
+  replace = "    if False:\n        raise MlsynthDataError(f\"post_col '{post_col}' is not present in df.\")"
+  models = "an unknown post_col reported only after the panel is pivoted and checked, behind any data error"
+
+  [[target.mutant]]
+  id = "post-col-counted-without-geoex"
+  find = "        T0 = int(geoex_dataprep(df, unitid, time, outcome, post_col=post_col)[\"pre_periods\"])"
+  replace = "        T0 = int((df.drop_duplicates(subset=[time])[post_col] == 0).sum())"
+  models = "the pre-period count read off post_col without geoex_dataprep's block-at-the-end check"
+
+  [[target.mutant]]
+  id = "design-only-drops-the-last-period"
+  find = "            T0 = n_periods\n"
+  replace = "            T0 = n_periods - 1\n"
+  models = "a design-only panel (no T0, no post_col) losing its last pre period to a phantom post block"
+
+  [[target.mutant]]
+  id = "T0-zero-is-not-a-config-error"
+  find = "        if T0 <= 0 or T0 > n_periods:"
+  replace = "        if T0 > n_periods:"
+  models = "T0 of zero or below reported as a data error about pre periods, not as an out-of-range T0"
+
+  [[target.mutant]]
+  id = "the-post-block-overlaps-the-pre-block"
+  find = "    Y_post = Y_full[T0:, :] if T0 < n_periods else None"
+  replace = "    Y_post = Y_full[T0 - 1:, :] if T0 < n_periods else None"
+  models = "an off-by-one between geoex_dataprep's pre-period count and the start of the post block"
+
+  [[target.mutant]]
+  id = "one-pre-period-is-accepted"
+  find = "    if Y_pre.shape[0] < 2:"
+  replace = "    if Y_pre.shape[0] < 1:"
+  models = "SPCD's own minimum of two pre periods lost behind geoex_dataprep"
+
+  [[target.mutant]]
+  id = "one-unit-is-accepted"
+  find = "    if Y_pre.shape[1] < 2:"
+  replace = "    if Y_pre.shape[1] < 1:"
+  models = "SPCD's own minimum of two units lost behind geoex_dataprep"
+
+  [[target.mutant]]
+  id = "an-unknown-covariate-gets-the-generic-message"
+  find = "            if c not in df.columns:\n                raise MlsynthDataError(f\"covariate '{c}' is not present in df.\")"
+  replace = "            if False:\n                raise MlsynthDataError(f\"covariate '{c}' is not present in df.\")"
+  models = "SPCD's covariate message replaced by build_covariate_matrix's"
+
+  [[target.mutant]]
+  id = "covariates-averaged-over-every-period"
+  find = "            df, unitid, time, cov_names, T0, list(unit_labels),"
+  replace = "            df, unitid, time, cov_names, n_periods, list(unit_labels),"
+  models = "the covariate means taken over the post block as well as the pre block"
+
+  [[target.mutant]]
+  id = "covariate-rows-in-another-order"
+  find = "            df, unitid, time, cov_names, T0, list(unit_labels),"
+  replace = "            df, unitid, time, cov_names, T0, list(unit_labels)[::-1],"
+  models = "covariate rows out of step with the outcome matrix's unit columns"
+
+  [[target.mutant]]
+  id = "covariates-standardised-twice"
+  find = "            normalize=False, keys=balance(df, unitid, time),"
+  replace = "            normalize=True, keys=balance(df, unitid, time),"
+  models = "build_covariate_matrix's ddof=1 standardisation applied before SPCD's own z-score"
+
+  [[target.mutant]]
+  id = "the-key-scan-is-not-shared"
+  find = "            normalize=False, keys=balance(df, unitid, time),"
+  replace = "            normalize=False, keys=None,"
+  models = "each covariate pivot rescanning the panel's keys instead of reading balance()'s scan"
+
+  [[target.mutant]]
+  id = "a-unit-with-no-pre-period-covariate-is-accepted"
+  find = "            if np.isnan(X[:, j]).any():"
+  replace = "            if False:"
+  models = "a NaN covariate mean reaching the iteration matrix"
+
+  [[target.mutant]]
+  id = "covariates-scaled-with-ddof-one"
+  find = "        X = (X - X.mean(axis=0)) / (X.std(axis=0, ddof=0) + 1e-12)"
+  replace = "        X = (X - X.mean(axis=0)) / (X.std(axis=0, ddof=1) + 1e-12)"
+  models = "SPCD's population z-score replaced by the sample one"
