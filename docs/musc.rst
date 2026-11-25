@@ -62,6 +62,12 @@ element :math:`y_{jt}` (unit :math:`j`, time :math:`t`), and the donor matrix
 :math:`\mathbf{Y}_0 \coloneqq [\mathbf{y}_j]_{j \in \mathcal{N}_0} \in
 \mathbb{R}^{T \times N_0}`.
 
+The panel is read through :func:`mlsynth.utils.datautils.dataprep`, units and
+periods in sorted order, so every unit has a row for every period. It refuses
+with ``MlsynthDataError`` a duplicate or absent unit-period, a missing or
+non-finite outcome in any period (a unit of a collapsed cohort included), a
+non-binary treatment, and a treatment that switches off after it starts.
+
 The Class of Generalised Synthetic-Control Estimators
 -----------------------------------------------------
 

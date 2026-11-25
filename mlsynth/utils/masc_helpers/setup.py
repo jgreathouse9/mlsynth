@@ -1,4 +1,10 @@
-"""Pivot a long panel into the matrices the MASC estimator consumes."""
+"""Read a long panel into the matrices the MASC estimator consumes.
+
+The outcome matrix, the treated unit, the time labels and the adoption period
+come from :func:`mlsynth.utils.datautils.balance` and
+:func:`mlsynth.utils.datautils.dataprep`, and each covariate panel from its own
+``dataprep`` call (see :func:`_covariate_panel`).
+"""
 
 from __future__ import annotations
 
@@ -8,7 +14,31 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
+from ..datautils import balance, dataprep
+from ..prepared import SinglePanel
 from .structures import MASCInputs
+
+
+def _covariate_panel(df: pd.DataFrame, unitid: str, time: str, treat: str,
+                     column: str, keys) -> pd.DataFrame:
+    """One covariate as a period-by-unit frame, each unit's gaps filled.
+
+    The covariate is read as the outcome of its own ``dataprep`` call on the
+    same panel, so its axes are the outcome matrix's. A covariate need not be
+    observed in every period, and MASC fills each unit's gaps forward and then
+    backward (the Basque sector shares are observed in a handful of years), so
+    a NaN cell is kept (``missing_outcomes="keep"``); an infinite value is
+    refused under the covariate's name.
+    """
+    try:
+        prep = dataprep(df, unitid, time, column, treat, keys=keys,
+                        missing_outcomes="keep")
+    except MlsynthDataError as exc:
+        raise MlsynthDataError(
+            f"Covariate {column!r} cannot be read; MASC needs every covariate "
+            f"finite where it is observed. {exc}"
+        ) from exc
+    return prep.Ywide.ffill().bfill()
 
 
 def prepare_masc_inputs(
@@ -21,63 +51,53 @@ def prepare_masc_inputs(
     covariates: Optional[Sequence[str]] = None,
     covariate_windows: Optional[Dict[str, Tuple[Any, Any]]] = None,
 ) -> MASCInputs:
-    """Pivot ``df`` into MASC's ``(Y_treated, Y_donors, treatment_period)``.
+    """Build MASC's ``(Y_treated, Y_donors, treatment_period)`` through ``dataprep``.
 
     Single-treated-unit only for v1. The treated unit is the panel
     unit with any ``treat == 1`` row; the donor pool is every other
-    never-treated unit. ``treatment_period`` is the 1-indexed position
-    of the first treated period (matches the R reference's
-    ``treatment`` argument).
+    unit, in the order units first appear in ``df``. ``treatment_period``
+    is the 1-indexed position of the first treated period (matches the R
+    reference's ``treatment`` argument).
+
+    ``balance`` and ``dataprep`` refuse a missing or non-finite outcome, an
+    absent or duplicate unit-period, a non-binary treatment and a treatment
+    that switches off after it starts. MASC's own checks (one treated unit,
+    two pre-periods, the covariate columns) stay on top.
     """
-    treated_rows = df.loc[df[treat] == 1, [unitid, time]]
-    if treated_rows.empty:
-        raise MlsynthDataError(
-            f"MASC requires at least one row with {treat}=1; none found."
-        )
-    treated_units = treated_rows[unitid].unique()
-    if treated_units.size != 1:
+    for col in (outcome, treat, unitid, time):
+        if col not in df.columns:
+            raise MlsynthDataError(f"Required column {col!r} missing.")
+    # balance() refuses a duplicate or absent unit-period, and its key scan is
+    # reused by dataprep instead of being built twice.
+    keys = balance(df, unitid, time)
+    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)
+    if not isinstance(prep, SinglePanel):
+        n_treated = sum(len(c.treated_units) for c in prep.cohorts.values())
         raise MlsynthDataError(
             "MASC currently supports a single treated unit; found "
-            f"{treated_units.size}."
+            f"{n_treated}."
         )
-    treated_label = treated_units[0]
-    intervention_time = treated_rows[time].min()
+    treated_label = prep.treated_unit_name
+    # dataprep orders the donors by label; the old setup listed them in the
+    # order units first appear in the frame, and the weights keep that order.
+    never_treated = [u for u in df[unitid].unique() if u != treated_label]
 
-    all_units = list(df[unitid].unique())
-    never_treated = [
-        u for u in all_units
-        if u != treated_label
-        and df.loc[df[unitid] == u, treat].sum() == 0
-    ]
-    if len(never_treated) == 0:
-        raise MlsynthDataError("MASC: donor pool is empty.")
+    time_index = prep.time_labels.to_numpy()
+    T0 = int(prep.pre_periods)
+    intervention_time = prep.time_labels[T0]
+    # The fit's sums depend on the memory layout. These are the layouts the old
+    # df.pivot gave under pandas 2.x (the version CI runs): a contiguous
+    # treated series and a column-major donor matrix. dataprep's matrix is
+    # row-major, which would move the weights by about 1e-12.
+    Y_treated = np.ascontiguousarray(prep.Ywide[treated_label].to_numpy(dtype=float))
+    Y_donors = np.asfortranarray(prep.Ywide[never_treated].to_numpy(dtype=float))
 
-    Y_wide = (
-        df.pivot(index=time, columns=unitid, values=outcome)
-        .sort_index()
-    )
-    time_index = Y_wide.index.to_numpy()
-
-    Y_treated = Y_wide[treated_label].to_numpy(dtype=float)
-    Y_donors = Y_wide[never_treated].to_numpy(dtype=float)
-
-    if not (np.isfinite(Y_treated).all() and np.isfinite(Y_donors).all()):
-        raise MlsynthDataError(
-            "MASC requires a balanced panel with no missing outcomes."
-        )
-
-    # Convert intervention_time to 1-indexed treatment_period.
-    treatment_period = int(np.argmax(time_index >= intervention_time)) + 1
+    treatment_period = T0 + 1
     T = int(time_index.size)
-    T0 = treatment_period - 1
     T1 = T - T0
     if T0 < 2:
         raise MlsynthDataError(
             f"MASC needs at least 2 pre-treatment periods; got T0={T0}."
-        )
-    if T1 < 1:
-        raise MlsynthDataError(
-            f"MASC needs at least 1 post-treatment period; got T1={T1}."
         )
 
     # Covariate panels (optional). Stored as ``(T, P)`` for the treated unit
@@ -93,11 +113,7 @@ def prepare_masc_inputs(
         for c in covariates:
             if c not in df.columns:
                 raise MlsynthDataError(f"Covariate {c!r} not found in df.columns.")
-            cwide = (
-                df.pivot(index=time, columns=unitid, values=c)
-                .reindex(time_index)
-                .ffill().bfill()
-            )
+            cwide = _covariate_panel(df, unitid, time, treat, c, keys)
             if cwide[[treated_label, *never_treated]].isna().any().any():
                 raise MlsynthDataError(
                     f"Covariate {c!r} is missing for some unit-period after "

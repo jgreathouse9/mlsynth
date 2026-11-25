@@ -107,6 +107,15 @@ the optimiser is :math:`\mathbf{w}^\ast`. The per-period treatment effect is
 :math:`\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1} \sum_{t \in \mathcal{T}_2}
 \tau_t`.
 
+The panel is read through :func:`mlsynth.utils.datautils.dataprep`, so a
+non-binary treatment, a treatment that switches off, a duplicate or absent
+unit-period, and a missing or non-finite outcome in any period are refused with
+``MlsynthDataError``. A covariate may be missing in some periods, and each
+unit's gaps are filled forward and then backward before the window averages
+(the Basque sector shares are observed in only a few years); an infinite
+covariate value, or a covariate missing in every period for some unit, is
+refused.
+
 Assumptions (Kellogg-Mogstad-Pouliot-Torgovitsky 2021)
 ------------------------------------------------------
 

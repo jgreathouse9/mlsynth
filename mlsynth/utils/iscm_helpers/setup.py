@@ -77,8 +77,9 @@ def prepare_iscm_inputs(
 
     unit_names = sorted(np.asarray(prep.Ywide.columns))
     # Built from the labels one by one, as the old setup's sorted list was, so
-    # datetime periods stay an object array of Timestamps.
-    time_labels = np.array(list(prep.time_labels))
+    # datetime periods stay an object array of Timestamps and a 32-bit
+    # period column stays 32-bit (``.array`` keeps the column's dtype).
+    time_labels = np.array(list(prep.time_labels.array))
     T = int(time_labels.size)
     Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)
     starts = _adoption_starts(prep)

@@ -142,15 +142,18 @@ class TestSameInputs:
         assert inputs.D[5, :9].sum() == 0 and inputs.D[5, 9:].min() == 1
         assert inputs.D[[1, 3, 4, 6, 7]].sum() == 0
 
-    @pytest.mark.parametrize("label", ["datetime", "str", "float"])
+    @pytest.mark.parametrize("label", ["datetime", "str", "float", "float32", "int32"])
     def test_period_labels_keep_their_type(self, label):
         # The old labels were np.array(sorted(...)): Timestamps as objects,
-        # strings as a fixed-width unicode array.
+        # strings as a fixed-width unicode array, and a 32-bit period column
+        # (a Stata float32 year, say) kept at 32 bits.
         df = _panel(adopt={1: 7})
         step = df["time"] - 2000
         df["time"] = {"datetime": pd.to_datetime("2001-01-01") + pd.to_timedelta(step, unit="D"),
                       "str": "p" + step.map("{:02d}".format),
-                      "float": step / 4.0}[label]
+                      "float": step / 4.0,
+                      "float32": (step / 4.0).astype("float32"),
+                      "int32": df["time"].astype("int32")}[label]
         _assert_same(prepare_iscm_inputs(df, **COLS), _reference(df, **COLS))
 
     def test_extra_columns_are_ignored(self):

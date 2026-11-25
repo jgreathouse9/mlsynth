@@ -69,6 +69,16 @@ imputed entries :math:`\widehat{y}_{it}`. The per-cell effect is
 :math:`\widehat{\tau}` averages :math:`\tau_{it}` over the treated cells in
 :math:`\mathcal{T}_2`.
 
+The panel is long and balanced, one row per unit and period, and the outcome
+and the 0/1 treatment are read through
+:func:`mlsynth.utils.datautils.dataprep`. A non-binary treatment, a treatment
+that switches off, a duplicate or absent unit-period, a row without a unit or
+period, and a missing or non-finite outcome in any period are refused with
+``MlsynthDataError``. RMSI also refuses a missing treatment value, fewer than
+three units, two pre-periods or two never-treated controls, a unit treated in
+the first period, and treated units that adopt at different periods. A
+covariate may have missing values: the unit and period means skip them.
+
 Identifying assumptions
 ~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -14,7 +14,12 @@ from .inference import (
     randomization_ci,
     unbiased_variance,
 )
-from .setup import prepare_musc_inputs
+from .setup import (  # noqa: F401  (prepare_musc_inputs is re-exported)
+    _synthetic_cohort_label,
+    cohort_inputs,
+    prepare_musc_inputs,
+    read_musc_panel,
+)
 from .structures import (
     MUSC,
     SC,
@@ -321,11 +326,6 @@ def run_musc(
 # Multi-cohort dispatcher (Appendix D.1, uniform-treated-weight version)
 # ---------------------------------------------------------------------------
 
-def _synthetic_cohort_label(treated_units: Sequence[Any]) -> str:
-    """Build a stable, panel-safe label for a collapsed cohort."""
-    return "_musc_cohort__" + "__".join(str(u) for u in treated_units)
-
-
 def run_musc_cohorts(
     df: pd.DataFrame,
     *,
@@ -338,10 +338,13 @@ def run_musc_cohorts(
     run_inference: bool = True,
     solver: Optional[str] = None,
     verbose: bool = False,
+    wide: Optional[pd.DataFrame] = None,
 ) -> MUSCMultiCohortResults:
     """Fit per-cohort MUSC on a multi-treated / staggered panel.
 
-    For each cohort the constituent treated units are collapsed to
+    The panel is read once through
+    :func:`~mlsynth.utils.musc_helpers.setup.read_musc_panel`. For each
+    cohort the constituent treated units are collapsed to
     their within-period mean (uniform-treated-weight version of
     Bottmer et al. 2024 Appendix D.1), and single-unit MUSC is fitted
     on the resulting panel against a shared pool of never-treated
@@ -358,6 +361,10 @@ def run_musc_cohorts(
         As returned by :func:`derive_treatment_cohorts`.
     alpha, run_inference, solver, verbose
         Forwarded to :func:`run_musc` for each cohort.
+    wide : pd.DataFrame, optional
+        The panel's ``(time x unit)`` outcome matrix from
+        :func:`~mlsynth.utils.musc_helpers.setup.read_musc_panel`, if the
+        caller has already read it. Read from ``df`` when omitted.
 
     Returns
     -------
@@ -372,23 +379,17 @@ def run_musc_cohorts(
     for treated_units, _ in cohorts:
         all_treated.extend(treated_units)
 
+    if wide is None:
+        wide = read_musc_panel(df, unitid=unitid, time=time, outcome=outcome,
+                               treat=treat)
+
     cohort_fits: Dict[Any, MUSCCohortFit] = {}
     for treated_units, intervention_time in cohorts:
-        synthetic_label = _synthetic_cohort_label(treated_units)
         others = [u for u in all_treated if u not in set(treated_units)]
-        df_collapsed = collapse_cohort(
-            df,
-            unitid=unitid, time=time, outcome=outcome, treat=treat,
-            treated_units=treated_units,
-            intervention_time=intervention_time,
-            synthetic_label=synthetic_label,
-            other_treated_units=others,
-        )
-        inputs = prepare_musc_inputs(
-            df_collapsed,
-            unitid=unitid, time=time, outcome=outcome,
-            treated_unit=synthetic_label,
-            intervention_time=intervention_time,
+        inputs = cohort_inputs(
+            wide, outcome=outcome, treated_units=treated_units,
+            intervention_time=intervention_time, other_treated_units=others,
+            collapse=True, unitid=unitid,
         )
         results = run_musc(
             inputs,
