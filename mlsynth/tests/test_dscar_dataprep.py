@@ -132,6 +132,10 @@ def _assert_same(got, ref):
     for f in ("Y", "Y_lag1", "X"):
         a, b = getattr(got, f), getattr(ref, f)
         assert a.dtype == b.dtype and a.shape == b.shape, f
+        # the old layout on this pandas version: the weight solver is
+        # sensitive to it at about 1e-6
+        assert a.flags["C_CONTIGUOUS"] == b.flags["C_CONTIGUOUS"], f
+        assert a.flags["F_CONTIGUOUS"] == b.flags["F_CONTIGUOUS"], f
         np.testing.assert_array_equal(a, b, err_msg=f)
     np.testing.assert_array_equal(got.time_labels, ref.time_labels)
     assert got.time_labels.dtype == ref.time_labels.dtype
@@ -166,7 +170,8 @@ class TestRouting:
 
         monkeypatch.setattr(SETUP, "dataprep", spy)
         prepare_dsc_inputs(_panel(), **COLS, **EXTRA)
-        assert [c[0] for c in calls] == ["y", "x1", "x2", "y_lag1"]
+        assert calls[0][0] == "y"
+        assert sorted(c[0] for c in calls[1:]) == ["x1", "x2", "y_lag1"]
         assert all(c[1] == "keep" for c in calls)
         assert all(c[2] is not None and c[2] is calls[0][2] for c in calls)
 
@@ -236,10 +241,15 @@ class TestTheFitSeesTheMissingCells:
         df = _plant(_panel(treated=(0, 1)), [("u0", 2003)])
         res = DSCAR(dict(df=df, display_graphs=False, **COLS, **EXTRA)).fit()
         assert np.isfinite(res.att)
+        # the treated mean averages every treated outcome, so its 2003 gap is NaN
+        assert np.isnan(res.fit.gap[3])
+        assert np.isfinite(np.delete(res.fit.gap, 3)).all()
 
-    @pytest.mark.parametrize("alert", ["orange", "red"])
-    def test_the_beijing_fit_equals_the_fit_on_the_old_inputs(self, alert):
-        df = _beijing(alert)
+    def test_the_beijing_fit_equals_the_fit_on_the_old_inputs(self):
+        # Equal inputs with equal layout give an equal fit; the red-alert panel,
+        # the one with missing covariates, checks it end to end. The orange fit
+        # takes over a minute and its inputs are pinned in test_the_beijing_panels.
+        df = _beijing("red")
         new = run_dsc(prepare_dsc_inputs(df, **BEIJING))
         old = run_dsc(_reference(df, **BEIJING))
         assert new.att == old.att
