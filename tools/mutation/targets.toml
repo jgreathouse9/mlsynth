@@ -21943,3 +21943,99 @@ timeout = 600.0
   find = "    if df[treat].isna().any():"
   replace = "    if False:"
   models = "dataprep's binary check skipping NaN, so a missing treatment cell is read as 0"
+
+[[target]]
+name = "spsydid-dataprep"
+module-path = "mlsynth/utils/spsydid_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_spsydid_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n"
+  replace = "    keys = None\n"
+  models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-not-transposed"
+  find = "    outcome_wide = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    outcome_wide = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float))"
+  models = "dataprep's period-by-unit matrix used as SpSyDiD's unit-by-period outcome matrix"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-column-major"
+  find = "    outcome_wide = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    outcome_wide = prep.Ywide[unit_names].to_numpy(dtype=float).T"
+  models = "the outcome matrix in Fortran order, so the regression's sums differ from main in the last bits"
+
+  [[target.mutant]]
+  id = "the-treatment-matrix-is-column-major"
+  find = "    treat_wide = np.zeros((N, T), dtype=float)"
+  replace = "    treat_wide = np.zeros((N, T), dtype=float, order=\"F\")"
+  models = "D in Fortran order, so the exposure W D is summed in another order than on main"
+
+  [[target.mutant]]
+  id = "the-unit-order-is-ignored"
+  find = "    if unit_order is None:\n        unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    if True:\n        unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  models = "rows of Y and D in sorted order while W's rows follow the caller's unit_order"
+
+  [[target.mutant]]
+  id = "units-in-another-order"
+  find = "        unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "        unit_names = sorted(np.asarray(prep.Ywide.columns), reverse=True)"
+  models = "rows of Y and D out of step with the sorted rows of W"
+
+  [[target.mutant]]
+  id = "unit-labels-change-type"
+  find = "        unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "        unit_names = sorted(prep.Ywide.columns)"
+  models = "integer unit labels returned as Python ints where the old setup returned NumPy integers"
+
+  [[target.mutant]]
+  id = "period-labels-change-type"
+  find = "    time_labels = np.array(list(prep.time_labels.array))"
+  replace = "    time_labels = np.array(list(prep.time_labels))"
+  models = "float32 and int32 periods widened to 64 bits through Python scalars, unlike the old labels"
+
+  [[target.mutant]]
+  id = "adoption-one-period-late"
+  find = "            treat_wide[i, starts[name]:] = 1.0"
+  replace = "            treat_wide[i, starts[name] + 1:] = 1.0"
+  models = "an off-by-one between dataprep's pre-period count and SpSyDiD's treatment matrix"
+
+  [[target.mutant]]
+  id = "a-single-treated-unit-reads-its-post-count"
+  find = "        return {prep.treated_unit_name: int(prep.pre_periods)}"
+  replace = "        return {prep.treated_unit_name: int(prep.post_periods)}"
+  models = "the single-treated branch reading the wrong side of dataprep's period split"
+
+  [[target.mutant]]
+  id = "only-the-first-cohort-is-treated"
+  find = "            for cohort in prep.cohorts.values() for unit in cohort.treated_units}"
+  replace = "            for cohort in list(prep.cohorts.values())[:1] for unit in cohort.treated_units}"
+  models = "later adopters dropped from D and partitioned as controls"
+
+  [[target.mutant]]
+  id = "t0-is-the-last-adoption"
+  find = "    T0 = min(starts.values())"
+  replace = "    T0 = max(starts.values())"
+  models = "a staggered panel split at its last cohort, not at the first treated period as before"
+
+  [[target.mutant]]
+  id = "a-cohort-in-the-first-period-is-accepted"
+  find = "    if T0 == 0:"
+  replace = "    if False:"
+  models = "dataprep's cohort path, which does not refuse treatment in the first period, left unguarded"
+
+  [[target.mutant]]
+  id = "a-missing-treatment-cell-is-read-as-untreated"
+  find = "    if df[treat].isna().any():"
+  replace = "    if False:"
+  models = "dataprep's binary check skipping NaN, so a missing treatment cell enters D as 0"
+
+  [[target.mutant]]
+  id = "a-mismatched-unit-order-is-accepted"
+  find = "        if set(unit_names) != unit_set_panel:"
+  replace = "        if False:"
+  models = "a unit_order naming a unit the panel lacks reaching dataprep's columns as a KeyError"
