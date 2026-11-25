@@ -21312,3 +21312,68 @@ timeout = 600.0
   find = "    if len(starts) == len(units):"
   replace = "    if False:"
   models = "a panel with no never-treated unit reaching the solver"
+
+[[target]]
+name = "dataprep-missing-treatment"
+module-path = "mlsynth/utils/datautils.py"
+test-command = "python -m pytest mlsynth/tests/test_dataprep_missing_treatment.py mlsynth/tests/test_dataprep_missing_outcomes.py -q -p no:cacheprovider"
+timeout = 300.0
+
+  [[target.mutant]]
+  id = "nan-skip-restored"
+  find = """    missing = pd.isna(treatment_matrix)
+    if missing.any():"""
+  replace = """    missing = pd.isna(treatment_matrix)
+    treatment_matrix = np.where(missing, 0, treatment_matrix)
+    if False:"""
+  models = "the skip that excluded NaN from logictreat's binary check put back, so a missing cell of the treatment matrix is read as untreated: a NaN at a control unit or in the treated unit's pre-period passes, and one after adoption is refused as unsustained treatment"
+
+  [[target.mutant]]
+  id = "dataprep-refusal-dropped"
+  find = """    _refuse_missing_treatment(
+        df, treatment_matrix_wide, treatment_indicator_column_name,"""
+  replace = """    (lambda *a: None)(
+        df, treatment_matrix_wide, treatment_indicator_column_name,"""
+  models = "dataprep's own refusal dropped, so only logictreat's matrix-level check remains and the message names a row and column index, not the unit and period the user has to find"
+
+  [[target.mutant]]
+  id = "refused-only-for-the-treated-unit"
+  find = "    missing = df[treatment].isna().to_numpy()"
+  replace = "    missing = (df[treatment].isna() & df[unit].isin(df.loc[df[treatment] == 1, unit])).to_numpy()"
+  models = "a check scoped to the units that are ever treated, so a NaN treatment at a control unit is not named as a missing value at that unit and period"
+
+  [[target.mutant]]
+  id = "refused-only-after-adoption"
+  find = "    missing = df[treatment].isna().to_numpy()"
+  replace = "    missing = (df[treatment].isna() & (df[time] >= df.loc[df[treatment] == 1, time].min())).to_numpy()"
+  models = "a check scoped to the periods after the first adoption, so a NaN treatment in a pre-period, the one the old skip read as untreated, is not named at its unit and period"
+
+  [[target.mutant]]
+  id = "message-unit-and-period-swapped"
+  find = """the first at unit '{wide.columns[j[first]]}', time {wide.index[t[first]]}."""
+  replace = """the first at unit '{wide.index[t[first]]}', time {wide.columns[j[first]]}."""
+  models = "the unit and the period exchanged in the message, so it points the user at the wrong cell"
+
+  [[target.mutant]]
+  id = "first-cell-in-unit-order"
+  find = "    first = np.lexsort((j, t))[0]"
+  replace = "    first = np.lexsort((t, j))[0]"
+  models = "the first missing cell taken in unit order, not time order, which disagrees with the outcome refusal and names a later period than the earliest gap"
+
+  [[target.mutant]]
+  id = "count-is-one"
+  find = "    n_missing = int(missing.sum())"
+  replace = "    n_missing = 1"
+  models = "the message reporting one missing cell whatever the count, so a column with many gaps reads as a single typo"
+
+  [[target.mutant]]
+  id = "absent-rows-reach-logictreat"
+  find = "    if treatment_matrix_wide.size > len(df):"
+  replace = "    if False:"
+  models = "an absent unit-period row left to logictreat, which reports the gap in the pivot as a missing treatment at a row and column index, not as the unbalanced panel the outcome refusal names"
+
+  [[target.mutant]]
+  id = "absent-cells-counted-as-missing"
+  find = "    if int(pd.isna(values).sum()) <= values.size - n_rows:"
+  replace = "    if int(pd.isna(values).sum()) <= 0:"
+  models = "the absent cells of an unbalanced panel counted as missing treatment values, so the refusal reads the long column for a NaN that is not there and fails with an index error, not the outcome refusal's report of the absent rows"
