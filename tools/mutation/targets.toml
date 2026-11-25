@@ -21775,3 +21775,81 @@ timeout = 900.0
   find = "    if T0 < 2:"
   replace = "    if T0 < 1:"
   models = "PDA's own minimum of two pre-treatment periods lost behind dataprep"
+
+[[target]]
+name = "rolldid-dataprep"
+module-path = "mlsynth/utils/rolldid_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_rolldid_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unit_id, time_id)"
+  replace = "    keys = None"
+  models = "a duplicate unit-period reaching pandas' pivot as a raw ValueError, not balance()'s refusal"
+
+  [[target.mutant]]
+  id = "the-key-scan-is-not-shared"
+  find = "    prep = dataprep(df, unit_id, time_id, outcome, treat, allow_no_donors=True,\n                    keys=keys)"
+  replace = "    prep = dataprep(df, unit_id, time_id, outcome, treat, allow_no_donors=True,\n                    keys=None)"
+  models = "dataprep rescanning the panel's keys instead of reading balance()'s scan"
+
+  [[target.mutant]]
+  id = "dataprep-refuses-a-lone-treated-unit-first"
+  find = "    prep = dataprep(df, unit_id, time_id, outcome, treat, allow_no_donors=True,"
+  replace = "    prep = dataprep(df, unit_id, time_id, outcome, treat, allow_no_donors=False,"
+  models = "dataprep's no-donor message in place of ROLLDID's never-treated refusal"
+
+  [[target.mutant]]
+  id = "the-cohort-is-one-period-early"
+  find = "    cohort_of: Dict[Any, Any] = {unit: Ywide.index[starts[unit]]"
+  replace = "    cohort_of: Dict[Any, Any] = {unit: Ywide.index[starts[unit] - 1]"
+  models = "an off-by-one between dataprep's pre-period count and the cohort label g"
+
+  [[target.mutant]]
+  id = "cohort-labels-change-type"
+  find = "    cohort_of: Dict[Any, Any] = {unit: Ywide.index[starts[unit]]"
+  replace = "    cohort_of: Dict[Any, Any] = {unit: Ywide.index.to_numpy()[starts[unit]]"
+  models = "datetime cohorts returned as numpy datetime64 where the old setup returned Timestamps"
+
+  [[target.mutant]]
+  id = "cohorts-in-adoption-order"
+  find = "                                 for unit in Ywide.columns if unit in starts}"
+  replace = "                                 for unit in starts}"
+  models = "cohort_of in dataprep's cohort order, not the units' order as before"
+
+  [[target.mutant]]
+  id = "a-single-treated-unit-reads-its-post-count"
+  find = "        return {prep.treated_unit_name: int(prep.pre_periods)}"
+  replace = "        return {prep.treated_unit_name: int(prep.post_periods)}"
+  models = "the single-treated branch reading the wrong side of dataprep's period split"
+
+  [[target.mutant]]
+  id = "only-the-first-cohort-is-treated"
+  find = "            for cohort in prep.cohorts.values() for unit in cohort.treated_units}"
+  replace = "            for cohort in list(prep.cohorts.values())[:1] for unit in cohort.treated_units}"
+  models = "later cohorts dropped and counted as never-treated controls"
+
+  [[target.mutant]]
+  id = "period-labels-change-type"
+  find = "    times = Ywide.index.to_numpy()"
+  replace = "    times = np.asarray(list(Ywide.index))"
+  models = "datetime periods returned as Timestamp objects where the old times were datetime64"
+
+  [[target.mutant]]
+  id = "the-own-binary-check-is-lost"
+  find = "    if not np.isin(w.dropna().unique(), [0, 1]).all():"
+  replace = "    if False:"
+  models = "ROLLDID's 0/1 message replaced by dataprep's"
+
+  [[target.mutant]]
+  id = "the-own-no-treated-check-is-lost"
+  find = "    if not (w == 1).any():"
+  replace = "    if False:"
+  models = "ROLLDID's no-treated message replaced by dataprep's"
+
+  [[target.mutant]]
+  id = "no-never-treated-is-accepted"
+  find = "    if not never:"
+  replace = "    if False:"
+  models = "a panel with no never-treated comparison group passed to the pipeline"
