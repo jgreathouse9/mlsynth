@@ -236,6 +236,19 @@ def test_each_root_grows_its_clique_by_the_heaviest_remaining_neighbour():
     assert columns._clique_rows(x, members) == [(0, 1, 2)]
 
 
+def test_roots_are_taken_by_nondecreasing_degree_so_a_shared_hub_serves_both_its_cliques():
+    """Unit: the hub v0 sits in two violated triangles, {v0, a1, a2} and {v0, b1, b2}, which share nothing else. A root
+    leaves the graph after its subproblem (Marzi, Rossi and Smriglio 2019, Algorithm 1, step 15), so taking the hub
+    first, as index order would, finds one triangle and removes the hub from the other. In Hoffman and Padberg's
+    order of nondecreasing degree the leaves go first and both triangles are found."""
+    groups = [(0, 1, 2, 3), (0, 4), (1, 4), (2, 5), (3, 5)]          # v0, a1, a2, b1, b2
+    members = -np.ones((len(groups), 4), dtype=np.int64)
+    for j, g in enumerate(groups):
+        members[j, :len(g)] = g
+    x = np.array([0.5, 0.4, 0.4, 0.4, 0.4])
+    assert columns._clique_rows(x, members) == [(0, 1, 2), (0, 3, 4)]
+
+
 def test_lifting_adds_a_group_only_when_it_meets_every_member_so_far():
     """Unit: the support clique {1,2,3,4}, {1,5}, {2,5} has no common unit. {1,2,9,10} and {3,5,11,12} each meet all
     three, but not each other, so both cannot join: lifting takes the first in order and refuses the second."""
