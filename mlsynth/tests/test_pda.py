@@ -195,8 +195,8 @@ def test_prepare_inputs_shapes(panel):
 
 def test_prepare_inputs_incomplete_panel_raises():
     df = make_panel()
-    df = df.drop(df.index[5])  # puncture the panel -> NaN after pivot
-    with pytest.raises(MlsynthDataError, match="complete outcome panel"):
+    df = df.drop(df.index[5])  # puncture the panel: an absent unit-period
+    with pytest.raises(MlsynthDataError, match="not strongly balanced"):
         prepare_pda_inputs(df, unitid="ID", time="Period",
                            outcome="Value", treat="IsTreated")
 

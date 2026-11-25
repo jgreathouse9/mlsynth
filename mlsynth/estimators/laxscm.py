@@ -23,7 +23,6 @@ from typing import List, Union
 import pandas as pd
 
 from ..config_models import RESCMConfig
-from ..utils.datautils import balance
 from ..utils.laxscm_helpers import (
     RESCMResults,
     assemble_rescm_results,
@@ -87,7 +86,6 @@ class RESCM:
             ``counterfactual``, ``donor_weights``) forwarding to the first
             requested method.
         """
-        balance(self.df, self.unitid, self.time)
         inputs = prepare_rescm_inputs(
             self.df, unitid=self.unitid, time=self.time,
             outcome=self.outcome, treat=self.treat,

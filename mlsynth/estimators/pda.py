@@ -29,7 +29,6 @@ from typing import List, Union
 import pandas as pd
 
 from ..config_models import PDAConfig
-from ..utils.datautils import balance
 from ..utils.pda_helpers import (
     PDAResults,
     assemble_pda_results,
@@ -92,7 +91,6 @@ class PDA:
             ``att_se``, ``counterfactual``, ``donor_weights``) forwarding to the
             primary variant.
         """
-        balance(self.df, self.unitid, self.time)
         inputs = prepare_pda_inputs(
             self.df, unitid=self.unitid, time=self.time,
             outcome=self.outcome, treat=self.treat,
