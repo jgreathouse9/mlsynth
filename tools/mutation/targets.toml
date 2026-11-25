@@ -21312,3 +21312,82 @@ timeout = 600.0
   find = "    if len(starts) == len(units):"
   replace = "    if False:"
   models = "a panel with no never-treated unit reaching the solver"
+
+[[target]]
+name = "cpda-dataprep"
+module-path = "mlsynth/utils/cpda_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_cpda_dataprep.py mlsynth/tests/test_cpda.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n"
+  replace = "    keys = None\n"
+  models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
+
+  [[target.mutant]]
+  id = "the-outcome-is-read-without-the-scan"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True,\n                    keys=keys)"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True)"
+  models = "the outcome read on a second key scan of the panel"
+
+  [[target.mutant]]
+  id = "each-covariate-is-read-without-the-scan"
+  find = "            prep = dataprep(df, unitid, time, c, treat, allow_no_donors=True,\n                            keys=keys)"
+  replace = "            prep = dataprep(df, unitid, time, c, treat, allow_no_donors=True)"
+  models = "every covariate read on a key scan of its own"
+
+  [[target.mutant]]
+  id = "dataprep-refuses-a-panel-with-no-donor"
+  find = "    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True,"
+  replace = "    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=False,"
+  models = "dataprep's no-donor message in place of CPDA's"
+
+  [[target.mutant]]
+  id = "a-panel-with-no-donor-is-accepted"
+  find = "    if not donors:"
+  replace = "    if False:"
+  models = "a panel with no donor reaching the slope step"
+
+  [[target.mutant]]
+  id = "the-treated-unit-is-a-donor"
+  find = "    donors = list(prep.donor_names)"
+  replace = "    donors = list(wide.columns)"
+  models = "the treated unit's own outcome used as a donor column"
+
+  [[target.mutant]]
+  id = "time-labels-in-another-order"
+  find = "    times = np.asarray(prep.time_labels)"
+  replace = "    times = np.asarray(prep.time_labels)[::-1]"
+  models = "rows of y, Yco and Xco in a different order from the time labels the results report"
+
+  [[target.mutant]]
+  id = "the-pre-period-reads-the-post-count"
+  find = "    T0 = int(prep.pre_periods)"
+  replace = "    T0 = int(prep.post_periods)"
+  models = "the wrong side of dataprep's period split read as T0"
+
+  [[target.mutant]]
+  id = "one-pre-period-is-accepted"
+  find = "    if T0 < 2:"
+  replace = "    if T0 < 1:"
+  models = "CPDA's own minimum of two pre-treatment periods lost behind dataprep's minimum of one"
+
+  [[target.mutant]]
+  id = "the-covariate-refusal-loses-its-name"
+  find = "        except MlsynthDataError as exc:"
+  replace = "        except KeyError as exc:"
+  models = "a covariate gap reported as a missing outcome"
+
+  [[target.mutant]]
+  id = "the-covariate-refusal-drops-its-cause"
+  find = "f\"observed and finite in every unit-period. {exc}\") from exc"
+  replace = "f\"observed and finite in every unit-period. {exc}\") from None"
+  models = "dataprep's refusal detached from the covariate error that reports it"
+
+  [[target.mutant]]
+  id = "covariate-planes-in-another-order"
+  find = "    planes = [wides[c][order].to_numpy(dtype=float) for c in cols]"
+  replace = "    planes = [wides[c][order].to_numpy(dtype=float) for c in reversed(cols)]"
+  models = "the covariate axis of x and Xco out of step with covariate_names"
+
