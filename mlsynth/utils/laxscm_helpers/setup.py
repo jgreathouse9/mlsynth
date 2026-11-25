@@ -1,4 +1,8 @@
-"""Long-DataFrame -> NumPy boundary for RESCM (the only pandas touchpoint)."""
+"""Long-DataFrame -> NumPy boundary for RESCM (the only pandas touchpoint).
+
+The panel is read through :func:`mlsynth.utils.datautils.balance` and
+:func:`mlsynth.utils.datautils.dataprep`.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
+from ..datautils import balance, dataprep
 from ..fast_scm_helpers.structure import IndexSet
 from .structures import RESCMInputs
 
@@ -35,29 +40,47 @@ def prepare_rescm_inputs(
     outcome: str,
     treat: str,
 ) -> RESCMInputs:
-    """Pivot the panel to NumPy, build ``IndexSet``\\ s, split pre/post.
+    """Read the panel through ``balance`` and ``dataprep``, build ``IndexSet``\\ s, split pre/post.
+
+    ``balance`` refuses a duplicate or absent unit-period. ``dataprep``
+    supplies the outcome matrix, the time labels, the donor order and the
+    pre-period count, and refuses a missing or non-finite outcome anywhere in
+    the panel, a non-binary treatment and a treatment that switches off after
+    it starts.
 
     Returns
     -------
     RESCMInputs
         Pure-NumPy container: treated vector ``y`` (T,), donor matrix ``X``
         (T, N), ``T0``, and unit/time :class:`IndexSet`\\ s.
-    """
-    treated_unit, intervention_time = derive_treatment(df, unitid, time, treat)
 
-    times = np.sort(pd.unique(df[time]))
+    Raises
+    ------
+    MlsynthDataError
+        If the panel is unbalanced or has a duplicate unit-period, an outcome
+        value is missing or not finite, the treatment is not binary or switches
+        off, there is not exactly one treated unit, or there are fewer than two
+        pre-treatment periods.
+    """
+    # balance() refuses a duplicate or absent unit-period, and its key scan is
+    # reused by dataprep instead of being taken again.
+    keys = balance(df, unitid, time)
+    treated_unit, intervention_time = derive_treatment(df, unitid, time, treat)
+    # A lone treated unit with no donor reached the engine before, so dataprep
+    # is asked not to refuse it here either.
+    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True,
+                    keys=keys)
+
+    times = np.asarray(prep.time_labels)
     time_index = IndexSet.from_labels(times)
 
-    wide = df.pivot(index=time, columns=unitid, values=outcome).reindex(times)
-    if wide.isna().any().any():
-        raise MlsynthDataError("RESCM requires a complete outcome panel after pivoting.")
-
-    donors = [u for u in wide.columns if u != treated_unit]
+    wide = prep.Ywide
+    donors = list(prep.donor_names)
     unit_index = IndexSet.from_labels(donors)
 
     y = wide[treated_unit].to_numpy(dtype=float)
     X = wide[donors].to_numpy(dtype=float)
-    T0 = int(np.sum(times < intervention_time))
+    T0 = int(prep.pre_periods)
     if T0 < 2:
         raise MlsynthDataError("RESCM needs at least two pre-treatment periods.")
 

@@ -87,6 +87,12 @@ matrix :math:`\widehat{\boldsymbol{\Sigma}} = T_0^{-1}\sum_{t\in\mathcal{T}_1}
 \mathbf{Y}_{0,t\cdot}' y_{1t}`, the SCM least-squares first-order condition is
 :math:`\widehat{\boldsymbol{\Sigma}}\boldsymbol{\omega} = \widehat{\boldsymbol{\Upsilon}}`.
 
+The panel is read through :func:`mlsynth.utils.datautils.dataprep`, so every
+unit has a row for every period. It refuses with ``MlsynthDataError`` a
+duplicate or absent unit-period, a missing or non-finite outcome in any period,
+a non-binary treatment, and a treatment that switches off after it starts: unit
+1 stays treated from :math:`T_0 + 1` to :math:`T`.
+
 The unified convex program
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

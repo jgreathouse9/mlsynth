@@ -26,16 +26,15 @@ from typing import List, Union
 import pandas as pd
 
 from ..config_models import MUSCConfig
-from ..utils.datautils import balance
 from ..utils.musc_helpers import (
     MUSCMultiCohortResults,
     MUSCResults,
     derive_treatment_cohorts,
     plot_musc,
-    prepare_musc_inputs,
     run_musc,
     run_musc_cohorts,
 )
+from ..utils.musc_helpers.setup import cohort_inputs, read_musc_panel
 
 
 class MUSC:
@@ -92,11 +91,13 @@ class MUSC:
           :class:`MUSCMultiCohortResults` whose ``att`` is the
           equal-weighted average across cohorts.
         """
-        balance(self.df, self.unitid, self.time)
-
         cohorts = derive_treatment_cohorts(
             self.df, self.unitid, self.time, self.treat
         )
+        # The panel is read once, through balance() and dataprep, and every
+        # cohort's inputs are built from that matrix.
+        wide = read_musc_panel(self.df, unitid=self.unitid, time=self.time,
+                               outcome=self.outcome, treat=self.treat)
 
         if len(cohorts) > 1:
             # Staggered adoption: per-cohort fits.
@@ -109,43 +110,20 @@ class MUSC:
                 run_inference=self.config.run_inference,
                 solver=self.config.solver,
                 verbose=False,
+                wide=wide,
             )
 
         treated_units, intervention_time = cohorts[0]
 
-        if len(treated_units) == 1:
-            # Classical single-treated-unit MUSC.
-            inputs = prepare_musc_inputs(
-                self.df,
-                unitid=self.unitid, time=self.time, outcome=self.outcome,
-                treated_unit=treated_units[0],
-                intervention_time=intervention_time,
-            )
-        else:
-            # One cohort with multiple treated units: collapse to a
-            # synthetic mean-treated unit before single-unit MUSC.
-            # Implements the uniform-weight version of Appendix D.1
-            # (M_{k,j,t} = 1/N_T on the treated subset).
-            from ..utils.musc_helpers.orchestration import (
-                _synthetic_cohort_label,
-                collapse_cohort,
-            )
-            synthetic_label = _synthetic_cohort_label(treated_units)
-            df_collapsed = collapse_cohort(
-                self.df,
-                unitid=self.unitid, time=self.time,
-                outcome=self.outcome, treat=self.treat,
-                treated_units=treated_units,
-                intervention_time=intervention_time,
-                synthetic_label=synthetic_label,
-                other_treated_units=(),
-            )
-            inputs = prepare_musc_inputs(
-                df_collapsed,
-                unitid=self.unitid, time=self.time, outcome=self.outcome,
-                treated_unit=synthetic_label,
-                intervention_time=intervention_time,
-            )
+        # One treated unit: classical single-unit MUSC. One cohort with
+        # several treated units: collapse them to a synthetic mean-treated
+        # unit before single-unit MUSC, the uniform-weight version of
+        # Appendix D.1 (M_{k,j,t} = 1/N_T on the treated subset).
+        inputs = cohort_inputs(
+            wide, outcome=self.outcome, treated_units=treated_units,
+            intervention_time=intervention_time,
+            collapse=len(treated_units) > 1, unitid=self.unitid,
+        )
 
         results = run_musc(
             inputs,
