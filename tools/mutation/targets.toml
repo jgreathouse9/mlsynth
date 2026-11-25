@@ -21391,3 +21391,105 @@ timeout = 600.0
   replace = "    planes = [wides[c][order].to_numpy(dtype=float) for c in reversed(cols)]"
   models = "the covariate axis of x and Xco out of step with covariate_names"
 
+
+[[target]]
+name = "iscm-dataprep"
+module-path = "mlsynth/utils/iscm_helpers/setup.py"
+test-command = "python -m pytest mlsynth/tests/test_iscm_dataprep.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-panel-is-not-balanced-first"
+  find = "    keys = balance(df, unitid, time)\n    if keys.n_units < 3:"
+  replace = "    keys = None\n    if df[unitid].nunique() < 3:"
+  models = "a duplicate unit-period reaching pandas as a raw ValueError, not MlsynthDataError"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-not-transposed"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float))"
+  models = "dataprep's period-by-unit matrix used as ISCM's unit-by-period Y"
+
+  [[target.mutant]]
+  id = "the-outcome-matrix-is-column-major"
+  find = "    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)"
+  replace = "    Y = prep.Ywide[unit_names].to_numpy(dtype=float).T"
+  models = "Y in Fortran order, so the weight solver's sums differ from main in the last bits"
+
+  [[target.mutant]]
+  id = "units-in-another-order"
+  find = "    unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    unit_names = sorted(np.asarray(prep.Ywide.columns), reverse=True)"
+  models = "rows of Y and D in a different order from the unit labels the results report"
+
+  [[target.mutant]]
+  id = "unit-labels-change-type"
+  find = "    unit_names = sorted(np.asarray(prep.Ywide.columns))"
+  replace = "    unit_names = sorted(prep.Ywide.columns)"
+  models = "integer unit labels returned as Python ints where the old setup returned NumPy integers"
+
+  [[target.mutant]]
+  id = "period-labels-change-type"
+  find = "    time_labels = np.array(list(prep.time_labels))"
+  replace = "    time_labels = np.asarray(prep.time_labels)"
+  models = "datetime periods returned as datetime64 and string periods as objects, unlike the old labels"
+
+  [[target.mutant]]
+  id = "adoption-one-period-late"
+  find = "            D[i, starts[name]:] = 1.0"
+  replace = "            D[i, starts[name] + 1:] = 1.0"
+  models = "an off-by-one between dataprep's pre-period count and ISCM's treatment matrix"
+
+  [[target.mutant]]
+  id = "a-single-treated-unit-reads-its-post-count"
+  find = "        return {prep.treated_unit_name: int(prep.pre_periods)}"
+  replace = "        return {prep.treated_unit_name: int(prep.post_periods)}"
+  models = "the single-treated branch reading the wrong side of dataprep's period split"
+
+  [[target.mutant]]
+  id = "only-the-first-cohort-is-treated"
+  find = "            for cohort in prep.cohorts.values() for unit in cohort.treated_units}"
+  replace = "            for cohort in list(prep.cohorts.values())[:1] for unit in cohort.treated_units}"
+  models = "later cohorts dropped from D and fitted as never-treated units"
+
+  [[target.mutant]]
+  id = "t0-is-the-last-adoption"
+  find = "    T0 = min(starts.values())"
+  replace = "    T0 = max(starts.values())"
+  models = "a staggered panel split at its last cohort, not at the first treated period as before"
+
+  [[target.mutant]]
+  id = "only-units-treated-at-t0-are-treated"
+  find = "    treated_idx = np.where(D[:, T0:].max(axis=1) == 1)[0]"
+  replace = "    treated_idx = np.where(D[:, T0:T0 + 1].max(axis=1) == 1)[0]"
+  models = "later adopters left out of treated_idx and so of the reported donor weights"
+
+  [[target.mutant]]
+  id = "a-cohort-in-the-first-period-is-accepted"
+  find = "    if T0 == 0:"
+  replace = "    if False:"
+  models = "dataprep's cohort path, which does not refuse treatment in the first period, left unguarded"
+
+  [[target.mutant]]
+  id = "one-pre-period-is-accepted"
+  find = "    if T0 < 2:"
+  replace = "    if T0 < 1:"
+  models = "ISCM's own minimum of two pre-treatment periods lost behind dataprep"
+
+  [[target.mutant]]
+  id = "two-units-are-accepted"
+  find = "    if keys.n_units < 3:"
+  replace = "    if keys.n_units < 2:"
+  models = "ISCM's minimum of three units, one synthetic control per unit, lost behind dataprep"
+
+  [[target.mutant]]
+  id = "a-missing-treatment-cell-is-read-as-untreated"
+  find = "    if df[treat].isna().any():"
+  replace = "    if False:"
+  models = "dataprep's binary check skipping NaN, so a missing treatment cell enters D as 0"
+
+  [[target.mutant]]
+  id = "an-absent-column-is-not-reported"
+  find = "        if col not in df.columns:"
+  replace = "        if False:"
+  models = "an absent column surfacing as pandas' KeyError, not ISCM's error"
