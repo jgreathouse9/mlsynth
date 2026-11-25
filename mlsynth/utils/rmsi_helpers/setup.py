@@ -75,9 +75,10 @@ def prepare_rmsi_inputs(
     N = keys.n_units
     if N < 3:
         raise MlsynthDataError("RMSI needs at least 3 units.")
-    # A single treated unit with fewer than two controls is refused below
-    # with RMSI's own message.
-    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True, keys=keys)
+    # With three units a single treated unit has two donors, so dataprep's
+    # no-donor refusal cannot fire; a block with too few controls is refused
+    # below with RMSI's own message.
+    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)
 
     unit_names = sorted(np.asarray(prep.Ywide.columns))
     # Built from the labels one by one, as the old setup's sorted list was, so
