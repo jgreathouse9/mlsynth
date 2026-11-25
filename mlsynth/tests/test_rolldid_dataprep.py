@@ -31,6 +31,8 @@ from mlsynth.utils.rolldid_helpers import setup as SETUP
 from mlsynth.utils.rolldid_helpers.setup import rolldid_setup
 
 ARGS = ("unit", "time", "y", "w")
+LAYOUT = {"Ywide": "F_CONTIGUOUS"}
+PANDAS_2 = int(pd.__version__.split(".")[0]) < 3
 
 
 def _reference(df, unit_id, time_id, outcome, treat):
@@ -74,8 +76,14 @@ def _name(u, names="int"):
 def _assert_same(got, ref):
     assert list(got) == list(ref)
     pd.testing.assert_frame_equal(got["Ywide"], ref["Ywide"], check_exact=True)
-    assert (got["Ywide"].to_numpy().flags["C_CONTIGUOUS"]
-            == ref["Ywide"].to_numpy().flags["C_CONTIGUOUS"])
+    # The pipeline's sums depend on the layout, so it is pinned too. The old
+    # pivot's layout depends on the pandas version; the outcome matrix is
+    # pinned to what it gave under pandas 2.x, the version CI runs.
+    a, b = got["Ywide"].to_numpy(), ref["Ywide"].to_numpy()
+    assert a.flags[LAYOUT["Ywide"]], f"Ywide is not {LAYOUT['Ywide']}"
+    if PANDAS_2:
+        assert a.flags["C_CONTIGUOUS"] == b.flags["C_CONTIGUOUS"]
+        assert a.flags["F_CONTIGUOUS"] == b.flags["F_CONTIGUOUS"]
     np.testing.assert_array_equal(got["times"], ref["times"])
     assert got["times"].dtype == ref["times"].dtype
     # Cohort labels keep their type (NumPy integers, Timestamps, strings).
