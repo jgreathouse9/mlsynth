@@ -102,6 +102,16 @@ pre-treatment restriction :math:`Z_{it} = 0` for :math:`t \in \mathcal{T}_1`
 (a "sharp intervention" instrument) is what makes the pre-period purely
 informative about the factor loadings.
 
+The panel is long and balanced, one row per unit and period. :math:`R_{it}` and
+:math:`Z_{it}` are continuous, and :func:`~mlsynth.utils.datautils.dataprep`
+accepts only a 0/1 treatment, so the panel is read through
+:func:`mlsynth.utils.datautils.geoex_dataprep`: once for :math:`y_{it}`, once for
+:math:`R_{it}` and once for :math:`Z_{it}`. A duplicate or absent unit-period, a
+row without a unit or period, and a missing or non-finite value of the outcome,
+the treatment or the instrument are refused with ``MlsynthDataError``, which
+names the treatment or instrument column at fault. SIV also refuses fewer than
+three units.
+
 Assumptions
 -----------
 
