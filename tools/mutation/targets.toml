@@ -21745,6 +21745,42 @@ timeout = 600.0
   models = "a mask of another shape reaching the equality check, which then compares broadcast arrays"
 
 [[target]]
+name = "shc-simulator-post-window"
+module-path = "mlsynth/utils/shc_helpers/simulation.py"
+test-command = "python -m pytest mlsynth/tests/test_shc_simulation.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "a-post-window-longer-than-m-is-accepted"
+  find = "    if n > m:"
+  replace = "    if False:"
+  models = "n > m accepted again, so cells T_o + m onward are never written and reach the panel as post-period outcomes"
+
+  [[target.mutant]]
+  id = "the-latent-series-starts-from-leftover-memory"
+  find = "    ell = np.full(T, np.nan)"
+  replace = "    ell = np.empty(T, dtype=float)"
+  models = "the latent array built on np.empty, so an unwritten cell holds leftover memory and the unwritten-cell check cannot see it"
+
+  [[target.mutant]]
+  id = "a-post-window-equal-to-m-is-refused"
+  find = "    if n > m:"
+  replace = "    if n >= m:"
+  models = "the paper's own n = m design (25/25, 50/50) refused"
+
+  [[target.mutant]]
+  id = "a-post-window-one-past-m-is-accepted"
+  find = "    if n > m:"
+  replace = "    if n > m + 1:"
+  models = "n = m + 1 accepted, leaving the cell at T_o + m unwritten"
+
+  [[target.mutant]]
+  id = "unwritten-cells-are-returned"
+  find = "    if unwritten.size:"
+  replace = "    if False:"
+  models = "the builder returns NaN cells it never wrote instead of raising on them"
+
+[[target]]
 name = "fscm-dataprep"
 module-path = "mlsynth/utils/fscm_helpers/setup.py"
 test-command = "python -m pytest mlsynth/tests/test_fscm_dataprep.py -q -p no:cacheprovider -x -W ignore"
