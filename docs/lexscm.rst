@@ -97,6 +97,14 @@ is the significance level. The interference graph is
 :math:`\mathbf{A}` with conflict-neighbours :math:`\mathcal{A}(\mathcal{S})`
 (below).
 
+The outcome is read through :func:`mlsynth.utils.datautils.geoex_dataprep`,
+the pre-period rows and the post-period rows separately, and so is each
+covariate over the pre-period rows; every unit has a row for every period on
+both sides of ``post_col``. It refuses with ``MlsynthDataError`` a duplicate or
+absent unit-period, a ``post_col`` that differs across units within a period, a
+missing or non-finite outcome in any period, and a missing or non-finite
+covariate value in a pre-treatment period.
+
 Mathematical Formulation
 ------------------------
 

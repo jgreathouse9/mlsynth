@@ -56,7 +56,11 @@ page-specific symbols are fixed here.
 * Time and outcomes. :math:`t \in \mathcal{T} \coloneqq \{1,\dots,T\}`,
   split at :math:`T_0` into pre-period :math:`\mathcal{T}_1` and post-period
   :math:`\mathcal{T}_2`. The outcome of unit :math:`j` at time :math:`t` is
-  :math:`y_{jt}`.
+  :math:`y_{jt}`. The panel is read through
+  :func:`mlsynth.utils.datautils.dataprep`, which refuses with
+  ``MlsynthDataError`` a duplicate or absent unit-period, a missing or
+  non-finite :math:`y_{jt}` in any period, and a treatment that switches off
+  after :math:`T_0`.
 * Weights. Control weights :math:`\mathbf{w} \in \mathbb{R}^{n_C}_{\ge 0}`,
   with optimiser :math:`\mathbf{w}^\ast`. The treated units are not reweighted
   (each carries weight 1).

@@ -22,6 +22,7 @@ from __future__ import annotations
 import warnings
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from mlsynth import SHC
@@ -239,7 +240,16 @@ class TestReporting:
         """
         # m = 5, n = 18 gives N = 23 historical blocks of length m + n = 23,
         # so every block overlaps every other and no donor is out of sample.
-        df, _info = simulate_shc_panel(m=5, h=2, n=18, w_f=(1.0, 0.0), seed=0)
+        # simulate_shc_panel cannot build this panel: its DGP defines the
+        # latent series only for n <= m, and with n <= m the N = T_o - n - m + 1
+        # blocks never all overlap, since T_o = m(4h + 1) >= 5m. The panel is
+        # built by hand in the same long-frame layout, with the same m, n and
+        # T = 63: a smooth cosine plus seeded noise.
+        m, n, T0 = 5, 18, 45
+        t = np.arange(1, T0 + n + 1)
+        y = np.cos(t / 10.0) + np.random.default_rng(0).normal(0.0, 0.1, t.size)
+        df = pd.DataFrame({"unit": np.ones(t.size, dtype=int), "time": t,
+                           "y": y, "treated": (t > T0).astype(int)})
         cfg = {"df": df, "outcome": "y", "treat": "treated", "unitid": "unit",
                "time": "time", "m": 5, "display_graphs": False}
         with pytest.warns(UserWarning, match="out-of-sample"):

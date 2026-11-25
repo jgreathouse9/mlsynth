@@ -66,7 +66,11 @@ unit adopts, :math:`|\mathcal{T}_1| = T_0`) and the post-period
 :math:`\mathcal{T}_2 \coloneqq \{t \in \mathcal{T} : t > T_0\}` (with
 :math:`S \coloneqq |\mathcal{T}_2|` post periods). Adoption times
 :math:`(t_1, \ldots, t_N)` are observed (:math:`t_i = \infty` for never-treated
-units); treatment is absorbing. The observed outcome is the never-treated
+units); treatment is absorbing. The panel is read through
+:func:`mlsynth.utils.datautils.dataprep`, so a non-binary treatment, a treatment
+that switches off, a duplicate or absent unit-period, and a missing or
+non-finite outcome in any period are refused with ``MlsynthDataError``; SSC also
+refuses a missing treatment value. The observed outcome is the never-treated
 potential outcome before adoption and the treated one after. The individual
 effect is :math:`\tau_{i,t} \coloneqq y_{i,t}(t_i) - y_{i,t}(\infty)`, and the
 target is a linear functional :math:`\gamma \coloneqq \mathbf{L}\boldsymbol{\tau}` of the stacked
@@ -449,7 +453,7 @@ matrix ``B_hat``, the pre-treatment ``residuals``, and the
 Helper Modules
 --------------
 
-Staggered-panel ingestion: pivots the long panel, locates the clean pre-period,
+Staggered-panel ingestion: reads the long panel through ``dataprep``, locates the clean pre-period,
 and checks the absorbing-treatment and pre-period conditions.
 
 .. automodule:: mlsynth.utils.ssc_helpers.setup

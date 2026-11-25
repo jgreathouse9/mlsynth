@@ -3,6 +3,7 @@ import pandas as pd
 # Add `Literal` to the existing typing import:
 from typing import Optional, Dict, List, Tuple, Any, Literal
 from mlsynth.exceptions import MlsynthDataError, MlsynthConfigError
+from mlsynth.utils.prepared import Cohort, CohortPanel, CovariateBlock, PredictorBlock, SinglePanel
 
 # Constants for dictionary keys used in logictreat and dataprep
 KEY_NUM_TREATED_UNITS = "Num Treated Units"
@@ -257,7 +258,8 @@ def _wide_pivot(
     return df.pivot(index=index, columns=columns, values=values)
 
 
-def _refuse_missing_outcomes(wide: pd.DataFrame, outcome: str, n_rows: int) -> None:
+def _refuse_missing_outcomes(wide: pd.DataFrame, outcome: str, n_rows: int,
+                             keep_nan: bool = False) -> None:
     """Raise if any cell of the pivoted outcome matrix is missing or not finite.
 
     Every estimator reads its outcomes from this matrix, and none of them
@@ -280,6 +282,14 @@ def _refuse_missing_outcomes(wide: pd.DataFrame, outcome: str, n_rows: int) -> N
 
     An outcome column that does not convert to float is not this check's
     concern: estimators that validate a numeric outcome report it themselves.
+
+    With ``keep_nan`` (``dataprep(missing_outcomes="keep")``) a NaN in a row
+    that is present passes, for the methods built for missing cells: robust
+    synthetic control (Amjad, Shah and Shen, JMLR 19 (2018), section 3), robust
+    PCR (Agarwal, Shah, Shen and Song, JASA 116 (2021), section 2), SNN and
+    MC-NNM. An infinite value and an absent row are still refused: an infinity
+    is a value no method can read as missing, and an absent row has no
+    treatment status either.
     """
     values = wide.to_numpy()
     if values.dtype.kind not in "fc":
@@ -294,6 +304,8 @@ def _refuse_missing_outcomes(wide: pd.DataFrame, outcome: str, n_rows: int) -> N
     n_absent = values.size - n_rows
     n_inf = int(np.isinf(values).sum())
     n_nan = n_bad - n_inf - n_absent
+    if keep_nan and n_inf == 0 and n_absent == 0:
+        return
     t, j = np.argwhere(bad)[0]
     parts = [f"{n} {what}" for n, what in (
         (n_absent, "absent unit-period row(s), so the panel is not balanced"),
@@ -304,6 +316,45 @@ def _refuse_missing_outcomes(wide: pd.DataFrame, outcome: str, n_rows: int) -> N
         f"'{outcome}' are missing or not finite ({', '.join(parts)}), the first at unit "
         f"'{wide.columns[j]}', time {wide.index[t]}. mlsynth does not impute outcomes: "
         "drop or fill the units or periods with gaps before fitting."
+    )
+
+
+def _refuse_missing_treatment(
+    df: pd.DataFrame, wide: pd.DataFrame, treatment: str, unit: str, time: str,
+    n_rows: int,
+) -> None:
+    """Raise if a row of the panel has a missing treatment value.
+
+    The treatment indicator says which cells are treated, and every estimator
+    reads its treated unit, its donors and its pre- and post-periods from it.
+    A unit-period whose treatment status is unknown is neither treated nor
+    untreated, and the library already refuses the other way a status goes
+    missing, an absent unit-period row. A missing value in a present row is the
+    same case, so it is refused here and not read as untreated.
+
+    In the pivot ``wide`` an absent row is also a NaN cell, and absent rows
+    are counted and named by the outcome refusal. ``n_rows`` is the number of
+    rows the pivot scattered (keys are unique, as in
+    :func:`_refuse_missing_outcomes`), so the grid size minus ``n_rows`` is
+    the number of absent cells, and a panel passes on the pivot alone, with no
+    pass over the long frame. Only a refusal reads the long column, to tell a
+    missing value from an absent row; ``wide`` supplies the sorted axes, so the
+    first missing cell is the first in time order, then unit order.
+    """
+    values = wide.to_numpy()
+    if int(pd.isna(values).sum()) <= values.size - n_rows:
+        return
+    missing = df[treatment].isna().to_numpy()
+    n_missing = int(missing.sum())
+    t = wide.index.get_indexer(df[time].to_numpy()[missing])
+    j = wide.columns.get_indexer(df[unit].to_numpy()[missing])
+    first = np.lexsort((j, t))[0]
+    raise MlsynthDataError(
+        f"Missing treatment values: {n_missing} of {wide.size} cells of the treatment column "
+        f"'{treatment}' are missing, "
+        f"the first at unit '{wide.columns[j[first]]}', time {wide.index[t[first]]}. "
+        "A unit-period with no treatment status is neither treated nor untreated, and "
+        "mlsynth does not impute it: fill or drop the rows with a missing treatment before fitting."
     )
 
 
@@ -364,6 +415,9 @@ def logictreat(treatment_matrix: np.ndarray) -> Dict[str, Any]:
     ------
     MlsynthDataError
         If `treatment_matrix` is not a NumPy array.
+        If any cell is missing (NaN or None): a cell with no treatment status
+        is not read as untreated.
+        If any cell is other than 0 or 1.
         If no treated units are found (zero treated observations).
         If a treated unit has no post-treatment period.
         If treatment is not sustained for a treated unit (i.e., a 0 appears
@@ -372,12 +426,17 @@ def logictreat(treatment_matrix: np.ndarray) -> Dict[str, Any]:
     if not isinstance(treatment_matrix, np.ndarray):
         raise MlsynthDataError("treatment_matrix must be a NumPy array")
 
-    # Validate that treatment_matrix contains only binary values (0, 1), ignoring NaNs.
-    # NaNs are excluded from this validation as they might represent missing data,
-    # not necessarily invalid treatment states.
+    # A missing cell has no treatment status: it is neither a 0 nor a 1, so it
+    # is refused before the binary check and not read as untreated.
+    missing = pd.isna(treatment_matrix)
+    if missing.any():
+        t, j = np.argwhere(missing)[0]
+        raise MlsynthDataError(
+            f"Missing treatment values: {int(missing.sum())} of {missing.size} cells of the "
+            f"treatment matrix are missing, the first at row {t}, column {j}."
+        )
     unique_values = np.unique(treatment_matrix)
-    valid_treatment_values = unique_values[~np.isnan(unique_values)] # Exclude NaNs from validation
-    if not np.all(np.isin(valid_treatment_values, [0, 1])):
+    if not np.all(np.isin(unique_values, [0, 1])):
         raise MlsynthDataError("Treatment indicator must be a binary variable (0 or 1).")
 
     num_treated_observations = np.count_nonzero(treatment_matrix == 1) # Count only 1s for "treated"
@@ -555,7 +614,8 @@ def dataprep(
     normalize_covariates: bool = True,
     marex: bool = False,
     keys: Optional[PanelKeys] = None,
-) -> Dict[str, Any]:
+    missing_outcomes: Literal["refuse", "keep"] = "refuse",
+) -> "SinglePanel | CohortPanel":
     """Prepare data for synthetic control methods.
 
     Pivots a long DataFrame into a wide format required by many synthetic
@@ -582,14 +642,14 @@ def dataprep(
         the treated unit.
     covariates : list of str, optional
         Column names to fold into a per-unit covariate matrix. When
-        supplied, the returned dict gains
+        supplied, the result's mapping view gains
         ``covariate_matrix`` / ``covariate_names`` / ``covariate_means`` /
         ``covariate_scales`` plus
         ``donor_covariate_matrix`` / ``treated_covariate_matrix`` (single
         treated case). Time-varying covariates are aggregated per the
         ``covariate_aggregation`` mode; time-invariant covariates collapse
-        to their constant value. ``None`` (default) leaves the return dict
-        identical to the pre-extension behaviour.
+        to their constant value. ``None`` (default) leaves the covariate
+        block empty.
     covariate_aggregation : {"pre_mean"}, default "pre_mean"
         How to collapse each covariate column to a single value per unit.
         Currently only ``"pre_mean"`` (the pre-treatment mean) is supported.
@@ -608,16 +668,33 @@ def dataprep(
         caller that validated the same frame first can supply its scan and the
         panel is read once for the whole fit. A scan taken from a different
         frame or different columns is refused.
+    missing_outcomes : {"refuse", "keep"}, default "refuse"
+        What to do with a NaN outcome in a row that is present. ``"refuse"``
+        raises, as every synthetic control that fits weights on each donor cell
+        needs. ``"keep"`` leaves the cell NaN and sets the panel's ``observed``
+        mask, for the methods built for missing cells: robust synthetic
+        control (Amjad, Shah and Shen, JMLR 19 (2018)), robust PCR (Agarwal,
+        Shah, Shen and Song, JASA 116 (2021)), SNN and MC-NNM. Infinite values
+        and absent rows are refused either way.
 
     Returns
     -------
-    Dict[str, Any]
-        A dictionary containing the prepared data. Always populates the
-        backward-compatible keys (`treated_unit_name`, `Ywide`, `y`,
-        `donor_names`, `donor_matrix`, `total_periods`, `pre_periods`,
-        `post_periods`, `time_labels` in the single-treated case;
-        `Ywide`, `cohorts`, `time_labels` in the cohort case). When the
-        opt-in kwargs above are non-default, additionally populates:
+    SinglePanel or CohortPanel
+        A :class:`~mlsynth.utils.prepared.SinglePanel` when one unit is
+        treated: ``treated_unit_name``, ``Ywide``, ``y``, ``donor_names``,
+        ``donor_matrix``, ``total_periods``, ``pre_periods``,
+        ``post_periods`` and ``time_labels``. A
+        :class:`~mlsynth.utils.prepared.CohortPanel` when several are:
+        ``Ywide``, ``cohorts`` (each start period's
+        :class:`~mlsynth.utils.prepared.Cohort`) and ``time_labels``. With
+        ``covariates``, either carries a
+        :class:`~mlsynth.utils.prepared.CovariateBlock` (split into donor and
+        treated rows for one treated unit); with ``marex=True``, a
+        :class:`~mlsynth.utils.prepared.PredictorBlock`. Each type checks its
+        own shapes when built and raises ``MlsynthDataError`` on a mismatch.
+
+        Each is also a read-only mapping with the keys of the dictionary this
+        function returned before (issue #1138), in the same order:
 
         ``covariate_matrix`` : (N, M)
         ``covariate_names`` : tuple of str
@@ -640,8 +717,29 @@ def dataprep(
         - If ``covariate_aggregation`` is unknown.
         - If any outcome cell is missing or not finite: a NaN or infinite
           value, or a unit-period row absent from the panel. mlsynth does not
-          impute outcomes (:func:`_refuse_missing_outcomes`).
+          impute outcomes (:func:`_refuse_missing_outcomes`). With
+          ``missing_outcomes="keep"`` a NaN in a present row passes; an
+          infinite value and an absent row are still refused.
+        - If ``missing_outcomes`` is neither ``"refuse"`` nor ``"keep"``, or
+          is ``"keep"`` together with ``marex=True``.
+        - If any treatment value is missing (NaN or None) in a row that is
+          present, under either ``missing_outcomes`` mode. The message gives
+          the count and the first unit and period in time order
+          (:func:`_refuse_missing_treatment`). A unit-period with
+          no treatment status is neither treated nor untreated, the same case
+          as an absent row, which the outcome check refuses and names.
     """
+    if missing_outcomes not in ("refuse", "keep"):
+        raise MlsynthDataError(
+            f"Unknown missing_outcomes: {missing_outcomes!r}; use 'refuse' or 'keep'."
+        )
+    keep_nan = missing_outcomes == "keep"
+    if keep_nan and marex:
+        raise MlsynthDataError(
+            "missing_outcomes='keep' cannot be combined with marex=True: the marex "
+            "predictor matrix stacks pre-period outcomes and would carry the NaN cells."
+        )
+
     # Both pivots below key on the same two columns and differ only in which
     # values they scatter, so the panel is scanned once here and the scan is
     # handed to each of them. A scan supplied by the caller is checked against
@@ -656,6 +754,19 @@ def dataprep(
         values=treatment_indicator_column_name,
         keys=keys,
     )
+    _refuse_missing_treatment(
+        df, treatment_matrix_wide, treatment_indicator_column_name,
+        unit_id_column_name, time_period_column_name, len(df),
+    )
+    if treatment_matrix_wide.size > len(df):
+        # A unit-period row is absent, so its treatment status is unknown too.
+        # The outcome refusal counts absent rows and names the first, so it
+        # reports them here, before logictreat reads the gap in the pivot.
+        _refuse_missing_outcomes(
+            _wide_pivot(df, index=time_period_column_name, columns=unit_id_column_name,
+                        values=outcome_column_name, keys=keys),
+            outcome_column_name, len(df),
+        )
     treatment_array_wide = treatment_matrix_wide.to_numpy()
     treatment_analysis_results = logictreat(treatment_array_wide)
 
@@ -673,7 +784,10 @@ def dataprep(
             values=outcome_column_name,
             keys=keys,
         )
-        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df))
+        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df),
+                                 keep_nan=keep_nan)
+        observed = (~np.isnan(outcome_matrix_wide.to_numpy(dtype=float))
+                    if keep_nan else None)
         treated_unit_name = outcome_matrix_wide.columns[treated_unit_column_index[0]]
         treated_unit_outcome_vector = outcome_matrix_wide[treated_unit_name].to_numpy()
         donor_outcome_df_wide = outcome_matrix_wide.drop(
@@ -689,17 +803,19 @@ def dataprep(
         if num_pre_treatment_periods == 0:
             raise MlsynthDataError("Not enough pre-treatment periods (0 pre-periods found).")
 
-        out: Dict[str, Any] = {
-            "treated_unit_name": treated_unit_name,
-            "Ywide": outcome_matrix_wide,
-            "y": treated_unit_outcome_vector,
-            "donor_names": donor_names,
-            "donor_matrix": donor_outcome_array_wide,
-            "total_periods": total_periods_for_unit,
-            "pre_periods": num_pre_treatment_periods,
-            "post_periods": num_post_treatment_periods,
-            "time_labels": outcome_matrix_wide.index,
-        }
+        core: Dict[str, Any] = dict(
+            treated_unit_name=treated_unit_name,
+            Ywide=outcome_matrix_wide,
+            y=treated_unit_outcome_vector,
+            donor_names=donor_names,
+            donor_matrix=donor_outcome_array_wide,
+            total_periods=total_periods_for_unit,
+            pre_periods=num_pre_treatment_periods,
+            post_periods=num_post_treatment_periods,
+            time_labels=outcome_matrix_wide.index,
+        )
+        cov_block: Optional[CovariateBlock] = None
+        pred_block: Optional[PredictorBlock] = None
 
         if covariates:
             # Order is donors first, then the single treated unit, so that
@@ -714,12 +830,14 @@ def dataprep(
                 keys=keys,
             )
             n_donors = len(donor_names)
-            out["covariate_matrix"] = cov_matrix                      # (N, M)
-            out["covariate_names"] = cov_names                        # tuple of str
-            out["covariate_means"] = cov_means                        # (M,)
-            out["covariate_scales"] = cov_scales                      # (M,)
-            out["donor_covariate_matrix"] = cov_matrix[:n_donors]     # (n_donors, M)
-            out["treated_covariate_matrix"] = cov_matrix[n_donors:]   # (1, M)
+            cov_block = CovariateBlock(
+                matrix=cov_matrix,                                    # (N, M)
+                names=cov_names,                                      # tuple of str
+                means=cov_means,                                      # (M,)
+                scales=cov_scales,                                    # (M,)
+                donor_matrix=cov_matrix[:n_donors],                   # (n_donors, M)
+                treated_matrix=cov_matrix[n_donors:],                 # (1, M)
+            )
 
             if marex:
                 # Abadie-Zhou stacked predictor matrix (T_pre + M, N).
@@ -729,15 +847,16 @@ def dataprep(
                     .to_numpy(dtype=float)
                 )
                 X_stacked = np.vstack([Y_pre_all, cov_matrix.T])
-                out["predictor_matrix"] = X_stacked
-                out["predictor_block_sizes"] = (num_pre_treatment_periods,
-                                                len(cov_names))
                 # Equal-weighted population aggregate X̄ (the design objective's
                 # target). Users with a non-uniform ``f`` can recompute from
                 # ``predictor_matrix`` directly.
                 f = np.ones(len(unit_order)) / len(unit_order)
-                out["f_weights"] = f
-                out["X_population_mean"] = X_stacked @ f
+                pred_block = PredictorBlock(
+                    matrix=X_stacked,
+                    block_sizes=(num_pre_treatment_periods, len(cov_names)),
+                    f_weights=f,
+                    population_mean=X_stacked @ f,
+                )
 
         elif marex:
             # MAREX mode without covariates: still expose the f / X̄ pair
@@ -747,12 +866,15 @@ def dataprep(
                 .to_numpy(dtype=float)
             )
             f = np.ones(Y_pre_all.shape[1]) / Y_pre_all.shape[1]
-            out["predictor_matrix"] = Y_pre_all
-            out["predictor_block_sizes"] = (num_pre_treatment_periods, 0)
-            out["f_weights"] = f
-            out["X_population_mean"] = Y_pre_all @ f
+            pred_block = PredictorBlock(
+                matrix=Y_pre_all,
+                block_sizes=(num_pre_treatment_periods, 0),
+                f_weights=f,
+                population_mean=Y_pre_all @ f,
+            )
 
-        return out
+        return SinglePanel(**core, covariates=cov_block, predictors=pred_block,
+                           observed=observed)
 
     # ─── Multiple treated units (cohort mode) ──────────────────────────
     else:
@@ -763,7 +885,10 @@ def dataprep(
             values=outcome_column_name,
             keys=keys,
         )
-        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df))
+        _refuse_missing_outcomes(outcome_matrix_wide, outcome_column_name, len(df),
+                                 keep_nan=keep_nan)
+        observed = (~np.isnan(outcome_matrix_wide.to_numpy(dtype=float))
+                    if keep_nan else None)
         # The treatment pivot built before the branch. It is read only above
         # (``.to_numpy()`` into ``logictreat``), so rebuilding it here produced
         # an equal frame from unchanged inputs.
@@ -787,21 +912,18 @@ def dataprep(
             donor_units = [u for u in outcome_matrix_wide.columns
                            if u not in all_treated_units]
             cohort_donor_matrix = outcome_matrix_wide[donor_units].to_numpy()
-            cohort_details_map[start_time] = {
-                "treated_units": cohort_units,
-                "y": cohort_treated_matrix,
-                "donor_names": donor_units,
-                "donor_matrix": cohort_donor_matrix,
-                "total_periods": outcome_matrix_wide.shape[0],
-                "pre_periods": num_pre,
-                "post_periods": num_post,
-            }
+            cohort_details_map[start_time] = Cohort(
+                treated_units=cohort_units,
+                y=cohort_treated_matrix,
+                donor_names=donor_units,
+                donor_matrix=cohort_donor_matrix,
+                total_periods=outcome_matrix_wide.shape[0],
+                pre_periods=num_pre,
+                post_periods=num_post,
+            )
 
-        out_multi: Dict[str, Any] = {
-            "Ywide": outcome_matrix_wide,
-            "cohorts": cohort_details_map,
-            "time_labels": outcome_matrix_wide.index,
-        }
+        multi_cov: Optional[CovariateBlock] = None
+        multi_pred: Optional[PredictorBlock] = None
 
         if covariates:
             # Use the earliest pre-period length across cohorts as the
@@ -817,10 +939,8 @@ def dataprep(
                 normalize=normalize_covariates,
                 keys=keys,
             )
-            out_multi["covariate_matrix"] = cov_matrix
-            out_multi["covariate_names"] = cov_names
-            out_multi["covariate_means"] = cov_means
-            out_multi["covariate_scales"] = cov_scales
+            multi_cov = CovariateBlock(matrix=cov_matrix, names=cov_names, means=cov_means,
+                                       scales=cov_scales)
 
             if marex:
                 Y_pre_all = (
@@ -830,10 +950,8 @@ def dataprep(
                 )
                 X_stacked = np.vstack([Y_pre_all, cov_matrix.T])
                 f = np.ones(len(unit_order)) / len(unit_order)
-                out_multi["predictor_matrix"] = X_stacked
-                out_multi["predictor_block_sizes"] = (min_pre, len(cov_names))
-                out_multi["f_weights"] = f
-                out_multi["X_population_mean"] = X_stacked @ f
+                multi_pred = PredictorBlock(matrix=X_stacked, block_sizes=(min_pre, len(cov_names)),
+                                            f_weights=f, population_mean=X_stacked @ f)
 
         elif marex:
             min_pre = (min(c["pre_periods"] for c in cohort_details_map.values())
@@ -841,12 +959,12 @@ def dataprep(
             Y_pre_all = outcome_matrix_wide.iloc[:min_pre, :].to_numpy(dtype=float)
             f = (np.ones(Y_pre_all.shape[1]) / Y_pre_all.shape[1]
                  if Y_pre_all.size else None)
-            out_multi["predictor_matrix"] = Y_pre_all
-            out_multi["predictor_block_sizes"] = (min_pre, 0)
-            out_multi["f_weights"] = f
-            out_multi["X_population_mean"] = Y_pre_all @ f if f is not None else None
+            multi_pred = PredictorBlock(matrix=Y_pre_all, block_sizes=(min_pre, 0), f_weights=f,
+                                        population_mean=Y_pre_all @ f if f is not None else None)
 
-        return out_multi
+        return CohortPanel(Ywide=outcome_matrix_wide, cohorts=cohort_details_map,
+                           time_labels=outcome_matrix_wide.index, covariates=multi_cov,
+                           predictors=multi_pred, observed=observed)
 
 
 def geoex_dataprep(

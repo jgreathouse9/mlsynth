@@ -261,7 +261,7 @@ class TestSetup:
         df, _ = _nonlinear_panel(n_units=10, T=30, T0=20)
         df = df.copy()
         df.loc[7, "D"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Treatment indicator"):
+        with pytest.raises(MlsynthDataError, match="Missing treatment values"):
             prepare_lpca_inputs(df, "y", "D", "unit", "time", match_periods=10)
 
     def test_defaults_follow_the_papers_rules(self):

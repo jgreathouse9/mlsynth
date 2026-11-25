@@ -264,6 +264,41 @@ where :math:`\bar{y}_{\mathcal{N}_1, t} \coloneqq N_{tr}^{-1} \sum_{i \in
 :math:`\widehat{\tau} \coloneqq |\mathcal{T}_2|^{-1} \sum_{t \in \mathcal{T}_2}
 \tau_t` is the post-period mean of :math:`\tau_t`.
 
+Missing values
+~~~~~~~~~~~~~~
+
+The panel is read through :func:`mlsynth.utils.datautils.dataprep` with
+``missing_outcomes="keep"``: the outcome and the treatment in one call, and
+each covariate and the lag column in a call of its own on the same key scan. A
+``NaN`` outcome, covariate or lag value stays ``NaN``, and the estimator
+matches each period on complete cases: a donor missing its current outcome,
+its lagged outcome or a covariate at :math:`t` is left out of the match at
+:math:`t` (its weight there is zero), the same per-period selection of records
+with complete variables as the authors' R code. A missing outcome at
+:math:`t - 1` is a missing lag at :math:`t`, so such a donor also sits out
+period :math:`t`. On the treated side a missing covariate or lag value is
+averaged through: :math:`\mathbf{Z}_{1t}` is the mean over the treated units
+that have the value. The Beijing panels of the empirical replication carry
+such gaps (5 and 9 missing PM2.5 cells, gaps in ``pm25_lag1``, and 56 missing
+values in each red-alert covariate), and the estimate is the one the earlier
+setup gave on them.
+
+A missing outcome of a treated unit at or after :math:`T_0` is refused with
+``MlsynthDataError``, which names the unit and period. The treated mean
+:math:`\bar{y}_{\mathcal{N}_1, t}` averages every treated outcome, and
+neither the paper, whose application has no missing treated outcome, nor the
+complete-case rule above, which selects donors, says whether such a unit
+leaves :math:`\bar{y}_{\mathcal{N}_1, t}` or makes :math:`\tau_t`
+undefined. The earlier setup let the cell through and returned a ``NaN``
+ATT. A treated unit's missing pre-period outcome is accepted; the
+pre-period gap at that period is ``NaN``.
+
+``balance`` and ``dataprep`` refuse an absent or duplicate unit-period, an
+infinite outcome, covariate or lag value, a missing or non-binary treatment
+and a treatment that switches off after it starts. The earlier setup read an
+absent row or an infinite value as a missing cell and any non-zero treatment
+as treated.
+
 Assumptions
 -----------
 

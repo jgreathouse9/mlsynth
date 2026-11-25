@@ -168,7 +168,11 @@ untreated outcome missing; the observed (untreated) cells are informative for
 the missing ones, and there is no anticipation. *Remark.* Staggered adoption
 produces a "staircase" of missing cells, which the mask-based completion fills
 directly -- MC-NNM's main advantage over fixed-rank interactive-fixed-effects
-methods that need a rectangular treated block.
+methods that need a rectangular treated block. Treatment is absorbing: once a
+unit is treated it stays treated to the end of the panel. A unit whose treatment
+switches off again is refused with ``MlsynthDataError`` by
+:func:`mlsynth.utils.datautils.dataprep`, the same check every estimator that
+ingests through ``dataprep`` applies.
 
 *Assumption 3 (regularization rate).* :math:`\lambda` shrinks at the rate the
 theory prescribes so the completion is consistent; in practice it is selected by
@@ -199,6 +203,38 @@ staggered-aware aggregations beyond the overall ATT:
 With multiple adoption times, ``display_graphs=True`` draws an event-study
 plot (effect vs. time-since-adoption), not a single calendar trajectory,
 so cohorts at different event times are not blended.
+
+Missing outcome cells
+---------------------
+
+A row of the panel whose outcome is ``NaN`` is accepted. The estimator fits
+:math:`\mathbf{L}`, :math:`\boldsymbol{\Gamma}` and
+:math:`\boldsymbol{\Delta}` on the observed set :math:`\mathcal{O}` only and
+imputes every cell outside it (paper Eq. 4.3); a cell whose outcome is missing
+belongs outside :math:`\mathcal{O}` for the same reason a treated cell does.
+``dataprep`` keeps the cell (``missing_outcomes="keep"``), and the setup
+builds the mask from the treatment and ``dataprep``'s ``observed`` mask, so
+:math:`\mathcal{O}` is the set of untreated cells whose outcome is present.
+The value stored in a missing cell never enters the fit: the
+cross-validation search, the final fit and the jackknife refits all read a
+matrix that holds zero there, multiplied by a mask entry of zero. The
+completed matrix carries an imputed untreated outcome for the missing cell,
+``event_study`` averages over the cells whose outcome is present, and
+``metadata["missing_outcome_cells"]`` counts the missing cells
+(``metadata["n_missing"]`` counts every cell outside :math:`\mathcal{O}`,
+the treated ones included).
+
+A missing outcome of a treated unit at or after its own adoption period is
+refused with ``MlsynthDataError``, which names the unit and period. The
+effect there is :math:`y_{jt} - \widehat{y}_{jt}(0)` and :math:`y_{jt}` is
+not in the panel. The paper observes a realized outcome in every cell
+(Section 2), and the authors' ``MCPanel`` package completes the matrix with
+no effect estimand, so neither says whether such a cell is dropped from
+:math:`\widehat{\tau}` or reported as missing. A treated unit's missing
+pre-period cell is imputed like any other; the pre-period fit diagnostics of
+the treated path (``rmse_pre``, ``r_squared_pre``) are ``NaN`` when the
+treated path itself has a missing period. An infinite outcome, an absent
+unit-period row and a missing treatment value are still refused.
 
 Inference
 ---------

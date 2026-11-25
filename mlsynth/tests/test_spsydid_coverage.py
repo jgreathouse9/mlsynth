@@ -345,7 +345,7 @@ class TestSetupBranches:
     def test_outcome_nan(self):
         df = _small_panel()
         df.loc[0, "y"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Outcome column contains NaN"):
+        with pytest.raises(MlsynthDataError, match="Missing outcome values"):
             prepare_spsydid_inputs(
                 df=df, outcome="y", treat="D", unitid="unit",
                 time="time", spatial_matrix=_line_W(),
@@ -371,7 +371,7 @@ class TestSetupBranches:
     def test_unbalanced_panel(self):
         df = _small_panel()
         df = df.drop(df.index[0])  # remove one (unit, time) cell
-        with pytest.raises(MlsynthDataError, match="not balanced"):
+        with pytest.raises(MlsynthDataError, match="not strongly balanced"):
             prepare_spsydid_inputs(
                 df=df, outcome="y", treat="D", unitid="unit", time="time",
                 spatial_matrix=_line_W(),
@@ -388,7 +388,7 @@ class TestSetupBranches:
 
     def test_no_directly_treated(self):
         df = _small_panel(treated=())  # nobody treated
-        with pytest.raises(MlsynthDataError, match="No directly treated"):
+        with pytest.raises(MlsynthDataError, match="No treated units"):
             prepare_spsydid_inputs(
                 df=df, outcome="y", treat="D", unitid="unit", time="time",
                 spatial_matrix=_line_W(),
@@ -398,7 +398,7 @@ class TestSetupBranches:
         df = _small_panel(treated=())
         # make unit 0 treated at the very first period -> no pre-period.
         df.loc[(df["unit"] == 0), "D"] = 1.0
-        with pytest.raises(MlsynthDataError, match="earliest period"):
+        with pytest.raises(MlsynthDataError, match="0 pre-periods"):
             prepare_spsydid_inputs(
                 df=df, outcome="y", treat="D", unitid="unit", time="time",
                 spatial_matrix=_line_W(),

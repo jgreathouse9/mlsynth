@@ -32,6 +32,8 @@ float-sensitive downstream code at ~1e-16.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -396,8 +398,8 @@ class TestDerivationCount:
 def _compare(a, b, path="prep"):
     """Assert two ``dataprep`` payloads agree, recursing into containers."""
     assert type(a) is type(b), f"{path}: {type(a)} vs {type(b)}"
-    if isinstance(a, dict):
-        assert set(a) == set(b), f"{path}: keys differ"
+    if isinstance(a, Mapping):
+        assert list(a) == list(b), f"{path}: keys differ"
         for k in a:
             _compare(a[k], b[k], f"{path}[{k!r}]")
     elif isinstance(a, pd.DataFrame):

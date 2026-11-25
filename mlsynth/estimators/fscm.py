@@ -26,7 +26,6 @@ from typing import List, Union
 import pandas as pd
 
 from ..config_models import FSCMConfig
-from ..utils.datautils import balance
 from ..utils.fscm_helpers import (
     FSCMResults,
     plot_fscm,
@@ -80,8 +79,6 @@ class FSCM:
             counterfactual, gap, ATT, fit diagnostics, and the
             forward-selection / cross-validation path.
         """
-        balance(self.df, self.unitid, self.time)
-
         inputs = prepare_fscm_inputs(
             self.df,
             unitid=self.unitid,

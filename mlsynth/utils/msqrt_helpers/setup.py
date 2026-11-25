@@ -1,4 +1,9 @@
-"""Panel ingestion for the MSQRT estimator (block, multiple treated units)."""
+"""Panel ingestion for the MSQRT estimator (block, multiple treated units).
+
+Reads a long-format panel through :func:`mlsynth.utils.datautils.balance`
+and :func:`mlsynth.utils.datautils.dataprep` and splits it into the stacked
+``Y = X Theta + E`` block matrices.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +13,21 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
+from ..datautils import balance, dataprep
+from ..prepared import SinglePanel
 from .structures import MSQRTInputs
+
+
+def _adoption_starts(prep) -> dict:
+    """Each treated unit's first treated period, as an index into the time axis.
+
+    ``dataprep`` has already refused a treatment that switches off, so a unit
+    is treated from its start to the end of the panel.
+    """
+    if isinstance(prep, SinglePanel):
+        return {prep.treated_unit_name: int(prep.pre_periods)}
+    return {unit: int(cohort.pre_periods)
+            for cohort in prep.cohorts.values() for unit in cohort.treated_units}
 
 
 def prepare_msqrt_inputs(
@@ -19,50 +38,58 @@ def prepare_msqrt_inputs(
     time: str,
     weight_col: Optional[str] = None,
 ) -> MSQRTInputs:
-    """Pivot a long panel into the stacked ``Y = X Theta + E`` block matrices.
+    """Build the stacked ``Y = X Theta + E`` block matrices from a long panel.
 
-    MSQRT (Shen, Song & Abadie 2025) assumes a **block** design: every
+    MSQRT (Shen, Song & Abadie 2025) assumes a block design: every
     ever-treated unit adopts at the same period. Treated units form the columns
     of ``Y``; never-treated units form the columns of ``X``.
+
+    ``dataprep`` supplies the outcome matrix, the time labels and each treated
+    unit's adoption period. ``balance`` and ``dataprep`` refuse a missing or
+    non-finite outcome, an absent or duplicate unit-period, a non-binary
+    treatment and a treatment that switches off after it starts. MSQRT's own
+    checks (two pre-periods, two never-treated donors, one adoption period,
+    no unit treated in the first period) stay on top.
     """
     for col in (outcome, treat, unitid, time):
         if col not in df.columns:
             raise MlsynthDataError(f"Required column {col!r} missing.")
-    if df[outcome].isna().any():
-        raise MlsynthDataError("Outcome column contains NaN values.")
 
-    time_labels = np.array(sorted(df[time].unique()))
-    unit_names = sorted(df[unitid].unique())
+    # balance() refuses a duplicate or absent unit-period, and its key scan is
+    # reused by dataprep instead of being built twice. A single treated unit
+    # with fewer than two donors is refused below with MSQRT's own message.
+    keys = balance(df, unitid, time)
+    prep = dataprep(df, unitid, time, outcome, treat, allow_no_donors=True, keys=keys)
 
-    y_wide = df.pivot(index=unitid, columns=time, values=outcome)
-    d_wide = df.pivot(index=unitid, columns=time, values=treat)
-    if y_wide.isna().any().any() or d_wide.isna().any().any():
-        raise MlsynthDataError("Panel is unbalanced (missing unit-time cells).")
-    Y = y_wide.loc[unit_names, time_labels].to_numpy(dtype=float)   # (N, T)
-    D = d_wide.loc[unit_names, time_labels].to_numpy(dtype=float)
-
-    any_treated_at_t = D.max(axis=0)
-    if any_treated_at_t[0] == 1:
-        raise MlsynthDataError("Some unit is treated at the earliest period.")
-    if not any_treated_at_t.any():
-        raise MlsynthDataError("No treated unit-periods found (all treat == 0).")
-    T0 = int(np.argmax(any_treated_at_t == 1))
+    unit_names = sorted(np.asarray(prep.Ywide.columns))
+    # Built from the index's array one label at a time, as the old setup's
+    # sorted list was: datetime periods stay an object array of Timestamps and
+    # 32-bit periods stay 32-bit (iterating the index itself yields Python
+    # scalars, which widen them).
+    time_labels = np.array(list(prep.time_labels.array))
     T = time_labels.size
+    # Unit by period, as the old pivot was. The np.ix_ slices below are fresh
+    # C-ordered copies whatever Y's own layout, so the blocks keep the layout
+    # the solver's sums were computed on.
+    Y = prep.Ywide[unit_names].to_numpy(dtype=float).T
+    starts = _adoption_starts(prep)
+
+    # Adoption period: first time any unit is treated. dataprep refuses
+    # treatment in the first period only when one unit is treated.
+    T0 = min(starts.values())
+    if T0 == 0:
+        raise MlsynthDataError("Some unit is treated at the earliest period.")
     if T0 < 2:
         raise MlsynthDataError("MSQRT needs at least 2 pre-treatment periods.")
-    if T - T0 < 1:
-        raise MlsynthDataError("MSQRT needs at least 1 post-treatment period.")
 
-    treated_idx = np.where(D.max(axis=1) == 1)[0]
-    control_idx = np.where(D.max(axis=1) == 0)[0]
-    if treated_idx.size == 0:
-        raise MlsynthDataError("No ever-treated units found.")
+    treated_idx = np.array([i for i, u in enumerate(unit_names) if u in starts], dtype=np.int64)
+    control_idx = np.array([i for i, u in enumerate(unit_names) if u not in starts],
+                           dtype=np.int64)
     if control_idx.size < 2:
         raise MlsynthDataError("MSQRT needs at least 2 never-treated donor units.")
 
     # Block-design check: all treated units share one adoption period.
-    first_treat = np.array([int(np.argmax(D[i] == 1)) for i in treated_idx])
-    if not np.all(first_treat == T0):
+    if len(set(starts.values())) > 1:
         raise MlsynthDataError(
             "MSQRT assumes a block design (all treated units adopt at the same "
             "period). Staggered adoption detected -- use SDID, SequentialSDID, "

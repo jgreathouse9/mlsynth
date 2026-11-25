@@ -887,7 +887,11 @@ post-treatment periods, as in LEXSCM). The design is rebuilt on the pre rows
 alone --- so it is identical to the design-only result --- and
 ``results.effects`` carries the realised ATT at the arm and program
 levels using the Augmented Difference-in-Differences estimator of Li &
-Van den Bulte (2022).
+Van den Bulte (2022). Both the pre and the post rows are read through
+:func:`mlsynth.utils.datautils.geoex_dataprep`, which refuses a duplicate or
+absent unit-period and a missing or non-finite outcome among the design's
+units with ``MlsynthDataError``; a geo that appears only in the post rows is
+ignored.
 
 Fix a level (an arm, or the program) and write :math:`y^{T}_t` for its
 treated supergeo aggregate and :math:`y^{C}_t` for its control supergeo

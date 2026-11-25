@@ -61,20 +61,20 @@ class TestSetupGuards:
     def test_nan_outcome(self):
         df = _panel(n_donors=6, T0=18, n_post=5, seed=0)
         df.loc[0, "Y"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Outcome column contains NaN"):
+        with pytest.raises(MlsynthDataError, match="Missing outcome values"):
             prepare_spotsynth_inputs(df, "Y", "treated", "unit", "time")
 
     def test_nan_treat(self):
         df = _panel(n_donors=6, T0=18, n_post=5, seed=0)
         df["treated"] = df["treated"].astype(float)
         df.loc[0, "treated"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Treatment column contains NaN"):
+        with pytest.raises(MlsynthDataError, match="Missing treatment values: 1 of"):
             prepare_spotsynth_inputs(df, "Y", "treated", "unit", "time")
 
     def test_duplicate_unit_time(self):
         df = _panel(n_donors=6, T0=18, n_post=5, seed=0)
         df = pd.concat([df, df.iloc[[0]]], ignore_index=True)
-        with pytest.raises(MlsynthDataError, match="duplicate"):
+        with pytest.raises(MlsynthDataError, match="Duplicate"):
             prepare_spotsynth_inputs(df, "Y", "treated", "unit", "time")
 
     def test_too_few_units(self):
@@ -85,7 +85,7 @@ class TestSetupGuards:
 
     def test_unbalanced(self):
         df = _panel(n_donors=6, T0=18, n_post=5, seed=0).iloc[1:]
-        with pytest.raises(MlsynthDataError, match="unbalanced"):
+        with pytest.raises(MlsynthDataError, match="not strongly balanced"):
             prepare_spotsynth_inputs(df, "Y", "treated", "unit", "time")
 
     def test_no_treated_unit(self):
@@ -103,7 +103,7 @@ class TestSetupGuards:
     def test_treated_at_earliest_period(self):
         df = _panel(n_donors=6, T0=18, n_post=5, seed=0)
         df.loc[(df["unit"] == "target"), "treated"] = 1
-        with pytest.raises(MlsynthDataError, match="earliest period"):
+        with pytest.raises(MlsynthDataError, match="0 pre-periods"):
             prepare_spotsynth_inputs(df, "Y", "treated", "unit", "time")
 
     def test_too_few_pre_periods(self):

@@ -85,6 +85,13 @@ partitioning :math:`\mathcal{N}` into the eventually-treated
 never-treated :math:`\mathcal{N}_0 \coloneqq \{j : d_j = 0\}` (size
 :math:`N_0`), with :math:`N = N_0 + N_1 \ge 3`.
 
+The panel is read through :func:`mlsynth.utils.datautils.dataprep`, so every
+unit has a row for every period. It refuses with ``MlsynthDataError`` a
+duplicate or absent unit-period, a missing or non-finite outcome in any period,
+a treatment that switches off after it starts, and a single treated unit
+treated from the first period; ROLLDID also refuses a treatment other than 0/1
+and a panel with no never-treated unit.
+
 *Common timing.* All treated units adopt after period :math:`T_0`, splitting
 time into the pre-period :math:`\mathcal{T}_1 \coloneqq \{t \le T_0\}` and the
 post-period :math:`\mathcal{T}_2 \coloneqq \{t > T_0\}`.

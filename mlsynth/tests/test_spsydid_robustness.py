@@ -125,7 +125,7 @@ class TestPanelGuards:
     def test_outcome_nan(self):
         df, W = _panel()
         df.loc[0, "y"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Outcome column contains NaN"):
+        with pytest.raises(MlsynthDataError, match="Missing outcome values"):
             prepare_spsydid_inputs(df=df, outcome="y", treat="D",
                                    unitid="unit", time="time",
                                    spatial_matrix=W)
@@ -133,7 +133,7 @@ class TestPanelGuards:
     def test_treatment_nan(self):
         df, W = _panel()
         df.loc[0, "D"] = np.nan
-        with pytest.raises(MlsynthDataError, match="Treatment column contains NaN"):
+        with pytest.raises(MlsynthDataError, match="Missing treatment values: 1 of"):
             prepare_spsydid_inputs(df=df, outcome="y", treat="D",
                                    unitid="unit", time="time",
                                    spatial_matrix=W)
@@ -143,7 +143,7 @@ class TestPanelGuards:
         # set a treated cell to 2.0 -> non-binary
         idx = df.index[(df["unit"] == 0) & (df["time"] == 9)]
         df.loc[idx, "D"] = 2.0
-        with pytest.raises(MlsynthDataError, match="binary 0/1 indicator"):
+        with pytest.raises(MlsynthDataError, match="binary"):
             prepare_spsydid_inputs(df=df, outcome="y", treat="D",
                                    unitid="unit", time="time",
                                    spatial_matrix=W)
@@ -151,7 +151,7 @@ class TestPanelGuards:
     def test_unbalanced_panel(self):
         df, W = _panel()
         df = df.drop(df.index[5])  # drop one (unit, time) cell
-        with pytest.raises(MlsynthDataError, match="not balanced"):
+        with pytest.raises(MlsynthDataError, match="not strongly balanced"):
             prepare_spsydid_inputs(df=df, outcome="y", treat="D",
                                    unitid="unit", time="time",
                                    spatial_matrix=W)
@@ -168,7 +168,7 @@ class TestPanelGuards:
 
     def test_no_directly_treated(self):
         df, W = _panel(treated=())
-        with pytest.raises(MlsynthDataError, match="No directly treated"):
+        with pytest.raises(MlsynthDataError, match="No treated units"):
             prepare_spsydid_inputs(df=df, outcome="y", treat="D",
                                    unitid="unit", time="time",
                                    spatial_matrix=W)
@@ -176,7 +176,7 @@ class TestPanelGuards:
     def test_treated_at_earliest_period(self):
         df, W = _panel(treated=())
         df.loc[df["unit"] == 0, "D"] = 1.0  # treated everywhere incl. t=0
-        with pytest.raises(MlsynthDataError, match="earliest period"):
+        with pytest.raises(MlsynthDataError, match="0 pre-periods"):
             prepare_spsydid_inputs(df=df, outcome="y", treat="D",
                                    unitid="unit", time="time",
                                    spatial_matrix=W)

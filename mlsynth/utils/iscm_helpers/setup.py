@@ -1,9 +1,10 @@
 """Panel ingestion for the ISCM estimator.
 
-Pivots a long-format panel into the dense ``(N, T)`` outcome and
-treatment matrices ISCM operates on. ISCM builds a synthetic control for
-*every* unit, so -- unlike single-treated SCM -- there is no treated /
-donor split at this stage; all units are retained.
+Reads a long-format panel into the dense ``(N, T)`` outcome and treatment
+matrices ISCM operates on, through :func:`mlsynth.utils.datautils.balance`
+and :func:`mlsynth.utils.datautils.dataprep`. ISCM builds a synthetic
+control for *every* unit, so -- unlike single-treated SCM -- there is no
+treated / donor split at this stage; all units are retained.
 """
 
 from __future__ import annotations
@@ -12,7 +13,21 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
+from ..datautils import balance, dataprep
+from ..prepared import SinglePanel
 from .structures import ISCMInputs
+
+
+def _adoption_starts(prep) -> dict:
+    """Each treated unit's first treated period, as an index into the time axis.
+
+    ``dataprep`` has already refused a treatment that switches off, so a unit
+    is treated from its start to the end of the panel.
+    """
+    if isinstance(prep, SinglePanel):
+        return {prep.treated_unit_name: int(prep.pre_periods)}
+    return {unit: int(cohort.pre_periods)
+            for cohort in prep.cohorts.values() for unit in cohort.treated_units}
 
 
 def prepare_iscm_inputs(
@@ -22,59 +37,65 @@ def prepare_iscm_inputs(
     unitid: str,
     time: str,
 ) -> ISCMInputs:
-    """Pivot a long panel into :class:`ISCMInputs`.
+    """Build :class:`ISCMInputs` from a long panel through ``balance`` and ``dataprep``.
+
+    ``dataprep`` supplies the outcome matrix, the time labels and each
+    treated unit's adoption period, and the treatment matrix ``D`` is built
+    from the adoption periods. ``balance`` and ``dataprep`` refuse a missing
+    or non-finite outcome, an absent or duplicate unit-period, a non-binary
+    treatment and a treatment that switches off after it starts.
 
     Parameters
     ----------
     df : pd.DataFrame
         Balanced long panel; one row per ``(unit, time)``.
     outcome, treat, unitid, time : str
-        Column names. A treated unit has ``treat == 1`` from a common
-        adoption period onward; ISCM assumes a single adoption date (no
-        staggered timing).
+        Column names. A treated unit has ``treat == 1`` from its adoption
+        period to the end of the panel. Powell (2026) states ISCM for a
+        single adoption date; with staggered adoption ``T0`` is the first
+        period any unit is treated, every later adopter is treated in ``D``
+        from its own start, and all ever-treated units are in
+        ``treated_idx``.
     """
     for col in (outcome, treat, unitid, time):
         if col not in df.columns:
             raise MlsynthDataError(f"Required column {col!r} missing.")
-    if df[outcome].isna().any():
-        raise MlsynthDataError("Outcome column contains NaN values.")
 
-    time_labels = np.array(sorted(df[time].unique()))
-    T = int(time_labels.size)
-    unit_names = sorted(df[unitid].unique())
-    N = len(unit_names)
-    if N < 3:
+    # balance() refuses a duplicate or absent unit-period, and its key scan is
+    # reused by dataprep instead of being built twice.
+    keys = balance(df, unitid, time)
+    if keys.n_units < 3:
         raise MlsynthDataError(
             "ISCM needs at least 3 units (a synthetic control is built for "
             "every unit from the others)."
         )
+    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)
 
-    y_wide = df.pivot(index=unitid, columns=time, values=outcome)
-    d_wide = df.pivot(index=unitid, columns=time, values=treat)
-    if y_wide.isna().any().any() or d_wide.isna().any().any():
-        raise MlsynthDataError("Panel is unbalanced (missing unit-time cells).")
+    unit_names = sorted(np.asarray(prep.Ywide.columns))
+    # Built from the labels one by one, as the old setup's sorted list was, so
+    # datetime periods stay an object array of Timestamps and a 32-bit
+    # period column stays 32-bit (``.array`` keeps the column's dtype).
+    time_labels = np.array(list(prep.time_labels.array))
+    T = int(time_labels.size)
+    Y = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)
+    starts = _adoption_starts(prep)
+    D = np.zeros((len(unit_names), T), dtype=float)
+    for i, name in enumerate(unit_names):
+        if name in starts:
+            D[i, starts[name]:] = 1.0
 
-    Y = y_wide.loc[unit_names, time_labels].to_numpy(dtype=float)
-    D = d_wide.loc[unit_names, time_labels].to_numpy(dtype=float)
-
-    # Adoption period: first time any unit is treated.
-    any_treated_at_t = D.max(axis=0)
-    if any_treated_at_t[0] == 1:
+    # Adoption period: first time any unit is treated. dataprep refuses
+    # treatment in the first period only when one unit is treated.
+    T0 = min(starts.values())
+    if T0 == 0:
         raise MlsynthDataError("Some unit is treated at the earliest period.")
-    if not any_treated_at_t.any():
-        raise MlsynthDataError("No treated unit-periods found (all treat == 0).")
-    T0 = int(np.argmax(any_treated_at_t == 1))
     if T0 < 2:
         raise MlsynthDataError(
             "ISCM requires at least 2 pre-treatment periods (and assumes a "
             "large pre-period for its asymptotics)."
         )
-    if T - T0 < 1:
-        raise MlsynthDataError("ISCM requires at least one post-period.")
 
     treated_idx = np.where(D[:, T0:].max(axis=1) == 1)[0]
-    if treated_idx.size == 0:
-        raise MlsynthDataError("No ever-treated units found.")
 
     return ISCMInputs(
         Y=Y,
