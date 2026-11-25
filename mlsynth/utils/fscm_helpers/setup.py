@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
-from ..datautils import _wide_pivot, balance, dataprep
+from ..datautils import balance, dataprep
 from ..fast_scm_helpers.structure import IndexSet
 from ..prepared import SinglePanel
 from .structures import FSCMInputs
@@ -54,9 +54,11 @@ def prepare_fscm_inputs(
     specification): ``covariate_windows`` maps a covariate to an inclusive
     ``(start, end)`` label range; covariates not listed are averaged over the
     full pre-treatment period. A covariate's gaps are filled forward, then
-    backward, within each unit before it is averaged, so each covariate is read
-    with ``datautils``' pivot on the key scan ``balance`` took, not through
-    ``dataprep``'s covariate block, which neither fills gaps nor takes windows.
+    backward, within each unit before it is averaged, which ``dataprep``'s
+    covariate block does not do (it takes no windows either). So each covariate
+    is read as the outcome of its own ``dataprep`` call on the key scan
+    ``balance`` took, with ``missing_outcomes="keep"``: a NaN cell stays NaN
+    for the fill, and an infinite value is refused under the covariate's name.
     ``match_periods`` are specific pre-treatment periods whose outcome value is
     matched directly.
     """
@@ -93,7 +95,13 @@ def prepare_fscm_inputs(
     if cov_names:
         treated_vals, donor_vals = [], []
         for c in cov_names:
-            cwide = _wide_pivot(df, index=time, columns=unitid, values=c, keys=keys)
+            try:
+                cprep = dataprep(df, unitid, time, c, treat, keys=keys,
+                                 missing_outcomes="keep")
+            except MlsynthDataError as exc:
+                raise MlsynthDataError(
+                    f"Covariate '{c}' cannot be read: {exc}") from exc
+            cwide = cprep.Ywide
             cwide = cwide.ffill().bfill()
             if cwide[[treated_unit, *donors]].isna().any().any():
                 raise MlsynthDataError(

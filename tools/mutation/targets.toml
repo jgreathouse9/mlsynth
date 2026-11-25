@@ -21758,15 +21758,27 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "covariates-scan-the-panel-again"
-  find = "values=c, keys=keys)"
-  replace = "values=c)"
-  models = "each covariate pivot rescanning the keys balance already scanned"
+  find = "c, treat, keys=keys,"
+  replace = "c, treat,"
+  models = "each covariate's dataprep call rescanning the keys balance already scanned"
 
   [[target.mutant]]
   id = "a-covariate-reads-the-outcome"
-  find = "    cwide = _wide_pivot(df, index=time, columns=unitid, values=c, keys=keys)"
-  replace = "    cwide = _wide_pivot(df, index=time, columns=unitid, values=outcome, keys=keys)"
-  models = "the covariate pivot scattering the wrong column"
+  find = "cprep = dataprep(df, unitid, time, c, treat,"
+  replace = "cprep = dataprep(df, unitid, time, outcome, treat,"
+  models = "the covariate's dataprep call reading the outcome column"
+
+  [[target.mutant]]
+  id = "a-covariate-gap-is-refused"
+  find = "missing_outcomes=\"keep\")"
+  replace = "missing_outcomes=\"refuse\")"
+  models = "a covariate read with dataprep's default refusal, so a NaN cell FSCM would fill is refused"
+
+  [[target.mutant]]
+  id = "the-covariate-refusal-loses-its-name"
+  find = "f\"Covariate '{c}' cannot be read: {exc}\") from exc"
+  replace = "f\"{exc}\") from exc"
+  models = "an infinite covariate refused under dataprep's outcome wording, without the covariate's name"
 
   [[target.mutant]]
   id = "several-treated-units-are-accepted"

@@ -339,7 +339,11 @@ Matching on the author's full predictor specification
 ``lnincome``, ``beer``, ``age15to24``, ``retprice`` and cigarette sales in
 1975, 1980 and 1988. Abadie averages the covariates over 1980--1988 (beer over
 1984--1988); these aggregation windows are given through ``covariate_windows``,
-and the lagged smoking values through ``match_periods``. With
+and the lagged smoking values through ``match_periods``. The covariates have
+gaps. Each one is read through ``dataprep`` with ``missing_outcomes="keep"``,
+its gaps are filled forward and then backward within each state before the
+window average, and an infinite covariate value is refused with the covariate
+named in the error. With
 ``forward_selection=False`` the estimator returns the full bilevel SCM
 optimum over all donors:
 
