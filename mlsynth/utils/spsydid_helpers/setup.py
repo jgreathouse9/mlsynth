@@ -11,6 +11,10 @@ donor pool is auto-partitioned into three classes following Serenini
   i.e. they have at least one spatial neighbour who is treated.
 * **Pure controls** -- units with :math:`D = 0` and :math:`(WD) = 0`
   for all t. Only these are used to fit the SDID unit / time weights.
+
+The outcome matrix, the time labels and each directly treated unit's adoption
+period come from :func:`mlsynth.utils.datautils.balance` and
+:func:`mlsynth.utils.datautils.dataprep`.
 """
 
 from __future__ import annotations
@@ -21,11 +25,25 @@ import numpy as np
 import pandas as pd
 
 from ...exceptions import MlsynthDataError
+from ..datautils import balance, dataprep
+from ..prepared import SinglePanel
 from .spatial import row_standardize, validate_spatial_matrix
 from .structures import SpSyDiDInputs
 
 
 _SPILLOVER_TOL = 1e-12
+
+
+def _adoption_starts(prep) -> dict:
+    """Each directly treated unit's first treated period, as an index into the time axis.
+
+    ``dataprep`` has already refused a treatment that switches off, so a unit
+    is treated from its start to the end of the panel.
+    """
+    if isinstance(prep, SinglePanel):
+        return {prep.treated_unit_name: int(prep.pre_periods)}
+    return {unit: int(cohort.pre_periods)
+            for cohort in prep.cohorts.values() for unit in cohort.treated_units}
 
 
 def prepare_spsydid_inputs(
@@ -38,13 +56,23 @@ def prepare_spsydid_inputs(
     unit_order: Optional[Sequence] = None,
     row_standardize_spatial: bool = True,
 ) -> SpSyDiDInputs:
-    """Pivot a long-format panel into :class:`SpSyDiDInputs`.
+    """Build :class:`SpSyDiDInputs` from a long panel through ``balance`` and ``dataprep``.
+
+    ``dataprep`` supplies the outcome matrix, the time labels and each
+    directly treated unit's adoption period, and the treatment matrix is built
+    from the adoption periods. ``balance`` and ``dataprep`` refuse a missing
+    or non-finite outcome, an absent or duplicate unit-period, a non-binary
+    treatment, a treatment that switches off after it starts and a single
+    treated unit treated in the first period. SpSyDiD's own checks (no
+    missing treatment value, ``unit_order``, the spatial matrix, a pure
+    control, no unit treated in the first period) stay on top. Staggered
+    adoption is accepted: ``T0`` is the first period any unit is treated.
 
     Parameters
     ----------
     df : pd.DataFrame
         Balanced long panel with columns ``unitid``, ``time``, ``outcome``,
-        ``treat``.
+        ``treat``; ``treat`` is a 0/1 indicator that stays 1 once it starts.
     outcome, treat, unitid, time : str
         Column names.
     spatial_matrix : np.ndarray
@@ -65,50 +93,42 @@ def prepare_spsydid_inputs(
             raise MlsynthDataError(
                 f"Required column {col!r} missing from input DataFrame."
             )
-    if df[outcome].isna().any():
-        raise MlsynthDataError("Outcome column contains NaN values.")
+    # dataprep's binary check skips NaN, so a missing treatment cell would be
+    # read as untreated.
     if df[treat].isna().any():
         raise MlsynthDataError("Treatment column contains NaN values.")
 
-    if unit_order is None:
-        unit_names: List = sorted(df[unitid].unique())
-    else:
+    if unit_order is not None:
         unit_names = list(unit_order)
         unit_set_panel = set(df[unitid].unique())
         if set(unit_names) != unit_set_panel:
             raise MlsynthDataError(
                 "unit_order does not match the set of unit ids in the panel."
             )
+
+    # balance() refuses a duplicate or absent unit-period, and its key scan is
+    # reused by dataprep instead of being built twice.
+    keys = balance(df, unitid, time)
+    prep = dataprep(df, unitid, time, outcome, treat, keys=keys)
+    if unit_order is None:
+        unit_names = sorted(np.asarray(prep.Ywide.columns))
     N = len(unit_names)
 
-    time_labels = np.array(sorted(df[time].unique()))
+    # Built from the index's array one label at a time, as the old setup's
+    # sorted list was: datetime periods stay an object array of Timestamps and
+    # 32-bit periods stay 32-bit (iterating the index itself yields Python
+    # scalars, which widen them).
+    time_labels = np.array(list(prep.time_labels.array))
     T = int(time_labels.size)
 
-    # Wide pivots: outcome and treatment.
-    outcome_wide = df.pivot(index=unitid, columns=time, values=outcome)
-    treat_wide = df.pivot(index=unitid, columns=time, values=treat)
-    # A missing (unit, time) cell leaves a NaN in the pivot (the shape stays
-    # (N, T) because the index / columns come from the same unique values),
-    # so detect imbalance by checking for those gaps rather than by shape.
-    if (
-        outcome_wide.isna().to_numpy().any()
-        or treat_wide.isna().to_numpy().any()
-    ):
-        raise MlsynthDataError(
-            "Panel is not balanced -- some (unit, time) cells are missing."
-        )
-    outcome_wide = outcome_wide.loc[unit_names, time_labels].to_numpy(dtype=float)
-    treat_wide = treat_wide.loc[unit_names, time_labels].to_numpy(dtype=float)
-
-    # Treatment must be a 0/1 indicator: non-binary values silently corrupt
-    # the partition (``treat > 0``) and push the exposure term (WD) outside
-    # the [0, 1] range the spillover coefficient is defined against.
-    unique_treat = np.unique(treat_wide)
-    if not np.all(np.isin(unique_treat, (0.0, 1.0))):
-        raise MlsynthDataError(
-            "Treatment column must be a binary 0/1 indicator; found values "
-            f"{unique_treat.tolist()}."
-        )
+    # Unit by period and C-ordered, as the old pivot was: the exposure W D and
+    # the regression sum over these layouts.
+    outcome_wide = np.ascontiguousarray(prep.Ywide[unit_names].to_numpy(dtype=float).T)
+    starts = _adoption_starts(prep)
+    treat_wide = np.zeros((N, T), dtype=float)
+    for i, name in enumerate(unit_names):
+        if name in starts:
+            treat_wide[i, starts[name]:] = 1.0
 
     # Validate + (optionally) row-standardise W.
     W = validate_spatial_matrix(spatial_matrix, n_units=N)
@@ -127,8 +147,6 @@ def prepare_spsydid_inputs(
     spillover_idx = np.where(spillover_mask)[0]
     pure_idx = np.where(pure_mask)[0]
 
-    if direct_idx.size == 0:
-        raise MlsynthDataError("No directly treated units found (all D == 0).")
     if pure_idx.size == 0:
         raise MlsynthDataError(
             "No pure controls left after partitioning -- every donor is "
@@ -136,22 +154,13 @@ def prepare_spsydid_inputs(
             "this setting; consider widening the donor pool or restricting W."
         )
 
-    # T0: largest pre-period such that no unit has treat==1 at any t' <= T0.
-    any_treated_at_t = (treat_wide > 0).any(axis=0)
-    if any_treated_at_t[0]:
+    # T0: the first period any unit is treated. dataprep refuses treatment in
+    # the first period only when one unit is treated.
+    T0 = min(starts.values())
+    if T0 == 0:
         raise MlsynthDataError(
             "Some unit is treated at the earliest period (no pre-period)."
         )
-    T0 = int(np.argmax(any_treated_at_t)) if any_treated_at_t.any() else T
-    # Defensive guards: by construction these are unreachable. ``T0 == 0``
-    # is already caught by the ``any_treated_at_t[0]`` check above, and
-    # ``T0 == T`` (no treated period) is impossible because the empty
-    # ``direct_idx`` guard fires first. Retained for safety against future
-    # refactors of the partition logic.
-    if T0 < 1:  # pragma: no cover
-        raise MlsynthDataError("SpSyDiD requires at least one pre-period.")
-    if T - T0 < 1:  # pragma: no cover
-        raise MlsynthDataError("SpSyDiD requires at least one post-period.")
 
     return SpSyDiDInputs(
         outcome_matrix=outcome_wide,

@@ -69,6 +69,14 @@ block is the units :math:`j = 1, \dots, J` and the donor pool is the
 never-treated units :math:`\mathcal{N}_0 \coloneqq \mathcal{N} \setminus
 \{1, \dots, J\}` of cardinality :math:`N_0`.
 
+The panel is long and balanced, one row per unit and period, and is read
+through :func:`mlsynth.utils.datautils.dataprep`. A non-binary treatment, a
+treatment that switches off, a duplicate or absent unit-period, a row without a
+unit or period, and a missing or non-finite outcome in any period are refused
+with ``MlsynthDataError``. MSQRT also refuses a missing treatment value, fewer
+than two pre-periods or two never-treated donors, a unit treated in the first
+period, and treated units that adopt at different periods.
+
 Stack the treated units' pre-period outcomes into the time-major matrix
 :math:`\mathbf{Y}_1 \in \mathbb{R}^{T_0 \times J}` (column :math:`j` is treated
 series :math:`\mathbf{y}_j`) and the never-treated donors into the donor matrix

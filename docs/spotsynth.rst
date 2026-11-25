@@ -109,6 +109,14 @@ Let :math:`j = 1` denote the treated unit, with all units
 intervention indicator is :math:`d_t \coloneqq \mathbf{1}\{t > T_0\}` -- zero on
 :math:`\mathcal{T}_1`, one on :math:`\mathcal{T}_2`.
 
+The panel is long and balanced, one row per unit and period, and is read
+through :func:`mlsynth.utils.datautils.dataprep`. A non-binary treatment, a
+treatment that switches off, a duplicate or absent unit-period, a row without a
+unit or period, and a missing or non-finite outcome in any period are refused
+with ``MlsynthDataError``. SPOTSYNTH also refuses a missing treatment value,
+fewer than three units, more than one treated unit, and fewer than three
+pre-periods.
+
 The treated series is :math:`\mathbf{y}_1 = (y_{11}, \dots, y_{1T})^\top \in
 \mathbb{R}^{T}` with scalar outcomes :math:`y_{1t}`; each donor
 :math:`j \in \mathcal{N}_0` contributes a series :math:`\mathbf{y}_j`, stacked
