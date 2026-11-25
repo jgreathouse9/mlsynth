@@ -97,9 +97,12 @@ def _assert_same(inputs, ref):
         assert got.dtype == want.dtype, f"{f}: dtype {got.dtype} vs {want.dtype}"
         assert got.shape == want.shape, f
         np.testing.assert_array_equal(got, want, err_msg=f)
-        # The SC solves and the projections sum over this layout.
-        assert got.flags["C_CONTIGUOUS"] == want.flags["C_CONTIGUOUS"], f
-        assert got.flags["F_CONTIGUOUS"] == want.flags["F_CONTIGUOUS"], f
+        # The SC solves and the projections sum over this layout. The old
+        # one depended on the pandas version: the copy sort_index() made of
+        # the pivot is column-major on pandas 2.3, which CI runs, so Y, R
+        # and Z were C-ordered there and Fortran-ordered on pandas 3. The
+        # new path gives CI's C order on every version.
+        assert got.flags["C_CONTIGUOUS"], f
     for f in ("unit_index", "time_index"):
         got, want = getattr(inputs, f).labels, getattr(ref, f).labels
         np.testing.assert_array_equal(got, want, err_msg=f)
