@@ -78,8 +78,12 @@ def prepare_rescm_inputs(
     donors = list(prep.donor_names)
     unit_index = IndexSet.from_labels(donors)
 
-    y = wide[treated_unit].to_numpy(dtype=float)
-    X = wide[donors].to_numpy(dtype=float)
+    # The solvers' sums depend on the memory layout. These are the layouts the
+    # old df.pivot gave under pandas 2.x (the version CI runs): a contiguous
+    # treated series and a column-major donor matrix. dataprep's matrix is
+    # row-major.
+    y = np.ascontiguousarray(wide[treated_unit].to_numpy(dtype=float))
+    X = np.asfortranarray(wide[donors].to_numpy(dtype=float))
     T0 = int(prep.pre_periods)
     if T0 < 2:
         raise MlsynthDataError("RESCM needs at least two pre-treatment periods.")
