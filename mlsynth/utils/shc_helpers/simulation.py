@@ -25,6 +25,13 @@ dimensions: with :math:`h = 4` it gives :math:`T_o = m(4h+1)` (425 for
 :math:`m = 25`, 850 for :math:`m = 50`) and :math:`N = T_o - n - (m-1)`
 historical blocks (376 and 776, respectively).
 
+The post window is limited to :math:`n \le m`. The last macro-segment (the
+treated shape) has only its cosine half, which ends at period
+:math:`T_o + m - 1`, so the DGP defines :math:`\ell_t` only through that
+period; the paper uses :math:`n = m` throughout (25/25 and 50/50).
+:func:`simulate_shc_latent` refuses :math:`n > m` with a ``ValueError``, and
+every function built on it inherits the refusal.
+
 * ``Regular-l``:   :math:`(\\alpha_i, P_i) = (0, P)` for every shape, so the
   local trends recur identically.
 * ``Irregular-l``: :math:`(\\alpha_i, P_i) = (0, P) + (U_\\alpha, U_P)` with
@@ -66,33 +73,22 @@ def _hermite_cubic(s: np.ndarray, width: float, v0: float, d0: float,
     return a + b * s + c * s ** 2 + d * s ** 3
 
 
-def simulate_shc_latent(
+def _latent_series(
     *,
-    m: int = 25,
-    h: int = 4,
-    n: int = 25,
-    P: float = 10.0,
-    w_f: Sequence[float] = (1.0, 0.0, 0.0, 0.0),
-    regular: bool = True,
-    seed: int = 0,
-) -> Tuple[np.ndarray, int, int]:
-    """Construct the latent component ``ell_t`` and return ``(ell, T_o, N)``.
+    m: int,
+    h: int,
+    n: int,
+    alpha: np.ndarray,
+    Pis: np.ndarray,
+    w_f: np.ndarray,
+) -> np.ndarray:
+    """Write ``ell_t`` for ``t = 1, ..., T_o + n`` from drawn shape parameters.
 
-    The series spans ``t = 1, ..., T_o + n`` with ``T_o = m * (4h + 1)`` and
-    ``N = T_o - n - (m - 1)`` historical blocks.
+    Every cell starts as NaN and is overwritten by a cosine half or a cubic
+    connector. A cell still NaN after the loop was never written, which is
+    the case for ``t >= T_o + m`` when ``n > m``; it raises ``RuntimeError``
+    naming the first such index instead of returning it.
     """
-    if len(w_f) != h:
-        raise ValueError(f"w_f must have length h={h}; got {len(w_f)}.")
-    rng = np.random.default_rng(seed)
-    w_f = np.asarray(w_f, dtype=float)
-
-    if regular:
-        alpha = np.zeros(h)
-        Pis = np.full(h, float(P))
-    else:
-        alpha = rng.uniform(-1.0, 1.0, h)
-        Pis = float(P) + rng.uniform(0.0, 50.0, h)
-
     # Shape h+1 (the treated block) is the convex combination of the h
     # historical cosine shapes, evaluated on a common local coordinate.
     def shape_value(i: int, u: np.ndarray) -> np.ndarray:
@@ -111,7 +107,7 @@ def simulate_shc_latent(
     T_o = m * (4 * h + 1)
     T = T_o + n
 
-    ell = np.empty(T, dtype=float)
+    ell = np.full(T, np.nan)
     t = np.arange(1, T + 1)
     for i in range(n_macro):
         start = 1 + cycle * i
@@ -129,6 +125,58 @@ def simulate_shc_latent(
             d1 = float(shape_deriv(i + 1, np.array([0.0]))[0])
             ell[cub_mask] = _hermite_cubic(s, float(half), v0, d0, v1, d1)
 
+    unwritten = np.flatnonzero(np.isnan(ell))
+    if unwritten.size:
+        raise RuntimeError(
+            f"{unwritten.size} of {T} latent cells were left unwritten, the "
+            f"first at index {unwritten[0]} (T_o={T_o}, m={m}, n={n})."
+        )
+    return ell
+
+
+def simulate_shc_latent(
+    *,
+    m: int = 25,
+    h: int = 4,
+    n: int = 25,
+    P: float = 10.0,
+    w_f: Sequence[float] = (1.0, 0.0, 0.0, 0.0),
+    regular: bool = True,
+    seed: int = 0,
+) -> Tuple[np.ndarray, int, int]:
+    """Construct the latent component ``ell_t`` and return ``(ell, T_o, N)``.
+
+    The series spans ``t = 1, ..., T_o + n`` with ``T_o = m * (4h + 1)`` and
+    ``N = T_o - n - (m - 1)`` historical blocks.
+
+    The post window must satisfy ``n <= m``. Chen, Yang & Yang (2024,
+    Section 3.1, Eqs. 35-37) define the latent component only through
+    ``T_o + m - 1``: the treated shape's cosine half ends there and no
+    connector follows it. ``n > m`` raises ``ValueError``. For ``n <= m`` the
+    series does not depend on ``n`` beyond its length: the ``n``-period
+    window is a prefix of the ``m``-period one.
+    """
+    if len(w_f) != h:
+        raise ValueError(f"w_f must have length h={h}; got {len(w_f)}.")
+    if n > m:
+        raise ValueError(
+            f"n must be at most m; got n={n} with m={m}. The DGP defines the "
+            f"latent series only through T_o + m - 1 (Chen, Yang & Yang 2024, "
+            f"Sec. 3.1, Eqs. 35-37), so a post window longer than m has no "
+            f"latent value for its last {n - m} periods."
+        )
+    rng = np.random.default_rng(seed)
+    w_f = np.asarray(w_f, dtype=float)
+
+    if regular:
+        alpha = np.zeros(h)
+        Pis = np.full(h, float(P))
+    else:
+        alpha = rng.uniform(-1.0, 1.0, h)
+        Pis = float(P) + rng.uniform(0.0, 50.0, h)
+
+    ell = _latent_series(m=m, h=h, n=n, alpha=alpha, Pis=Pis, w_f=w_f)
+    T_o = m * (4 * h + 1)
     N = T_o - n - (m - 1)
     return ell, T_o, N
 
@@ -156,6 +204,12 @@ def simulate_shc_panel(
         ``latent`` (the true ell_t, shape (T_o+n,)), ``latent_post``
         (ell over the post window), ``T_o``, ``N``, ``m``, ``n``,
         ``time`` (the integer time index).
+
+    Raises
+    ------
+    ValueError
+        If ``n > m``: the DGP defines the latent series only through
+        ``T_o + m - 1`` (see :func:`simulate_shc_latent`).
     """
     ell, T_o, N = simulate_shc_latent(
         m=m, h=h, n=n, P=P, w_f=w_f, regular=regular, seed=seed,
