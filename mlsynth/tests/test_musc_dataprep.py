@@ -47,6 +47,8 @@ from mlsynth.utils.musc_helpers.setup import (
 from mlsynth.utils.musc_helpers.structures import MUSCInputs
 
 COLS = dict(unitid="unit", time="time", outcome="y", treat="d")
+LAYOUT = {"Y": "C_CONTIGUOUS"}
+PANDAS_2 = int(pd.__version__.split(".")[0]) < 3
 
 
 # --------------------------------------------------------------------------- #
@@ -125,8 +127,13 @@ def _assert_same(inputs, ref, n_collapsed=0):
     assert inputs.donor_idx.dtype == ref["donor_idx"].dtype
     assert inputs.T0 == ref["T0"]
     assert inputs.Y.dtype == np.float64 and inputs.Y.shape == ref["Y"].shape
-    assert inputs.Y.flags["C_CONTIGUOUS"] == ref["Y"].flags["C_CONTIGUOUS"]
-    assert inputs.Y.flags["F_CONTIGUOUS"] == ref["Y"].flags["F_CONTIGUOUS"]
+    # The QP's sums depend on the layout, so it is pinned too. The old pivot's
+    # layout depends on the pandas version; Y is pinned to what it gave under
+    # pandas 2.x, the version CI runs.
+    assert inputs.Y.flags[LAYOUT["Y"]], f"Y is not {LAYOUT['Y']}"
+    if PANDAS_2:
+        assert inputs.Y.flags["C_CONTIGUOUS"] == ref["Y"].flags["C_CONTIGUOUS"]
+        assert inputs.Y.flags["F_CONTIGUOUS"] == ref["Y"].flags["F_CONTIGUOUS"]
     donors = ref["donor_idx"]
     np.testing.assert_array_equal(inputs.Y[donors], ref["Y"][donors])
     i = ref["treated_idx"]
