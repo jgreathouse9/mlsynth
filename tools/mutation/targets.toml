@@ -22771,6 +22771,12 @@ timeout = 900.0
   models = "dataprep's no-donor message in place of ROLLDID's never-treated refusal"
 
   [[target.mutant]]
+  id = "ywide-row-major"
+  find = "    Ywide = pd.DataFrame(np.asfortranarray(prep.Ywide.to_numpy()),"
+  replace = "    Ywide = pd.DataFrame(prep.Ywide.to_numpy(),"
+  models = "value-equal row-major Ywide values where the old pivot's were column-major under pandas 2, so the pipeline's sums move in the last bits"
+
+  [[target.mutant]]
   id = "the-cohort-is-one-period-early"
   find = "    cohort_of: Dict[Any, Any] = {unit: Ywide.index[starts[unit]]"
   replace = "    cohort_of: Dict[Any, Any] = {unit: Ywide.index[starts[unit] - 1]"
