@@ -21440,9 +21440,15 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "period-labels-change-type"
-  find = "    time_labels = np.array(list(prep.time_labels))"
+  find = "    time_labels = np.array(list(prep.time_labels.array))"
   replace = "    time_labels = np.asarray(prep.time_labels)"
   models = "datetime periods returned as datetime64 and string periods as objects, unlike the old labels"
+
+  [[target.mutant]]
+  id = "32-bit-periods-widen"
+  find = "    time_labels = np.array(list(prep.time_labels.array))"
+  replace = "    time_labels = np.array(list(prep.time_labels))"
+  models = "period labels built from the index's Python scalars, which widens a float32 or int32 period column to 64 bits; the old setup's sorted unique values kept it at 32"
 
   [[target.mutant]]
   id = "adoption-one-period-late"
@@ -22538,9 +22544,15 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "time-labels-change-dtype"
-  find = "    time_labels = np.array(list(prep.time_labels))"
+  find = "    time_labels = np.array(list(prep.time_labels.array))"
   replace = "    time_labels = np.asarray(prep.time_labels)"
   models = "string periods returned as an object array and Timestamp periods as datetime64, not the old dtypes"
+
+  [[target.mutant]]
+  id = "32-bit-periods-widen"
+  find = "    time_labels = np.array(list(prep.time_labels.array))"
+  replace = "    time_labels = np.array(list(prep.time_labels))"
+  models = "period labels built from the index's Python scalars, which widens a float32 or int32 period column to 64 bits; the old setup's sorted unique values kept it at 32"
 
   [[target.mutant]]
   id = "the-outcome-matrix-is-not-transposed"
