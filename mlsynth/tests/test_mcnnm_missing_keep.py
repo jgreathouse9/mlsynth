@@ -200,6 +200,9 @@ class TestFitWithMissingCells:
         res = _fit(_plant(_panel(), [(0, 2002)]), lam=0.5)
         assert np.isnan(res.event_study[-4])
         assert all(np.isfinite(v) for e, v in res.event_study.items() if e != -4)
+        # the treated path has a missing period, so its pre-period fit is undefined
+        assert np.isnan(res.fit_diagnostics.rmse_pre)
+        assert np.isfinite(res.att)
         # with a second treated unit, relative time -4 is that unit's gap alone
         res = _fit(_plant(_panel(adopt={0: 6, 1: 6}), [(0, 2002)]), lam=0.5)
         i = res.inputs.unit_names.index(1)
