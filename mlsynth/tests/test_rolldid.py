@@ -198,14 +198,14 @@ def test_setup_non_binary_treat_raises():
 
 def test_setup_unbalanced_raises():
     df = _toy().iloc[1:]                                   # drop a unit x time cell
-    with pytest.raises(MlsynthDataError, match="unbalanced"):
+    with pytest.raises(MlsynthDataError, match="not strongly balanced"):
         rolldid_setup(df, "unit", "time", "y", "w")
 
 
 def test_setup_non_absorbing_raises():
     df = _toy()
     df.loc[(df.unit == "u0") & (df.time == 3), "w"] = 0    # turns back off
-    with pytest.raises(MlsynthDataError, match="absorbing"):
+    with pytest.raises(MlsynthDataError, match="not sustained"):
         rolldid_setup(df, "unit", "time", "y", "w")
 
 
