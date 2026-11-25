@@ -388,7 +388,7 @@ class TestSetupBranches:
 
     def test_no_directly_treated(self):
         df = _small_panel(treated=())  # nobody treated
-        with pytest.raises(MlsynthDataError, match="No directly treated"):
+        with pytest.raises(MlsynthDataError, match="No treated units"):
             prepare_spsydid_inputs(
                 df=df, outcome="y", treat="D", unitid="unit", time="time",
                 spatial_matrix=_line_W(),
@@ -398,7 +398,7 @@ class TestSetupBranches:
         df = _small_panel(treated=())
         # make unit 0 treated at the very first period -> no pre-period.
         df.loc[(df["unit"] == 0), "D"] = 1.0
-        with pytest.raises(MlsynthDataError, match="earliest period"):
+        with pytest.raises(MlsynthDataError, match="0 pre-periods"):
             prepare_spsydid_inputs(
                 df=df, outcome="y", treat="D", unitid="unit", time="time",
                 spatial_matrix=_line_W(),
