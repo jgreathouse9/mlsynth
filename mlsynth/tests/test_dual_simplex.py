@@ -528,9 +528,10 @@ def test_a_stall_on_distinct_enough_costs_perturbs_them():
 
 
 def test_equal_cost_covers_take_few_iterations():
-    """Unit, a ceiling: the forty equal-cost covers of the stress run take 2,485 iterations in all. With the ratio
-    test's explicit flips of zero-ratio breakpoints (an earlier version) and no perturbation, seeds 9 and 14 alone
-    reached the 39,000-iteration cap. The ceiling is 4,000."""
+    """Unit, a ceiling: the forty equal-cost covers of the stress run take 2,485 iterations in all. With Harris'
+    ratio test taking the smallest pivot in its window they take 9,113, stalling into the perturbed stage; with the
+    ratio test's explicit flips of zero-ratio breakpoints (an earlier version) and no perturbation, seeds 9 and 14
+    alone reached the 39,000-iteration cap. The ceiling is 4,000."""
     assert sum(ds.solve_boxed_lp(*_stress_cover(s)).iterations for s in range(40)) <= 4000
 
 
