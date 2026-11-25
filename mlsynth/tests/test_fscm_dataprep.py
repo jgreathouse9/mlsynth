@@ -6,9 +6,11 @@ after the pivot. It now takes the outcome matrix, the time labels, the treated
 unit and its adoption period from ``balance`` and ``dataprep``, so it gets the
 same refusals as every other estimator: a missing or non-finite outcome, an
 absent or duplicate unit-period, a non-binary treatment, and a treatment that
-switches off after it starts. Covariates are read with ``datautils``' own pivot
-on the same key scan, since FSCM fills their gaps and averages them over
-per-covariate windows, which ``dataprep``'s covariate block does not do.
+switches off after it starts. Each covariate is read through ``dataprep`` too,
+as the outcome of its own call with ``missing_outcomes="keep"`` on the same key
+scan: FSCM fills a covariate's gaps and averages it over a per-covariate window,
+which ``dataprep``'s covariate block does not do, so a NaN covariate cell has to
+reach FSCM's fill while an infinite one is refused under the covariate's name.
 
 ``_reference`` is the old setup, kept as the oracle the new path must match on
 every panel both accept.
@@ -180,20 +182,45 @@ class TestRouting:
         FSCM(dict(df=_panel(), **COLS, display_graphs=False)).fit()
         assert len(calls) == 1
 
-    def test_covariates_share_the_key_scan(self, monkeypatch):
-        seen = []
-        real = SETUP._wide_pivot
+    def test_each_covariate_is_one_dataprep_call_that_keeps_gaps(self, monkeypatch):
+        calls = []
+        real_balance, real_dataprep = SETUP.balance, SETUP.dataprep
+        scans = []
 
-        def spy(df, *, index, columns, values, keys=None):
-            seen.append((index, columns, values, keys))
-            return real(df, index=index, columns=columns, values=values, keys=keys)
+        def balance_spy(*a, **k):
+            scans.append(real_balance(*a, **k))
+            return scans[-1]
 
-        monkeypatch.setattr(SETUP, "_wide_pivot", spy)
-        df = _panel()
+        def dataprep_spy(*a, **k):
+            calls.append((a, k))
+            return real_dataprep(*a, **k)
+
+        monkeypatch.setattr(SETUP, "balance", balance_spy)
+        monkeypatch.setattr(SETUP, "dataprep", dataprep_spy)
+        df = _panel(x_gaps=True)
         prepare_fscm_inputs(df, **COLS, covariates=["x", "z"])
-        assert [s[:3] for s in seen] == [("time", "unit", "x"), ("time", "unit", "z")]
-        assert all(s[3] is not None and s[3].is_for(df, "unit", "time") for s in seen)
-        assert seen[0][3] is seen[1][3]
+        assert len(scans) == 1 and len(calls) == 3
+        (a0, k0), *cov_calls = calls
+        assert a0[3] == "y" and k0.get("missing_outcomes", "refuse") == "refuse"
+        assert [a[3] for a, _ in cov_calls] == ["x", "z"]
+        for a, k in cov_calls:
+            assert a[0] is df and a[1:3] == ("unit", "time") and a[4] == "d"
+            assert k["missing_outcomes"] == "keep"
+            assert k["keys"] is scans[0]
+            assert set(k) == {"keys", "missing_outcomes"}
+
+    def test_setup_reads_nothing_private_from_datautils(self):
+        tree = ast.parse(inspect.getsource(SETUP))
+        imported = {(node.module, alias.name) for node in ast.walk(tree)
+                    if isinstance(node, ast.ImportFrom) for alias in node.names}
+        private = {(m, n) for m, n in imported
+                   if m and m.split(".")[-1] == "datautils" and n.startswith("_")}
+        assert not private, private
+        names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+        attrs = {(node.value.id, node.attr) for node in ast.walk(tree)
+                 if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name)}
+        assert "_wide_pivot" not in names
+        assert not {a for a in attrs if a[0] == "datautils" and a[1].startswith("_")}, attrs
 
     def test_setup_does_not_pivot(self):
         # A runtime patch of DataFrame.pivot cannot test this: dataprep's
@@ -349,6 +376,36 @@ class TestOwnChecks:
         with pytest.raises(MlsynthDataError, match="entirely missing"):
             prepare_fscm_inputs(df, **COLS, covariates=["x"])
 
+    def test_an_infinite_covariate_is_refused_under_its_name(self):
+        # The old pivot averaged the infinity into the predictor.
+        df = _panel(shuffle=False)
+        df.loc[(df.unit == 2) & (df.time == 1993), "z"] = np.inf
+        _reference(df, **COLS, covariates=["x", "z"])      # the old setup accepted it
+        with pytest.raises(MlsynthDataError, match="Covariate 'z'") as err:
+            prepare_fscm_inputs(df, **COLS, covariates=["x", "z"])
+        assert "infinite" in str(err.value)
+        assert isinstance(err.value.__cause__, MlsynthDataError)
+
+    def test_the_estimator_reports_an_infinite_covariate(self):
+        # The old path refused it downstream, as "X1 contains NaN or infinite
+        # values", without naming the covariate.
+        from mlsynth import FSCM
+        df = _panel(shuffle=False)
+        df.loc[(df.unit == 0) & (df.time == 1991), "x"] = -np.inf
+        with pytest.raises(MlsynthDataError, match="Covariate 'x'"):
+            FSCM(dict(df=df, **COLS, display_graphs=False, covariates=["x"])).fit()
+
+    def test_a_covariate_gap_at_every_cell_but_one_is_filled(self):
+        # Only one observed cell per unit: the fill spreads it to every period.
+        df = _panel(shuffle=False)
+        df.loc[df.time != 1994, "x"] = np.nan
+        inputs, ref = _both(df, covariates=["x"])
+        _assert_same(inputs, ref)
+        expect = df[df.time == 1994].set_index("unit")["x"]
+        np.testing.assert_allclose(inputs.cov_donors[:, 0],
+                                   expect.loc[inputs.unit_index.labels].to_numpy(),
+                                   rtol=1e-14)
+
     def test_a_window_selecting_no_period(self):
         with pytest.raises(MlsynthDataError, match="selects no periods"):
             prepare_fscm_inputs(_panel(), **COLS, covariates=["x"],
@@ -392,7 +449,8 @@ class TestDeriveTreatment:
 # --------------------------------------------------------------------------- #
 # properties over the domain, defects included
 # --------------------------------------------------------------------------- #
-DEFECTS = ["none", "none", "none", "nan", "inf", "gap", "dup", "off", "two", "nonbinary"]
+DEFECTS = ["none", "none", "none", "nan", "inf", "gap", "dup", "off", "two", "nonbinary",
+           "xinf"]
 
 
 @st.composite
@@ -437,6 +495,10 @@ def cases(draw):
             df.loc[(df.unit == other) & (df.time >= 1990 + t_treat), "d"] = 1
     elif defect == "nonbinary":
         df.loc[(df.unit == name) & (df.time == 1990 + t_treat), "d"] = 2
+    elif defect == "xinf":
+        df.iloc[i, df.columns.get_loc("x")] = draw(st.sampled_from([np.inf, -np.inf]))
+        kw["covariates"] = [*kw.get("covariates", []), "x"] if "x" not in kw.get(
+            "covariates", []) else kw["covariates"]
     return df, kw, defect
 
 
@@ -446,8 +508,10 @@ def cases(draw):
 def test_dataprep_path_matches_the_old_pivot_or_refuses(case):
     df, kw, defect = case
     if defect != "none":
-        with pytest.raises(MlsynthDataError):
+        with pytest.raises(MlsynthDataError) as err:
             prepare_fscm_inputs(df, **COLS, **kw)
+        if defect == "xinf":
+            assert "Covariate 'x'" in str(err.value)
         return
     try:
         ref = _reference(df, **COLS, **kw)
