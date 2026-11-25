@@ -348,6 +348,14 @@ class TestOwnChecks:
         with pytest.raises(MlsynthDataError, match="post_col 'nope' is not present"):
             prepare_spcd_inputs(_panel(), **COLS, post_col="nope")
 
+    def test_an_unknown_post_col_is_refused_before_the_panel_is_read(self, monkeypatch):
+        calls = _spy(monkeypatch, "geoex_dataprep")
+        df = _panel(shuffle=False)
+        df.loc[df.index[0], "y"] = np.nan
+        with pytest.raises(MlsynthDataError, match="post_col 'nope' is not present"):
+            prepare_spcd_inputs(df, **COLS, post_col="nope")
+        assert calls == []
+
     def test_every_period_post_is_refused(self):
         df = _panel(n_post=10)
         with pytest.raises(MlsynthConfigError, match="every period"):
