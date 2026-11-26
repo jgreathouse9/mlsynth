@@ -114,12 +114,13 @@ def test_solve_exact_reports_every_search_it_ran_through_one_array():
     """Unit: an arm whose quick search is capped and whose proof runs after the first MIP: the array's total is the
     solve's ``search_nodes`` (the fixed group of each re-optimised branch counts as a node), and the design and its
     diagnostics are those of the solve without the array."""
-    Y, idx, _, _, _ = _setup(4, 14, 3)
-    plain_c, plain_d = columns.solve_exact(idx, Y, 3, search_node_limit=50)
+    Y, idx, _, _, _ = _setup(4, 12, 3)
+    plain_c, plain_d = columns.solve_exact(idx, Y, 3, search_node_limit=20)
+    assert "second_search" in plain_d                                  # the arm reaches the proof after the MIP
     prog = cover.new_progress()
-    c, d = columns.solve_exact(idx, Y, 3, search_node_limit=50, progress=prog)
+    c, d = columns.solve_exact(idx, Y, 3, search_node_limit=20, progress=prog)
     assert [sorted(x["members"]) for x in c] == [sorted(x["members"]) for x in plain_c]
-    for key in ("objective_value", "search", "search_nodes", "mip_solves", "search_start"):
+    for key in ("objective_value", "search", "search_nodes", "mip_solves", "search_start", "second_search"):
         assert d[key] == plain_d[key]
     assert prog[P.P_DONE] == 1.0
     assert prog[P.P_TOTAL] == d["search_nodes"] > 0
