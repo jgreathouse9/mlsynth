@@ -483,10 +483,11 @@ therefore reaches the optimum of :eq:`mip` in three steps
    stops leaves the MIPs to run as they would without it. The search runs with
    ``mip_backend="auto"``; naming ``"highspy"`` or ``"cvxpy"`` asks for that
    MIP and skips it.
-#. Proof after the first MIP. When the cap stops the search, the first MIP's
-   design gives a new upper bound :math:`z`, and a second search tries to prove
-   it optimal over the pairs that bound keeps, placing at most 200 million
-   pairs. It runs the same search for as many nodes as the pairs it would
+#. Proof from the quick search's design. When the cap stops the search
+   holding a design, that design's upper bound :math:`z` is the incumbent of
+   a second search, run before any MIP, which tries to prove it optimal over
+   the pairs that bound keeps, placing at most 200 million pairs. When the
+   quick search holds no design, the first MIP's design gives :math:`z`. It runs the same search for as many nodes as the pairs it would
    otherwise re-solve LPs over, and at most 1.5 million. If that does
    not prove, it branches once on the geo with the fewest pairs and gives each
    branch an LP of its own: the root LP with the branch's pair fixed at 1 and
@@ -629,11 +630,9 @@ Its bound does not tighten as it goes deeper, where HiGHS re-solves the LP and
 adds cuts at every node, so it loses where many designs lie between the bound
 and the optimum. At :math:`Q=2` and 50 geos the root bound is 8.4% under the
 optimum, and the proof needed 10 million nodes even when started from the
-optimum (32.8 s). The node cap bounds what such an arm costs before the MIPs
-take over: on that arm the search before the first MIP and the proof after it
-place 3.2 million nodes in all and fail, 5 s more than a single capped search.
-At 40 geos the proof after the first MIP succeeds, where the search alone is
-capped and the whole solve, MIPs included, takes 25 s. A capped search does not
+optimum (32.8 s). With 200 million nodes for the proof, that arm proves in
+34.0 s against 42.1 s for the MIP loop, and a 40-geo :math:`Q=3` arm in
+873 s, where the MIP loop's fifth MIP passed 1,800 s. A capped search does not
 pass its design to the MIPs: on the 50-geo arm that made HiGHS take 58 to 64 s
 over the same pairs, against 26 to 29 s without it.
 
