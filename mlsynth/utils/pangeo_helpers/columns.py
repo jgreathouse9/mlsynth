@@ -1142,6 +1142,17 @@ def _incumbent(pool: ColumnPool, designs) -> Tuple[Optional[Fraction], Optional[
     return best_z, best_rows
 
 
+def _search_window(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up: float, node_limit: int,
+                   progress=None) -> "cover.CoverSearch":
+    """The best design over the first window, the groups ``keep`` that the first MIP would hold (the groups of least
+    reduced cost and the seed partition), by the gated search (:func:`_search_gated`), cheaper than ``best_up``: its
+    rows when it finds one, none when it proves the window holds nothing cheaper. Measured against HiGHS on the same
+    window, single-threaded, it found the same designs: 3.4 s against 11.6 s on a 50-geo Q = 2 seasonal arm, 0.43 s
+    against 5.8 s at 40 geos, and under 0.01 s against 4.1 and 7.1 s on 36- and 40-geo Q = 3 arms, where it proved
+    from the quick search's design that the window held nothing cheaper."""
+    return _search_gated(pool, root, keep, k, Q, best_up, node_limit, progress=progress)
+
+
 def _search_from(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int, z_up: Fraction,
                  rows: Sequence[int], progress=None) -> dict:
     """The proof search over the groups a design's upper bound z_up cannot exclude, with that design as the
@@ -1215,6 +1226,8 @@ def solve_exact(
     lp_seconds = time.perf_counter() - t1
     L, rc = root.bound, root.reduced_costs               # rigorous lower bounds
     seed = np.array([column_index(g, n) for g in seed_partition(n)])
+    count = min(len(pool), max(FIRST_MIN, FIRST_PER_UNIT * n))        # the first window: the first MIP's groups
+    delta = float(np.partition(rc, count - 1)[count - 1])
     pos = {int(u): p for p, u in enumerate(idx)}
     info = dict(search="off", search_nodes=0, search_start=None)
     quick_rows = np.zeros(0, dtype=np.int64)          # the quick search's best design, when it found one
@@ -1248,16 +1261,24 @@ def solve_exact(
         if found["search"] == "proved":
             info["search_start"] = "staged"
             return proved(found, 0, 0.0)
-        if quick_rows.size:
-            # the proof, from the quick search's design and before any MIP: the first MIP's window holds groups that
-            # cannot sit together, so its design is far above the quick search's (550.7 against 1.345 on a 40-geo
-            # Q = 3 arm, whose optimum is 1.343) and the proof would start from the quick design anyway
-            z_q, rows_q = _incumbent(pool, [quick_rows])
-            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_q, rows_q, progress=progress)
+        # the first window, searched from the quick search's design instead of solved by a MIP, and the proof from
+        # the better of the two designs: at Q = 2 the window can hold the optimum where the quick design is 8.7%
+        # above it (a 50-geo arm), and at Q = 3 the quick design can be the optimum where the window's best is 920
+        window = np.union1d(np.flatnonzero(rc <= delta), seed)
+        z_q, _ = _incumbent(pool, [quick_rows])
+        found_w = _search_window(pool, root, window, k, max_size, _up(z_q) if z_q is not None else np.inf,
+                                 min(int(cover.WINDOW_NODE_LIMIT), int(search_node_limit)), progress=progress)
+        info.update(search_nodes=info["search_nodes"] + found_w.nodes, window_search=found_w.status)
+        window_rows = np.asarray(found_w.rows, dtype=np.int64)
+        z_from, rows_from = _incumbent(pool, [window_rows, quick_rows])
+        if rows_from is not None:
+            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,
+                                 progress=progress)
             info["search_nodes"] += found["nodes"]
             info["second_search"] = found["stage"]
             if found["search"] == "proved":
-                info.update(search="proved", search_start="quick_design")
+                start = "first_window" if rows_from is window_rows else "quick_design"
+                info.update(search="proved", search_start=start)
                 return proved(found, 0, 0.0)
 
     def upper(chosen) -> Fraction:
@@ -1265,8 +1286,6 @@ def solve_exact(
         rows = [column_index(tuple(sorted(pos[int(u)] for u in c["members"])), n) for c in chosen]
         return sum((Fraction(float(pool.cost_up[j])) for j in rows), Fraction(0))
 
-    count = min(len(pool), max(FIRST_MIN, FIRST_PER_UNIT * n))
-    delta = float(np.partition(rc, count - 1)[count - 1])
     best = last = None
     solves, mip_seconds = 0, 0.0
     while True:

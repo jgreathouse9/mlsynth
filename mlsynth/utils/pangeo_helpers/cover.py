@@ -81,6 +81,9 @@ SEARCH_NODE_LIMIT = 200_000_000
 #: search takes over. Its budget is the children's column count, which grows with the arm: 16.6 million nodes
 #: (273 s) on the 40-geo Q = 3 arm, proving nothing, where every arm whose plain stage proved did so within this.
 PLAIN_STAGE_LIMIT = 1_500_000
+#: The search over the first window (columns._search_window) places at most this many nodes, and at most the search
+#: node limit; the window of a 50-geo Q = 2 seasonal arm took 1.0 million.
+WINDOW_NODE_LIMIT = 20_000_000
 #: The quick search from the staged start places at most this many nodes (and at most the limit above). A search
 #: it stops runs again, up to SEARCH_NODE_LIMIT, from the design of the MIP loop's first MIP.
 SEARCH_QUICK_LIMIT = 1_500_000
