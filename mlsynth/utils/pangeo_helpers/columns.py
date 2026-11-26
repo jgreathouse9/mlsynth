@@ -645,7 +645,7 @@ def _clique_rows(x: np.ndarray, members: np.ndarray, cap: int = CLIQUE_PER_ROUND
     unit, at least three of them, no unit common to all (a cover row already holds those), with ``sum x > 1``.
 
     Finding a violated clique is a maximum-weight clique problem, strongly NP-hard, and a graph on m vertices can
-    have 3^(m/3) maximal cliques (Moon and Moser, Israel J. Math. 3 (1965) 23-28), so the support's cliques are not
+    have 3^(m/3) maximal cliques (Moon and Moser, Israel J. Math. 3 (1965) 23-28, Theorem 1), so the support's cliques are not
     listed (Atamturk, Nemhauser and Savelsbergh, "Conflict graphs in solving integer programming problems", EJOR 121
     (2000) 40-55, p. 50). The separation is the root-vertex scheme of Hoffman and Padberg as Marzi, Rossi and Smriglio
     state it ("Computational study of separation algorithms for clique inequalities", Soft Comput. 23 (2019)

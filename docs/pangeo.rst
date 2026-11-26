@@ -498,8 +498,9 @@ therefore reaches the optimum of :eq:`mip` in three steps
    holds at most one of them. These are separated from the LP solution by the
    root-vertex scheme of Marzi, Rossi and Smriglio (2019), at most one clique
    per vertex, since listing every maximal clique is prohibitive (Atamturk,
-   Nemhauser and Savelsbergh, 2000). A clique with no chosen pair and no pair
-   that still fits adds its dual to the bound.
+   Nemhauser and Savelsbergh, 2000): a graph on :math:`m` vertices can have
+   :math:`3^{m/3}` of them (Moon and Moser, 1965, Theorem 1). A clique with no
+   chosen pair and no pair that still fits adds its dual to the bound.
 
 The LP bound is weak on this problem: on the seasonal panels below it lies 14
 to 33% under the optimum. At 20 geos and :math:`Q=3`, without the cut on
@@ -1351,6 +1352,9 @@ Separation Algorithms for Clique Inequalities." *Soft Computing*
 Atamturk, A., Nemhauser, G. L., & Savelsbergh, M. W. P. (2000). "Conflict
 Graphs in Solving Integer Programming Problems." *European Journal of
 Operational Research* 121:40-55.
+
+Moon, J. W., & Moser, L. (1965). "On Cliques in Graphs." *Israel Journal of
+Mathematics* 3:23-28.
 
 Chan, T. F., Golub, G. H., & LeVeque, R. J. (1983). "Algorithms for Computing
 the Sample Variance: Analysis and Recommendations." *The American Statistician*
