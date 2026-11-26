@@ -24427,3 +24427,33 @@ timeout = 600.0
   find = "    budget = min(_reopt_budget(pool, keep, cap=int(node_limit)), int(node_limit))"
   replace = "    budget = min(_reopt_budget(pool, keep), int(node_limit))"
   models = "the gated search asking for the uncapped budget, the hang the cap exists to remove"
+
+[[target]]
+name = "pangeo-start-widen"
+module-path = "mlsynth/utils/pangeo_helpers/cover.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_start_design.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-start-never-widens"
+  find = "        if res.rows.size or res.status != \"proved\" or count >= rc.size:\n"
+  replace = "        if True:\n"
+  models = "the start returning after its first window whatever that window holds: at Q = 4 no design, so the quick search runs with no incumbent over the whole pool (666 s on a 24-geo arm, against 1.4 s from the widened start)"
+
+  [[target.mutant]]
+  id = "the-start-reports-only-its-last-search"
+  find = "            return replace(res, nodes=nodes)\n"
+  replace = "            return res\n"
+  models = "the start's node count taken from its last window only, so search_nodes and the progress total disagree"
+
+  [[target.mutant]]
+  id = "the-window-outgrows-the-pool"
+  find = "        count = min(rc.size, count * START_GROWTH)\n"
+  replace = "        count = count * START_GROWTH\n"
+  models = "the widened window counted past the pool, so a start with no design in the arm asks for more groups than exist"
+
+  [[target.mutant]]
+  id = "a-capped-window-is-widened"
+  find = "        if res.rows.size or res.status != \"proved\" or count >= rc.size:\n"
+  replace = "        if res.rows.size or count >= rc.size:\n"
+  models = "a window whose search stopped at its cap widened anyway, repeating a capped search over ever more groups up to the whole pool"
