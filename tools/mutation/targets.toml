@@ -20320,7 +20320,7 @@ timeout = 900.0
 [[target]]
 name = "pangeo-mip-hardening"
 module-path = "mlsynth/utils/pangeo_helpers/mip.py"
-test-command = "python -m pytest mlsynth/tests/test_pangeo_mip_hardening.py mlsynth/tests/test_pangeo_highspy.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_mip_exact_cover.py mlsynth/tests/test_pangeo_mip_hardening.py mlsynth/tests/test_pangeo_highspy.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
 
   [[target.mutant]]
@@ -20418,6 +20418,42 @@ timeout = 600.0
   find = "            diagnostics[\"dual_bound\"] = float(diagnostics[\"dual_bound\"]) / scale"
   replace = "            diagnostics[\"dual_bound\"] = float(diagnostics[\"dual_bound\"])"
   models = "the cvxpy path's dual bound reported in the solver's scaled units"
+
+  [[target.mutant]]
+  id = "the-cvxpy-candidates-are-not-checked"
+  find = "    _require_coverable(candidate_pairs, unit_indices)\n    pos = {int(u): j for j, u in enumerate(unit_indices)}\n    # Incidence"
+  replace = "    pos = {int(u): j for j, u in enumerate(unit_indices)}\n    # Incidence"
+  models = "the cvxpy backend handing SCIP an exact-cover row with no variables, which its cvxpy interface drops, so a unit no group holds is left out of a design reported optimal (#1169)"
+
+  [[target.mutant]]
+  id = "the-highspy-candidates-are-not-checked"
+  find = "    _require_coverable(candidate_pairs, unit_indices)\n    pos = {int(u): j for j, u in enumerate(unit_indices)}\n    cost ="
+  replace = "    pos = {int(u): j for j, u in enumerate(unit_indices)}\n    cost ="
+  models = "the highspy backend building the program for an arm with a unit in no group"
+
+  [[target.mutant]]
+  id = "the-cvxpy-design-is-trusted"
+  find = "              if x.value is not None and x.value[c] > 0.5]\n    _check_exact_cover(chosen, unit_indices)\n"
+  replace = "              if x.value is not None and x.value[c] > 0.5]\n"
+  models = "the cvxpy backend returning whatever design its solver reports as solved, exact cover or not"
+
+  [[target.mutant]]
+  id = "the-highspy-design-is-trusted"
+  find = "    chosen = [candidate_pairs[c] for c in range(n_cand) if values[c] > 0.5]\n    _check_exact_cover(chosen, unit_indices)\n"
+  replace = "    chosen = [candidate_pairs[c] for c in range(n_cand) if values[c] > 0.5]\n"
+  models = "the highspy backend returning whatever design HiGHS reports as solved, exact cover or not"
+
+  [[target.mutant]]
+  id = "the-design-check-allows-a-unit-twice"
+  find = "    twice = sorted(u for u, c in count.items() if c > 1)\n"
+  replace = "    twice = []\n"
+  models = "a design holding a unit in two groups accepted as an exact cover"
+
+  [[target.mutant]]
+  id = "the-design-check-allows-a-foreign-unit"
+  find = "                outside.add(int(u))\n"
+  replace = "                pass\n"
+  models = "a design holding a unit outside the arm accepted as an exact cover"
 
 [[target]]
 name = "pangeo-mip-report"
