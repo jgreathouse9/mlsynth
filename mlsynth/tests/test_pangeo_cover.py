@@ -177,6 +177,7 @@ def test_a_capped_quick_search_is_followed_by_a_proof_from_the_first_mips_design
     first MIP's design, and a proof there ends the loop after one MIP. The staged start is cut to nothing, so the
     quick search has no incumbent and stops at its cap of one node; the first MIP's window is cut to the seed
     design and one group, so that MIP does not prove its design by itself and the loop would go on."""
+    monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)            # no window search: the MIP supplies the design
     monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
     monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
@@ -202,6 +203,7 @@ def test_a_capped_quick_search_is_followed_by_a_proof_from_the_first_mips_design
 def test_the_proof_after_the_first_mip_starts_from_its_design(monkeypatch):
     """Unit: the second search's incumbent bound is the first MIP's design's upper bound, so it searches only the
     groups that design's margin keeps. The first MIP's window is cut so that MIP does not prove its design."""
+    monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)            # no window search: the MIP supplies the design
     monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
     monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
@@ -281,6 +283,7 @@ def test_the_quick_search_is_capped_by_the_smaller_limit(monkeypatch):
 def test_the_loop_ends_at_the_first_mip_without_a_second_search_when_that_mip_proves_it(monkeypatch):
     """Edge: a first MIP that holds every group needs no proof search after it. The start is held to no node, so the
     quick search holds no design and the proof does not run before the MIP either."""
+    monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)            # no window search: the MIP supplies the design
     monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
     monkeypatch.setattr(columns, "FIRST_MIN", 10**6)               # the first MIP holds every group

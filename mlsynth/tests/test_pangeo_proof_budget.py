@@ -87,17 +87,15 @@ def test_the_default_budgets_hold_the_40_geo_q3_proof():
 
 
 def test_the_second_search_in_solve_exact_gets_the_default_budget(monkeypatch):
-    """Unit: solve_exact hands the proof after the first MIP the default node budget."""
+    """Unit: solve_exact hands the proof after the quick search the default node budget."""
     monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
-    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
-    monkeypatch.setattr(columns, "FIRST_MIN", 1)
-    seen, real = [], columns._search_gated
+    seen, real = [], columns._search_from
 
-    def rec(pool, root, keep, k, Q, best, limit, **kw):
+    def rec(pool, root, k, Q, limit, z_up, rows, **kw):
         seen.append(int(limit))
-        return real(pool, root, keep, k, Q, best, limit, **kw)
-    monkeypatch.setattr(columns, "_search_gated", rec)
+        return real(pool, root, k, Q, limit, z_up, rows, **kw)
+    monkeypatch.setattr(columns, "_search_from", rec)
     _, d = columns.solve_exact(np.arange(14), _panel(13, 14), 3)
     assert seen == [cover.SEARCH_NODE_LIMIT] and d["search"] == "proved"
 

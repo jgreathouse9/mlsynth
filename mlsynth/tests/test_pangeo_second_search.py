@@ -82,6 +82,7 @@ def test_smoke_a_poor_first_mip_does_not_set_the_second_searchs_incumbent(monkey
     n, Q = 14, 3
     Y, idx = _panel(2, n), np.arange(n)
     _poor_first_window(monkeypatch.setattr)
+    monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)       # the window search is test_pangeo_first_window.py's
     solve, designs = _recording_mip()
     gated, quick = _spy_gated(monkeypatch), _spy_quick(monkeypatch)
     chosen, d = columns.solve_exact(idx, Y, Q, search_node_limit=30, solve=solve)
@@ -136,8 +137,9 @@ def test_property_the_second_search_starts_from_the_better_design_and_the_solve_
     solve, designs = _recording_mip()
     gated, quick = [], []
     real_g, real_q = columns._search_gated, columns._search
-    saved = (columns.FIRST_PER_UNIT, columns.FIRST_MIN)
+    saved = (columns.FIRST_PER_UNIT, columns.FIRST_MIN, cover.WINDOW_NODE_LIMIT)
     _poor_first_window(setattr)
+    cover.WINDOW_NODE_LIMIT = 0                               # the window search is test_pangeo_first_window.py's
 
     def rec_g(pool, root, keep, k, Q_, best_up, node_limit, **kw):
         gated.append(best_up)
@@ -152,7 +154,7 @@ def test_property_the_second_search_starts_from_the_better_design_and_the_solve_
         chosen, d = columns.solve_exact(idx, Y, Q, search_node_limit=limit, solve=solve)
     finally:
         columns._search_gated, columns._search = real_g, real_q
-        columns.FIRST_PER_UNIT, columns.FIRST_MIN = saved
+        columns.FIRST_PER_UNIT, columns.FIRST_MIN, cover.WINDOW_NODE_LIMIT = saved
     pool = columns.score_columns(idx, Y, Q)
     if gated:
         q_rows = quick[0]["rows"]

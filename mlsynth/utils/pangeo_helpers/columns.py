@@ -1264,12 +1264,15 @@ def solve_exact(
         # the first window, searched from the quick search's design instead of solved by a MIP, and the proof from
         # the better of the two designs: at Q = 2 the window can hold the optimum where the quick design is 8.7%
         # above it (a 50-geo arm), and at Q = 3 the quick design can be the optimum where the window's best is 920
-        window = np.union1d(np.flatnonzero(rc <= delta), seed)
-        z_q, _ = _incumbent(pool, [quick_rows])
-        found_w = _search_window(pool, root, window, k, max_size, _up(z_q) if z_q is not None else np.inf,
-                                 min(int(cover.WINDOW_NODE_LIMIT), int(search_node_limit)), progress=progress)
-        info.update(search_nodes=info["search_nodes"] + found_w.nodes, window_search=found_w.status)
-        window_rows = np.asarray(found_w.rows, dtype=np.int64)
+        window_rows = np.zeros(0, dtype=np.int64)
+        info["window_search"] = "off"
+        if min(int(cover.WINDOW_NODE_LIMIT), int(search_node_limit)) > 0:
+            window = np.union1d(np.flatnonzero(rc <= delta), seed)
+            z_q, _ = _incumbent(pool, [quick_rows])
+            found_w = _search_window(pool, root, window, k, max_size, _up(z_q) if z_q is not None else np.inf,
+                                     min(int(cover.WINDOW_NODE_LIMIT), int(search_node_limit)), progress=progress)
+            info.update(search_nodes=info["search_nodes"] + found_w.nodes, window_search=found_w.status)
+            window_rows = np.asarray(found_w.rows, dtype=np.int64)
         z_from, rows_from = _incumbent(pool, [window_rows, quick_rows])
         if rows_from is not None:
             found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,

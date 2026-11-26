@@ -184,6 +184,23 @@ def test_with_no_quick_design_the_window_search_supplies_one(monkeypatch):
     assert d["objective_value"] == pytest.approx(_optimum(idx, Y, Q), rel=1e-9)
 
 
+def test_a_window_limit_of_zero_skips_the_window_search(monkeypatch):
+    """Edge: with no window budget the window is not searched, and with no quick design the first MIP supplies the
+    proof's incumbent."""
+    n, Q = 14, 3
+    Y, idx = _panel(13, n), np.arange(n)
+    monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
+    monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
+    monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)
+    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
+    monkeypatch.setattr(columns, "FIRST_MIN", 1)
+    log = _Log(monkeypatch.setattr)
+    _, d = columns.solve_exact(idx, Y, Q, solve=log.solve)
+    assert "window" not in log.events and log.events[:3] == ["quick", "mip", "proof"]
+    assert d["window_search"] == "off" and d["search_start"] == "first_mip"
+    assert d["objective_value"] == pytest.approx(_optimum(idx, Y, Q), rel=1e-9)
+
+
 def test_a_quick_search_that_proves_runs_no_window(monkeypatch):
     n, Q = 10, 2
     Y, idx = _panel(4, n), np.arange(n)
