@@ -485,8 +485,9 @@ therefore reaches the optimum of :eq:`mip` in three steps
    MIP and skips it.
 #. Proof after the first MIP. When the cap stops the search, the first MIP's
    design gives a new upper bound :math:`z`, and a second search tries to prove
-   it optimal over the pairs that bound keeps. It runs the same search for as
-   many nodes as the pairs it would otherwise re-solve LPs over. If that does
+   it optimal over the pairs that bound keeps, placing at most 200 million
+   pairs. It runs the same search for as many nodes as the pairs it would
+   otherwise re-solve LPs over, and at most 1.5 million. If that does
    not prove, it branches once on the geo with the fewest pairs and gives each
    branch an LP of its own: the root LP with the branch's pair fixed at 1 and
    every pair meeting it at 0. Only bounds change, so each branch's LP starts
