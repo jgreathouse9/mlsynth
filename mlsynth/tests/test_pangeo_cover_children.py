@@ -246,8 +246,9 @@ def test_when_the_plain_search_does_not_prove_the_rest_is_reoptimised(monkeypatc
 
 
 def test_a_design_the_plain_stage_found_is_kept_when_the_reoptimised_stage_finds_none(monkeypatch):
-    """Unit: an incumbent the plain stage improved on is the design returned when the re-optimised stage proves
-    nothing cheaper exists."""
+    """Unit: a design the plain stage finds is the re-optimised stage's incumbent, and it is the design returned when
+    that stage proves nothing cheaper exists. With the plain stage's budget at 3 nodes (the test above) no design is
+    found, so only this one checks that the incumbent is passed on."""
     Y, idx, pool, k, root = _setup(9, 14, 2)
     _, d_ref = _reference(idx, Y, 2)
     z = d_ref["objective_value"]
@@ -256,7 +257,16 @@ def test_a_design_the_plain_stage_found_is_kept_when_the_reoptimised_stage_finds
                   if (lambda r: r.status == "node_limit" and r.rows.size
                       and r.upper <= z * (1 + 1e-9))(cover.search(pool, root, keep, k, 2, np.inf, b)))
     monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_: budget)
+    first = cover.search(pool, root, keep, k, 2, np.inf, budget)
+    seen, real = [], columns._search_reopt
+
+    def rec(pool_, root_, keep_, k_, Q_, best_, limit_):
+        seen.append(best_)
+        return real(pool_, root_, keep_, k_, Q_, best_, limit_)
+
+    monkeypatch.setattr(columns, "_search_reopt", rec)
     res = columns._search_gated(pool, root, keep, k, 2, np.inf, 10**7)
+    assert seen == [first.upper]                       # the re-optimised stage starts from the plain stage's design
     assert res.status == "proved" and res.rows.size
     assert float(pool.cost[res.rows].sum()) == pytest.approx(z, rel=1e-9)
 
