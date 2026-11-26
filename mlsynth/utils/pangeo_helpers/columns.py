@@ -33,11 +33,24 @@ centring (Rump, "Verification methods: rigorous results using floating-point ari
 squares and the mean carry their own :math:`\\gamma_{T+6}` and :math:`\\gamma_{2T+4}` terms. That theorem's product
 bounds hold provided no underflow occurs; below the normal range a product, quotient or square carries an absolute
 error of at most :math:`\\eta / 2`, :math:`\\eta = 2^{-1074}`, and no relative one (Rump 2010, eq. 2.3 on p. 302,
-:math:`a \\circ b = \\mathrm{fl}(a \\circ b)(1 + \\varepsilon) + \\delta`, :math:`\\varepsilon\\delta = 0`). Each such
-operation on a bound's path is followed by adding :math:`\\eta` to an upper bound or subtracting it from a lower one,
-and a sum of :math:`T` such terms by :math:`T\\eta`: exact when the result is subnormal, since addition then does not
-round (eq. 2.4), and rounded away when it is normal, where :math:`\\delta = 0`. The bounds therefore hold at every
-scale, and at normal scales they are the same doubles as without the term (jgreathouse9/mlsynth#1170). A group's
+:math:`a \\circ b = \\mathrm{fl}(a \\circ b)(1 + \\varepsilon) + \\delta`, :math:`\\varepsilon\\delta = 0`). Three
+squares that form a cost bound carry that error with no relative term to cover it: the residual sum of squares
+(its :math:`T` squares, :math:`T(2 + \\max_t |d_t|)\\eta` in all, since the weighted form rounds :math:`w_t d_t` before
+the second :math:`d_t` multiplies it, the rest covering the two quotients; the final square and scaling add
+:math:`\\eta` of their own), the square of the
+difference of totals, and each covariate's :math:`\\omega_j v_j^2`, whose error the weight multiplies. Each adds
+:math:`\\eta` to an upper bound or subtracts it from a lower one. That is exact when the result is subnormal, since
+addition then does not round (eq. 2.4), and rounds away when it is normal, where :math:`\\delta = 0`, so at normal
+scales the bounds are the same doubles as without it. The other operations need no term. Sums are exact below the
+normal range (eq. 2.4), so the error a :math:`\\gamma_k` term bounds is zero when its argument is subnormal; when the
+argument :math:`X` is normal, each :math:`\\gamma_k` is taken at least one step past the one the error needs, a
+margin of at least :math:`uX \\ge \\eta / 2`. Two
+places keep a term all the same: the Lagrangian bound's summation error is two products whose margin falls below
+:math:`\\eta` when the sum is under :math:`2\\lambda` (:math:`\\lambda = 2^{-1022}`, the smallest normal number), and
+the search's pruning test subtracts :math:`r\\sigma`, a product that is a term of the bound itself, not of its error
+(:mod:`.cover`). Measured on panels scaled by :math:`2^s` from :math:`s = -505` to
+:math:`-570`, all four objectives, the bounds of 6,343 groups failed to bracket the exact cost without the three
+terms and of none with them (jgreathouse9/mlsynth#1170). A group's
 lower bound is the least over its splits, its upper bound that of
 the split chosen. Groups come out in the enumeration's order, by size and then lexicographically, and splits are tried
 in :func:`.parallelism.best_split`'s order with the first minimum kept; splits that tie in exact arithmetic are
@@ -304,15 +317,14 @@ def _traj(pos, m, c, A, Nu, w, use_w, W, sw, k1, g_s, g_mu, r):
                 dmax = abs(d)
         else:
             s += d * d
-    # underflow (module docstring): abs_cn has m products, each gap entry m, s's terms two each
-    abs_cn = abs_cn + m * _ETA
-    e_r = (k1 * abs_cn + _ETA) * sw + (m * T * _ETA) * sw + 2.0 * _ETA
-    rbar = abs_cn * (1.0 + 2.0 * k1) + _ETA
-    t_mu = (g_mu * rbar + _ETA) * sw + _ETA
-    e_mu = t_mu * t_mu + _ETA
-    e_s = (T * _ETA) * (2.0 + dmax)                # w d is rounded before the second d multiplies it
-    q_up = np.sqrt((s + e_s) / (1.0 - g_s) + _ETA)
-    q2 = (s / (1.0 + g_s) - _ETA) - e_mu - e_s
+    e_r = k1 * abs_cn * sw
+    rbar = abs_cn * (1.0 + 2.0 * k1)
+    e_mu = g_mu * g_mu * rbar * rbar * sw * sw
+    # the T squares of s may underflow, each by eta / 2 (times d for w d d, whose w d is rounded first); the rest of
+    # e_s covers the quotients below (module docstring)
+    e_s = (T * _ETA) * (2.0 + dmax)
+    q_up = np.sqrt((s + e_s) / (1.0 - g_s))
+    q2 = s / (1.0 + g_s) - e_mu - e_s
     q_lo = np.sqrt(q2) if q2 > 0.0 else 0.0
     lo = q_lo - e_r
     lo = ((lo * lo - _ETA) * (1.0 - 8.0 * _U) - _ETA) if lo > 0.0 else 0.0
@@ -335,7 +347,7 @@ def _covterm(pos, m, c, Cc, sc, om, k1, g_c):
             v = Cc[pos[p], j]
             d += c[p] * v
             a += abs(c[p]) * abs(v)
-        e = k1 * (a + m * _ETA) + (m + 1) * _ETA        # underflow: d's m products, a's m, and k1 a
+        e = k1 * a
         v = d / sc[j]
         s += om[j] * v * v
         ad = abs(d)
@@ -345,8 +357,7 @@ def _covterm(pos, m, c, Cc, sc, om, k1, g_c):
                 lo += om[j] * (vl * vl - _ETA) - _ETA
         vu = (ad + e) / sc[j] + _ETA
         up += om[j] * (vu * vu + _ETA) + _ETA
-    lo = lo * (1.0 - g_c) - _ETA
-    return s, max(lo, 0.0), up * (1.0 + g_c) + _ETA
+    return s, lo * (1.0 - g_c), up * (1.0 + g_c)
 
 
 @njit(cache=_CACHE)
@@ -389,7 +400,7 @@ def _score_group(g, m, Q, obj, A, Nu, w, use_w, W, sw, Cc, sc, om, has_cov, u, t
                         d -= tot[g[p]]
                     a += abs(tot[g[p]])
                     e += tot_err[g[p]]
-                e = (e + gam[m + 1] * a + _ETA) * (1.0 + 4.0 * _U) + _ETA
+                e = (e + gam[m + 1] * a) * (1.0 + 4.0 * _U)
                 s = d * d
                 ad = abs(d)
                 lo = max(((ad - e) * (ad - e) - _ETA) * (1.0 - 4.0 * _U) - _ETA, 0.0) if ad > e else 0.0
@@ -407,16 +418,16 @@ def _score_group(g, m, Q, obj, A, Nu, w, use_w, W, sw, Cc, sc, om, has_cov, u, t
                     if st > 1e-12:
                         s = s / st                  # = 1 - R^2, as split_cost scores it
                     if st_lo > 1e-12:
-                        lo = max((lo / st_up - _ETA) * (1.0 - 4.0 * _U) - _ETA, 0.0)
-                        up = (up / st_lo + _ETA) * (1.0 + 4.0 * _U) + _ETA
+                        lo = lo / st_up * (1.0 - 4.0 * _U)
+                        up = up / st_lo * (1.0 + 4.0 * _U)
                     elif st_up > 1e-12:            # the exact ss_tot may lie on either side of the threshold
-                        lo = min(max((lo / st_up - _ETA) * (1.0 - 4.0 * _U) - _ETA, 0.0), lo)
-                        up = max((up / 1e-12 + _ETA) * (1.0 + 4.0 * _U) + _ETA, up)
+                        lo = min(lo / st_up * (1.0 - 4.0 * _U), lo)
+                        up = max(up / 1e-12 * (1.0 + 4.0 * _U), up)
             if has_cov:
                 cs, clo, cup = _covterm(g, m, c, Cc, sc, om, k1t[m], g_c)
                 s += cs
-                lo = max((lo + clo) * (1.0 - 2.0 * _U) - _ETA, 0.0)
-                up = (up + cup) * (1.0 + 2.0 * _U) + _ETA
+                lo = (lo + clo) * (1.0 - 2.0 * _U)
+                up = (up + cup) * (1.0 + 2.0 * _U)
             if lo < best_lo:
                 best_lo = lo
             if s < best:
@@ -490,10 +501,10 @@ def _prepare(Y, objective, weights, cov, cov_scales, cov_weights, width):
     else:
         mu = Y.mean(axis=1)
     A = np.ascontiguousarray(Y - mu[:, None])        # the levels removed first: the two-pass algorithm
-    Nu = np.sqrt(np.einsum("ij,ij->i", A, A) + T * _ETA) * (1.0 + _gamma(T + 3))   # T squares, each may underflow
+    Nu = np.sqrt(np.einsum("ij,ij->i", A, A)) * (1.0 + _gamma(T + 3))
     sw = math.sqrt(float(w.max())) * (1.0 + 4.0 * _U) if use_w and T else 1.0
     tot = Y.sum(axis=1)
-    tot_err = (_gamma(max(T, 1)) * np.abs(Y).sum(axis=1) + _ETA) * (1.0 + _gamma(T + 1)) + _ETA
+    tot_err = _gamma(max(T, 1)) * np.abs(Y).sum(axis=1) * (1.0 + _gamma(T + 1))
     if cov is None:
         Cc, sc, om, has_cov = np.zeros((n, 1)), np.ones(1), np.zeros(1), False
     else:
@@ -563,7 +574,7 @@ def _rc_lower(pool: ColumnPool, pi: np.ndarray, sigma: float) -> np.ndarray:
     for j in range(pool.members.shape[1]):
         rc = rc - pad[pool.members[:, j]]
         mag = mag + apad[pool.members[:, j]]
-    return rc - (2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc)) + _ETA)
+    return rc - 2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc))
 
 
 def lagrangian_bound(pool: ColumnPool, pi: np.ndarray, sigma: float, k: int) -> Tuple[float, np.ndarray]:

@@ -6,9 +6,11 @@ below the normal range the rigorous bounds stopped bracketing the exact costs. E
 relative form of Rump, "Verification methods: rigorous results using floating-point arithmetic", Acta Numerica 19
 (2010), Theorem 2.1, whose product bounds hold "provided no underflow has occurred" (p. 303). Rump's model of an
 operation, (2.3) on p. 302, is a o b = fl(a o b)(1 + eps) + delta with |eps| <= u, |delta| <= eta / 2 and
-eps * delta = 0, eta = 2^-1074. The fix carries the delta: after a product, quotient or square root that can underflow,
-eta is added to an upper bound (subtracted from a lower one), exact when the result is subnormal and rounded away
-when it is normal.
+eps * delta = 0, eta = 2^-1074. Three squares that form a cost bound lose that delta with no relative term to cover
+it: the residual sum of squares of the trajectory objectives, the square of the difference of totals of
+supergeo_total, and each covariate's weighted squared difference. The fix carries the delta at those three, adding
+eta to an upper bound and subtracting it from a lower one, which is exact when the result is subnormal and rounds
+away when it is normal (module docstring of :mod:`.columns`).
 
 The oracle is exact rational arithmetic on the panel's doubles (``test_pangeo_columns_accuracy``). A panel is scaled
 by 2^s: exactly, since a power of two multiplies a double without rounding while the product is normal, and costs
@@ -77,7 +79,8 @@ def test_smoke_a_panel_of_tiny_costs_is_solved_and_its_bounds_bracket_the_optimu
 @pytest.mark.parametrize("s", SCALES)
 def test_every_bound_brackets_the_exact_cost_at_every_scale(objective, s):
     """Unit: every group's [cost_lo, cost_up] holds its exact cost, at normal and subnormal scales alike. On main
-    154 of 154 groups failed from s = -520: the norm bound in the gap's error was a sum of squares that underflowed."""
+    154 of 154 groups failed from s = -520. For the trajectory objectives the cause is the residual sum of squares,
+    whose T squares underflow; for supergeo_total it is the square of the difference of totals."""
     Y, kw, pool = _scored(5, 6, 2, s, objective)
     assert _brackets(Y, kw, pool, 2, objective) == []
 
@@ -98,6 +101,21 @@ def test_tiny_covariate_differences_keep_the_bracket():
     kw["cov"] = np.ldexp(kw["cov"], -530)
     pool = columns.score_columns(np.arange(n), Y, Q, **kw)
     assert _brackets(Y, kw, pool, Q, "ss_res") == []
+
+
+@pytest.mark.parametrize("sy,sc,om", [(-530, -530, 1e3), (0, -540, 1e6), (-545, -520, 1e2), (-560, -535, 1.0)])
+def test_subnormal_covariates_with_large_weights_keep_the_bracket(sy, sc, om):
+    """Unit: the third cause. Each covariate adds om (v^2), and v^2 underflows by up to eta / 2, which the weight om
+    then multiplies; with the paths and covariates both subnormal no relative term covers it. Without the squares'
+    term, 501 of 2,160 groups over these four regimes fell outside their bounds."""
+    n, Q, T, M = 4, 2, 2, 6
+    for seed in range(6):
+        rng = np.random.default_rng(seed)
+        Y = np.ldexp(rng.normal(size=(n, T)).cumsum(axis=1) + rng.normal(size=(n, 1)), sy)
+        kw = dict(cov=np.ldexp(rng.normal(size=(n, M)), sc), cov_scales=rng.uniform(0.5, 2.0, M),
+                  cov_weights=om * rng.uniform(0.1, 2.0, M))
+        pool = columns.score_columns(np.arange(n), Y, Q, **kw)
+        assert _brackets(Y, kw, pool, Q, "ss_res") == []
 
 
 def test_subnormal_period_weights_keep_the_bracket_at_a_normal_scale():

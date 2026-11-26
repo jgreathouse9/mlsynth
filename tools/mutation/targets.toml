@@ -20819,19 +20819,19 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "no-residual-error-term"
-  find = "    e_r = (k1 * abs_cn + _ETA) * sw + (m * T * _ETA) * sw + 2.0 * _ETA\n"
+  find = "    e_r = k1 * abs_cn * sw\n"
   replace = "    e_r = 0.0\n"
   models = "a split's bounds without the rounding of its residual, which the exact cost can fall outside on near-parallel data"
 
   [[target.mutant]]
   id = "no-covariate-error-term"
-  find = "        e = k1 * (a + m * _ETA) + (m + 1) * _ETA        # underflow: d's m products, a's m, and k1 a\n"
+  find = "        e = k1 * a\n"
   replace = "        e = 0.0\n"
   models = "the covariate term's bounds without the rounding of its differences of means"
 
   [[target.mutant]]
   id = "no-total-error-term"
-  find = "                e = (e + gam[m + 1] * a + _ETA) * (1.0 + 4.0 * _U) + _ETA\n"
+  find = "                e = (e + gam[m + 1] * a) * (1.0 + 4.0 * _U)\n"
   replace = "                e = 0.0\n"
   models = "the supergeo_total bounds without the rounding of the totals"
 
@@ -20857,7 +20857,7 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "reduced-cost-rounding-ignored"
-  find = "    return rc - (2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc)) + _ETA)\n"
+  find = "    return rc - 2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc))\n"
   replace = "    return rc\n"
   models = "the reduced costs' own rounding left out of their lower bounds"
 
@@ -23815,88 +23815,64 @@ test-command = "python -m pytest mlsynth/tests/test_pangeo_cost_range.py mlsynth
 timeout = 1200.0
 
   [[target.mutant]]
-  id = "the-norm-squares-may-underflow"
-  find = "    Nu = np.sqrt(np.einsum(\"ij,ij->i\", A, A) + T * _ETA) * (1.0 + _gamma(T + 3))"
-  replace = "    Nu = np.sqrt(np.einsum(\"ij,ij->i\", A, A)) * (1.0 + _gamma(T + 3))"
-  models = "the norm bound in the gap's error formed from squares that underflow, so it collapses on tiny paths and every bound built on it is too narrow (#1170, the measured cause)"
-
-  [[target.mutant]]
-  id = "the-gap-entries-may-underflow"
-  find = "    e_r = (k1 * abs_cn + _ETA) * sw + (m * T * _ETA) * sw + 2.0 * _ETA\n"
-  replace = "    e_r = (k1 * abs_cn + _ETA) * sw + 2.0 * _ETA\n"
-  models = "the gap's error without the m products per entry that underflow"
-
-  [[target.mutant]]
-  id = "the-gap-magnitude-may-underflow"
-  find = "    abs_cn = abs_cn + m * _ETA\n"
-  replace = "    abs_cn = abs_cn\n"
-  models = "sum |c_p| Nu_p taken as computed, its m products' underflow left out"
-
-  [[target.mutant]]
-  id = "the-squares-of-the-residual-may-underflow"
-  find = "    e_s = (T * _ETA) * (2.0 + dmax)"
-  replace = "    e_s = 0.0"
-  models = "the residual sum of squares taken with only its relative error, its T underflowing squares left out"
+  id = "the-residual-squares-may-underflow"
+  find = "    e_s = (T * _ETA) * (2.0 + dmax)\n"
+  replace = "    e_s = 0.0\n"
+  models = "cause 1 of #1170: the residual sum of squares taken with only its relative error; its T squares underflow below the normal range, and the trajectory objectives' bounds stop bracketing the exact cost (6,343 groups over the measured grid)"
 
   [[target.mutant]]
   id = "the-weighted-square-ignores-the-deviation"
-  find = "    e_s = (T * _ETA) * (2.0 + dmax)"
-  replace = "    e_s = (T * _ETA) * 2.0"
-  models = "w d d's underflow taken as two half-units, not the first product's multiplied by d"
+  find = "    e_s = (T * _ETA) * (2.0 + dmax)\n"
+  replace = "    e_s = (T * _ETA) * 2.0\n"
+  models = "w d d's underflow taken as two half-units, not w d's multiplied by the second d: wrong when a period weight is subnormal and the deviations are normal"
 
   [[target.mutant]]
-  id = "the-upper-norm-ignores-its-quotient"
-  find = "    q_up = np.sqrt((s + e_s) / (1.0 - g_s) + _ETA)"
-  replace = "    q_up = np.sqrt((s + e_s) / (1.0 - g_s))"
-  models = "the quotient in the residual norm's upper bound taken without its underflow"
+  id = "the-totals-square-may-underflow-from-below"
+  find = "                lo = max(((ad - e) * (ad - e) - _ETA) * (1.0 - 4.0 * _U) - _ETA, 0.0) if ad > e else 0.0\n"
+  replace = "                lo = (ad - e) * (ad - e) * (1.0 - 4.0 * _U) if ad > e else 0.0\n"
+  models = "cause 2 of #1170: supergeo_total's lower bound from a square of the difference of totals that underflows"
 
   [[target.mutant]]
-  id = "the-lower-square-ignores-underflow"
-  find = "    lo = ((lo * lo - _ETA) * (1.0 - 8.0 * _U) - _ETA) if lo > 0.0 else 0.0"
-  replace = "    lo = (lo * lo * (1.0 - 8.0 * _U)) if lo > 0.0 else 0.0"
-  models = "the lower bound's square and scaling taken without their underflow"
+  id = "the-totals-square-may-underflow-from-above"
+  find = "                up = ((ad + e) * (ad + e) + _ETA) * (1.0 + 4.0 * _U) + _ETA\n"
+  replace = "                up = (ad + e) * (ad + e) * (1.0 + 4.0 * _U)\n"
+  models = "cause 2 of #1170: supergeo_total's upper bound from a square of the difference of totals that underflows"
 
   [[target.mutant]]
-  id = "the-upper-square-ignores-underflow"
+  id = "the-covariate-squares-may-underflow"
+  find = "        vu = (ad + e) / sc[j] + _ETA\n        up += om[j] * (vu * vu + _ETA) + _ETA\n"
+  replace = "        vu = (ad + e) / sc[j]\n        up += om[j] * vu * vu\n"
+  models = "cause 3 of #1170: a covariate's weighted squared difference taken without its square's underflow, which the weight multiplies (501 of 2,160 groups with subnormal paths and covariates)"
+
+  [[target.mutant]]
+  id = "the-covariate-squares-may-underflow-from-below"
+  find = "            vl = (ad - e) / sc[j] - _ETA\n            if vl > 0.0:\n                lo += om[j] * (vl * vl - _ETA) - _ETA\n"
+  replace = "            vl = (ad - e) / sc[j]\n            lo += om[j] * vl * vl\n"
+  models = "cause 3 of #1170 from below: the covariate term's lower bound without its square's underflow"
+
+  [[target.mutant]]
+  id = "the-final-square-from-below"
+  find = "    lo = ((lo * lo - _ETA) * (1.0 - 8.0 * _U) - _ETA) if lo > 0.0 else 0.0\n"
+  replace = "    lo = lo * lo * (1.0 - 8.0 * _U) if lo > 0.0 else 0.0\n"
+  models = "the trajectory lower bound's final square and scaling without their underflow"
+  expected = "survived"
+  accepted-because = "GUARD, not a cause: the delta is real (Rump 2010, eq. 2.3), but the spare in e_s (at least 1.5 T eta beyond the T squares) passes through the square root and back, and covers it except when the gap's error e_r is near the residual norm, where the lower bound is near 0. Measured: removing it leaves every bracket over 2,688 panels at s = -505 to -570 and the 81 tests intact."
+
+  [[target.mutant]]
+  id = "the-final-square-from-above"
   find = "    up = ((q_up + e_r) * (q_up + e_r) + _ETA) * (1.0 + 8.0 * _U) + _ETA\n"
   replace = "    up = (q_up + e_r) * (q_up + e_r) * (1.0 + 8.0 * _U)\n"
-  models = "the upper bound's square and scaling taken without their underflow"
-
-  [[target.mutant]]
-  id = "the-covariate-error-ignores-underflow"
-  find = "        e = k1 * (a + m * _ETA) + (m + 1) * _ETA        # underflow: d's m products, a's m, and k1 a"
-  replace = "        e = k1 * a"
-  models = "the covariate difference's error without its products' underflow"
-
-  [[target.mutant]]
-  id = "the-total-error-ignores-underflow"
-  find = "    tot_err = (_gamma(max(T, 1)) * np.abs(Y).sum(axis=1) + _ETA) * (1.0 + _gamma(T + 1)) + _ETA"
-  replace = "    tot_err = _gamma(max(T, 1)) * np.abs(Y).sum(axis=1) * (1.0 + _gamma(T + 1))"
-  models = "each unit's total's error bound formed by products that underflow"
-
-  [[target.mutant]]
-  id = "the-totals-difference-ignores-underflow"
-  find = "                e = (e + gam[m + 1] * a + _ETA) * (1.0 + 4.0 * _U) + _ETA"
-  replace = "                e = (e + gam[m + 1] * a) * (1.0 + 4.0 * _U)"
-  models = "supergeo_total's difference error without its products' underflow"
-
-  [[target.mutant]]
-  id = "the-ratio-ignores-underflow"
-  find = "                        up = (up / st_lo + _ETA) * (1.0 + 4.0 * _U) + _ETA"
-  replace = "                        up = up / st_lo * (1.0 + 4.0 * _U)"
-  models = "the R^2 cost's upper bound quotient taken without its underflow"
-
-  [[target.mutant]]
-  id = "the-reduced-cost-ignores-underflow"
-  find = "    return rc - (2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc)) + _ETA)\n"
-  replace = "    return rc - 2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc))\n"
-  models = "the reduced costs' rounding term formed by a product that underflows"
+  models = "the trajectory upper bound's final square and scaling without their underflow"
+  expected = "survived"
+  accepted-because = "GUARD, not a cause: as the-final-square-from-below: the spare in e_s covers it on every panel measured; the term covers the case the spare cannot reach."
 
   [[target.mutant]]
   id = "the-lagrangian-error-ignores-underflow"
   find = "    e2 = (_gamma(max(neg.size, 1)) * float(np.abs(neg).sum()) + _ETA) * (1.0 + _gamma(max(neg.size, 1))) + _ETA"
   replace = "    e2 = _gamma(max(neg.size, 1)) * float(np.abs(neg).sum()) * (1.0 + _gamma(max(neg.size, 1)))"
-  models = "the Lagrangian bound's summation error formed by products that underflow"
+  models = "the Lagrangian bound's summation error formed by two products that underflow"
+  expected = "survived"
+  accepted-because = "GUARD, not a cause: the error term's margin, u times the sum, falls below the two products' eta only when the sum of negative reduced costs lies in [2^-1022, 2^-1021); below that every term is subnormal and the sum is exact. A bound tight to within eta there is out of reach of any test built on panels."
 
 [[target]]
 name = "pangeo-cost-range-search"
@@ -23905,19 +23881,21 @@ test-command = "python -m pytest mlsynth/tests/test_pangeo_cost_range.py mlsynth
 timeout = 1200.0
 
   [[target.mutant]]
-  id = "the-leaf-bound-ignores-underflow"
-  find = "            leaf = P1 - (g2 * (P1 + absA0) + _ETA)\n"
-  replace = "            leaf = P1 - g2 * (P1 + absA0)\n"
-  models = "a design's lower bound in the search formed with a product that underflows"
-
-  [[target.mutant]]
   id = "the-node-bound-ignores-underflow"
-  find = "        if lb - (g2 * (P1 + absA0 + r_hi * abs(sm) + _ETA) + 2.0 * _ETA) >= best_up:   # rt's product, g2's"
+  find = "        if lb - (g2 * (P1 + absA0 + r_hi * abs(sm)) + _ETA) >= best_up:   # rt's product may underflow"
   replace = "        if lb - g2 * (P1 + absA0 + r_hi * abs(sm)) >= best_up:"
-  models = "a partial design pruned on a bound whose products underflow"
+  models = "a partial design pruned on a bound one of whose terms, r sigma, is a product that underflows"
+  expected = "survived"
+  accepted-because = "GUARD, not a cause: r sigma is a term of the node bound, not of its error, so no gamma margin covers its delta; a prune it decides needs the bound within eta / 2 of the incumbent at a subnormal scale, which no panel-built test reaches."
+
+[[target]]
+name = "pangeo-cost-scale"
+module-path = "mlsynth/utils/pangeo_helpers/mip.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cost_range.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
 
   [[target.mutant]]
-  id = "the-design-upper-ignores-underflow"
-  find = "            r_up = R1 + g2 * R1 + _ETA\n"
-  replace = "            r_up = R1 + g2 * R1\n"
-  models = "a design's upper bound in the search formed with a product that underflows"
+  id = "the-cost-scale-is-uncapped"
+  find = "    return math.ldexp(1.0, min(30 - e, 1023))"
+  replace = "    return math.ldexp(1.0, 30 - e)"
+  models = "the visible half of #1170: the power of two 2^(30 - e) overflows once the largest cost is below about 2^-993, and every solve raises OverflowError"
