@@ -24475,3 +24475,33 @@ timeout = 600.0
   find = "    return list(_iter_branches(pool, root, keep, k, cliques, best_up))"
   replace = "    return _iter_branches(pool, root, keep, k, cliques, best_up)"
   models = "_branches handing back the generator, which its callers index and measure as a list"
+
+[[target]]
+name = "pangeo-proof-budget"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_proof_budget.py mlsynth/tests/test_pangeo_cover_children.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-plain-stage-is-uncapped"
+  find = "    budget = min(_reopt_budget(pool, keep, cap=int(node_limit)), int(node_limit), int(cover.PLAIN_STAGE_LIMIT))"
+  replace = "    budget = min(_reopt_budget(pool, keep, cap=int(node_limit)), int(node_limit))"
+  models = "the plain stage given every one of the children's columns: 16.6 million nodes and 273 s on a 40-geo Q = 3 arm, proving nothing"
+
+  [[target.mutant]]
+  id = "the-plain-cap-replaces-the-childrens-columns"
+  find = "    budget = min(_reopt_budget(pool, keep, cap=int(node_limit)), int(node_limit), int(cover.PLAIN_STAGE_LIMIT))"
+  replace = "    budget = min(int(node_limit), int(cover.PLAIN_STAGE_LIMIT))"
+  models = "the plain stage run to its cap on every arm, where a small arm's children's columns are the budget the gate was measured on"
+
+[[target]]
+name = "pangeo-proof-budget-default"
+module-path = "mlsynth/utils/pangeo_helpers/cover.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_proof_budget.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-proof-budget-is-the-quick-searchs"
+  find = "SEARCH_NODE_LIMIT = 200_000_000"
+  replace = "SEARCH_NODE_LIMIT = 1_500_000"
+  models = "the proof after the first MIP capped at 1.5 million nodes, so a 40-geo Q = 3 arm goes to the MIP loop, whose fifth MIP passed 1,800 s"

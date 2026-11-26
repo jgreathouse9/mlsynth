@@ -39,9 +39,11 @@ in 1.6 s against 21.3 s for the MIP loop at 24 markets and Q = 3, 2.9 s against 
 76.6 s at 32; at Q = 2, 0.10 s against 5.4 s at 30 markets. At Q = 2 with 50 markets the proof needed 10 million
 nodes even from the optimum, and lost to the MIP loop (32.8 s against 24.4 s): the root bound was 8.4% below the
 optimum and the search's bound does not tighten with depth, where HiGHS re-solves the LP and adds cuts at every node.
-The node cap, ``SEARCH_NODE_LIMIT``, bounds what such a panel costs before the MIP loop takes over: at 1.5 million
-nodes, 8.2 s at 40 markets and 8.6 s at 50, against MIP loops of 18.7 s and 27.0 s, while Q = 3 at 32 markets
-still proves under it (1.38 million nodes). A search stopped by the cap does not hand its design to the MIP loop:
+The quick search's cap, ``SEARCH_QUICK_LIMIT``, bounds what such a panel costs before the first MIP: at 1.5
+million nodes, 8.2 s at 40 markets and 8.6 s at 50, against MIP loops of 18.7 s and 27.0 s, while Q = 3 at 32
+markets still proves under it (1.38 million nodes). The proof after the first MIP gets ``SEARCH_NODE_LIMIT``,
+200 million nodes: from the first MIP's design it proved that 50-market arm in 34.7 s against 42.1 s for the
+MIP loop, and a 40-geo Q = 3 arm in 1,082 s, where the MIP loop's fifth MIP passed 1,800 s. A search stopped by the cap does not hand its design to the MIP loop:
 on the 50-market arm, adding it to the first MIP's groups made HiGHS take 58 to 64 s over the same groups, against
 26 to 29 s without it, and at 40 markets it changed nothing.
 """
@@ -70,8 +72,14 @@ except ImportError:  # pragma: no cover - the suite runs with numba installed
 CANONICAL_NAME = "mlsynth.utils.pangeo_helpers.cover"
 _CACHE = __name__ == CANONICAL_NAME
 
-#: The proof search stops after this many nodes and the MIP loop takes over; about 7 s at Q = 2 and 50 markets.
-SEARCH_NODE_LIMIT = 1_500_000
+#: The proof after the first MIP stops after this many nodes and the MIP loop takes over. A 40-geo Q = 3 seasonal
+#: arm's proof placed 66.7 million (1,082 s, one thread); at 1.5 million it went to the MIP loop, whose fifth MIP
+#: passed 1,800 s.
+SEARCH_NODE_LIMIT = 200_000_000
+#: The plain stage of that proof (columns._search_gated) places at most this many nodes before the re-optimised
+#: search takes over. Its budget is the children's column count, which grows with the arm: 16.6 million nodes
+#: (273 s) on the 40-geo Q = 3 arm, proving nothing, where every arm whose plain stage proved did so within this.
+PLAIN_STAGE_LIMIT = 1_500_000
 #: The quick search from the staged start places at most this many nodes (and at most the limit above). A search
 #: it stops runs again, up to SEARCH_NODE_LIMIT, from the design of the MIP loop's first MIP.
 SEARCH_QUICK_LIMIT = 1_500_000
