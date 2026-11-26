@@ -39,7 +39,7 @@ class _Log:
     """Records, in order, the quick search's result, each proof search's incumbent and each MIP solve."""
 
     def __init__(self, set_attr):
-        self.events, self.quick = [], []
+        self.events, self.quick, self.stages = [], [], []
         real_q, real_g = columns._search, columns._search_gated
 
         def quick(*a, **kw):
@@ -50,7 +50,9 @@ class _Log:
 
         def gated(pool, root, keep, k, Q, best_up, node_limit, **kw):
             self.events.append(("proof", best_up))
-            return real_g(pool, root, keep, k, Q, best_up, node_limit, **kw)
+            out = real_g(pool, root, keep, k, Q, best_up, node_limit, **kw)
+            self.stages.append(out.stage)
+            return out
 
         def solve(cands, idx, **kw):
             self.events.append(("mip", None))
@@ -76,6 +78,7 @@ def test_smoke_a_capped_quick_search_with_a_design_is_proved_without_a_mip(monke
     assert log.quick[0]["search"] == "node_limit" and len(log.quick[0]["rows"])
     assert log.kinds() == ["quick", "proof"]
     assert (d["search"], d["search_start"], d["mip_solves"], d["backend"]) == ("proved", "quick_design", 0, "search")
+    assert d["second_search"] == log.stages[0]
     assert d["objective_value"] == pytest.approx(_optimum(idx, Y, Q), rel=1e-9)
 
 

@@ -23839,8 +23839,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-stage-is-not-reported"
-  find = "            info[\"second_search\"] = found[\"stage\"]\n"
-  replace = "            info[\"second_search\"] = \"reoptimised\"\n"
+  find = "z_from, rows_from,\n                                 progress=progress)\n            info[\"search_nodes\"] += found[\"nodes\"]\n            info[\"second_search\"] = found[\"stage\"]\n"
+  replace = "z_from, rows_from,\n                                 progress=progress)\n            info[\"search_nodes\"] += found[\"nodes\"]\n            info[\"second_search\"] = \"reoptimised\"\n"
   models = "the diagnostics naming re-optimisation whatever stage proved"
 
 [[target]]
@@ -24523,3 +24523,9 @@ timeout = 900.0
   find = "                info.update(search=\"proved\", search_start=\"quick_design\")"
   replace = "                info.update(search=\"proved\", search_start=\"first_mip\")"
   models = "a design proved from the quick search's design reported as proved after a first MIP that never ran"
+
+  [[target.mutant]]
+  id = "the-quick-proofs-stage-is-not-reported"
+  find = "z_q, rows_q, progress=progress)\n            info[\"search_nodes\"] += found[\"nodes\"]\n            info[\"second_search\"] = found[\"stage\"]\n"
+  replace = "z_q, rows_q, progress=progress)\n            info[\"search_nodes\"] += found[\"nodes\"]\n            info[\"second_search\"] = \"reoptimised\"\n"
+  models = "the diagnostics naming re-optimisation whatever stage proved the quick design"
