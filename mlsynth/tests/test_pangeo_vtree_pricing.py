@@ -220,9 +220,13 @@ def test_the_full_pass_prices_like_the_plain_pricing_and_lists_the_groups_below_
     z0 = vtree._price(mem, clo, opn, 0, C, pi, s, uncm, n, kk, xt0)
     vs0 = vtree._resid(mem, opn, 0, C, xt0, uncm, n, kk, r0)
     xt, r, rcv, act = np.zeros(C), np.zeros(n), np.zeros(C), np.zeros(C, dtype=np.int64)
+    pf = np.full(n, np.nan)
     delta = 0.05
-    z, vs, na = vtree._price_full(mem, clo, opn, 0, C, pi, s, uncm, n, kk, xt, r, rcv, act, delta)
+    z, vs, na, cmax, pimax = vtree._price_full(mem, clo, opn, 0, C, pi, s, uncm, n, kk, xt, r, rcv, act, delta, pf)
     assert z == z0 and vs == vs0
+    assert np.array_equal(pf, pi), "the full pass records the point it priced at"
+    assert cmax == np.abs(clo).max(), "the full pass reports the largest cost magnitude, for the rounding margin"
+    assert pimax == np.abs(pi).max(), "the full pass reports the largest multiplier magnitude"
     assert np.array_equal(xt, xt0) and np.array_equal(r, r0)
     rc = np.array([_rc(mem[j], clo[j], pi, s) for j in range(C)])
     assert np.array_equal(rcv, rc)

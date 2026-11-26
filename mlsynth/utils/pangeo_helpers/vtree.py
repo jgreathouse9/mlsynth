@@ -199,12 +199,17 @@ def _resid(mem, opn, o0, no, x, uncm, n, kk, r):  # pragma: no cover - compiled
 
 
 @njit(cache=_CACHE)
-def _price_full(mem, clo, opn, o0, no, pi, s, uncm, n, kk, xt, r, rcv, act, delta):  # pragma: no cover - compiled
+def _price_full(mem, clo, opn, o0, no, pi, s, uncm, n, kk, xt, r, rcv, act, delta, pf):  # pragma: no cover
     """:func:`_price` and :func:`_resid` of its minimiser in one pass over every open group: returns
-    ``(z, kk - sum xt, count)``, with ``r = 1 - A xt`` on the units left, each group's computed reduced cost in
-    ``rcv`` and, in ``act[:count]`` in order, the positions of the groups whose reduced cost is below ``delta``."""
+    ``(z, kk - sum xt, count, cmax, pimax)``, with ``r = 1 - A xt`` on the units left, each group's computed reduced
+    cost in ``rcv``, in ``act[:count]`` in order the positions of the groups whose reduced cost is below ``delta``,
+    the point priced at copied into ``pf``, and the largest cost and multiplier magnitudes, which the rounding
+    margin of :func:`_may_skip` reads."""
     z = s * kk
+    pimax = 0.0
     for u in range(n):
+        pf[u] = pi[u]
+        pimax = max(pimax, abs(pi[u]))
         if _has(uncm, u):
             z += pi[u]
             r[u] = 1.0
@@ -213,8 +218,10 @@ def _price_full(mem, clo, opn, o0, no, pi, s, uncm, n, kk, xt, r, rcv, act, delt
     W = mem.shape[1]
     tot = 0.0
     na = 0
+    cmax = 0.0
     for i in range(no):
         j = opn[o0 + i]
+        cmax = max(cmax, abs(clo[j]))
         rc = clo[j] - s
         for w in range(W):
             u = mem[j, w]
@@ -234,7 +241,7 @@ def _price_full(mem, clo, opn, o0, no, pi, s, uncm, n, kk, xt, r, rcv, act, delt
                     r[u] -= 1.0
         else:
             xt[i] = 0.0
-    return z, kk - tot, na
+    return z, kk - tot, na, cmax, pimax
 
 
 @njit(cache=_CACHE)
@@ -291,9 +298,6 @@ def _volume(mem, clo, opn, o0, no, uncm, n, kk, pi0, s0, target, T,  # pragma: n
     by the paper's moving one. Pricing skips the groups that cannot be negative (module docstring); with ``kappa``
     0 it prices every group at every step, and the iterates are the same for every ``kappa``."""
     W = mem.shape[1]
-    cmax = 0.0
-    for i in range(no):
-        cmax = max(cmax, abs(clo[opn[o0 + i]]))
     for u in range(n):
         pib[u] = pi0[u] if _has(uncm, u) else 0.0
     sb = s0 if kk > 0 else 0.0
@@ -309,7 +313,7 @@ def _volume(mem, clo, opn, o0, no, uncm, n, kk, pi0, s0, target, T,  # pragma: n
     z_check = zb
     steps = 0
     delta = 0.0                    # no pass yet: the first trial point gets one
-    sf, pfmax = 0.0, 0.0
+    sf, pfmax, cmax = 0.0, 0.0, 0.0
     na = 0
     sprev = sb
     for u in range(n):
@@ -342,11 +346,10 @@ def _volume(mem, clo, opn, o0, no, uncm, n, kk, pi0, s0, target, T,  # pragma: n
             priced += na
         else:
             delta = kappa * move
-            zt, vt, na = _price_full(mem, clo, opn, o0, no, pit, sgt, uncm, n, kk, xt, r1, rcv, act, delta)
+            zt, vt, na, cmax, pfmax = _price_full(mem, clo, opn, o0, no, pit, sgt, uncm, n, kk, xt, r1, rcv, act,
+                                                  delta, pf)
             priced += no
-            for u in range(n):
-                pf[u] = pit[u]
-            sf, pfmax = sgt, ptmax
+            sf = sgt
         num, den = 0.0, 0.0
         for u in range(n):
             dd = r1[u] - v[u]

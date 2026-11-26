@@ -24737,9 +24737,9 @@ timeout = 900.0
   models = "the movement taken from the previous trial point, not from the last full pass, so the moves since that pass accumulate unchecked"
 
   [[target.mutant]]
-  id = "the-full-pass-point-is-not-kept"
-  find = "            for u in range(n):\n                pf[u] = pit[u]\n            sf, pfmax = sgt, ptmax"
-  replace = "            sf, pfmax = sgt, ptmax"
+  id = "the-full-pass-does-not-record-its-point"
+  find = "        pf[u] = pi[u]"
+  replace = "        pass"
   models = "the stored reduced costs measured at one point and the movement from another, so the skip bound does not bound the change"
 
   [[target.mutant]]
@@ -24750,9 +24750,15 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-cost-term-of-the-rounding-is-dropped"
-  find = "        cmax = max(cmax, abs(clo[opn[o0 + i]]))"
+  find = "        cmax = max(cmax, abs(clo[j]))"
   replace = "        pass"
   models = "the rounding margin computed without the groups' cost magnitudes, which dominate it on large levels, so rounding can still flip a skipped group"
+
+  [[target.mutant]]
+  id = "the-multiplier-term-of-the-rounding-is-dropped"
+  find = "        pimax = max(pimax, abs(pi[u]))"
+  replace = "        pass"
+  models = "the rounding margin computed without the multipliers' magnitudes at the full pass, so rounding of that evaluation is not covered"
 
   [[target.mutant]]
   id = "an-invalid-kappa-is-accepted"
