@@ -23701,8 +23701,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-branch-bound-leaves-out-the-fixed-group"
-  find = "        out.append((j, _down(L + lo_j), left, duals))"
-  replace = "        out.append((j, _down(L), left, duals))"
+  find = "        yield (j, _down(L + lo_j), left, duals)"
+  replace = "        yield (j, _down(L), left, duals)"
   models = "the branch bound without the fixed group's cost, valid but below the root's own bound, so a branch the residual LP could prune is searched"
 
   [[target.mutant]]
