@@ -28,7 +28,10 @@ those groups. The groups left out have reduced cost above :math:`z - L` for the 
 :math:`z` (reduced-cost fixing, :mod:`.columns`), so they are in no cheaper design.
 
 Start. A first search over the ``START_PER_UNIT`` n groups of least reduced cost, capped at ``START_NODE_LIMIT``
-nodes, gives a design whose upper bound sets the reduced-cost margin for the proof search.
+nodes, gives a design whose upper bound sets the reduced-cost margin for the proof search. A window that holds no
+design is widened ``START_GROWTH``-fold and searched again, up to the whole pool: at Q = 4 the first window can cover
+every unit and hold no exact cover (a 24-geo seasonal arm's 960 groups, proved empty in 614 nodes), and a proof
+search with no incumbent keeps every group (1.27 million there, 666 s).
 
 Measured on simulated seasonal panels (one arm, 42 estimation periods, single-threaded), the search proved the optimum
 in 1.6 s against 21.3 s for the MIP loop at 24 markets and Q = 3, 2.9 s against 47.7 s at 28 and 10.9 s against
@@ -44,7 +47,7 @@ on the 50-market arm, adding it to the first MIP's groups made HiGHS take 58 to 
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional
 
 import numpy as np
@@ -71,9 +74,11 @@ SEARCH_NODE_LIMIT = 1_500_000
 #: The quick search from the staged start places at most this many nodes (and at most the limit above). A search
 #: it stops runs again, up to SEARCH_NODE_LIMIT, from the design of the MIP loop's first MIP.
 SEARCH_QUICK_LIMIT = 1_500_000
-#: The start searches the START_PER_UNIT * n groups of least reduced cost, for at most START_NODE_LIMIT nodes.
+#: The start searches the START_PER_UNIT * n groups of least reduced cost, for at most START_NODE_LIMIT nodes, and
+#: widens the window START_GROWTH-fold while it holds no design.
 START_PER_UNIT = 40
 START_NODE_LIMIT = 200_000
+START_GROWTH = 4
 
 _U = 2.0 ** -53
 #: The underflow unit, the smallest positive subnormal: a product's absolute error below the normal range (Rump 2010,
@@ -482,8 +487,15 @@ def _search(pool, root, keep, k, Q, best_up, node_limit, fixed, prog) -> CoverSe
 
 def start_design(pool, root, k: int, Q: int, progress: Optional[np.ndarray] = None) -> CoverSearch:
     """A first design: a search capped at ``START_NODE_LIMIT`` nodes over the ``START_PER_UNIT`` n groups of least
-    reduced cost, reporting to ``progress`` as :func:`search` does."""
+    reduced cost, repeated over ``START_GROWTH`` times as many groups while a window holds no design, up to the whole
+    pool. Each search reports to ``progress`` as :func:`search` does; the result's nodes are all the searches'."""
     rc = np.asarray(root.reduced_costs, dtype=float)
     count = min(rc.size, START_PER_UNIT * int(pool.unit_indices.size))
-    small = np.flatnonzero(rc <= np.partition(rc, count - 1)[count - 1])
-    return search(pool, root, small, k, Q, np.inf, START_NODE_LIMIT, progress=progress)
+    nodes = 0
+    while True:
+        small = np.flatnonzero(rc <= np.partition(rc, count - 1)[count - 1])
+        res = search(pool, root, small, k, Q, np.inf, START_NODE_LIMIT, progress=progress)
+        nodes += res.nodes
+        if res.rows.size or count >= rc.size:
+            return replace(res, nodes=nodes)
+        count = min(rc.size, count * START_GROWTH)
