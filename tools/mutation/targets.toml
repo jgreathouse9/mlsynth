@@ -24475,3 +24475,39 @@ timeout = 600.0
   find = "    return list(_iter_branches(pool, root, keep, k, cliques, best_up))"
   replace = "    return _iter_branches(pool, root, keep, k, cliques, best_up)"
   models = "_branches handing back the generator, which its callers index and measure as a list"
+
+[[target]]
+name = "pangeo-branch-rows"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_branch_rows.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-lookup-miss-reads-zero"
+  find = "        out = np.full(idx.shape, -np.inf)"
+  replace = "        out = np.zeros(idx.shape)"
+  models = "a row a branch never computed read as 0, not -inf: a reduced or shifted cost that is not a lower bound, so the search can prune a branch holding the optimum"
+
+  [[target.mutant]]
+  id = "a-lookup-reads-a-mask-as-rows-0-and-1"
+  find = "        if idx.dtype == bool:"
+  replace = "        if False:"
+  models = "a boolean mask cast to rows 0 and 1 instead of the rows it selects"
+
+  [[target.mutant]]
+  id = "a-lookup-searches-unsorted-rows"
+  find = "        order = np.argsort(rows, kind=\"stable\")"
+  replace = "        order = np.arange(rows.size)"
+  models = "rows kept in the order given and binary-searched as if sorted, so a branch's groups read other groups' values"
+
+  [[target.mutant]]
+  id = "the-fixed-group-has-no-shifted-cost"
+  find = "                               shift_rows=np.append(left, j))     # the search reads the fixed group's too"
+  replace = "                               shift_rows=left)"
+  models = "the fixed group's shifted cost left at -inf, so every bound in the branch's search is -inf and nothing is pruned"
+
+  [[target.mutant]]
+  id = "the-rounding-counts-only-the-rows-cliques"
+  find = "    most = int(np.unique(members, return_counts=True)[1].max()) if members.size else 0"
+  replace = "    members = members if rows is None else members[np.isin(members, rows)]\n    most = int(np.unique(members, return_counts=True)[1].max()) if members.size else 0"
+  models = "the rounding allowance set by the cliques of the computed rows only, so the rows get other doubles than the whole-pool computation"

@@ -21,8 +21,8 @@ def _panel(seed, n, T=12, levels=5.0):
     return rng.normal(size=(n, T)).cumsum(axis=1) + rng.normal(size=(n, 1)) * levels
 
 
-def _setup(seed, n, Q, T=12, levels=5.0):
-    pool = columns.score_columns(np.arange(n), _panel(seed, n, T, levels), Q)
+def _setup(seed, n, Q, T=12, mult=1.0):
+    pool = columns.score_columns(np.arange(n), _panel(seed, n, T) * mult, Q)
     k = columns.min_groups(n, Q, 1)
     return pool, k, columns.root_lp(pool, k)
 
@@ -37,7 +37,9 @@ def _cliques(pool, rng, count):
 
 
 def _same(a, b):
-    """Bitwise equality of two float arrays (so -0.0 and 0.0 differ, and NaN never matches)."""
+    """Bitwise equality of two float arrays (so -0.0 and 0.0 differ, and NaN never matches); a row lookup is
+    compared as the full array it stands for."""
+    a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
     return a.shape == b.shape and np.array_equal(a.view(np.int64), b.view(np.int64))
 
 
@@ -57,6 +59,39 @@ def test_smoke_shifted_costs_over_rows_are_the_full_ones_there_and_minus_infinit
 
 
 # --- unit ---------------------------------------------------------------------------------------------------------
+
+def test_a_row_lookup_returns_its_values_on_its_rows_and_minus_infinity_elsewhere():
+    look = columns._Rows(np.array([7, 2, 5]), np.array([0.7, 0.2, 0.5]), 10)
+    assert len(look) == 10 and look.shape == (10,)
+    assert np.array_equal(look[np.array([2, 5, 7])], [0.2, 0.5, 0.7])
+    assert np.array_equal(look[np.array([0, 2, 9])], [-np.inf, 0.2, -np.inf])
+    mask = np.zeros(10, bool)
+    mask[[5, 6]] = True
+    assert np.array_equal(look[mask], [0.5, -np.inf])
+    assert float(look[5]) == 0.5 and float(look[4]) == -np.inf
+    full = np.full(10, -np.inf)
+    full[[7, 2, 5]] = [0.7, 0.2, 0.5]
+    assert np.array_equal(np.asarray(look), full)
+
+
+def test_each_branch_holds_only_its_own_rows():
+    """Unit: a branch's reduced costs cover the groups left to it and its shifted costs those and its fixed group,
+    with no array over the whole pool."""
+    pool, k, root = _setup(7, 14, 2)
+    keep = np.arange(len(pool))
+    cl = columns._separate_cliques(pool, keep, k)
+    seen = 0
+    for j, _, left, duals in columns._iter_branches(pool, root, keep, k, cl):
+        if duals is None:
+            continue
+        assert isinstance(duals.reduced_costs, columns._Rows)
+        assert np.array_equal(duals.reduced_costs.rows, np.sort(left))
+        if duals.cost_lo is not None:
+            seen += 1
+            assert isinstance(duals.cost_lo, columns._Rows)
+            assert np.array_equal(duals.cost_lo.rows, np.sort(np.append(left, j)))
+    assert seen > 0
+
 
 def test_the_rounding_allowance_counts_cliques_over_the_whole_pool():
     """Unit: the rounding allowance is set by the most cliques any group is in, even a group outside the rows, so
@@ -112,12 +147,17 @@ def test_the_branch_bounds_are_unchanged():
 
 # --- edge cases ---------------------------------------------------------------------------------------------------
 
+def test_a_row_lookup_with_no_rows_is_minus_infinity_everywhere():
+    look = columns._Rows(np.zeros(0, np.int64), np.zeros(0), 4)
+    assert np.all(look[np.arange(4)] == -np.inf) and look[np.zeros(0, np.int64)].size == 0
+
+
 def test_no_rows_gives_minus_infinity_everywhere_and_all_rows_the_full_computation():
     pool, _, _ = _setup(4, 10, 2)
     rng = np.random.default_rng(1)
     cl = _cliques(pool, rng, 5)
     mu = rng.uniform(0, 1, size=len(cl))
-    assert np.all(columns._shifted(pool, cl, mu, rows=np.zeros(0, np.int64)) == -np.inf)
+    assert np.all(np.asarray(columns._shifted(pool, cl, mu, rows=np.zeros(0, np.int64))) == -np.inf)
     assert _same(columns._shifted(pool, cl, mu, rows=np.arange(len(pool))), columns._shifted(pool, cl, mu))
 
 
@@ -130,10 +170,10 @@ def test_no_cliques_leaves_the_shifted_costs_unset():
 
 
 def test_rows_on_an_ill_conditioned_pool_get_the_full_doubles():
-    """Edge: on a pool with costs near 1e8 (paths at large levels) and clique duals near 1e-8, the restricted
-    computation gives the full one's doubles."""
-    pool, _, _ = _setup(5, 10, 2, levels=1e8)
-    assert float(np.abs(pool.cost_lo).max()) > 1e6
+    """Edge: on a pool with costs up to 9e9 (paths scaled by 1e4; the scorer centres them, so levels alone cancel)
+    and clique duals near 1e-8, the restricted computation gives the full one's doubles."""
+    pool, _, _ = _setup(5, 10, 2, mult=1e4)
+    assert float(np.abs(pool.cost_lo).max()) > 1e9
     rng = np.random.default_rng(2)
     cl = _cliques(pool, rng, 10)
     mu = rng.uniform(0, 1e-8, size=len(cl))
@@ -145,13 +185,13 @@ def test_rows_on_an_ill_conditioned_pool_get_the_full_doubles():
 
 @settings(max_examples=60, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(seed=st.integers(0, 10**6), n=st.integers(4, 10), Q=st.integers(1, 3), ncl=st.integers(0, 12),
-       frac=st.floats(0.0, 1.0), scale=st.sampled_from([1e-12, 1.0, 1e8]), levels=st.sampled_from([5.0, 1e8]))
-def test_property_restricted_shifted_costs_are_the_full_ones_on_the_rows(seed, n, Q, ncl, frac, scale, levels):
-    """Property: over pools, cliques, dual scales (1e-12 to 1e8), path levels and row sets, the restricted shifted
+       frac=st.floats(0.0, 1.0), scale=st.sampled_from([1e-12, 1.0, 1e8]), mult=st.sampled_from([1.0, 1e4]))
+def test_property_restricted_shifted_costs_are_the_full_ones_on_the_rows(seed, n, Q, ncl, frac, scale, mult):
+    """Property: over pools, cliques, dual scales (1e-12 to 1e8), path scales (costs up to 1e9) and row sets, the restricted shifted
     costs are the full computation's doubles on the rows and minus infinity elsewhere."""
-    pool, _, _ = _setup(seed, n, Q, T=8, levels=levels)
-    if len(pool) < 2:
+    if not columns.feasible(n, Q, 1):
         return
+    pool, _, _ = _setup(seed, n, Q, T=8, mult=mult)
     rng = np.random.default_rng(seed)
     cl = _cliques(pool, rng, ncl)
     mu = rng.uniform(0, scale, size=len(cl))
@@ -161,6 +201,24 @@ def test_property_restricted_shifted_costs_are_the_full_ones_on_the_rows(seed, n
     rest = np.ones(len(pool), bool)
     rest[rows] = False
     assert np.all(part[rest] == -np.inf)
+
+
+@settings(max_examples=60, deadline=None)
+@given(size=st.integers(0, 60), data=st.data())
+def test_property_a_row_lookup_is_the_full_array_it_stands_for(size, data):
+    """Property: over sizes, row sets in any order and queries (index arrays with repeats, masks), a row lookup
+    returns what the full array, minus infinity off its rows, returns."""
+    rows = np.array(data.draw(st.lists(st.integers(0, max(size - 1, 0)), unique=True, max_size=size)) if size else [],
+                    dtype=np.int64)
+    values = np.array(data.draw(st.lists(st.floats(-1e9, 1e9), min_size=rows.size, max_size=rows.size)), dtype=float)
+    look = columns._Rows(rows, values, size)
+    full = np.full(size, -np.inf)
+    full[rows] = values
+    idx = np.array(data.draw(st.lists(st.integers(0, max(size - 1, 0)), max_size=20)) if size else [], dtype=np.int64)
+    assert np.array_equal(look[idx], full[idx])
+    mask = np.array(data.draw(st.lists(st.booleans(), min_size=size, max_size=size)), dtype=bool)
+    assert np.array_equal(look[mask], full[mask])
+    assert np.array_equal(np.asarray(look), full)
 
 
 @settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.too_slow])
