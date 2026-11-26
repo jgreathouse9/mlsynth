@@ -107,11 +107,14 @@ def test_a_capped_proof_from_the_quick_design_leaves_the_mip_loop_and_is_not_rep
 
 def test_with_no_quick_design_the_first_mip_comes_before_the_proof(monkeypatch):
     """Unit: a quick search that stops before finding any design leaves the first MIP to supply the proof's
-    incumbent, as before."""
+    incumbent, as before. The first MIP's window is one group and the seed groups, so its design is not the optimum
+    and the loop goes on to the proof."""
     n, Q = 14, 3
     Y, idx = _panel(13, n), np.arange(n)
     monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
+    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
+    monkeypatch.setattr(columns, "FIRST_MIN", 1)
     log = _Log(monkeypatch.setattr)
     _, d = columns.solve_exact(idx, Y, Q, solve=log.solve)
     assert len(log.quick[0]["rows"]) == 0
