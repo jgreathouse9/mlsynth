@@ -279,7 +279,9 @@ def test_the_quick_search_is_capped_by_the_smaller_limit(monkeypatch):
 
 
 def test_the_loop_ends_at_the_first_mip_without_a_second_search_when_that_mip_proves_it(monkeypatch):
-    """Edge: a first MIP that holds every group needs no proof search after it."""
+    """Edge: a first MIP that holds every group needs no proof search after it. The start is held to no node, so the
+    quick search holds no design and the proof does not run before the MIP either."""
+    monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
     monkeypatch.setattr(columns, "FIRST_MIN", 10**6)               # the first MIP holds every group
     seen, real = [], cover.search

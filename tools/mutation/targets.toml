@@ -24387,12 +24387,6 @@ test-command = "python -m pytest mlsynth/tests/test_pangeo_second_search.py -q -
 timeout = 600.0
 
   [[target.mutant]]
-  id = "the-second-search-starts-from-the-mip"
-  find = "            z_from, rows_from = _incumbent(pool, [mip_rows, quick_rows])"
-  replace = "            z_from, rows_from = _incumbent(pool, [mip_rows])"
-  models = "the proof after the first MIP started from that MIP's design whatever the quick search held: 920 against 1.10 on a 36-geo Q = 3 arm, a margin that keeps nearly every group"
-
-  [[target.mutant]]
   id = "the-quick-design-is-forgotten"
   find = "        quick_rows = np.asarray(found[\"rows\"], dtype=np.int64)\n"
   replace = "        pass\n"
@@ -24505,3 +24499,27 @@ timeout = 600.0
   find = "SEARCH_NODE_LIMIT = 200_000_000"
   replace = "SEARCH_NODE_LIMIT = 1_500_000"
   models = "the proof after the first MIP capped at 1.5 million nodes, so a 40-geo Q = 3 arm goes to the MIP loop, whose fifth MIP passed 1,800 s"
+
+[[target]]
+name = "pangeo-quick-proof"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_quick_proof.py mlsynth/tests/test_pangeo_second_search.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-quick-design-waits-for-the-first-mip"
+  find = "        if quick_rows.size:"
+  replace = "        if False:"
+  models = "the proof held back until after the first MIP, whose window of groups that cannot sit together gives a design far above the quick search's (550.7 against 1.345 on a 40-geo Q = 3 arm): 7 s and a HiGHS solve spent before the proof starts from the quick design anyway"
+
+  [[target.mutant]]
+  id = "the-proof-runs-again-after-the-first-mip"
+  find = " and \"second_search\" not in info:"
+  replace = ":"
+  models = "a proof capped at its budget run a second time after the first MIP, doubling the worst case"
+
+  [[target.mutant]]
+  id = "the-quick-proof-is-reported-as-the-first-mips"
+  find = "                info.update(search=\"proved\", search_start=\"quick_design\")"
+  replace = "                info.update(search=\"proved\", search_start=\"first_mip\")"
+  models = "a design proved from the quick search's design reported as proved after a first MIP that never ran"
