@@ -49,6 +49,8 @@ from typing import Optional
 
 import numpy as np
 
+from ...exceptions import MlsynthConfigError
+
 try:  # numba is the optional ``fast`` extra; without it the search is skipped and the MIP loop runs
     from numba import njit
     _NUMBA = True
@@ -77,6 +79,43 @@ _U = 2.0 ** -53
 #: The underflow unit, the smallest positive subnormal: a product's absolute error below the normal range (Rump 2010,
 #: eq. 2.3; see :mod:`.columns`).
 _ETA = 2.0 ** -1074
+
+
+#: The progress array (:func:`new_progress`) a caller may pass to :func:`search` to watch it run: its slots, by
+#: index. The search writes the per-search slots every ``PROGRESS_EVERY`` nodes, from compiled code that releases
+#: the GIL, so another thread can read them while it runs; it writes them all when it ends. Nothing is printed, and
+#: the result does not depend on the array.
+P_SEARCHES = 0      # searches started on this array
+P_NODES = 1         # groups placed by the current (or last) search
+P_TOTAL = 2         # groups placed by every search on this array
+P_INCUMBENT = 3     # the current search's incumbent upper bound (inf before a design)
+P_DEPTH = 4         # the depth of the node last written
+P_ROOT_DONE = 5     # the root's branches started
+P_ROOT_TOTAL = 6    # the root's branches
+P_LOWEST = 7        # the lowest leaf lower bound seen (when the search ends, its ``lower``)
+P_DONE = 8          # 1 once the current search has ended, 0 while it runs
+PROGRESS_SLOTS = 9
+PROGRESS_EVERY = 4096
+
+
+def new_progress() -> np.ndarray:
+    """A progress array for :func:`search`: counts at 0, no incumbent and no leaf yet."""
+    prog = np.zeros(PROGRESS_SLOTS, dtype=np.float64)
+    prog[P_INCUMBENT] = np.inf
+    prog[P_LOWEST] = np.inf
+    return prog
+
+
+def _check_progress(progress) -> None:
+    """Refuse anything but a writable, contiguous, one-dimensional float64 array of PROGRESS_SLOTS doubles."""
+    if progress is None:
+        return
+    if not (isinstance(progress, np.ndarray) and progress.dtype == np.float64 and progress.ndim == 1
+            and progress.size == PROGRESS_SLOTS and progress.flags.c_contiguous and progress.flags.writeable):
+        raise MlsynthConfigError(
+            "progress must be a writable, contiguous one-dimensional float64 array of "
+            f"{PROGRESS_SLOTS} doubles (cover.new_progress()); got {type(progress).__name__}"
+            + (f" of dtype {progress.dtype}, shape {progress.shape}" if isinstance(progress, np.ndarray) else ""))
 
 
 def _gamma(k: int) -> float:
@@ -136,8 +175,19 @@ def _threshold(best_up, muS):  # pragma: no cover - compiled; checked through se
 
 
 @njit(cache=_CACHE)
+def _report(prog, nodes, base, best_up, depth, root_done, root_total):  # pragma: no cover - compiled
+    prog[P_NODES] = nodes
+    prog[P_TOTAL] = base + nodes
+    prog[P_INCUMBENT] = best_up
+    prog[P_DEPTH] = depth
+    prog[P_ROOT_DONE] = root_done
+    prog[P_ROOT_TOTAL] = root_total
+
+
+@njit(cache=_CACHE, nogil=True)
 def _cover(n, W, rows, size, lo, up, tlo, pisum, gptr, gcols, S0, absA0, sm, k, Q, best_up, g2,
-           node_limit, unc, P0, R0, T0, kptr, kmem, mu, gkptr, gk, muS, gK, shifted):  # pragma: no cover - compiled
+           node_limit, unc, P0, R0, T0, kptr, kmem, mu, gkptr, gk, muS, gK, shifted,
+           prog):  # pragma: no cover - compiled
     """Depth-first search over exact covers. Returns (status, nodes, best_up, lowest, best_path).
 
     ``lo`` are the (shifted) cost lower bounds the node bound sums, ``tlo`` the true ones the leaves' lower bounds
@@ -145,8 +195,10 @@ def _cover(n, W, rows, size, lo, up, tlo, pisum, gptr, gcols, S0, absA0, sm, k, 
     ``P0`` is ``T0``, so the running sum at a leaf is the true-cost sum, the same numbers added in the same order,
     and the leaf reads it; summing the path again at every leaf cost 22% of the search's time on a 32-geo arm. Cliques ``kptr``/``kmem`` (local rows) with duals ``mu`` are
     credited at a node with no chosen member (``gkptr``/``gk`` list each row's cliques) and no member that fits;
-    nodes are pruned at the incumbent plus ``muS``."""
+    nodes are pruned at the incumbent plus ``muS``. ``prog`` receives the counts every PROGRESS_EVERY nodes
+    (:func:`new_progress`)."""
     maxd = n // 2 + 1
+    base = prog[P_TOTAL]
     Ud = np.zeros((maxd + 1, W), np.uint64)
     Pd = np.zeros(maxd + 1)
     Rd = np.zeros(maxd + 1)
@@ -185,6 +237,7 @@ def _cover(n, W, rows, size, lo, up, tlo, pisum, gptr, gcols, S0, absA0, sm, k, 
         return 0, 0, best_up, lowest, best_path
     Gd[0] = g0
     Kd[0] = gptr[g0]
+    root_total = gptr[g0 + 1] - gptr[g0]
     depth = 0
     while depth >= 0:
         if nK > 0 and last[depth] >= 0:      # the previous sibling's cliques are no longer chosen
@@ -204,6 +257,8 @@ def _cover(n, W, rows, size, lo, up, tlo, pisum, gptr, gcols, S0, absA0, sm, k, 
         if nodes > node_limit:
             status = 1
             break
+        if nodes % PROGRESS_EVERY == 0:
+            _report(prog, nodes, base, best_up, depth, Kd[0] - gptr[g0], root_total)
         if nK > 0:
             for q in range(gkptr[col], gkptr[col + 1]):
                 hit[gk[q]] += 1
@@ -329,7 +384,8 @@ def _clique_arrays(keep, fixed, cliques, mu):
             gkptr, gk)
 
 
-def search(pool, root, keep, k: int, Q: int, best_up: float, node_limit: int, fixed=()) -> CoverSearch:
+def search(pool, root, keep, k: int, Q: int, best_up: float, node_limit: int, fixed=(),
+           progress: Optional[np.ndarray] = None) -> CoverSearch:
     """Search the exact covers of the arm by the pool rows ``keep`` for one whose upper bound is below ``best_up``,
     with at least ``k`` groups, placing at most ``node_limit`` groups. ``root`` holds the duals: ``pi``, ``sigma``
     and rigorous lower bounds on every pool row's ``reduced_costs`` (:func:`.columns.root_lp`'s, or a residual
@@ -341,7 +397,30 @@ def search(pool, root, keep, k: int, Q: int, best_up: float, node_limit: int, fi
     and lower bounds ``cost_lo`` on the shifted costs. The node bound then sums the shifted costs, a node is pruned
     when the bound reaches ``best_up`` plus the sum of ``mu``, and every clique with no chosen member and no member
     that still fits adds its dual, since its slack is 1 in every completion. Leaves' lower bounds and the incumbent
-    use the true cost bounds."""
+    use the true cost bounds.
+
+    ``progress`` (:func:`new_progress`) receives the search's counts while it runs and when it ends, and adds its
+    nodes to the array's total; the result does not depend on it."""
+    _check_progress(progress)
+    prog = new_progress() if progress is None else progress
+    base = float(prog[P_TOTAL])
+    prog[P_SEARCHES] += 1.0
+    prog[P_DONE] = 0.0
+    prog[P_NODES] = 0.0
+    prog[P_INCUMBENT] = float(best_up)
+    prog[P_LOWEST] = np.inf
+    prog[P_DEPTH] = prog[P_ROOT_DONE] = prog[P_ROOT_TOTAL] = 0.0
+    res = _search(pool, root, keep, k, Q, best_up, node_limit, fixed, prog)
+    prog[P_NODES] = float(res.nodes)
+    prog[P_TOTAL] = base + float(res.nodes)
+    prog[P_INCUMBENT] = res.upper
+    prog[P_LOWEST] = res.lower
+    prog[P_DONE] = 1.0
+    return res
+
+
+def _search(pool, root, keep, k, Q, best_up, node_limit, fixed, prog) -> CoverSearch:
+    """:func:`search`'s work, with ``prog`` the array the kernel writes."""
     keep = np.asarray(keep, dtype=np.int64)
     fixed = np.asarray(fixed, dtype=np.int64)
     n = int(pool.unit_indices.size)
@@ -393,7 +472,7 @@ def search(pool, root, keep, k: int, Q: int, best_up: float, node_limit: int, fi
     W = -(-n // 64)
     status, nodes, upper, lowest, path = _cover(
         n, W, rows, size, lo, up, tlo, pisum, gptr, gcols, S0, absA0, sm, k_rem, int(Q), float(best_up), g2,
-        int(node_limit), unc, P0, R0, T0, kptr, kmem, mu, gkptr, gk, float(muS), gK, has_shift)
+        int(node_limit), unc, P0, R0, T0, kptr, kmem, mu, gkptr, gk, float(muS), gK, has_shift, prog)
     found = keep[path[path >= 0]]
     if found.size and fixed.size:
         found = np.concatenate([fixed, found])
@@ -401,10 +480,10 @@ def search(pool, root, keep, k: int, Q: int, best_up: float, node_limit: int, fi
                        float(min(upper, lowest)), int(nodes))
 
 
-def start_design(pool, root, k: int, Q: int) -> CoverSearch:
+def start_design(pool, root, k: int, Q: int, progress: Optional[np.ndarray] = None) -> CoverSearch:
     """A first design: a search capped at ``START_NODE_LIMIT`` nodes over the ``START_PER_UNIT`` n groups of least
-    reduced cost."""
+    reduced cost, reporting to ``progress`` as :func:`search` does."""
     rc = np.asarray(root.reduced_costs, dtype=float)
     count = min(rc.size, START_PER_UNIT * int(pool.unit_indices.size))
     small = np.flatnonzero(rc <= np.partition(rc, count - 1)[count - 1])
-    return search(pool, root, small, k, Q, np.inf, START_NODE_LIMIT)
+    return search(pool, root, small, k, Q, np.inf, START_NODE_LIMIT, progress=progress)

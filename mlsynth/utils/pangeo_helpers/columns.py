@@ -650,19 +650,19 @@ def root_lp(pool: ColumnPool, k: int) -> RootLP:
     return RootLP(pi, max(sigma, 0.0), rc, bound, value / scale, rounds, int(cols.size))
 
 
-def _search(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int) -> dict:
+def _search(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int, progress=None) -> dict:
     """The start design, then the proof search over the groups its upper bound z cannot exclude (reduced cost at
     most z - L). Returns the status, the best design's rows, the lower bound when proved, the nodes, the groups
-    searched and the seconds."""
+    searched and the seconds. Both searches report to ``progress`` (:func:`.cover.new_progress`)."""
     t = time.perf_counter()
-    start = cover.start_design(pool, root, k, Q)
+    start = cover.start_design(pool, root, k, Q, progress=progress)
     if start.rows.size:
         z_up = sum((Fraction(float(pool.cost_up[j])) for j in start.rows), Fraction(0))
         best = _up(z_up)
         keep = np.flatnonzero(root.reduced_costs <= _up(z_up - Fraction(root.bound)))
     else:
         best, keep = np.inf, np.arange(len(pool))
-    res = cover.search(pool, root, keep, k, Q, best, node_limit)
+    res = cover.search(pool, root, keep, k, Q, best, node_limit, progress=progress)
     rows = res.rows if res.rows.size else start.rows
     return dict(search=res.status, rows=rows, lower=res.lower, nodes=start.nodes + res.nodes, kept=keep.size,
                 seconds=time.perf_counter() - t)
@@ -990,13 +990,14 @@ def _branch_bounds(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, Q: 
 
 
 def _search_reopt(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up: float,
-                  node_limit: int) -> "cover.CoverSearch":
+                  node_limit: int, progress=None) -> "cover.CoverSearch":
     """The proof search with duals re-optimised one level down: a branch whose residual bound reaches the
     incumbent is pruned, and each other branch is searched with its residual LP's duals (:func:`_branches`), the
     incumbent and the node budget carried from branch to branch. Measured from the optimum at Q = 2, it placed
     0.88 million nodes against 2.89 million at 40 geos and 6.15 million against 10.35 million at 50; a second level
     halved the nodes again but cost 1,900 LPs and lost. Returns a :class:`.cover.CoverSearch`: when proved, its
-    lower bound holds for every design over ``keep``."""
+    lower bound holds for every design over ``keep``. Each branch's search reports to ``progress``, whose total
+    also counts each branch's fixed group, as the node count does."""
     keep = np.asarray(keep, dtype=np.int64)
     if keep.size == 0:
         return cover.CoverSearch("proved", keep, float(best_up), float(best_up), 0)
@@ -1014,8 +1015,10 @@ def _search_reopt(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up:
         if nodes + 1 > node_limit:                    # the fixed group is a node of its own
             status = "node_limit"
             break
-        res = cover.search(pool, duals, left, k, Q, best, node_limit - nodes - 1, fixed=(j,))
+        res = cover.search(pool, duals, left, k, Q, best, node_limit - nodes - 1, fixed=(j,), progress=progress)
         nodes += res.nodes + 1
+        if progress is not None:
+            progress[cover.P_TOTAL] += 1.0
         if res.rows.size and res.upper < best:
             best, rows_best = res.upper, res.rows
         lowest = min(lowest, res.lower)
@@ -1026,7 +1029,7 @@ def _search_reopt(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up:
 
 
 def _search_gated(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up: float,
-                  node_limit: int) -> "cover.CoverSearch":
+                  node_limit: int, progress=None) -> "cover.CoverSearch":
     """The second proof search: the plain search (:func:`.cover.search` with the root's duals) for at most
     :func:`_reopt_budget` nodes, then, if that does not prove, the re-optimised search (:func:`_search_reopt`) with
     the rest of the node limit and the better incumbent. Re-optimisation solves one LP per branch, so it pays when
@@ -1035,30 +1038,31 @@ def _search_gated(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up:
     at, 20% above and twice the optimum, the plain stage proved in 0.01, 0.05 and 0.52 s, where re-optimisation
     alone took 0.74, 4.3 and 77 s; on three 40-market arms at Q = 2, started from the first MIP's design, the gated
     search proved in 2.8, 3.4 and 1.6 s, where the plain search alone took 2.9, 3.8 and 2.1 s. Returns a
-    :class:`.cover.CoverSearch` whose ``stage`` says which stage ended it."""
+    :class:`.cover.CoverSearch` whose ``stage`` says which stage ended it. Both stages report to ``progress``."""
     keep = np.asarray(keep, dtype=np.int64)
     budget = min(_reopt_budget(pool, keep), int(node_limit))
     best, rows, nodes = float(best_up), np.zeros(0, np.int64), 0
     if budget > 0:
-        first = cover.search(pool, root, keep, k, Q, best, budget)
+        first = cover.search(pool, root, keep, k, Q, best, budget, progress=progress)
         if first.status == "proved" or budget >= node_limit:
             return replace(first, stage="plain")
         nodes = first.nodes
         if first.rows.size and first.upper < best:
             best, rows = first.upper, first.rows
-    rest = _search_reopt(pool, root, keep, k, Q, best, max(int(node_limit) - nodes, 0))
+    rest = _search_reopt(pool, root, keep, k, Q, best, max(int(node_limit) - nodes, 0), progress=progress)
     if rest.rows.size:
         rows = rest.rows
     return cover.CoverSearch(rest.status, rows, rest.upper, rest.lower, nodes + rest.nodes, stage="reoptimised")
 
 
 def _search_from(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int, z_up: Fraction,
-                 rows: Sequence[int]) -> dict:
+                 rows: Sequence[int], progress=None) -> dict:
     """The proof search over the groups a design's upper bound z_up cannot exclude, with that design as the
-    incumbent (:func:`_search_gated`): returned as the best design when the search finds none cheaper."""
+    incumbent (:func:`_search_gated`): returned as the best design when the search finds none cheaper. Its
+    searches report to ``progress``."""
     t = time.perf_counter()
     keep = np.flatnonzero(root.reduced_costs <= _up(z_up - Fraction(root.bound)))
-    res = _search_gated(pool, root, keep, k, Q, _up(z_up), node_limit)
+    res = _search_gated(pool, root, keep, k, Q, _up(z_up), node_limit, progress=progress)
     found = res.rows if res.rows.size else np.asarray(rows, dtype=np.int64)
     return dict(search=res.status, rows=found, lower=res.lower, nodes=res.nodes, kept=keep.size, stage=res.stage,
                 seconds=time.perf_counter() - t)
@@ -1070,7 +1074,7 @@ def solve_exact(
     cov_scales: Optional[np.ndarray] = None, cov_weights: Optional[np.ndarray] = None,
     unit_weights: Optional[np.ndarray] = None, min_pairs: int = 1, backend: str = "auto",
     mip_rel_gap: float = 0.0, mip_abs_gap: float = 0.0, solve: Optional[Callable] = None,
-    search_node_limit: Optional[int] = None,
+    search_node_limit: Optional[int] = None, progress: Optional[np.ndarray] = None,
 ):
     """The exact-cover design of one arm: every group scored (:func:`score_columns`), the root bound
     (:func:`root_lp`), and the MIP (``solve``, :func:`.mip.solve_partition` by default) over the groups the bound
@@ -1088,13 +1092,17 @@ def solve_exact(
     to the design's cost, as the MIP path reports it (absolute when that cost is 0).
     A search stopped by the cap leaves the MIP loop to run as without it. ``search`` reports which happened
     (``"proved"``, ``"node_limit"``, ``"off"``, or ``"unavailable"`` without numba) and ``search_nodes`` the groups
-    the search placed."""
+    the search placed.
+
+    ``progress`` (:func:`.cover.new_progress`) receives every search's counts while it runs; its total ends equal to
+    ``search_nodes``. Nothing is printed: a caller that wants to watch reads the array from another thread."""
     if search_node_limit is None:
         search_node_limit = cover.SEARCH_NODE_LIMIT
     if isinstance(search_node_limit, bool) or not isinstance(search_node_limit, (int, np.integer)) \
             or search_node_limit < 0:
         raise MlsynthConfigError(
             f"search_node_limit must be a non-negative integer (0 skips the search); got {search_node_limit!r}.")
+    cover._check_progress(progress)
     solve = mip.solve_partition if solve is None else solve
     kw = dict(return_diagnostics=True, backend=backend, mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap)
     t0 = time.perf_counter()
@@ -1142,7 +1150,7 @@ def solve_exact(
         info["search"] = "unavailable"   # pragma: no cover - the suite runs with numba installed
     elif search_node_limit > 0:
         quick = min(int(cover.SEARCH_QUICK_LIMIT), int(search_node_limit))
-        found = _search(pool, root, k, max_size, quick)
+        found = _search(pool, root, k, max_size, quick, progress=progress)
         info.update(search=found["search"], search_nodes=found["nodes"])
         if found["search"] == "proved":
             info["search_start"] = "staged"
@@ -1171,7 +1179,8 @@ def solve_exact(
         if solves == 1 and info["search"] == "node_limit":
             # the proof search again, from the first MIP's design: its upper bound sets the margin
             found = _search_from(pool, root, k, max_size, int(search_node_limit), best[2],
-                                 [column_index(tuple(sorted(pos[int(u)] for u in c["members"])), n) for c in best[0]])
+                                 [column_index(tuple(sorted(pos[int(u)] for u in c["members"])), n) for c in best[0]],
+                                 progress=progress)
             info["search_nodes"] += found["nodes"]
             info["second_search"] = found["stage"]
             if found["search"] == "proved":
