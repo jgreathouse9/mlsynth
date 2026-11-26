@@ -23653,7 +23653,7 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-fixed-groups-cost-nothing"
-  find = "    P0 = float(shifted[fixed].sum()) if fixed.size else 0.0"
+  find = "    P0 = float(np.asarray(shifted[fixed], dtype=float).sum()) if fixed.size else 0.0"
   replace = "    P0 = 0.0"
   models = "a search below a fixed group whose bound leaves out that group's cost: the costs are nonnegative, so the bound stays valid, but it prunes nothing the group's cost would and searches the whole subtree (42,735 nodes against 129 at 12 geos below a group whose cost reaches the incumbent)"
 
