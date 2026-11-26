@@ -836,7 +836,8 @@ def _bound_from(pool: ColumnPool, cols: np.ndarray, units: np.ndarray, kk: int, 
     rc = _rc_lower(pool, pi, sigma, lo, rows=cols if restrict else None)
     neg = np.minimum(rc[cols], 0.0)
     s2 = float(neg.sum())
-    e2 = _gamma(max(neg.size, 1)) * float(np.abs(neg).sum()) * (1.0 + _gamma(max(neg.size, 1)))
+    g = _gamma(max(neg.size, 1))
+    e2 = (g * float(np.abs(neg).sum()) + _ETA) * (1.0 + g) + _ETA     # as lagrangian_bound: two products
     s1 = math.fsum(float(x) for x in pi[units])
     L = Fraction(s1) - abs(Fraction(s1)) * Fraction(_U) + Fraction(sigma) * kk + Fraction(s2) - Fraction(e2) \
         - sum((Fraction(float(m)) for m in mu), Fraction(0))

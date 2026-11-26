@@ -23800,6 +23800,14 @@ timeout = 1200.0
   models = "a design the plain stage found not passed to the re-optimised stage as its incumbent"
 
   [[target.mutant]]
+  id = "the-branch-error-ignores-underflow"
+  find = "    e2 = (g * float(np.abs(neg).sum()) + _ETA) * (1.0 + g) + _ETA     # as lagrangian_bound: two products"
+  replace = "    e2 = g * float(np.abs(neg).sum()) * (1.0 + g)"
+  models = "a branch's Lagrangian bound with its summation error formed by two products that underflow"
+  expected = "survived"
+  accepted-because = "GUARD, not a cause, as pangeo-cost-range/the-lagrangian-error-ignores-underflow: the margin u times the sum falls below the products' eta only when the sum of negative reduced costs lies in [2^-1022, 2^-1021), and a bound tight to within eta there is out of reach of any test built on panels."
+
+  [[target.mutant]]
   id = "the-child-mask-is-not-cleared"
   find = "        in_left[left] = False\n"
   replace = "        pass\n"
