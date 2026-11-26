@@ -601,27 +601,27 @@ scoring and LP included, with the same optimum from both:
      - MIPs only
    * - 3
      - 24
-     - 0.9 s, proved
+     - 0.6 s, proved
      - 21.1 s
    * - 3
      - 28
-     - 3.7 s, proved
+     - 4.5 s, proved
      - 46.8 s
    * - 3
      - 32
-     - 17.7 s, proved
+     - 15.0 s, proved
      - 75.8 s
    * - 2
      - 30
-     - 0.2 s, proved
+     - 0.1 s, proved
      - 5.6 s
    * - 2
      - 40
-     - 26.9 s, capped
+     - 15.4 s, proved after the first MIP
      - 18.7 s
    * - 2
      - 50
-     - 35.6 s, capped
+     - 38.0 s, capped
      - 27.0 s
 
 Its bound does not tighten as it goes deeper, where HiGHS re-solves the LP and
@@ -629,7 +629,10 @@ adds cuts at every node, so it loses where many designs lie between the bound
 and the optimum. At :math:`Q=2` and 50 geos the root bound is 8.4% under the
 optimum, and the proof needed 10 million nodes even when started from the
 optimum (32.8 s). The node cap bounds what such an arm costs before the MIPs
-take over, 8 to 9 s on the two capped arms above. A capped search does not
+take over: on that arm the search before the first MIP and the proof after it
+place 3.2 million nodes in all and fail, 5 s more than a single capped search.
+At 40 geos the proof after the first MIP succeeds, where the search alone is
+capped and the whole solve, MIPs included, takes 25 s. A capped search does not
 pass its design to the MIPs: on the 50-geo arm that made HiGHS take 58 to 64 s
 over the same pairs, against 26 to 29 s without it.
 
