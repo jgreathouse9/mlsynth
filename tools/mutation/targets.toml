@@ -20917,8 +20917,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-second-search-forgets-its-incumbent"
-  find = "            found = _search_from(pool, root, k, max_size, int(search_node_limit), best[2],"
-  replace = "            found = _search_from(pool, root, k, max_size, int(search_node_limit), best[2] * 2,"
+  find = "            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,"
+  replace = "            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from * 2, rows_from,"
   models = "the proof after the first MIP started from twice that design's upper bound, so its margin keeps groups the design already excludes and the search has to rediscover the design"
 
   [[target.mutant]]
@@ -23833,8 +23833,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-budget-is-the-kept-groups"
-  find = "    return int(sum(int((~inc[:, inc[a]].any(axis=1)).sum()) for a in np.flatnonzero(inc[:, g0])))"
-  replace = "    return int(keep.size)"
+  find = "        total += int((~inc[:, inc[a]].any(axis=1)).sum())\n"
+  replace = "        total = int(keep.size)\n"
   models = "the plain stage's budget taken as the kept groups, not the children's columns"
 
   [[target.mutant]]
@@ -24379,3 +24379,51 @@ timeout = 600.0
   find = "    start = cover.start_design(pool, root, k, Q, progress=progress)"
   replace = "    start = cover.start_design(pool, root, k, Q)"
   models = "the start design's search run without the array, so the total misses its nodes"
+
+[[target]]
+name = "pangeo-second-search-incumbent"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_second_search.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-second-search-starts-from-the-mip"
+  find = "            z_from, rows_from = _incumbent(pool, [mip_rows, quick_rows])"
+  replace = "            z_from, rows_from = _incumbent(pool, [mip_rows])"
+  models = "the proof after the first MIP started from that MIP's design whatever the quick search held: 920 against 1.10 on a 36-geo Q = 3 arm, a margin that keeps nearly every group"
+
+  [[target.mutant]]
+  id = "the-quick-design-is-forgotten"
+  find = "        quick_rows = np.asarray(found[\"rows\"], dtype=np.int64)\n"
+  replace = "        pass\n"
+  models = "the quick search's design dropped once the search is capped, so the second search can only start from the first MIP's"
+
+  [[target.mutant]]
+  id = "the-incumbent-is-the-dearer-design"
+  find = "        if best_z is None or z < best_z:"
+  replace = "        if best_z is None or z > best_z:"
+  models = "the dearer of the designs taken as the incumbent"
+
+  [[target.mutant]]
+  id = "a-tie-takes-the-later-design"
+  find = "        if best_z is None or z < best_z:"
+  replace = "        if best_z is None or z <= best_z:"
+  models = "a tie resolved to the later design, so the quick search's design displaces an equal MIP design and the order the caller lists them in stops meaning anything"
+
+  [[target.mutant]]
+  id = "an-empty-design-is-an-incumbent"
+  find = "        if len(rows) == 0:\n            continue\n"
+  replace = "        if False:\n            continue\n"
+  models = "an empty design (a quick search that found none) taken as an incumbent of cost 0, which every design exceeds"
+
+  [[target.mutant]]
+  id = "the-budget-ignores-its-cap"
+  find = "        if cap is not None and total >= cap:\n            return int(cap)\n"
+  replace = "        pass\n"
+  models = "the plain stage's budget counted over every first-level branch, which over a nearly whole pool runs past half an hour for a number the gate then cuts to its node limit"
+
+  [[target.mutant]]
+  id = "the-gate-asks-for-the-full-budget"
+  find = "    budget = min(_reopt_budget(pool, keep, cap=int(node_limit)), int(node_limit))"
+  replace = "    budget = min(_reopt_budget(pool, keep), int(node_limit))"
+  models = "the gated search asking for the uncapped budget, the hang the cap exists to remove"

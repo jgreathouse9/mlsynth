@@ -272,7 +272,7 @@ def test_the_proof_after_the_first_mip_reoptimises_the_duals(monkeypatch):
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
     monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
     monkeypatch.setattr(columns, "FIRST_MIN", 1)
-    monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_: 0)
+    monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_, cap=None: 0)
     calls, real = [], columns._search_reopt
 
     def rec(*a, **kw):

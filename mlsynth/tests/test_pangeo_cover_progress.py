@@ -143,7 +143,7 @@ def test_the_gated_search_reports_both_stages_through_the_array(monkeypatch):
     search's node count, both stages included."""
     _, _, pool, k, root = _setup(9, 14, 2)
     start = cover.start_design(pool, root, k, 2)
-    monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_: 3)
+    monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_, cap=None: 3)
     prog = cover.new_progress()
     res = columns._search_gated(pool, root, np.arange(len(pool)), k, 2, start.upper * 1.5, 10**7, progress=prog)
     assert res.stage == "reoptimised"

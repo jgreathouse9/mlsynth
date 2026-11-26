@@ -227,7 +227,7 @@ def test_when_the_plain_search_does_not_prove_the_rest_is_reoptimised(monkeypatc
     Y, idx, pool, k, root = _setup(9, 14, 2)
     _, d_ref = _reference(idx, Y, 2)
     z = d_ref["objective_value"]
-    monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_: 3)
+    monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_, cap=None: 3)
     seen, real = [], columns._search_reopt
 
     def rec(pool_, root_, keep_, k_, Q_, best_, limit_, **kw):
@@ -258,7 +258,7 @@ def test_a_design_the_plain_stage_found_is_kept_when_the_reoptimised_stage_finds
     budget = next(b for b in range(1, 10**6)
                   if (lambda r: r.status == "node_limit" and r.rows.size
                       and r.upper <= z * (1 + 1e-9))(cover.search(pool, root, keep, k, 2, np.inf, b)))
-    monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_: budget)
+    monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_, cap=None: budget)
     first = cover.search(pool, root, keep, k, 2, np.inf, budget)
     seen, real = [], columns._search_reopt
 
@@ -407,7 +407,7 @@ def test_the_diagnostics_name_the_stage_that_proved(monkeypatch, budget, stage):
     """Integration: an unbounded plain budget proves in the plain stage, and none sends the proof to
     re-optimisation; both prove the optimum."""
     _second_search_setup(monkeypatch)
-    monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_: budget)
+    monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_, cap=None: budget)
     Y = _panel(13, 12)
     _, d = columns.solve_exact(np.arange(12), Y, 3)
     assert d["search_start"] == "first_mip" and d["second_search"] == stage
@@ -431,7 +431,7 @@ def test_property_the_gated_search_proves_the_full_mips_optimum(seed, n, Q, min_
     real = columns._reopt_budget
     try:
         if budget is not None:
-            columns._reopt_budget = lambda pool_, keep_: budget
+            columns._reopt_budget = lambda pool_, keep_, cap=None: budget
         res = columns._search_gated(pool, root, np.arange(len(pool)), k, Q, best, 10**7)
     finally:
         columns._reopt_budget = real
