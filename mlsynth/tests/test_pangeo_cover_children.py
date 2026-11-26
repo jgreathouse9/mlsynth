@@ -230,8 +230,8 @@ def test_when_the_plain_search_does_not_prove_the_rest_is_reoptimised(monkeypatc
     monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_: 3)
     seen, real = [], columns._search_reopt
 
-    def rec(pool_, root_, keep_, k_, Q_, best_, limit_):
-        out = real(pool_, root_, keep_, k_, Q_, best_, limit_)
+    def rec(pool_, root_, keep_, k_, Q_, best_, limit_, **kw):
+        out = real(pool_, root_, keep_, k_, Q_, best_, limit_, **kw)
         seen.append((best_, limit_, out))
         return out
 
@@ -262,9 +262,9 @@ def test_a_design_the_plain_stage_found_is_kept_when_the_reoptimised_stage_finds
     first = cover.search(pool, root, keep, k, 2, np.inf, budget)
     seen, real = [], columns._search_reopt
 
-    def rec(pool_, root_, keep_, k_, Q_, best_, limit_):
+    def rec(pool_, root_, keep_, k_, Q_, best_, limit_, **kw):
         seen.append(best_)
-        return real(pool_, root_, keep_, k_, Q_, best_, limit_)
+        return real(pool_, root_, keep_, k_, Q_, best_, limit_, **kw)
 
     monkeypatch.setattr(columns, "_search_reopt", rec)
     res = columns._search_gated(pool, root, keep, k, 2, np.inf, 10**7)

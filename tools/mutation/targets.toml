@@ -23689,8 +23689,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-branches-search-with-the-root-duals"
-  find = "        res = cover.search(pool, duals, left, k, Q, best, node_limit - nodes - 1, fixed=(j,))"
-  replace = "        res = cover.search(pool, root, left, k, Q, best, node_limit - nodes - 1, fixed=(j,))"
+  find = "        res = cover.search(pool, duals, left, k, Q, best, node_limit - nodes - 1, fixed=(j,), progress=progress)"
+  replace = "        res = cover.search(pool, root, left, k, Q, best, node_limit - nodes - 1, fixed=(j,), progress=progress)"
   models = "the residual LP solved and its duals dropped, so below the first level the search prunes as the plain one does and the re-optimisation buys only the branch bounds"
 
   [[target.mutant]]
@@ -23789,8 +23789,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-reoptimised-stage-gets-the-whole-limit"
-  find = "    rest = _search_reopt(pool, root, keep, k, Q, best, max(int(node_limit) - nodes, 0))"
-  replace = "    rest = _search_reopt(pool, root, keep, k, Q, best, int(node_limit))"
+  find = "    rest = _search_reopt(pool, root, keep, k, Q, best, max(int(node_limit) - nodes, 0), progress=progress)"
+  replace = "    rest = _search_reopt(pool, root, keep, k, Q, best, int(node_limit), progress=progress)"
   models = "the node limit given to each stage in full, so the gated search may place twice it"
 
   [[target.mutant]]
@@ -24277,3 +24277,105 @@ timeout = 1200.0
   find = "    return math.ldexp(1.0, min(30 - e, 1023))"
   replace = "    return math.ldexp(1.0, 30 - e)"
   models = "the visible half of #1170: the power of two 2^(30 - e) overflows once the largest cost is below about 2^-993, and every solve raises OverflowError"
+
+[[target]]
+name = "pangeo-search-progress"
+module-path = "mlsynth/utils/pangeo_helpers/cover.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover_progress.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-gil-is-held"
+  find = "@njit(cache=_CACHE, nogil=True)"
+  replace = "@njit(cache=_CACHE)"
+  models = "the search compiled holding the GIL, so a thread watching the counters sees nothing until the search returns"
+
+  [[target.mutant]]
+  id = "the-counters-are-written-only-at-the-end"
+  find = "        if nodes % PROGRESS_EVERY == 0:\n"
+  replace = "        if False:\n"
+  models = "the kernel never writing while it runs, so the play-by-play is a single line when the search ends"
+
+  [[target.mutant]]
+  id = "the-live-total-forgets-the-earlier-searches"
+  find = "    prog[P_TOTAL] = base + nodes\n"
+  replace = "    prog[P_TOTAL] = nodes\n"
+  models = "the total read mid-search counting only the current search, so a solve's running total drops at each new search"
+
+  [[target.mutant]]
+  id = "the-root-branches-are-not-reported"
+  find = "    prog[P_ROOT_DONE] = root_done\n"
+  replace = "    prog[P_ROOT_DONE] = 0.0\n"
+  models = "the share of the root's branches started never written, the one counter that says how far through the tree a search is"
+
+  [[target.mutant]]
+  id = "the-final-total-forgets-the-earlier-searches"
+  find = "    prog[P_TOTAL] = base + float(res.nodes)\n"
+  replace = "    prog[P_TOTAL] = float(res.nodes)\n"
+  models = "the total left at the last search's nodes when it ends, so a solve's total is not its search_nodes"
+
+  [[target.mutant]]
+  id = "the-search-is-not-counted"
+  find = "    prog[P_SEARCHES] += 1.0\n"
+  replace = "    prog[P_SEARCHES] += 0.0\n"
+  models = "a new search on the array not counted, so a watcher cannot tell one search's counts from the next"
+
+  [[target.mutant]]
+  id = "the-end-is-not-marked"
+  find = "    prog[P_DONE] = 1.0\n"
+  replace = "    prog[P_DONE] = 0.0\n"
+  models = "a finished search still reading as running"
+
+  [[target.mutant]]
+  id = "the-final-incumbent-is-not-written"
+  find = "    prog[P_INCUMBENT] = res.upper\n"
+  replace = "    prog[P_INCUMBENT] = prog[P_INCUMBENT]\n"
+  models = "the incumbent left at the last periodic write, so a search that found its design between writes, or one whose fixed groups are the design, reports the incumbent it started with"
+
+  [[target.mutant]]
+  id = "a-short-array-is-accepted"
+  find = "            and progress.size == PROGRESS_SLOTS and progress.flags.c_contiguous and progress.flags.writeable):"
+  replace = "            and progress.size >= 1 and progress.flags.c_contiguous and progress.flags.writeable):"
+  models = "an array too short for the slots accepted, and the search failing with an IndexError instead of the configuration error"
+
+  [[target.mutant]]
+  id = "a-strided-array-is-accepted"
+  find = "            and progress.size == PROGRESS_SLOTS and progress.flags.c_contiguous and progress.flags.writeable):"
+  replace = "            and progress.size == PROGRESS_SLOTS and progress.flags.writeable):"
+  models = "a strided view accepted, whose writes the caller's buffer receives only at every other slot"
+
+[[target]]
+name = "pangeo-search-progress-solve"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover_progress.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-fixed-group-is-not-in-the-total"
+  find = "            progress[cover.P_TOTAL] += 1.0\n"
+  replace = "            pass\n"
+  models = "each re-optimised branch's fixed group left out of the array's total, so it falls short of search_nodes"
+
+  [[target.mutant]]
+  id = "the-proof-after-the-first-mip-is-not-watched"
+  find = "                                 progress=progress)"
+  replace = "                                 progress=None)"
+  models = "the second search run without the array, so its nodes, often most of a solve's, never show"
+
+  [[target.mutant]]
+  id = "the-reoptimised-stage-is-not-watched"
+  find = "    rest = _search_reopt(pool, root, keep, k, Q, best, max(int(node_limit) - nodes, 0), progress=progress)"
+  replace = "    rest = _search_reopt(pool, root, keep, k, Q, best, max(int(node_limit) - nodes, 0))"
+  models = "the re-optimised stage run without the array, so a gated search's total shows only its plain stage"
+
+  [[target.mutant]]
+  id = "the-quick-search-is-not-watched"
+  find = "        found = _search(pool, root, k, max_size, quick, progress=progress)"
+  replace = "        found = _search(pool, root, k, max_size, quick)"
+  models = "the quick search run without the array"
+
+  [[target.mutant]]
+  id = "the-start-design-is-not-watched"
+  find = "    start = cover.start_design(pool, root, k, Q, progress=progress)"
+  replace = "    start = cover.start_design(pool, root, k, Q)"
+  models = "the start design's search run without the array, so the total misses its nodes"

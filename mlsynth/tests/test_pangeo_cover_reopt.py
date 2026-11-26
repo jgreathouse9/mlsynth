@@ -171,9 +171,9 @@ def test_a_branch_whose_bound_reaches_the_incumbent_is_not_searched(monkeypatch)
     assert pruned                                                     # the fixture has some
     searched, real = [], cover.search
 
-    def rec(pool_, root_, keep_, k_, Q_, best_, limit_, fixed=()):
+    def rec(pool_, root_, keep_, k_, Q_, best_, limit_, fixed=(), **kw):
         searched.append(tuple(fixed))
-        return real(pool_, root_, keep_, k_, Q_, best_, limit_, fixed=fixed)
+        return real(pool_, root_, keep_, k_, Q_, best_, limit_, fixed=fixed, **kw)
 
     monkeypatch.setattr(cover, "search", rec)
     columns._search_reopt(pool, root, np.arange(len(pool)), k, 2, best, 10**7)
@@ -187,9 +187,9 @@ def test_each_branch_is_searched_with_its_own_residual_duals(monkeypatch):
     Y, idx, pool, k, root = _setup(4, 12, 2)
     seen, real = [], cover.search
 
-    def rec(pool_, duals_, keep_, k_, Q_, best_, limit_, fixed=()):
+    def rec(pool_, duals_, keep_, k_, Q_, best_, limit_, fixed=(), **kw):
         seen.append((duals_, tuple(fixed)))
-        return real(pool_, duals_, keep_, k_, Q_, best_, limit_, fixed=fixed)
+        return real(pool_, duals_, keep_, k_, Q_, best_, limit_, fixed=fixed, **kw)
 
     monkeypatch.setattr(cover, "search", rec)
     columns._search_reopt(pool, root, np.arange(len(pool)), k, 2, np.inf, 10**7)
@@ -228,8 +228,8 @@ def test_the_incumbent_carries_from_branch_to_branch(monkeypatch):
     Y, idx, pool, k, root = _setup(9, 12, 2)
     seen, real = [], cover.search
 
-    def rec(pool_, root_, keep_, k_, Q_, best_, limit_, fixed=()):
-        out = real(pool_, root_, keep_, k_, Q_, best_, limit_, fixed=fixed)
+    def rec(pool_, root_, keep_, k_, Q_, best_, limit_, fixed=(), **kw):
+        out = real(pool_, root_, keep_, k_, Q_, best_, limit_, fixed=fixed, **kw)
         seen.append((best_, out.upper))
         return out
 

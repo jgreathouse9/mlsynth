@@ -210,14 +210,14 @@ def test_the_proof_after_the_first_mip_starts_from_its_design(monkeypatch):
     idx = np.arange(14)
     seen, real, real_gated = [], cover.search, columns._search_gated
 
-    def rec(pool, root, keep, k, Q, best_up, node_limit, fixed=()):
+    def rec(pool, root, keep, k, Q, best_up, node_limit, fixed=(), **kw):
         if not len(fixed) and len(seen) < 2:                       # the start and the quick search
             seen.append((len(keep), best_up, node_limit))
-        return real(pool, root, keep, k, Q, best_up, node_limit, fixed=fixed)
+        return real(pool, root, keep, k, Q, best_up, node_limit, fixed=fixed, **kw)
 
-    def rec_gated(pool, root, keep, k, Q, best_up, node_limit):     # the proof after the first MIP
+    def rec_gated(pool, root, keep, k, Q, best_up, node_limit, **kw):     # the proof after the first MIP
         seen.append((len(keep), best_up, node_limit))
-        return real_gated(pool, root, keep, k, Q, best_up, node_limit)
+        return real_gated(pool, root, keep, k, Q, best_up, node_limit, **kw)
 
     monkeypatch.setattr(cover, "search", rec)
     monkeypatch.setattr(columns, "_search_gated", rec_gated)
@@ -264,9 +264,9 @@ def test_the_quick_search_is_capped_by_the_smaller_limit(monkeypatch):
     """Unit: the quick search places at most the smaller of SEARCH_QUICK_LIMIT and search_node_limit."""
     seen, real = [], cover.search
 
-    def rec(pool, root, keep, k, Q, best_up, node_limit):
+    def rec(pool, root, keep, k, Q, best_up, node_limit, **kw):
         seen.append(node_limit)
-        return real(pool, root, keep, k, Q, best_up, node_limit)
+        return real(pool, root, keep, k, Q, best_up, node_limit, **kw)
 
     monkeypatch.setattr(cover, "search", rec)
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 10**9)
@@ -284,9 +284,9 @@ def test_the_loop_ends_at_the_first_mip_without_a_second_search_when_that_mip_pr
     monkeypatch.setattr(columns, "FIRST_MIN", 10**6)               # the first MIP holds every group
     seen, real = [], cover.search
 
-    def rec(*a):
+    def rec(*a, **kw):
         seen.append(1)
-        return real(*a)
+        return real(*a, **kw)
 
     monkeypatch.setattr(cover, "search", rec)
     _, d = columns.solve_exact(np.arange(8), _panel(27, 8), 2, search_node_limit=1)
