@@ -34,10 +34,16 @@ def _rows_up(pool, rows):
 
 
 def _optimum(idx, Y, Q):
-    """The full MIP over every candidate group: an oracle that shares no code with the search."""
+    """The arm's optimum by the plain cover search from the root's duals over every group, run to its proof (the
+    oracle of ``test_pangeo_cover_children.py``; ``test_pangeo_cover.py`` checks that search against the full MIP).
+    It shares no code with the window search or the gate. The full MIP over every group takes 33 s a call under HiGHS
+    on these 14-unit Q = 3 pools, and minutes under cvxpy and SCIP when ``highspy`` is not installed."""
     pool = columns.score_columns(idx, Y, Q)
-    _, d = mip.solve_partition(pool.candidates(), idx, min_pairs=1, return_diagnostics=True)
-    return d["objective_value"]
+    n = len(idx)
+    k = columns.min_groups(n, Q, 1)
+    res = cover.search(pool, columns.root_lp(pool, k), np.arange(len(pool)), k, Q, np.inf, 10**9)
+    assert res.status == "proved"
+    return float(pool.cost[res.rows].sum())
 
 
 def _first_window(pool, n, root):
@@ -213,7 +219,7 @@ def test_a_named_backend_gets_its_mip_and_no_search(monkeypatch):
     n, Q = 10, 2
     Y, idx = _panel(4, n), np.arange(n)
     log = _Log(monkeypatch.setattr)
-    _, d = columns.solve_exact(idx, Y, Q, backend="highspy", solve=log.solve)
+    _, d = columns.solve_exact(idx, Y, Q, backend="cvxpy", solve=log.solve)
     assert set(log.events) == {"mip"} and d["mip_solves"] >= 1
 
 
