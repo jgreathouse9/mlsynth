@@ -20857,8 +20857,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "reduced-cost-rounding-ignored"
-  find = "    return rc - 2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc))\n"
-  replace = "    return rc\n"
+  find = "    rc = rc - 2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc))\n"
+  replace = "    pass\n"
   models = "the reduced costs' own rounding left out of their lower bounds"
 
   [[target.mutant]]
@@ -23731,13 +23731,13 @@ timeout = 1200.0
   id = "the-children-start-cold"
   find = "        res = solve_boxed_lp(c, A, rl, ru, lo, up, basis=parent.basis, cutoff=cutoff)"
   replace = "        res = solve_boxed_lp(c, A, rl, ru, lo, up, cutoff=cutoff)"
-  models = "each child solved from the slack basis instead of the parent's optimal basis and inverse (Pan 2014, section 7.3)"
+  models = "each child solved from the slack basis instead of the parent's optimal basis and inverse, which stays dual feasible when only bounds change (Koberstein 2005, chapter 1, p. 2)"
 
   [[target.mutant]]
   id = "the-children-ignore-the-incumbent"
   find = "        res = solve_boxed_lp(c, A, rl, ru, lo, up, basis=parent.basis, cutoff=cutoff)"
   replace = "        res = solve_boxed_lp(c, A, rl, ru, lo, up, basis=parent.basis, cutoff=None)"
-  models = "every child solved to its optimum although its bound already reaches the incumbent (Pan 2014, Lemma 8.3.4)"
+  models = "every child solved to its optimum although its bound already reaches the incumbent (Pan, Linear Programming Computation, 2nd ed., 2023, Lemma 8.3.4)"
 
   [[target.mutant]]
   id = "the-cutoff-is-unscaled"
@@ -23765,7 +23765,7 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-cliques-keep-closed-groups"
-  find = "            K_left = K[np.isin(K, left)]\n"
+  find = "            K_left = K[in_left[K]]\n"
   replace = "            K_left = K\n"
   models = "a clique of the parent handed to a child with members the child has closed"
 
@@ -23798,6 +23798,24 @@ timeout = 1200.0
   find = "            best, rows = first.upper, first.rows\n"
   replace = "            rows = first.rows\n"
   models = "a design the plain stage found not passed to the re-optimised stage as its incumbent"
+
+  [[target.mutant]]
+  id = "the-child-mask-is-not-cleared"
+  find = "        in_left[left] = False\n"
+  replace = "        pass\n"
+  models = "the mask of one child's groups left set for the next, so a later child's cliques keep groups that child has closed"
+
+  [[target.mutant]]
+  id = "the-children-price-the-whole-pool"
+  find = "np.asarray(mu, dtype=float), restrict=True)"
+  replace = "np.asarray(mu, dtype=float), restrict=False)"
+  models = "each child's reduced costs computed over all of the pool instead of over the groups its LP keeps, the per-child cost the restriction removes"
+
+  [[target.mutant]]
+  id = "the-unpriced-rows-read-zero"
+  find = "    out = np.full(len(pool), -np.inf)\n"
+  replace = "    out = np.zeros(len(pool))\n"
+  models = "the rows a restricted call does not compute read 0, which is no lower bound on a reduced cost that may be negative"
 
   [[target.mutant]]
   id = "the-plain-design-is-lost"

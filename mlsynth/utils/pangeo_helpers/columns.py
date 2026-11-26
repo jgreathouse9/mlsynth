@@ -542,18 +542,29 @@ def _reduced_costs(members: np.ndarray, cost: np.ndarray, pi: np.ndarray, sigma:
     return rc
 
 
-def _rc_lower(pool: ColumnPool, pi: np.ndarray, sigma: float, cost_lo: Optional[np.ndarray] = None) -> np.ndarray:
+def _rc_lower(pool: ColumnPool, pi: np.ndarray, sigma: float, cost_lo: Optional[np.ndarray] = None,
+              rows: Optional[np.ndarray] = None) -> np.ndarray:
     """Rigorous lower bounds on every group's exact reduced cost: cost_lo (the pool's, or lower bounds on shifted
-    costs) minus its duals and sigma, less the rounding of that sum of width + 1 terms (Rump 2010, Theorem 2.1)."""
+    costs) minus its duals and sigma, less the rounding of that sum of width + 1 terms (Rump 2010, Theorem 2.1).
+    With ``rows``, only those groups are computed, to the same doubles, and every other entry is -inf, a lower
+    bound on any reduced cost: a branch's search reads only the groups its LP keeps."""
     pad = np.append(np.asarray(pi, dtype=float), 0.0)     # position -1 (padding) reads the 0
     apad = np.abs(pad)
     lo = pool.cost_lo if cost_lo is None else cost_lo
+    members = pool.members
+    if rows is not None:
+        lo, members = lo[rows], members[rows]
     rc = lo - sigma
     mag = np.abs(lo) + sigma
-    for j in range(pool.members.shape[1]):
-        rc = rc - pad[pool.members[:, j]]
-        mag = mag + apad[pool.members[:, j]]
-    return rc - 2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc))
+    for j in range(members.shape[1]):
+        rc = rc - pad[members[:, j]]
+        mag = mag + apad[members[:, j]]
+    rc = rc - 2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc))
+    if rows is None:
+        return rc
+    out = np.full(len(pool), -np.inf)
+    out[rows] = rc
+    return out
 
 
 def lagrangian_bound(pool: ColumnPool, pi: np.ndarray, sigma: float, k: int) -> Tuple[float, np.ndarray]:
@@ -789,13 +800,14 @@ def _residual_lp(pool: ColumnPool, cols: np.ndarray, units: np.ndarray, kk: int,
 
 
 def _bound_from(pool: ColumnPool, cols: np.ndarray, units: np.ndarray, kk: int, kept, pi: np.ndarray,
-                sigma: float, mu: np.ndarray):
+                sigma: float, mu: np.ndarray, restrict: bool = False):
     """The :class:`_Duals` and rigorous Lagrangian bound of :func:`_residual_lp` for multipliers ``pi`` (on
     ``units``), ``sigma >= 0`` (on ``sum(x) >= kk``) and ``mu >= 0`` (one per clique in ``kept``) over the groups
     ``cols``. Any multipliers of those signs give a valid bound (Geoffrion 1974); optimal ones give the LP's value.
-    Returns ``(duals, L)``, L a rational."""
+    With ``restrict`` the reduced costs are computed over ``cols`` only (:func:`_rc_lower`). Returns ``(duals, L)``,
+    L a rational."""
     lo = _shifted(pool, kept, mu) if kept else None
-    rc = _rc_lower(pool, pi, sigma, lo)
+    rc = _rc_lower(pool, pi, sigma, lo, rows=cols if restrict else None)
     neg = np.minimum(rc[cols], 0.0)
     s2 = float(neg.sum())
     e2 = _gamma(max(neg.size, 1)) * float(np.abs(neg).sum()) * (1.0 + _gamma(max(neg.size, 1)))
@@ -894,6 +906,7 @@ def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cliques=
     parent = solve_boxed_lp(c, A, rl, ru, np.zeros(keep.size), np.ones(keep.size))
     cutoff = float(best_up) * scale if np.isfinite(best_up) else None
     kk = max(int(k) - 1, 0)
+    in_left = np.zeros(len(pool), dtype=bool)          # a child's groups, as a mask over the pool
     out = []
     for a in order:
         j = int(keep[a])
@@ -920,12 +933,14 @@ def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cliques=
         pi[units] = y[units]
         sigma = max(float(y[n]), 0.0) if kk > 0 else 0.0
         use, mu = [], []
+        in_left[left] = True
         for K, m in zip(kept, np.maximum(-y[n + 1:], 0.0)):
-            K_left = K[np.isin(K, left)]
+            K_left = K[in_left[K]]
             if K_left.size >= 2:
                 use.append(K_left)
                 mu.append(float(m))
-        duals, L = _bound_from(pool, left, units, kk, use, pi, sigma, np.asarray(mu, dtype=float))
+        in_left[left] = False
+        duals, L = _bound_from(pool, left, units, kk, use, pi, sigma, np.asarray(mu, dtype=float), restrict=True)
         out.append((j, _down(L + lo_j), left, duals))
     return out
 

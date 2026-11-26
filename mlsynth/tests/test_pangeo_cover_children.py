@@ -458,3 +458,61 @@ def test_property_every_child_bound_is_rigorous(seed, n, min_pairs, gap, with_cl
     cliques = columns._separate_cliques(pool, keep, k) if with_cliques else ()
     for j, bound, _, _ in columns._branches(pool, root, keep, k, cliques, best_up=best):
         assert bound <= _optimum_with(pool, idx, 2, k, j) * (1 + 1e-12) + 1e-12
+
+
+# --- the per-child work restricted to the child's groups ---------------------------------------------------------------
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(seed=st.integers(0, 10**6), n=st.integers(4, 9), Q=st.integers(2, 3), frac=st.floats(0.0, 1.0),
+       shifted=st.booleans())
+def test_property_reduced_costs_over_some_rows_are_the_full_ones_there_and_minus_infinity_elsewhere(seed, n, Q, frac,
+                                                                                                       shifted):
+    """Property: ``_rc_lower`` restricted to ``rows`` gives, bit for bit, the full computation's values at those rows,
+    and -inf at every other row: a lower bound that holds for any reduced cost, so the result stays a rigorous lower
+    bound on every pool row's reduced cost."""
+    _, _, pool, k, root = _setup(seed, n, Q, T=8)
+    rng = np.random.default_rng(seed)
+    pi = rng.normal(size=n) * (float(np.median(pool.cost)) + 1.0)
+    sigma = abs(float(rng.normal()))
+    lo = pool.cost_lo + rng.uniform(0.0, 1.0, len(pool)) if shifted else None
+    rows = np.flatnonzero(rng.uniform(size=len(pool)) < frac)
+    full = columns._rc_lower(pool, pi, sigma, lo)
+    part = columns._rc_lower(pool, pi, sigma, lo, rows=rows)
+    assert np.array_equal(part[rows], full[rows])
+    out = np.ones(len(pool), dtype=bool)
+    out[rows] = False
+    assert np.all(part[out] == -np.inf)
+
+
+@pytest.mark.parametrize("seed,n", [(5, 12), (6, 14)])
+def test_each_childs_bound_and_duals_are_unchanged_by_restricting_its_work(seed, n):
+    """Unit: each child's bound and its duals at the groups it keeps are, bit for bit, what the full computation over
+    the pool gives from the same multipliers; its cliques are the parent's restricted to those groups."""
+    Y, idx, pool, k, root = _setup(seed, n, 2)
+    keep = np.arange(len(pool))
+    cliques = columns._separate_cliques(pool, keep, k)
+    kept_parent = columns._parent_lp(pool, keep, k, cliques)[3]          # the parent's clique rows
+    kk = max(k - 1, 0)
+    for j, bound, left, duals in columns._branches(pool, root, keep, k, cliques):
+        if duals is None:
+            continue
+        expected = [K[np.isin(K, left)] for K in kept_parent]
+        expected = [K for K in expected if K.size >= 2]
+        assert [K.tolist() for K in duals.cliques] == [K.tolist() for K in expected]
+        units = np.flatnonzero(~np.isin(np.arange(n), list(_units(pool, j))))
+        ref, L = columns._bound_from(pool, left, units, kk, list(duals.cliques), duals.pi, duals.sigma, duals.mu)
+        assert np.array_equal(duals.reduced_costs[left], ref.reduced_costs[left])
+        assert bound == columns._down(L + Fraction(float(pool.cost_lo[j])))
+
+
+def test_a_childs_reduced_costs_outside_its_groups_are_minus_infinity():
+    """Unit: the per-child reduced costs are computed only over the groups the child keeps (the search reads no
+    others); every other entry is -inf, which bounds any reduced cost from below."""
+    Y, idx, pool, k, root = _setup(5, 12, 2)
+    for j, _, left, duals in columns._branches(pool, root, np.arange(len(pool)), k, ()):
+        if duals is None:
+            continue
+        out = np.ones(len(pool), dtype=bool)
+        out[left] = False
+        assert out.any() and np.all(duals.reduced_costs[out] == -np.inf)
+        assert np.all(np.isfinite(duals.reduced_costs[left]))
