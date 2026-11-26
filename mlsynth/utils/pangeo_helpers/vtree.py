@@ -33,6 +33,23 @@ of the unit rows' residual over :math:`[u/10, u]`, :math:`u` starting at 0.1 and
 :math:`\\bar z` passes :math:`0.95 T`. At most ``iterations`` steps are taken per node. Measured on seasonal arms,
 most nodes are pruned at their parent's multipliers before any step.
 
+Pricing. A volume step prices every open group at a trial point :math:`(\\pi, s)`, and pricing is nearly all of a
+proof's time. A group enters the step only when its reduced cost there is negative, and most never are. After a pass
+over every open group at :math:`(\\pi^f, s^f)`, a group's reduced cost moves by at most
+:math:`|G| \\max_i |\\pi_i - \\pi^f_i| + |s - s^f|`, since each of its at most :math:`|G|` multipliers and the
+cardinality row's enter it once. Each computed reduced cost is within :math:`\\gamma_{|G|+2}` times its terms'
+magnitudes of the exact one (Higham 2002, Lemma 3.1, as for the bound). So a group whose computed reduced cost at
+the pass is at least :math:`\\delta`, where :math:`\\delta` exceeds the movement plus both evaluations' rounding
+terms, has a computed reduced cost of at least zero at the trial point: it adds nothing to :math:`z` and nothing
+to the residual, exactly as if it had been priced. Between passes only the groups below :math:`\\delta` are priced,
+in the same order, so every sum is formed from the same terms in the same order and the iterates are those of
+pricing every group, bit for bit. A pass is made when the movement reaches :math:`\\delta`, which is then set to
+``PRICING_KAPPA`` times the last step's move. Proving from the optimum on seasonal arms, single-threaded, pricing
+every group at every step against this pricing, with the same nodes and the same design: 15.9 s against 8.5 s on a
+40-geo Q = 3 arm, 0.37 against 0.13 s at 36 geos and Q = 3, 0.53 against 0.28 s at 32 geos and Q = 3, 0.62 against
+0.43 s at 50 geos and Q = 2; and 35.8 s against 20.7 s for the same 300 thousand nodes from the start design on a
+120-geo Q = 2 arm. Pricing had been 88% and 90% of the 40- and 120-geo trees' time.
+
 Reduced-cost fixing at every node. A group with :math:`\\bar c_G > 0` enters a completion only by raising its cost
 to at least :math:`L + \\bar c_G`, so where that reaches the incumbent the group is dropped for the node's subtree
 (Nemhauser and Wolsey, "Integer and Combinatorial Optimization", Wiley, 1988, section II.1.4): the root's elimination
@@ -87,6 +104,14 @@ _CACHE = __name__ == CANONICAL_NAME
 #: halved every 80 steps; a moving target) placed 2 to 20 times the nodes on the same arms at every step count
 #: (40-geo Q = 3: 37 to 124 s), so the tree keeps the papers' rules.
 ITERATIONS = 50
+
+#: Pricing makes a pass over every open group when the multipliers have moved, since the last such pass, by as much as
+#: ``PRICING_KAPPA`` times the last step's move; between passes it prices only the groups that can be negative.
+#: Proving from the optimum on seasonal arms, single-threaded, at 0 (every group at every step), 2, 4, 8 and 16:
+#: 16.8, 9.0, 7.6, 8.2 and 9.2 s on a 40-geo Q = 3 arm; 0.55, 0.26, 0.24, 0.26 and 0.33 s at 32 geos and Q = 3;
+#: 0.63, 0.47, 0.46, 0.47 and 0.51 s at 50 geos and Q = 2; 31.9, 21.3, 21.3, 21.6 and 21.3 s for 300 thousand
+#: nodes from the start design at 120 geos and Q = 2. Any value gives the same iterates, bit for bit.
+PRICING_KAPPA = 4.0
 
 #: The kernel writes the progress array (:func:`.cover.new_progress`) every this many nodes.
 PROGRESS_EVERY = 1024
@@ -174,24 +199,122 @@ def _resid(mem, opn, o0, no, x, uncm, n, kk, r):  # pragma: no cover - compiled
 
 
 @njit(cache=_CACHE)
+def _price_full(mem, clo, opn, o0, no, pi, s, uncm, n, kk, xt, r, rcv, act, delta):  # pragma: no cover - compiled
+    """:func:`_price` and :func:`_resid` of its minimiser in one pass over every open group: returns
+    ``(z, kk - sum xt, count)``, with ``r = 1 - A xt`` on the units left, each group's computed reduced cost in
+    ``rcv`` and, in ``act[:count]`` in order, the positions of the groups whose reduced cost is below ``delta``."""
+    z = s * kk
+    for u in range(n):
+        if _has(uncm, u):
+            z += pi[u]
+            r[u] = 1.0
+        else:
+            r[u] = 0.0
+    W = mem.shape[1]
+    tot = 0.0
+    na = 0
+    for i in range(no):
+        j = opn[o0 + i]
+        rc = clo[j] - s
+        for w in range(W):
+            u = mem[j, w]
+            if u >= 0:
+                rc -= pi[u]
+        rcv[i] = rc
+        if rc < delta:
+            act[na] = i
+            na += 1
+        if rc < 0.0:
+            z += rc
+            xt[i] = 1.0
+            tot += 1.0
+            for w in range(W):
+                u = mem[j, w]
+                if u >= 0:
+                    r[u] -= 1.0
+        else:
+            xt[i] = 0.0
+    return z, kk - tot, na
+
+
+@njit(cache=_CACHE)
+def _price_act(mem, clo, opn, o0, na, pi, s, uncm, n, kk, xt, r, act):  # pragma: no cover - compiled
+    """:func:`_price_full` over the groups at positions ``act[:na]`` only, the others' entries of ``xt`` left as
+    they are: ``(z, kk - sum xt)`` and ``r``."""
+    z = s * kk
+    for u in range(n):
+        if _has(uncm, u):
+            z += pi[u]
+            r[u] = 1.0
+        else:
+            r[u] = 0.0
+    W = mem.shape[1]
+    tot = 0.0
+    for q in range(na):
+        i = act[q]
+        j = opn[o0 + i]
+        rc = clo[j] - s
+        for w in range(W):
+            u = mem[j, w]
+            if u >= 0:
+                rc -= pi[u]
+        if rc < 0.0:
+            z += rc
+            xt[i] = 1.0
+            tot += 1.0
+            for w in range(W):
+                u = mem[j, w]
+                if u >= 0:
+                    r[u] -= 1.0
+        else:
+            xt[i] = 0.0
+    return z, kk - tot
+
+
+@njit(cache=_CACHE)
+def _may_skip(W, mf, ms, delta, cmax, pfmax, sf, ptmax, st):  # pragma: no cover - compiled; tested directly
+    """Whether a group of at most ``W`` units whose computed reduced cost at (pf, sf) is at least ``delta`` has a
+    computed reduced cost of at least zero at (pt, st), given ``mf = max |pt - pf|``, ``ms = |st - sf|``, the
+    largest cost magnitude ``cmax`` and the largest multiplier magnitudes ``pfmax`` and ``ptmax``. Each reduced cost
+    is a sum of at most W + 2 terms, so its computed value is within gamma_{W+2} of its terms' magnitudes of the
+    exact one; the exact one moves by at most ``W mf + ms``."""
+    g = _gam(W + 2)
+    err = g * (cmax + sf + W * pfmax) + g * (cmax + st + W * ptmax)
+    return W * mf + ms + err + _ETA < delta
+
+
+@njit(cache=_CACHE)
 def _volume(mem, clo, opn, o0, no, uncm, n, kk, pi0, s0, target, T,  # pragma: no cover - compiled
-            pib, xt, xbar, v, r0, r1, pit):
+            pib, xt, xbar, v, r0, r1, pit, rcv, act, pf, kappa):
     """The volume algorithm over the open groups from (pi0, s0), at most T steps; the best multipliers go to pib.
-    Returns (sigma, steps). Stops once the bound reaches ``target``; an infinite target is replaced by the paper's
-    moving one."""
+    Returns (sigma, steps, groups priced). Stops once the bound reaches ``target``; an infinite target is replaced
+    by the paper's moving one. Pricing skips the groups that cannot be negative (module docstring); with ``kappa``
+    0 it prices every group at every step, and the iterates are the same for every ``kappa``."""
+    W = mem.shape[1]
+    cmax = 0.0
+    for i in range(no):
+        cmax = max(cmax, abs(clo[opn[o0 + i]]))
     for u in range(n):
         pib[u] = pi0[u] if _has(uncm, u) else 0.0
     sb = s0 if kk > 0 else 0.0
     zb = _price(mem, clo, opn, o0, no, pib, sb, uncm, n, kk, xt)
+    priced = no
     fixed_target = np.isfinite(target)
     if fixed_target and zb >= target:
-        return sb, 0
+        return sb, 0, priced
     tg = target if fixed_target else zb + 0.05 * abs(zb) + 1e-12
     for i in range(no):
         xbar[i] = xt[i]
     lam, uu, reds = 0.1, 0.1, 0
     z_check = zb
     steps = 0
+    delta = 0.0                    # no pass yet: the first trial point gets one
+    sf, pfmax = 0.0, 0.0
+    na = 0
+    sprev = sb
+    for u in range(n):
+        pf[u] = pib[u]
+        r0[u] = pib[u]             # the previous trial point, for the step's move
     for t in range(1, T + 1):
         steps = t
         vs = _resid(mem, opn, o0, no, xbar, uncm, n, kk, v)
@@ -206,13 +329,28 @@ def _volume(mem, clo, opn, o0, no, uncm, n, kk, pi0, s0, target, T,  # pragma: n
         for u in range(n):
             pit[u] = pib[u] + st * v[u] if _has(uncm, u) else 0.0
         sgt = max(sb + st * vs, 0.0) if kk > 0 else 0.0
-        zt = _price(mem, clo, opn, o0, no, pit, sgt, uncm, n, kk, xt)
-        _resid(mem, opn, o0, no, xbar, uncm, n, kk, r0)
-        _resid(mem, opn, o0, no, xt, uncm, n, kk, r1)
+        mv, mf, ptmax = 0.0, 0.0, 0.0
+        for u in range(n):
+            mv = max(mv, abs(pit[u] - r0[u]))
+            mf = max(mf, abs(pit[u] - pf[u]))
+            ptmax = max(ptmax, abs(pit[u]))
+            r0[u] = pit[u]
+        move = W * mv + abs(sgt - sprev)
+        sprev = sgt
+        if _may_skip(W, mf, abs(sgt - sf), delta, cmax, pfmax, sf, ptmax, sgt):
+            zt, vt = _price_act(mem, clo, opn, o0, na, pit, sgt, uncm, n, kk, xt, r1, act)
+            priced += na
+        else:
+            delta = kappa * move
+            zt, vt, na = _price_full(mem, clo, opn, o0, no, pit, sgt, uncm, n, kk, xt, r1, rcv, act, delta)
+            priced += no
+            for u in range(n):
+                pf[u] = pit[u]
+            sf, pfmax = sgt, ptmax
         num, den = 0.0, 0.0
         for u in range(n):
-            dd = r1[u] - r0[u]
-            num -= r0[u] * dd
+            dd = r1[u] - v[u]
+            num -= v[u] * dd
             den += dd * dd
         a = num / den if den > 0.0 else uu
         a = min(max(a, uu / 10.0), uu)
@@ -240,7 +378,7 @@ def _volume(mem, clo, opn, o0, no, uncm, n, kk, pi0, s0, target, T,  # pragma: n
             z_check = zb
         if fixed_target and zb >= target:
             break
-    return sb, steps
+    return sb, steps, priced
 
 
 @njit(cache=_CACHE)
@@ -288,7 +426,7 @@ def _low(x, ax, m):  # pragma: no cover - compiled
 
 @njit(cache=_CACHE, nogil=True)
 def _tree(mem, gm, clo, cup, n, k, pi0, s0, best0, T,  # pragma: no cover - compiled; checked through search
-          fix, node_limit, prog, every):
+          fix, node_limit, prog, every, kappa):
     """Depth-first search with a volume bound at every node. Returns (status, best, design positions, nodes,
     lowest leaf lower bound)."""
     C, W = mem.shape
@@ -322,6 +460,9 @@ def _tree(mem, gm, clo, cup, n, k, pi0, s0, best0, T,  # pragma: no cover - comp
     pib = np.empty(n)
     pin = np.empty(n)
     cnt = np.zeros(n, dtype=np.int64)
+    rcv = np.empty(C)
+    act = np.empty(C, dtype=np.int64)
+    pf = np.empty(n)
     best = best0
     lowest = np.inf
     nodes = 0
@@ -414,8 +555,8 @@ def _tree(mem, gm, clo, cup, n, k, pi0, s0, best0, T,  # pragma: no cover - comp
             s_in = sig[d - 1]
         f_lo = _low(flo[d], fab[d], d)
         target = best - f_lo
-        s_out, _ = _volume(mem, clo, buf, off[d], nopen[d], unc[d], n, kk, pin, s_in, target, T,
-                           pib, xt, xbar, v, r0, r1, pit)
+        s_out, _, _ = _volume(mem, clo, buf, off[d], nopen[d], unc[d], n, kk, pin, s_in, target, T,
+                              pib, xt, xbar, v, r0, r1, pit, rcv, act, pf, kappa)
         L = _bound_at(mem, clo, buf, off[d], nopen[d], pib, s_out, unc[d], n, kk, rcl)
         tot = L + f_lo
         tot = tot - (_gam(2) * abs(tot) + _ETA)
@@ -480,18 +621,23 @@ def _tree(mem, gm, clo, cup, n, k, pi0, s0, best0, T,  # pragma: no cover - comp
 
 
 def search(pool, root, keep, k: int, best_up: float, node_limit: int, *, iterations: Optional[int] = None,
-           fix: bool = True, progress: Optional[np.ndarray] = None) -> CoverSearch:
+           fix: bool = True, progress: Optional[np.ndarray] = None, kappa: Optional[float] = None) -> CoverSearch:
     """Search the exact covers of the arm by the pool rows ``keep`` for one with at least ``k`` groups whose upper
     bound is below ``best_up``, bounding every node by the volume algorithm from ``root``'s duals (``pi``,
     ``sigma``), at most ``iterations`` steps a node (``ITERATIONS`` when None), dropping groups by reduced cost at
     every node unless ``fix`` is False, and placing at most ``node_limit`` groups. Returns a
     :class:`.cover.CoverSearch` with ``stage="volume"``. ``progress`` (:func:`.cover.new_progress`) receives the
-    tree's counts while it runs and when it ends; the result does not depend on it."""
+    tree's counts while it runs and when it ends; the result does not depend on it. ``kappa`` (``PRICING_KAPPA``
+    when None) sets how far the multipliers move between passes over every open group; it changes the time taken
+    and nothing else, and 0 prices every group at every step."""
     if int(node_limit) < 0:
         raise MlsynthConfigError(f"node_limit must be non-negative; got {node_limit}.")
     steps = ITERATIONS if iterations is None else int(iterations)
     if steps < 0:
         raise MlsynthConfigError(f"iterations must be non-negative; got {iterations}.")
+    kap = float(PRICING_KAPPA if kappa is None else kappa)
+    if not (np.isfinite(kap) and kap >= 0.0):
+        raise MlsynthConfigError(f"kappa must be finite and non-negative; got {kappa}.")
     cover._check_progress(progress)
     prog = cover.new_progress() if progress is None else progress
     base = float(prog[cover.P_TOTAL])
@@ -511,7 +657,7 @@ def search(pool, root, keep, k: int, best_up: float, node_limit: int, *, iterati
             mem, _group_masks(mem, _words(n)), np.ascontiguousarray(pool.cost_lo[keep], dtype=float),
             np.ascontiguousarray(pool.cost_up[keep], dtype=float), n, int(k),
             np.ascontiguousarray(root.pi, dtype=float), float(max(root.sigma, 0.0)), float(best_up), steps,
-            bool(fix), int(node_limit), prog, max(int(PROGRESS_EVERY), 1))
+            bool(fix), int(node_limit), prog, max(int(PROGRESS_EVERY), 1), kap)
         res = CoverSearch("node_limit" if st else "proved", keep[pos], float(upper),
                           float(min(upper, lowest)), int(nodes), stage="volume")
     prog[cover.P_NODES] = float(res.nodes)
