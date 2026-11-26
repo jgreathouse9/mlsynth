@@ -24457,3 +24457,21 @@ timeout = 600.0
   find = "        if res.rows.size or res.status != \"proved\" or count >= rc.size:\n"
   replace = "        if res.rows.size or count >= rc.size:\n"
   models = "a window whose search stopped at its cap widened anyway, repeating a capped search over ever more groups up to the whole pool"
+
+[[target]]
+name = "pangeo-reopt-lazy"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_reopt_lazy.py mlsynth/tests/test_pangeo_cover_children.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-branches-are-built-in-full-first"
+  find = "    for j, bound, left, duals in _iter_branches(pool, root, keep, k, cliques, best_up=best):"
+  replace = "    for j, bound, left, duals in list(_iter_branches(pool, root, keep, k, cliques, best_up=best)):"
+  models = "the re-optimised search solving every branch's LP and holding every branch's duals before its first search: 14 GB and a kill on a 40-geo Q = 3 arm"
+
+  [[target.mutant]]
+  id = "the-branch-list-is-a-generator"
+  find = "    return list(_iter_branches(pool, root, keep, k, cliques, best_up))"
+  replace = "    return _iter_branches(pool, root, keep, k, cliques, best_up)"
+  models = "_branches handing back the generator, which its callers index and measure as a list"
