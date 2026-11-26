@@ -2,9 +2,11 @@
 
 The re-optimised search (``test_pangeo_cover_reopt.py``) branches once on the unit with the fewest kept groups and
 gives each branch an LP of its own. Each branch's LP is the parent LP (the kept groups, every unit, the cardinality
-row, the clique rows) with bounds changed: the fixed group at 1 and every group that meets it at 0 (Pan, Linear
-Programming Computation, 2nd ed., section 7.3). The basis matrix is the parent's, so each child starts from the
-parent's optimal basis and its inverse and stops once its bound reaches the incumbent (Pan, Lemma 8.3.4).
+row, the clique rows) with bounds changed: the fixed group at 1 and every group that meets it at 0. The basis
+matrix is the parent's and its optimal basis stays dual feasible (Koberstein, PhD thesis, Paderborn, 2005, chapter 1,
+p. 2), so each child starts from the
+parent's optimal basis and its inverse and stops once its bound reaches the incumbent (Pan, Linear Programming Computation, 2nd ed., 2023, Lemma 8.3.4,
+p. 216).
 
 Re-optimisation pays for one LP per branch. When the incumbent is far above the optimum the branches are many and
 the plain search proves first, so the second search runs the plain search for a budget of nodes equal to the

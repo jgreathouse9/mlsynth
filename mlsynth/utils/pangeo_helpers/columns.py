@@ -867,10 +867,12 @@ def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cliques=
     ``cliques`` restricted to the groups left (a clique holding the fixed group has none left).
 
     That LP is the parent LP (:func:`_parent_lp`) with bounds changed: the fixed group at 1 and every group meeting
-    it at 0. A child changes bounds only, so its basis matrix is the parent's (Pan, Linear Programming Computation,
-    2nd ed., section 7.3): the parent is solved once by :func:`solve_boxed_lp`, and each child starts from its
+    it at 0. A child changes bounds only, so its basis matrix is the parent's and the parent's optimal basis stays
+    dual feasible (Koberstein, "The Dual Simplex Method", PhD thesis, Paderborn, 2005, chapter 1, p. 2): the parent is
+    solved once by :func:`solve_boxed_lp`, and each child starts from its
     optimal basis and inverse, with no factorization. A child stops as soon as its bound reaches ``best_up``
-    (Pan, Lemma 8.3.4: the dual objective does not decrease), so a branch the incumbent prunes costs no more LP
+    (Pan, Linear Programming Computation, 2nd ed., Springer, 2023, Lemma 8.3.4, p. 216: the dual objective does not
+    decrease), so a branch the incumbent prunes costs no more LP
     work than that. The duals at the point it stops, restricted to the units and cliques left, give the Lagrangian
     bound of :func:`_residual_lp` (:func:`_bound_from`): valid at any iterate, the residual LP's value at the
     child's optimum. Costs are scaled by the power of two of :func:`.mip._cost_scale`, as :func:`root_lp` does.

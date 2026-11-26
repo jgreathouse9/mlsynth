@@ -483,13 +483,32 @@ therefore reaches the optimum of :eq:`mip` in three steps
    stops leaves the MIPs to run as they would without it. The search runs with
    ``mip_backend="auto"``; naming ``"highspy"`` or ``"cvxpy"`` asks for that
    MIP and skips it.
+#. Proof after the first MIP. When the cap stops the search, the first MIP's
+   design gives a new upper bound :math:`z`, and a second search tries to prove
+   it optimal over the pairs that bound keeps. It runs the same search for as
+   many nodes as the pairs it would otherwise re-solve LPs over. If that does
+   not prove, it branches once on the geo with the fewest pairs and gives each
+   branch an LP of its own: the root LP with the branch's pair fixed at 1 and
+   every pair meeting it at 0. Only bounds change, so each branch's LP starts
+   from the root LP's optimal basis, which stays dual feasible (Koberstein,
+   2005, chapter 1), and from its inverse, is solved by the library's dual
+   simplex, and stops as soon as its bound reaches :math:`z`; its duals then
+   guide that branch's search. Both stages add
+   clique inequalities: sets of pairs that pairwise share a geo, so a design
+   holds at most one of them. These are separated from the LP solution by the
+   root-vertex scheme of Marzi, Rossi and Smriglio (2019), at most one clique
+   per vertex, since listing every maximal clique is prohibitive (Atamturk,
+   Nemhauser and Savelsbergh, 2000). A clique with no chosen pair and no pair
+   that still fits adds its dual to the bound.
 
 The LP bound is weak on this problem: on the seasonal panels below it lies 14
-to 33% under the optimum, and subset-row cuts (Jepsen, Petersen, Spoorendonk
-and Pisinger, 2008) moved the gap at 20 geos and :math:`Q=3` only from 42.8 to
-39.6%. When :math:`2Q` does not divide :math:`N`, the LP covers the arm with a
-fractional :math:`N/2Q` of the cheap largest pairs, and the cut on
-:math:`\mathbf 1^{\top}\mathbf{x}` halved that gap, to 22%. Even so, the last
+to 33% under the optimum. At 20 geos and :math:`Q=3`, without the cut on
+:math:`\mathbf 1^{\top}\mathbf{x}` the gap is 42.8%, and subset-row cuts
+(Jepsen, Petersen, Spoorendonk and Pisinger, 2008) moved it only to 39.6%. When
+:math:`2Q` does not divide :math:`N`, the LP covers the arm with a fractional
+:math:`N/2Q` of the cheap largest pairs, and the cut halves the gap, to 22.0%;
+the 130 clique inequalities of the second search close 26.9% of what is left,
+to 16.1%. Even so, the last
 MIP holds at most one pair in twelve, and at 28 geos one in 137. One arm of the
 seasonal panel (``make_seasonal_sales_panel``, 60 periods, a 42-period
 estimation window), with the optimum the same in every row both paths ran:
@@ -1321,6 +1340,17 @@ Optimization.* Wiley.
 
 Knuth, D. E. (2000). "Dancing Links." In J. Davies, B. Roscoe and J. Woodcock
 (eds.), *Millennial Perspectives in Computer Science*, Palgrave, 187-214.
+
+Koberstein, A. (2005). "The Dual Simplex Method, Techniques for a Fast and
+Stable Implementation." PhD thesis, Universitat Paderborn.
+
+Marzi, F., Rossi, F., & Smriglio, S. (2019). "Computational Study of
+Separation Algorithms for Clique Inequalities." *Soft Computing*
+23:3013-3027.
+
+Atamturk, A., Nemhauser, G. L., & Savelsbergh, M. W. P. (2000). "Conflict
+Graphs in Solving Integer Programming Problems." *European Journal of
+Operational Research* 121:40-55.
 
 Chan, T. F., Golub, G. H., & LeVeque, R. J. (1983). "Algorithms for Computing
 the Sample Variance: Analysis and Recommendations." *The American Statistician*
