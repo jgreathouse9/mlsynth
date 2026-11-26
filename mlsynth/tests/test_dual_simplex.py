@@ -674,8 +674,9 @@ def test_an_unknown_engine_is_refused():
 
 
 def _bound_fixed_child(lp, parent):
-    """The child of Pan's section 7.3: the parent LP with its largest group fixed at 1 and every group sharing a unit
-    with it fixed at 0, bounds changed and rows kept, so the parent's basis is still a basis."""
+    """A branch-and-bound child: the parent LP with its largest group fixed at 1 and every group sharing a unit with
+    it fixed at 0, bounds changed and rows kept, so the parent's basis is still a basis and stays dual feasible
+    (Koberstein 2005, chapter 1, p. 2)."""
     c, A, rl, ru, l, u = lp
     j = int(np.argmax(parent.x))
     cover = np.flatnonzero((rl == 1.0) & (ru == 1.0))

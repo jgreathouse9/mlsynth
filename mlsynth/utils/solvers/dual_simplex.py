@@ -96,9 +96,11 @@ class BoxedBasis:
     """A basis of the computational form: ``basic`` lists the ``m`` basic variables, structural ``j < n`` and logical
     (row ``i``) as ``n + i``; ``at_upper`` marks, for all ``n + m`` variables, those nonbasic at their upper bound
     (entries of basic variables are ignored). ``inverse`` is the basis matrix's inverse when the basis came from a
-    solve: an LP that changes only bounds or costs keeps the same basis matrix (Pan, Linear Programming Computation,
-    2nd ed., section 7.3), so a solve started from it skips the factorization once a residual check confirms it
-    belongs to the new LP's matrix."""
+    solve: an LP that changes only bounds or costs keeps the same basis matrix, so a solve started from it skips the
+    factorization once a residual check confirms it belongs to the new LP's matrix. After a change of bounds alone the
+    basis also stays dual feasible, which is why branch and bound re-solves its subproblems by the dual simplex
+    (Koberstein, "The Dual Simplex Method, Techniques for a fast and stable implementation", PhD thesis, Paderborn,
+    2005, chapter 1, p. 2)."""
 
     basic: np.ndarray
     at_upper: np.ndarray
