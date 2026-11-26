@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-25T18:44:06Z",
+ "generated": "2026-11-26T18:47:46Z",
  "cases": 218,
  "files": [
   "basedata/Data.csv",
@@ -2719,6 +2719,7 @@
   "mlsynth/utils/solvers/__init__.py",
   "mlsynth/utils/solvers/accelerate.py",
   "mlsynth/utils/solvers/active_set.py",
+  "mlsynth/utils/solvers/dual_simplex.py",
   "mlsynth/utils/solvers/minnorm.py",
   "mlsynth/utils/solvers/nnls.py",
   "mlsynth/utils/solvers/ridge_augment.py",
