@@ -29,6 +29,16 @@ model the simplex solved without it (the supergeo study's fixture,
 "Presolve Reductions in Mixed Integer Programming", INFORMS Journal on
 Computing 32 (2020) 473-506, describe the reductions it runs). The status, the
 retry, the gaps asked for and the proven gap are returned in the diagnostics.
+
+The MIP does not leave infeasibility to the solver. A unit that no candidate
+group holds has an exact-cover row with no variables, ``0 = 1``; cvxpy's SCIP
+interface drops every row without variables whatever its right-hand side
+(``scip_conif.add_model_lin_constr`` in cvxpy 1.7), and SCIP then reports the
+rest of the program optimal, so the returned design leaves that unit out
+(jgreathouse9/mlsynth#1169). Both backends therefore check the candidates
+before any solve, raising when a unit is in no group (:func:`_require_coverable`),
+and check the design after it, raising unless every unit of the arm is in
+exactly one chosen group (:func:`_check_exact_cover`).
 """
 
 from __future__ import annotations
@@ -133,6 +143,38 @@ def _infeasibility_reason(candidate_pairs: List[dict],
             "no exact cover exists for the current size bounds (try a larger "
             "max_supergeo_size, or fewer required min_pairs)")
     return "; ".join(reasons)
+
+
+def _require_coverable(candidate_pairs: List[dict], unit_indices: np.ndarray) -> None:
+    """Raise MlsynthEstimationError when a unit of the arm is in no candidate group: its exact-cover row has no
+    variables, so no design exists, and a solver may drop such a row instead of reporting the program infeasible
+    (module docstring). The message is :func:`_infeasibility_reason`'s."""
+    held = {int(u) for pair in candidate_pairs for u in pair["members"]}
+    if any(int(u) not in held for u in unit_indices):
+        raise MlsynthEstimationError(
+            f"PANGEO partition MIP has no exact cover: {_infeasibility_reason(candidate_pairs, unit_indices)}.")
+
+
+def _check_exact_cover(chosen: List[dict], unit_indices: np.ndarray) -> None:
+    """Raise MlsynthEstimationError unless the chosen groups hold every unit of the arm exactly once and no unit
+    outside it: the design a solve returns is checked, not trusted."""
+    count = {int(u): 0 for u in unit_indices}
+    outside = set()
+    for pair in chosen:
+        for u in pair["members"]:
+            if int(u) in count:
+                count[int(u)] += 1
+            else:
+                outside.add(int(u))
+    missing = sorted(u for u, c in count.items() if c == 0)
+    twice = sorted(u for u, c in count.items() if c > 1)
+    if missing or twice or outside:
+        what = [f"units {lst[:10]} {why}" for lst, why in ((missing, "in no chosen group"),
+                                                           (twice, "in more than one chosen group"),
+                                                           (sorted(outside), "outside the arm")) if lst]
+        raise MlsynthEstimationError(
+            "PANGEO partition MIP returned a design that is not an exact cover of the arm: " + "; ".join(what)
+            + ". The solver reported it as solved; the design is refused.")
 
 
 def _check_gaps(mip_rel_gap, mip_abs_gap) -> None:
@@ -268,10 +310,11 @@ def _solve_partition_highspy(
             "PANGEO: no admissible supergeo pairs (need >= 2 units per arm)."
         )
 
+    _require_coverable(candidate_pairs, unit_indices)
     pos = {int(u): j for j, u in enumerate(unit_indices)}
     cost = [float(p["score"]) for p in candidate_pairs]
     scale = _cost_scale(cost)
-    # Candidates covering each unit position (empty => that unit is uncoverable).
+    # Candidates covering each unit position.
     cover: List[List[int]] = [[] for _ in range(n_units)]
     for c, pair in enumerate(candidate_pairs):
         for u in pair["members"]:
@@ -282,14 +325,8 @@ def _solve_partition_highspy(
     h.setOptionValue("mip_rel_gap", float(mip_rel_gap))
     h.setOptionValue("mip_abs_gap", float(mip_abs_gap) * scale)   # in the scaled units
     x = h.addBinaries(n_cand)
-    for i in range(n_units):
-        cs = cover[i]
-        if cs:
-            h.addConstr(sum(x[c] for c in cs) == 1)      # exact cover
-        else:
-            # Uncoverable unit -> empty row fixed to 1 (0 == 1): infeasible.
-            h.addRow(1.0, 1.0, 0,
-                     np.empty(0, dtype=np.int32), np.empty(0, dtype=np.float64))
+    for i in range(n_units):                            # every unit is in a group: _require_coverable
+        h.addConstr(sum(x[c] for c in cover[i]) == 1)    # exact cover
     if min_pairs > 1:
         h.addConstr(sum(x[c] for c in range(n_cand)) >= min_pairs)
 
@@ -308,6 +345,7 @@ def _solve_partition_highspy(
 
     values = np.asarray(h.getSolution().col_value, dtype=float)
     chosen = [candidate_pairs[c] for c in range(n_cand) if values[c] > 0.5]
+    _check_exact_cover(chosen, unit_indices)
     if not return_diagnostics:
         return chosen
 
@@ -381,6 +419,7 @@ def _solve_partition_cvxpy(
             "PANGEO: no admissible supergeo pairs (need >= 2 units per arm)."
         )
 
+    _require_coverable(candidate_pairs, unit_indices)
     pos = {int(u): j for j, u in enumerate(unit_indices)}
     # Incidence matrix M (units x candidates): M[i, c] = 1 iff unit i in pair c.
     M = np.zeros((n_units, n_cand), dtype=float)
@@ -419,6 +458,7 @@ def _solve_partition_cvxpy(
 
     chosen = [candidate_pairs[c] for c in range(n_cand)
               if x.value is not None and x.value[c] > 0.5]
+    _check_exact_cover(chosen, unit_indices)
     if return_diagnostics:
         stats = _mip_solve_stats(problem)
         diagnostics = {
