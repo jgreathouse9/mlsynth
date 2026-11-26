@@ -23815,8 +23815,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-children-price-the-whole-pool"
-  find = "np.asarray(mu, dtype=float), restrict=True)"
-  replace = "np.asarray(mu, dtype=float), restrict=False)"
+  find = "np.asarray(mu, dtype=float), restrict=True,"
+  replace = "np.asarray(mu, dtype=float), restrict=False,"
   models = "each child's reduced costs computed over all of the pool instead of over the groups its LP keeps, the per-child cost the restriction removes"
 
   [[target.mutant]]
