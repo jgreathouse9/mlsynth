@@ -900,6 +900,12 @@ def _parent_lp(pool: ColumnPool, keep: np.ndarray, k: int, cliques):
 
 
 def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cliques=(), best_up: float = np.inf):
+    """Every branch of :func:`_iter_branches`, as a list."""
+    return list(_iter_branches(pool, root, keep, k, cliques, best_up))
+
+
+def _iter_branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cliques=(),
+                   best_up: float = np.inf):
     """The first level of the search, each branch with its residual LP. The search branches on the unit with the
     fewest kept groups (ties to the first unit); a branch fixes one of them, and the cover problem left over (the
     other units, the kept groups disjoint from it, at least k - 1 groups) is an LP relaxation of its own, with the
@@ -916,17 +922,20 @@ def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cliques=
     bound of :func:`_residual_lp` (:func:`_bound_from`): valid at any iterate, the residual LP's value at the
     child's optimum. Costs are scaled by the power of two of :func:`.mip._cost_scale`, as :func:`root_lp` does.
 
-    Returns ``(row, bound, rows_left, duals)`` per branch, the bound covering the fixed group's cost lower bound, in
-    the order of that cost; a branch with no feasible residual has bound infinity and no duals."""
+    Yields ``(row, bound, rows_left, duals)`` per branch, the bound covering the fixed group's cost lower bound, in
+    the order of that cost; a branch with no feasible residual has bound infinity and no duals. Each branch's LP
+    is solved when the branch is drawn, so a caller that stops early solves no more, and holds only the branches
+    it keeps: a branch's duals carry two arrays over the whole pool, 74 MB at the 4.6 million groups of a 40-geo
+    Q = 3 arm, and that arm's 1,519 branches held at once passed 14 GB."""
     keep = np.asarray(keep, dtype=np.int64)
     if keep.size == 0:
-        return []
+        return
     n = int(pool.unit_indices.size)
     inc = _incidence(pool.members[keep], n)
     g0 = int(np.argmin(inc.sum(axis=0)))
     order = np.flatnonzero(inc[:, g0])[np.argsort(pool.cost_lo[keep[inc[:, g0]]], kind="stable")]
     if order.size == 0:
-        return []
+        return
     A, rl, ru, kept = _parent_lp(pool, keep, k, cliques)
     scale = mip._cost_scale(pool.cost[keep])
     c = pool.cost[keep] * scale
@@ -934,7 +943,6 @@ def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cliques=
     cutoff = float(best_up) * scale if np.isfinite(best_up) else None
     kk = max(int(k) - 1, 0)
     in_left = np.zeros(len(pool), dtype=bool)          # a child's groups, as a mask over the pool
-    out = []
     for a in order:
         j = int(keep[a])
         G = inc[a]
@@ -943,17 +951,17 @@ def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cliques=
         units = np.flatnonzero(~G)
         lo_j = Fraction(float(pool.cost_lo[j]))
         if units.size == 0:
-            out.append((j, _down(lo_j) if kk == 0 else np.inf, left, None))
+            yield (j, _down(lo_j) if kk == 0 else np.inf, left, None)
             continue
         if left.size == 0 or parent.status == "infeasible":
-            out.append((j, np.inf, left, None))
+            yield (j, np.inf, left, None)
             continue
         lo = np.zeros(keep.size)
         up = left_mask.astype(float)
         lo[a] = up[a] = 1.0
         res = solve_boxed_lp(c, A, rl, ru, lo, up, basis=parent.basis, cutoff=cutoff)
         if res.status == "infeasible":
-            out.append((j, np.inf, left, None))
+            yield (j, np.inf, left, None)
             continue
         y = res.y / scale
         pi = np.zeros(n)
@@ -968,8 +976,7 @@ def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cliques=
                 mu.append(float(m))
         in_left[left] = False
         duals, L = _bound_from(pool, left, units, kk, use, pi, sigma, np.asarray(mu, dtype=float), restrict=True)
-        out.append((j, _down(L + lo_j), left, duals))
-    return out
+        yield (j, _down(L + lo_j), left, duals)
 
 
 def _reopt_budget(pool: ColumnPool, keep: np.ndarray, cap: Optional[int] = None) -> int:
@@ -1019,7 +1026,7 @@ def _search_reopt(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up:
         return cover.CoverSearch("proved", np.zeros(0, np.int64), float(best_up), float(best_up), 0)
     best, rows_best, lowest, nodes, status = float(best_up), np.zeros(0, np.int64), np.inf, 0, "proved"
     cliques = _separate_cliques(pool, keep, k)
-    for j, bound, left, duals in _branches(pool, root, keep, k, cliques, best_up=best):
+    for j, bound, left, duals in _iter_branches(pool, root, keep, k, cliques, best_up=best):
         if bound >= best:
             continue
         if nodes + 1 > node_limit:                    # the fixed group is a node of its own
