@@ -24424,8 +24424,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-gate-asks-for-the-full-budget"
-  find = "    budget = min(_reopt_budget(pool, keep, cap=int(node_limit)), int(node_limit))"
-  replace = "    budget = min(_reopt_budget(pool, keep), int(node_limit))"
+  find = "    budget = min(_reopt_budget(pool, keep, cap=int(node_limit)), int(node_limit), int(cover.PLAIN_STAGE_LIMIT))"
+  replace = "    budget = min(_reopt_budget(pool, keep), int(node_limit), int(cover.PLAIN_STAGE_LIMIT))"
   models = "the gated search asking for the uncapped budget, the hang the cap exists to remove"
 
 [[target]]
