@@ -265,14 +265,10 @@ def test_tiny_arms(n, Q):
 
 # --- integration ------------------------------------------------------------------------------------------------------
 
-def test_the_proof_after_the_first_mip_reoptimises_the_duals(monkeypatch):
-    """Integration: with no plain-stage budget, the second search, from the first MIP's design, is the re-optimised
-    one (``test_pangeo_cover_children.py`` pins the plain stage). The oracle is the plain search run to its proof."""
-    monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
-    monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)            # no window search: the MIP supplies the design
-    monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
-    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
-    monkeypatch.setattr(columns, "FIRST_MIN", 1)
+def test_the_gated_search_with_no_plain_budget_reoptimises_the_duals(monkeypatch):
+    """Unit: with no plain-stage budget, the gated search (:func:`columns._search_gated`, the window's search) is the
+    re-optimised one (``test_pangeo_cover_children.py`` pins the plain stage). The oracle is the plain search run to
+    its proof."""
     monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_, cap=None: 0)
     calls, real = [], columns._search_reopt
 
@@ -282,9 +278,11 @@ def test_the_proof_after_the_first_mip_reoptimises_the_duals(monkeypatch):
 
     monkeypatch.setattr(columns, "_search_reopt", rec)
     Y = _panel(13, 12)
-    _, d = columns.solve_exact(np.arange(12), Y, 3)
-    assert calls == [1] and d["search_start"] == "first_mip" and d["second_search"] == "reoptimised"
-    assert d["objective_value"] == pytest.approx(_plain_optimum(Y, 3), rel=1e-9)
+    pool = columns.score_columns(np.arange(12), Y, 3)
+    k = columns.min_groups(12, 3, 1)
+    res = columns._search_gated(pool, columns.root_lp(pool, k), np.arange(len(pool)), k, 3, np.inf, 10**9)
+    assert calls == [1] and res.status == "proved" and res.stage == "reoptimised"
+    assert float(pool.cost[res.rows].sum()) == pytest.approx(_plain_optimum(Y, 3), rel=1e-9)
 
 
 def _plain_optimum(Y, Q):

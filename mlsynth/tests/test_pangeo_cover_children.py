@@ -24,7 +24,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
 from mlsynth.exceptions import MlsynthDataError, MlsynthEstimationError
-from mlsynth.utils.pangeo_helpers import columns, cover, mip
+from mlsynth.utils.pangeo_helpers import columns, cover, mip, vtree
 from mlsynth.utils.pangeo_helpers.parallelism import enumerate_candidate_pairs
 from mlsynth.utils.solvers import dual_simplex as ds
 
@@ -373,18 +373,18 @@ def _second_search_setup(monkeypatch):
     monkeypatch.setattr(columns, "FIRST_MIN", 1)
 
 
-def test_the_proof_after_the_first_mip_is_the_gated_search(monkeypatch):
-    """Integration: the second search, from the first MIP's design, is the gated one, and the diagnostics say which
-    stage proved."""
+def test_the_proof_after_the_first_mip_is_the_volume_tree(monkeypatch):
+    """Integration: the second search, from the first MIP's design, is the volume tree (:mod:`.vtree`), and the
+    diagnostics name its stage."""
     _second_search_setup(monkeypatch)
-    calls, real = [], columns._search_gated
+    calls, real = [], vtree.search
 
     def rec(*a, **kw):
         out = real(*a, **kw)
         calls.append(out)
         return out
 
-    monkeypatch.setattr(columns, "_search_gated", rec)
+    monkeypatch.setattr(vtree, "search", rec)
     Y = _panel(13, 14)
     _, d = columns.solve_exact(np.arange(14), Y, 3)
     assert len(calls) == 1 and d["search_start"] == "first_mip" and calls[0].status == "proved"
@@ -404,15 +404,16 @@ def _plain_optimum(Y, Q):
 
 
 @pytest.mark.parametrize("budget,stage", [(10**9, "plain"), (0, "reoptimised")])
-def test_the_diagnostics_name_the_stage_that_proved(monkeypatch, budget, stage):
-    """Integration: an unbounded plain budget proves in the plain stage, and none sends the proof to
-    re-optimisation; both prove the optimum."""
-    _second_search_setup(monkeypatch)
+def test_the_gated_search_names_the_stage_that_proved(monkeypatch, budget, stage):
+    """Unit: an unbounded plain budget proves the gated search (:func:`columns._search_gated`, the window's search)
+    in the plain stage, and none sends it to re-optimisation; both prove the optimum."""
     monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_, cap=None: budget)
     Y = _panel(13, 12)
-    _, d = columns.solve_exact(np.arange(12), Y, 3)
-    assert d["search_start"] == "first_mip" and d["second_search"] == stage
-    assert d["objective_value"] == pytest.approx(_plain_optimum(Y, 3), rel=1e-9)
+    pool = columns.score_columns(np.arange(12), Y, 3)
+    k = columns.min_groups(12, 3, 1)
+    res = columns._search_gated(pool, columns.root_lp(pool, k), np.arange(len(pool)), k, 3, np.inf, 10**9)
+    assert res.status == "proved" and res.stage == stage
+    assert float(pool.cost[res.rows].sum()) == pytest.approx(_plain_optimum(Y, 3), rel=1e-9)
 
 
 # --- property ---------------------------------------------------------------------------------------------------------

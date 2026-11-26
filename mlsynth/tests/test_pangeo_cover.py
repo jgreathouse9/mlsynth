@@ -15,7 +15,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
-from mlsynth.utils.pangeo_helpers import columns, cover, mip
+from mlsynth.utils.pangeo_helpers import columns, cover, mip, vtree
 from mlsynth.utils.pangeo_helpers.parallelism import enumerate_candidate_pairs
 
 
@@ -210,19 +210,19 @@ def test_the_proof_after_the_first_mip_starts_from_its_design(monkeypatch):
     monkeypatch.setattr(columns, "FIRST_MIN", 1)
     Y = _panel(23, 14)
     idx = np.arange(14)
-    seen, real, real_gated = [], cover.search, columns._search_gated
+    seen, real, real_tree = [], cover.search, vtree.search
 
     def rec(pool, root, keep, k, Q, best_up, node_limit, fixed=(), **kw):
         if not len(fixed) and len(seen) < 2:                       # the start and the quick search
             seen.append((len(keep), best_up, node_limit))
         return real(pool, root, keep, k, Q, best_up, node_limit, fixed=fixed, **kw)
 
-    def rec_gated(pool, root, keep, k, Q, best_up, node_limit, **kw):     # the proof after the first MIP
+    def rec_tree(pool, root, keep, k, best_up, node_limit, **kw):  # the proof after the first MIP
         seen.append((len(keep), best_up, node_limit))
-        return real_gated(pool, root, keep, k, Q, best_up, node_limit, **kw)
+        return real_tree(pool, root, keep, k, best_up, node_limit, **kw)
 
     monkeypatch.setattr(cover, "search", rec)
-    monkeypatch.setattr(columns, "_search_gated", rec_gated)
+    monkeypatch.setattr(vtree, "search", rec_tree)
     first = []
 
     def spy(cands, ix, **kw):
@@ -236,7 +236,7 @@ def test_the_proof_after_the_first_mip_starts_from_its_design(monkeypatch):
     z_up = sum(float(pool.cost_up[columns.column_index(tuple(sorted(int(u) for u in c["members"])), 14)])
                for c in chosen0)
     assert len(seen) == 3                                            # start, quick proof, proof after the MIP
-    assert seen[1][2] == 1 and seen[2][2] == cover.SEARCH_NODE_LIMIT
+    assert seen[1][2] == 1 and seen[2][2] == min(cover.SEARCH_NODE_LIMIT, cover.VOLUME_NODE_LIMIT)
     assert seen[2][1] == pytest.approx(z_up, rel=1e-12) and seen[2][1] >= z_up
     from fractions import Fraction
     root = columns.root_lp(pool, columns.min_groups(14, 3, 1))

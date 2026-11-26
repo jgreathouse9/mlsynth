@@ -24583,3 +24583,119 @@ timeout = 1200.0
   find = "        if min(int(cover.WINDOW_NODE_LIMIT), int(search_node_limit)) > 0:"
   replace = "        if True:"
   models = "a window search run with no node budget, which places nothing and leaves the diagnostics reporting a window search that did not happen"
+
+[[target]]
+name = "pangeo-vtree"
+module-path = "mlsynth/utils/pangeo_helpers/vtree.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_vtree.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-reduced-cost-slack-is-dropped"
+  find = "        lo = rc - (gw * ab + _ETA)"
+  replace = "        lo = rc"
+  models = "each group's reduced cost taken at its computed value, which can sit above the exact one, so a node is pruned or a group fixed out on a bound that does not hold"
+
+  [[target.mutant]]
+  id = "the-bound-slack-is-dropped"
+  find = "    return L - slack"
+  replace = "    return L"
+  models = "the node bound returned without its rounding subtracted, above the exact Lagrangian on ill-conditioned costs, so a node holding the optimum can be pruned"
+
+  [[target.mutant]]
+  id = "covered-units-keep-their-multipliers"
+  find = "        if _has(uncm, u):\n            s1 += pi[u]"
+  replace = "        if True:\n            s1 += pi[u]"
+  models = "the multipliers of units already covered summed into the node bound, which no completion pays, so the bound overstates the node and prunes it wrongly"
+
+  [[target.mutant]]
+  id = "the-cardinality-term-is-dropped"
+  find = "    L = s1 + sk + s2"
+  replace = "    L = s1 + s2"
+  models = "the cardinality row's term left out of the node bound: still a bound, but below the Lagrangian the multipliers give, so the tree prunes less than it should"
+
+  [[target.mutant]]
+  id = "groups-with-negative-reduced-cost-are-fixed-out"
+  find = "                if lo > 0.0:\n                    tj = L + lo + f_lo"
+  replace = "                if lo > -1e300:\n                    tj = L + lo + f_lo"
+  models = "reduced-cost fixing applied to groups whose reduced cost is negative, where L + rc is not a bound on the designs that use them, so groups of the optimum are dropped"
+  expected = "survived"
+  accepted-because = "EQUIVALENT: fixing runs only at a node that was not pruned, where L plus the chosen groups' cost is below the incumbent, and a group with a negative reduced cost lowers that sum further, so the test L + rc + cost >= incumbent never holds and no group is dropped. Recorded because the equivalence is the finding: the rule needs no sign check to be valid. The non-equivalent defect, fixing against a threshold below the incumbent, is the next mutant."
+
+  [[target.mutant]]
+  id = "the-fixing-threshold-is-below-the-incumbent"
+  find = "                    if tj >= best:\n                        continue"
+  replace = "                    if tj >= best - 0.5 * abs(best):\n                        continue"
+  models = "groups fixed out when their bound reaches half the incumbent, below it, so groups of a design cheaper than the incumbent are dropped and the tree proves the optimum of a smaller problem"
+
+  [[target.mutant]]
+  id = "designs-short-of-the-cardinality-row-are-kept"
+  find = "                if d + 1 >= k:"
+  replace = "                if True:"
+  models = "a cover with fewer than k groups accepted as a design, so the tree returns designs that break the cardinality row"
+
+  [[target.mutant]]
+  id = "the-design-upper-bound-has-no-slack"
+  find = "                    up = us + (_gam(d + 3) * ua + _gam(2) * abs(us) + _ETA)"
+  replace = "                    up = us"
+  models = "the design's upper bound taken as its computed sum, which can sit below the exact sum of the groups' upper bounds, so the reported upper bound is not one"
+
+  [[target.mutant]]
+  id = "the-overlap-test-reads-one-mask-word"
+  find = "                for w in range(Wd):\n                    if gm[j, w] & gm[a, w] != np.uint64(0):"
+  replace = "                for w in range(1):\n                    if gm[j, w] & gm[a, w] != np.uint64(0):"
+  models = "a child's groups filtered on the first 64 units only, so on a larger arm a child keeps groups that overlap the group chosen and returns covers that are not partitions"
+
+  [[target.mutant]]
+  id = "the-progress-array-is-not-written"
+  find = "            if nodes % every == 0:"
+  replace = "            if False:"
+  models = "the kernel never writing the progress array while it runs, so a caller watching a long proof sees nothing until it ends"
+
+  [[target.mutant]]
+  id = "a-negative-node-limit-is-accepted"
+  find = "    if int(node_limit) < 0:"
+  replace = "    if False:"
+  models = "a negative node limit taken as a cap the tree meets at once, reporting a proof cut off before it started"
+
+  [[target.mutant]]
+  id = "a-negative-step-count-is-accepted"
+  find = "    if steps < 0:"
+  replace = "    if False:"
+  models = "a negative step count accepted and treated as none, so a malformed setting goes unreported"
+
+  [[target.mutant]]
+  id = "the-stage-is-not-named"
+  find = "                          float(min(upper, lowest)), int(nodes), stage=\"volume\")"
+  replace = "                          float(min(upper, lowest)), int(nodes))"
+  models = "the tree's result not naming its stage, so the diagnostics cannot say which search proved the design"
+
+[[target]]
+name = "pangeo-volume-proof"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_volume_proof.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-proof-is-the-gated-search"
+  find = "    res = vtree.search(pool, root, keep, k, _up(z_up), min(int(node_limit), int(cover.VOLUME_NODE_LIMIT)),\n                       progress=progress)"
+  replace = "    res = _search_gated(pool, root, keep, k, Q, _up(z_up), node_limit, progress=progress)"
+  models = "the proof run by the gated search, which bounds every node with the root's duals: 573 s against 17.5 s from the optimum on a 40-geo Q = 3 arm"
+
+  [[target.mutant]]
+  id = "the-proof-ignores-the-volume-node-limit"
+  find = "min(int(node_limit), int(cover.VOLUME_NODE_LIMIT))"
+  replace = "int(node_limit)"
+  models = "the tree given the 200-million-node search limit, about 30 hours at its cost per node, before the MIP loop could take over"
+
+  [[target.mutant]]
+  id = "the-proof-ignores-the-search-node-limit"
+  find = "min(int(node_limit), int(cover.VOLUME_NODE_LIMIT))"
+  replace = "int(cover.VOLUME_NODE_LIMIT)"
+  models = "the tree ignoring search_node_limit, so a caller's cap on the search does not hold for the proof"
+
+  [[target.mutant]]
+  id = "the-proof-is-not-watched"
+  find = "    res = vtree.search(pool, root, keep, k, _up(z_up), min(int(node_limit), int(cover.VOLUME_NODE_LIMIT)),\n                       progress=progress)"
+  replace = "    res = vtree.search(pool, root, keep, k, _up(z_up), min(int(node_limit), int(cover.VOLUME_NODE_LIMIT)))"
+  models = "the proof not reporting through the progress array, so its nodes are missing from the total a caller reads"

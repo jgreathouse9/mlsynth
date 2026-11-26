@@ -487,13 +487,10 @@ therefore reaches the optimum of :eq:`mip` in three steps
    MIP would solve (the pairs of least reduced cost and a seed design) is
    searched by the same exact-cover search, from the quick search's design: it
    finds the window's best design or proves the window holds nothing better,
-   in a fraction of the MIP's time. The better design's upper bound :math:`z`
-   is the incumbent of a second search, run before any MIP, which tries to
-   prove it optimal over the pairs that bound keeps, placing at most 200
-   million pairs. It runs the same search for as many nodes as the pairs it
-   would otherwise re-solve LPs over, and at most 1.5 million. If that does
-   not prove, it branches once on the geo with the fewest pairs and gives each
-   branch an LP of its own: the root LP with the branch's pair fixed at 1 and
+   in a fraction of the MIP's time. The window search runs the same search for
+   as many nodes as the pairs it would otherwise re-solve LPs over, and at
+   most 1.5 million. If that does not prove, it branches once on the geo with
+   the fewest pairs and gives each branch an LP of its own: the root LP with the branch's pair fixed at 1 and
    every pair meeting it at 0. Only bounds change, so each branch's LP starts
    from the root LP's optimal basis, which stays dual feasible (Koberstein,
    2005, chapter 1), and from its inverse, is solved by the library's dual
@@ -506,6 +503,24 @@ therefore reaches the optimum of :eq:`mip` in three steps
    Nemhauser and Savelsbergh, 2000): a graph on :math:`m` vertices can have
    :math:`3^{m/3}` of them (Moon and Moser, 1965, Theorem 1). A clique with no
    chosen pair and no pair that still fits adds its dual to the bound.
+#. The proof. The better design's upper bound :math:`z` is the incumbent of the
+   proof, run before any MIP over the pairs that bound keeps
+   (``mlsynth.utils.pangeo_helpers.vtree``). It enumerates exact covers as the
+   search above does, but bounds every partial design by its own problem: the
+   Lagrangian bound of the pairs left, the geos left and the cardinality row,
+   at multipliers the volume algorithm improves from the parent's (Barahona and
+   Anbil, 2000), at most 50 steps a node and stopping as soon as the bound
+   reaches :math:`z`. The root duals go stale with depth: on a 24-geo
+   :math:`Q=4` arm they leave the bound 22% under the optimum one level down,
+   where the partial design's own LP is 0.75% under it. At every node a pair
+   whose reduced cost would lift the bound past :math:`z` is dropped for the
+   rest of that branch (Nemhauser and Wolsey, 1988). The bound is computed in
+   floating point with its rounding subtracted, and tested against exact
+   rational arithmetic. A proof that ends within its cap (5 million nodes, and
+   at most the search's node limit) proves the design optimal; one the cap
+   stops leaves the MIPs to run as they would without it. From the optimum,
+   on one thread, it proved a 40-geo :math:`Q=3` arm in 17.5 s, where the
+   search above with the root duals took 573 s.
 
 The LP bound is weak on this problem: on the seasonal panels below it lies 14
 to 33% under the optimum. At 20 geos and :math:`Q=3`, without the cut on
@@ -1344,6 +1359,12 @@ Generation." *Operations Research* 53(6):1007-1023.
 
 Nemhauser, G. L., & Wolsey, L. A. (1988). *Integer and Combinatorial
 Optimization.* Wiley.
+
+Barahona, F., & Anbil, R. (2000). "The Volume Algorithm: Producing Primal
+Solutions with a Subgradient Method." *Mathematical Programming* 87:385-399.
+
+Barahona, F., & Anbil, R. (2002). "On Some Difficult Linear Programs Coming
+from Set Partitioning." *Discrete Applied Mathematics* 118:3-11.
 
 Knuth, D. E. (2000). "Dancing Links." In J. Davies, B. Roscoe and J. Woodcock
 (eds.), *Millennial Perspectives in Computer Science*, Palgrave, 187-214.

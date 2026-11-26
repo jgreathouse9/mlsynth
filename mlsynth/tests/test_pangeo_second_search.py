@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
-from mlsynth.utils.pangeo_helpers import columns, cover, mip
+from mlsynth.utils.pangeo_helpers import columns, cover, mip, vtree
 
 
 def _panel(seed, n, T=12, levels=5.0):
@@ -52,13 +52,14 @@ def _poor_first_window(set_attr):
     set_attr(columns, "FIRST_MIN", 1)
 
 
-def _spy_gated(monkeypatch):
-    seen, real = [], columns._search_gated
+def _spy_proof(monkeypatch):
+    """The proof's groups and incumbent: the proof is the volume tree (:func:`.vtree.search`)."""
+    seen, real = [], vtree.search
 
-    def rec(pool, root, keep, k, Q, best_up, node_limit, **kw):
+    def rec(pool, root, keep, k, best_up, node_limit, **kw):
         seen.append((len(keep), best_up))
-        return real(pool, root, keep, k, Q, best_up, node_limit, **kw)
-    monkeypatch.setattr(columns, "_search_gated", rec)
+        return real(pool, root, keep, k, best_up, node_limit, **kw)
+    monkeypatch.setattr(vtree, "search", rec)
     return seen
 
 
@@ -84,7 +85,7 @@ def test_smoke_a_poor_first_mip_does_not_set_the_second_searchs_incumbent(monkey
     _poor_first_window(monkeypatch.setattr)
     monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)       # the window search is test_pangeo_first_window.py's
     solve, designs = _recording_mip()
-    gated, quick = _spy_gated(monkeypatch), _spy_quick(monkeypatch)
+    gated, quick = _spy_proof(monkeypatch), _spy_quick(monkeypatch)
     chosen, d = columns.solve_exact(idx, Y, Q, search_node_limit=30, solve=solve)
     pool = columns.score_columns(idx, Y, Q)
     root = columns.root_lp(pool, columns.min_groups(n, Q, 1))
