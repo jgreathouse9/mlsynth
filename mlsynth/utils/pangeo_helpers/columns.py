@@ -1102,16 +1102,18 @@ def _search_reopt(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up:
 def _search_gated(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up: float,
                   node_limit: int, progress=None) -> "cover.CoverSearch":
     """The second proof search: the plain search (:func:`.cover.search` with the root's duals) for at most
-    :func:`_reopt_budget` nodes, then, if that does not prove, the re-optimised search (:func:`_search_reopt`) with
+    :func:`_reopt_budget` nodes and at most ``cover.PLAIN_STAGE_LIMIT``, then, if that does not prove, the re-optimised search (:func:`_search_reopt`) with
     the rest of the node limit and the better incumbent. Re-optimisation solves one LP per branch, so it pays when
     the plain search is long and the branches few; when the incumbent is far above the optimum the branches are
     many and the plain search proves first. Measured on one thread on a 20-market arm at Q = 3 with the incumbent
     at, 20% above and twice the optimum, the plain stage proved in 0.01, 0.05 and 0.52 s, where re-optimisation
     alone took 0.74, 4.3 and 77 s; on three 40-market arms at Q = 2, started from the first MIP's design, the gated
-    search proved in 2.8, 3.4 and 1.6 s, where the plain search alone took 2.9, 3.8 and 2.1 s. Returns a
+    search proved in 2.8, 3.4 and 1.6 s, where the plain search alone took 2.9, 3.8 and 2.1 s. The children's
+    columns grow with the arm: 16.6 million on a 40-geo Q = 3 arm, where the plain stage spent 273 s and
+    proved nothing, so the plain stage stops at ``cover.PLAIN_STAGE_LIMIT``. Returns a
     :class:`.cover.CoverSearch` whose ``stage`` says which stage ended it. Both stages report to ``progress``."""
     keep = np.asarray(keep, dtype=np.int64)
-    budget = min(_reopt_budget(pool, keep, cap=int(node_limit)), int(node_limit))
+    budget = min(_reopt_budget(pool, keep, cap=int(node_limit)), int(node_limit), int(cover.PLAIN_STAGE_LIMIT))
     best, rows, nodes = float(best_up), np.zeros(0, np.int64), 0
     if budget > 0:
         first = cover.search(pool, root, keep, k, Q, best, budget, progress=progress)
