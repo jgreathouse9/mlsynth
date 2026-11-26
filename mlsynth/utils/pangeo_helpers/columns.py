@@ -87,7 +87,9 @@ in it.
 
 Search. Before any MIP, the exact-cover search of :mod:`.cover` enumerates designs depth first, pruned by the same
 Lagrangian bound, and a search that ends under its node cap proves its design optimal with a certified gap; no MIP
-runs. A search stopped by the cap leaves the proof to the MIP loop below, which runs as it would without the search.
+runs. A search stopped by the cap is followed by the search of the first MIP's window and the proof from the
+better design (:func:`solve_exact`); only a proof stopped by its cap leaves the work to the MIP loop below, which
+runs as it would without the search.
 The first MIP takes the groups of least reduced cost (``FIRST_PER_UNIT`` per unit, at least ``FIRST_MIN``)
 and the groups of a fixed design (:func:`seed_partition`), so it has a design. The best design's cost :math:`z` is the
 optimum when every group left out has :math:`\\bar c > z - L`. Otherwise the next MIP takes the groups up to the
@@ -1188,11 +1190,13 @@ def solve_exact(
     the design with no MIP: ``backend`` is ``"search"``, ``mip_solves`` 0, ``dual_bound`` a rigorous lower bound on
     the optimum, ``objective_upper`` one above the design's exact cost and ``mip_gap`` the gap between them relative
     to the design's cost, as the MIP path reports it (absolute when that cost is 0).
-    A quick search stopped by its cap holding a design is followed at once by the proof search from that design
-    (:func:`_search_from`), before any MIP; when the quick search holds none, the proof runs from the first MIP's
-    design. A proof stopped by the cap leaves the MIP loop to run as without it, and is not run again.
-    ``search_start`` says where a proved design's proof began: ``"staged"`` (the quick search),
-    ``"quick_design"`` or ``"first_mip"``. ``search`` reports which happened
+    A quick search stopped by its cap is followed, before any MIP, by the search of the first window
+    (:func:`_search_window`: the groups the first MIP would hold, searched from the quick search's design), then by
+    the proof (:func:`_search_from`) from the better of the two designs. When neither holds a design, the proof runs
+    from the first MIP's. A proof stopped by the cap leaves the MIP loop to run as without it, and is not run again.
+    ``window_search`` reports the window search's status (``"off"`` with no window budget), and ``search_start``
+    where a proved design's proof began: ``"staged"`` (the quick search), ``"first_window"``, ``"quick_design"``
+    or ``"first_mip"``. ``search`` reports which happened
     (``"proved"``, ``"node_limit"``, ``"off"``, or ``"unavailable"`` without numba) and ``search_nodes`` the groups
     the search placed.
 

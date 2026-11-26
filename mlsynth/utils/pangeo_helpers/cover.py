@@ -41,8 +41,8 @@ nodes even from the optimum, and lost to the MIP loop (32.8 s against 24.4 s): t
 optimum and the search's bound does not tighten with depth, where HiGHS re-solves the LP and adds cuts at every node.
 The quick search's cap, ``SEARCH_QUICK_LIMIT``, bounds what such a panel costs before the first MIP: at 1.5
 million nodes, 8.2 s at 40 markets and 8.6 s at 50, against MIP loops of 18.7 s and 27.0 s, while Q = 3 at 32
-markets still proves under it (1.38 million nodes). The proof that follows, from the quick search's design (or
-the first MIP's, when the quick search holds none), gets ``SEARCH_NODE_LIMIT``, 200 million nodes: it proved
+markets still proves under it (1.38 million nodes). The proof that follows, from the better of the quick
+search's design and the first window's, gets ``SEARCH_NODE_LIMIT``, 200 million nodes: it proved
 that 50-market arm in 34.7 s against 42.1 s for the MIP loop, and a 40-geo Q = 3 arm in 1,082 s, where the MIP
 loop's fifth MIP passed 1,800 s. A search stopped by the cap does not hand its design to the MIP loop:
 on the 50-market arm, adding it to the first MIP's groups made HiGHS take 58 to 64 s over the same groups, against

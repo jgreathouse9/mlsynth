@@ -483,12 +483,15 @@ therefore reaches the optimum of :eq:`mip` in three steps
    stops leaves the MIPs to run as they would without it. The search runs with
    ``mip_backend="auto"``; naming ``"highspy"`` or ``"cvxpy"`` asks for that
    MIP and skips it.
-#. Proof from the quick search's design. When the cap stops the search
-   holding a design, that design's upper bound :math:`z` is the incumbent of
-   a second search, run before any MIP, which tries to prove it optimal over
-   the pairs that bound keeps, placing at most 200 million pairs. When the
-   quick search holds no design, the first MIP's design gives :math:`z`. It runs the same search for as many nodes as the pairs it would
-   otherwise re-solve LPs over, and at most 1.5 million. If that does
+#. Window, then proof. When the cap stops the search, the window the first
+   MIP would solve (the pairs of least reduced cost and a seed design) is
+   searched by the same exact-cover search, from the quick search's design: it
+   finds the window's best design or proves the window holds nothing better,
+   in a fraction of the MIP's time. The better design's upper bound :math:`z`
+   is the incumbent of a second search, run before any MIP, which tries to
+   prove it optimal over the pairs that bound keeps, placing at most 200
+   million pairs. It runs the same search for as many nodes as the pairs it
+   would otherwise re-solve LPs over, and at most 1.5 million. If that does
    not prove, it branches once on the geo with the fewest pairs and gives each
    branch an LP of its own: the root LP with the branch's pair fixed at 1 and
    every pair meeting it at 0. Only bounds change, so each branch's LP starts
