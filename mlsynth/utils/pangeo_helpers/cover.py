@@ -70,6 +70,9 @@ START_PER_UNIT = 40
 START_NODE_LIMIT = 200_000
 
 _U = 2.0 ** -53
+#: The underflow unit, the smallest positive subnormal: a product's absolute error below the normal range (Rump 2010,
+#: eq. 2.3; see :mod:`.columns`).
+_ETA = 2.0 ** -1074
 
 
 def _gamma(k: int) -> float:
@@ -188,7 +191,7 @@ def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, be
             continue
         rt = r_lo * sm if r_lo * sm < r_hi * sm else r_hi * sm
         lb = P1 + S1 + rt
-        if lb - g2 * (P1 + absA0 + r_hi * abs(sm)) >= best_up:
+        if lb - (g2 * (P1 + absA0 + r_hi * abs(sm)) + _ETA) >= best_up:   # rt's product may underflow
             continue
         for w in range(W):
             Ud[depth + 1, w] = Ud[depth, w]

@@ -30,8 +30,29 @@ Every split's exact cost (in exact arithmetic on the panel's doubles) is also bo
 error is at most :math:`k_1(m) \\sum_p |c_p| \\|A_p\\|_2`, from the error of a dot product, of the weights and of the
 centring (Rump, "Verification methods: rigorous results using floating-point arithmetic", Acta Numerica 19 (2010)
 287-449, Theorem 2.1); the level fit is an orthogonal projection, which does not lengthen that error; and the sum of
-squares and the mean carry their own :math:`\\gamma_{T+6}` and :math:`\\gamma_{2T+4}` terms. The bounds assume no
-underflow, the condition of that theorem. A group's lower bound is the least over its splits, its upper bound that of
+squares and the mean carry their own :math:`\\gamma_{T+6}` and :math:`\\gamma_{2T+4}` terms. That theorem's product
+bounds hold provided no underflow occurs; below the normal range a product, quotient or square carries an absolute
+error of at most :math:`\\eta / 2`, :math:`\\eta = 2^{-1074}`, and no relative one (Rump 2010, eq. 2.3 on p. 302,
+:math:`a \\circ b = \\mathrm{fl}(a \\circ b)(1 + \\varepsilon) + \\delta`, :math:`\\varepsilon\\delta = 0`). Three
+squares that form a cost bound carry that error with no relative term to cover it: the residual sum of squares
+(its :math:`T` squares, :math:`2T\\eta` in all, the rest covering the two quotients; the final square and scaling add
+:math:`\\eta` of their own; the weighted form rounds :math:`w_t d_t` before the second :math:`d_t` multiplies it, an
+error of at most :math:`|d_t|\\eta / 2` that the gap's error term :math:`e_r \\ge k_1 |d_t| \\sqrt{w_{\\max}} / 2`
+covers whenever it is not below :math:`\\eta`), the square of the
+difference of totals, and each covariate's :math:`\\omega_j v_j^2`, whose error the weight multiplies. Each adds
+:math:`\\eta` to an upper bound or subtracts it from a lower one. That is exact when the result is subnormal, since
+addition then does not round (eq. 2.4), and rounds away when it is normal, where :math:`\\delta = 0`, so at normal
+scales the bounds are the same doubles as without it. The other operations need no term. Sums are exact below the
+normal range (eq. 2.4), so the error a :math:`\\gamma_k` term bounds is zero when its argument is subnormal; when the
+argument :math:`X` is normal, each :math:`\\gamma_k` is taken at least one step past the one the error needs, a
+margin of at least :math:`uX \\ge \\eta / 2`. Two
+places keep a term all the same: the Lagrangian bound's summation error is two products whose margin falls below
+:math:`\\eta` when the sum is under :math:`2\\lambda` (:math:`\\lambda = 2^{-1022}`, the smallest normal number), and
+the search's pruning test subtracts :math:`r\\sigma`, a product that is a term of the bound itself, not of its error
+(:mod:`.cover`). Measured on panels scaled by :math:`2^s` from :math:`s = -505` to
+:math:`-570`, all four objectives, the bounds of 6,343 groups failed to bracket the exact cost without the three
+terms and of none with them (jgreathouse9/mlsynth#1170). A group's
+lower bound is the least over its splits, its upper bound that of
 the split chosen. Groups come out in the enumeration's order, by size and then lexicographically, and splits are tried
 in :func:`.parallelism.best_split`'s order with the first minimum kept; splits that tie in exact arithmetic are
 separated by rounding.
@@ -119,6 +140,8 @@ BATCH_PER_UNIT = 5
 _RTOL = 1e-9
 _EPS = 1e-12
 _U = 2.0 ** -53                      # the unit roundoff of IEEE double precision
+#: The underflow unit of IEEE double precision, the smallest positive subnormal (Rump 2010, eq. 2.3).
+_ETA = 2.0 ** -1074
 _OBJECTIVES = {"ss_res": 0, "r2": 1, "weighted": 2, "supergeo_total": 3}
 
 
@@ -295,13 +318,15 @@ def _traj(pos, m, c, A, Nu, w, use_w, W, sw, k1, g_s, g_mu, r):
     e_r = k1 * abs_cn * sw
     rbar = abs_cn * (1.0 + 2.0 * k1)
     e_mu = g_mu * g_mu * rbar * rbar * sw * sw
-    q_up = np.sqrt(s / (1.0 - g_s))
-    q2 = s / (1.0 + g_s) - e_mu
+    # the T squares of s may underflow, each by eta / 2; the rest of e_s covers the quotients below (module docstring)
+    e_s = (T * _ETA) * 2.0
+    q_up = np.sqrt((s + e_s) / (1.0 - g_s))
+    q2 = s / (1.0 + g_s) - e_mu - e_s
     q_lo = np.sqrt(q2) if q2 > 0.0 else 0.0
     lo = q_lo - e_r
-    lo = lo * lo * (1.0 - 8.0 * _U) if lo > 0.0 else 0.0
-    up = (q_up + e_r) * (q_up + e_r) * (1.0 + 8.0 * _U)
-    return s, lo, up
+    lo = ((lo * lo - _ETA) * (1.0 - 8.0 * _U) - _ETA) if lo > 0.0 else 0.0
+    up = ((q_up + e_r) * (q_up + e_r) + _ETA) * (1.0 + 8.0 * _U) + _ETA
+    return s, max(lo, 0.0), up
 
 
 @njit(cache=_CACHE)
@@ -324,10 +349,11 @@ def _covterm(pos, m, c, Cc, sc, om, k1, g_c):
         s += om[j] * v * v
         ad = abs(d)
         if ad > e:
-            vl = (ad - e) / sc[j]
-            lo += om[j] * vl * vl
-        vu = (ad + e) / sc[j]
-        up += om[j] * vu * vu
+            vl = (ad - e) / sc[j] - _ETA
+            if vl > 0.0:
+                lo += om[j] * (vl * vl - _ETA) - _ETA
+        vu = (ad + e) / sc[j] + _ETA
+        up += om[j] * (vu * vu + _ETA) + _ETA
     return s, lo * (1.0 - g_c), up * (1.0 + g_c)
 
 
@@ -374,8 +400,8 @@ def _score_group(g, m, Q, obj, A, Nu, w, use_w, W, sw, Cc, sc, om, has_cov, u, t
                 e = (e + gam[m + 1] * a) * (1.0 + 4.0 * _U)
                 s = d * d
                 ad = abs(d)
-                lo = (ad - e) * (ad - e) * (1.0 - 4.0 * _U) if ad > e else 0.0
-                up = (ad + e) * (ad + e) * (1.0 + 4.0 * _U)
+                lo = max(((ad - e) * (ad - e) - _ETA) * (1.0 - 4.0 * _U) - _ETA, 0.0) if ad > e else 0.0
+                up = ((ad + e) * (ad + e) + _ETA) * (1.0 + 4.0 * _U) + _ETA
             else:
                 s, lo, up = _traj(g, m, c, A, Nu, w, use_w, W, sw, k1t[m], g_s, g_mu, r)
                 if obj == 1:
@@ -558,7 +584,7 @@ def lagrangian_bound(pool: ColumnPool, pi: np.ndarray, sigma: float, k: int) -> 
     rc = _rc_lower(pool, pi, sigma)
     neg = np.minimum(rc, 0.0)
     s2 = float(neg.sum())
-    e2 = _gamma(max(neg.size, 1)) * float(np.abs(neg).sum()) * (1.0 + _gamma(max(neg.size, 1)))
+    e2 = (_gamma(max(neg.size, 1)) * float(np.abs(neg).sum()) + _ETA) * (1.0 + _gamma(max(neg.size, 1))) + _ETA
     s1 = math.fsum(float(x) for x in pi)
     L = Fraction(s1) - abs(Fraction(s1)) * Fraction(_U) + Fraction(sigma) * k + Fraction(s2) - Fraction(e2)
     return _down(L), rc
