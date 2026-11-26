@@ -173,8 +173,7 @@ def test_property_a_returned_design_is_an_exact_cover(path, data, n, dropped, mi
                                 min_size=1, max_size=12)) if len(live) >= 2 else []
     if not groups:
         return
-    # costs of zero or at least 1e-6: below about 1e-299 the cost scale overflows, which is #1170's defect
-    cands = [_group(sorted(g), data.draw(st.one_of(st.just(0.0), st.floats(1e-6, 10.0)))) for g in groups]
+    cands = [_group(sorted(g), data.draw(st.floats(0.0, 10.0))) for g in groups]   # subnormal costs too (#1170)
     held = {u for g in groups for u in g}
     missing = sorted(set(range(n)) - held)
     try:
