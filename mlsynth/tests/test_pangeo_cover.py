@@ -169,6 +169,129 @@ def test_without_numba_the_search_is_skipped(monkeypatch):
     assert d["search"] == "unavailable" and d["mip_solves"] >= 1
 
 
+
+# --- unit: the proof from the first MIP's design --------------------------------------------------------------------
+
+def test_a_capped_quick_search_is_followed_by_a_proof_from_the_first_mips_design(monkeypatch):
+    """Unit: when the quick search from the staged start stops at its cap, the proof search runs again from the
+    first MIP's design, and a proof there ends the loop after one MIP. The staged start is cut to nothing, so the
+    quick search has no incumbent and stops at its cap of one node; the first MIP's window is cut to the seed
+    design and one group, so that MIP does not prove its design by itself and the loop would go on."""
+    monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
+    monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
+    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
+    monkeypatch.setattr(columns, "FIRST_MIN", 1)
+    Y = _panel(22, 14)
+    idx = np.arange(14)
+    calls = []
+
+    def spy(*a, **k):
+        calls.append(1)
+        return mip.solve_partition(*a, **k)
+
+    chosen, d = columns.solve_exact(idx, Y, 3, solve=spy)
+    _, d_ref = _reference(idx, Y, 3)
+    assert d["search"] == "proved" and d["search_start"] == "first_mip"
+    assert d["mip_solves"] == len(calls) == 1 and d["backend"] == "search"
+    assert _close(d["objective_value"], d_ref["objective_value"])
+    z = d_ref["objective_value"]
+    tol = 1e-9 * max(1.0, abs(z))
+    assert d["dual_bound"] <= z + tol and d["objective_upper"] >= z - tol and d["mip_gap"] <= 1e-12
+
+
+def test_the_proof_after_the_first_mip_starts_from_its_design(monkeypatch):
+    """Unit: the second search's incumbent bound is the first MIP's design's upper bound, so it searches only the
+    groups that design's margin keeps. The first MIP's window is cut so that MIP does not prove its design."""
+    monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
+    monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
+    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
+    monkeypatch.setattr(columns, "FIRST_MIN", 1)
+    Y = _panel(23, 14)
+    idx = np.arange(14)
+    seen, real, real_gated = [], cover.search, columns._search_gated
+
+    def rec(pool, root, keep, k, Q, best_up, node_limit, fixed=()):
+        if not len(fixed) and len(seen) < 2:                       # the start and the quick search
+            seen.append((len(keep), best_up, node_limit))
+        return real(pool, root, keep, k, Q, best_up, node_limit, fixed=fixed)
+
+    def rec_gated(pool, root, keep, k, Q, best_up, node_limit):     # the proof after the first MIP
+        seen.append((len(keep), best_up, node_limit))
+        return real_gated(pool, root, keep, k, Q, best_up, node_limit)
+
+    monkeypatch.setattr(cover, "search", rec)
+    monkeypatch.setattr(columns, "_search_gated", rec_gated)
+    first = []
+
+    def spy(cands, ix, **kw):
+        out = mip.solve_partition(cands, ix, **kw)
+        first.append(out)
+        return out
+
+    columns.solve_exact(idx, Y, 3, solve=spy)
+    chosen0, _ = first[0]
+    pool = columns.score_columns(idx, Y, 3)
+    z_up = sum(float(pool.cost_up[columns.column_index(tuple(sorted(int(u) for u in c["members"])), 14)])
+               for c in chosen0)
+    assert len(seen) == 3                                            # start, quick proof, proof after the MIP
+    assert seen[1][2] == 1 and seen[2][2] == cover.SEARCH_NODE_LIMIT
+    assert seen[2][1] == pytest.approx(z_up, rel=1e-12) and seen[2][1] >= z_up
+    from fractions import Fraction
+    root = columns.root_lp(pool, columns.min_groups(14, 3, 1))
+    z_exact = sum((Fraction(float(pool.cost_up[columns.column_index(tuple(sorted(int(u) for u in c["members"])), 14)]))
+                   for c in chosen0), Fraction(0))
+    want = int((root.reduced_costs <= columns._up(z_exact - Fraction(root.bound))).sum())
+    assert seen[2][0] == want                                       # exactly the groups that design's margin keeps
+
+
+def test_a_search_capped_twice_leaves_the_loop_to_finish(monkeypatch):
+    """Unit: with both searches stopped by their caps the MIP loop runs on, and the design is its optimum."""
+    monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
+    Y = _panel(24, 12)
+    idx = np.arange(12)
+    _, d = columns.solve_exact(idx, Y, 2, search_node_limit=1)
+    _, d_ref = _reference(idx, Y, 2)
+    assert d["search"] == "node_limit" and d["search_start"] is None and d["mip_solves"] >= 1
+    assert _close(d["objective_value"], d_ref["objective_value"])
+
+
+def test_a_proof_from_the_staged_start_says_so():
+    _, d = columns.solve_exact(np.arange(10), _panel(25, 10), 2)
+    assert d["search"] == "proved" and d["search_start"] == "staged" and d["mip_solves"] == 0
+
+
+def test_the_quick_search_is_capped_by_the_smaller_limit(monkeypatch):
+    """Unit: the quick search places at most the smaller of SEARCH_QUICK_LIMIT and search_node_limit."""
+    seen, real = [], cover.search
+
+    def rec(pool, root, keep, k, Q, best_up, node_limit):
+        seen.append(node_limit)
+        return real(pool, root, keep, k, Q, best_up, node_limit)
+
+    monkeypatch.setattr(cover, "search", rec)
+    monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 10**9)
+    columns.solve_exact(np.arange(10), _panel(26, 10), 2, search_node_limit=7)
+    assert seen[1] == 7
+    seen.clear()
+    monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 5)
+    columns.solve_exact(np.arange(10), _panel(26, 10), 2, search_node_limit=7)
+    assert seen[1] == 5
+
+
+def test_the_loop_ends_at_the_first_mip_without_a_second_search_when_that_mip_proves_it(monkeypatch):
+    """Edge: a first MIP that holds every group needs no proof search after it."""
+    monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
+    monkeypatch.setattr(columns, "FIRST_MIN", 10**6)               # the first MIP holds every group
+    seen, real = [], cover.search
+
+    def rec(*a):
+        seen.append(1)
+        return real(*a)
+
+    monkeypatch.setattr(cover, "search", rec)
+    _, d = columns.solve_exact(np.arange(8), _panel(27, 8), 2, search_node_limit=1)
+    assert d["mip_solves"] == 1 and len(seen) == 2                  # the start and the quick search only
+
 # --- unit: the search alone -----------------------------------------------------------------------------------------
 
 def test_search_returns_a_valid_cover_of_the_kept_groups():

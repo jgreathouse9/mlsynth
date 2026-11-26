@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 
@@ -65,6 +66,9 @@ _CACHE = __name__ == CANONICAL_NAME
 
 #: The proof search stops after this many nodes and the MIP loop takes over; about 7 s at Q = 2 and 50 markets.
 SEARCH_NODE_LIMIT = 1_500_000
+#: The quick search from the staged start places at most this many nodes (and at most the limit above). A search
+#: it stops runs again, up to SEARCH_NODE_LIMIT, from the design of the MIP loop's first MIP.
+SEARCH_QUICK_LIMIT = 1_500_000
 #: The start searches the START_PER_UNIT * n groups of least reduced cost, for at most START_NODE_LIMIT nodes.
 START_PER_UNIT = 40
 START_NODE_LIMIT = 200_000
@@ -97,6 +101,10 @@ class CoverSearch:
         the lowest leaf's lower bound. Not a bound when the cap stopped the search.
     nodes : int
         Groups placed.
+    stage : str or None
+        For the second proof search (:func:`.columns._search_gated`), the stage that ended it: ``"plain"`` when
+        the plain search proved within its budget, ``"reoptimised"`` when the re-optimised search ran. None for
+        any other search.
     """
 
     status: str
@@ -104,6 +112,7 @@ class CoverSearch:
     upper: float
     lower: float
     nodes: int
+    stage: Optional[str] = None
 
 
 @njit(cache=_CACHE)
@@ -118,29 +127,56 @@ def _fits(rows, col, Ucur):  # pragma: no cover - compiled; checked through sear
 
 
 @njit(cache=_CACHE)
-def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, best_up, g2,
-           node_limit):  # pragma: no cover - compiled; checked through search
-    """Depth-first search over exact covers. Returns (status, nodes, best_up, lowest, best_path)."""
+def _threshold(best_up, muS):  # pragma: no cover - compiled; checked through search
+    """An upper bound on best_up + muS in exact arithmetic (best_up itself when muS is 0)."""
+    if muS == 0.0:
+        return best_up
+    t = best_up + muS
+    return t + 2.0 * _U * abs(t)
+
+
+@njit(cache=_CACHE)
+def _cover(n, W, rows, size, lo, up, tlo, pisum, gptr, gcols, S0, absA0, sm, k, Q, best_up, g2,
+           node_limit, unc, P0, R0, T0, kptr, kmem, mu, gkptr, gk, muS, gK, shifted):  # pragma: no cover - compiled
+    """Depth-first search over exact covers. Returns (status, nodes, best_up, lowest, best_path).
+
+    ``lo`` are the (shifted) cost lower bounds the node bound sums, ``tlo`` the true ones the leaves' lower bounds
+    sum, ``up`` the upper bounds the incumbent sums. Without a shift (``shifted`` False) ``lo`` is ``tlo`` and
+    ``P0`` is ``T0``, so the running sum at a leaf is the true-cost sum, the same numbers added in the same order,
+    and the leaf reads it; summing the path again at every leaf cost 22% of the search's time on a 32-geo arm. Cliques ``kptr``/``kmem`` (local rows) with duals ``mu`` are
+    credited at a node with no chosen member (``gkptr``/``gk`` list each row's cliques) and no member that fits;
+    nodes are pruned at the incumbent plus ``muS``."""
     maxd = n // 2 + 1
     Ud = np.zeros((maxd + 1, W), np.uint64)
     Pd = np.zeros(maxd + 1)
     Rd = np.zeros(maxd + 1)
+    nK = kptr.size - 1
+    hit = np.zeros(max(nK, 1), np.int64)     # chosen members of each clique on the current path
+    last = np.full(maxd + 1, -1, np.int64)   # the row whose cliques are counted at each depth
     Sd = np.zeros(maxd + 1)
     Nd = np.zeros(maxd + 1, np.int64)
     Gd = np.zeros(maxd + 1, np.int64)
     Kd = np.zeros(maxd + 1, np.int64)
     path = np.zeros(maxd + 1, np.int64)
     best_path = np.full(maxd + 1, -1, np.int64)
+    n0 = 0
     for i in range(n):
-        Ud[0, i >> 6] |= np.uint64(1) << np.uint64(i & 63)
+        if unc[i]:
+            Ud[0, i >> 6] |= np.uint64(1) << np.uint64(i & 63)
+            n0 += 1
     Sd[0] = S0
-    Nd[0] = n
+    Nd[0] = n0
+    Pd[0] = P0
+    Rd[0] = R0
+    thr = _threshold(best_up, muS)
     lowest = np.inf
     nodes = 0
     status = 0
     bc = 1 << 60
     g0 = -1
-    for i in range(n):                       # the root branches on the unit with the fewest groups
+    for i in range(n):                       # the root branches on the uncovered unit with the fewest groups
+        if not unc[i]:
+            continue
         c = gptr[i + 1] - gptr[i]
         if c < bc:
             bc = c
@@ -151,6 +187,11 @@ def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, be
     Kd[0] = gptr[g0]
     depth = 0
     while depth >= 0:
+        if nK > 0 and last[depth] >= 0:      # the previous sibling's cliques are no longer chosen
+            c0 = last[depth]
+            for q in range(gkptr[c0], gkptr[c0 + 1]):
+                hit[gk[q]] -= 1
+            last[depth] = -1
         g = Gd[depth]
         if Kd[depth] >= gptr[g + 1]:
             depth -= 1
@@ -163,6 +204,10 @@ def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, be
         if nodes > node_limit:
             status = 1
             break
+        if nK > 0:
+            for q in range(gkptr[col], gkptr[col + 1]):
+                hit[gk[q]] += 1
+            last[depth] = col
         c1 = depth + 1
         P1 = Pd[depth] + lo[col]
         R1 = Rd[depth] + up[col]
@@ -172,12 +217,19 @@ def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, be
         if u1 == 0:                          # a design
             if c1 < k:
                 continue
-            leaf = P1 - g2 * (P1 + absA0)
+            if shifted:
+                T1 = T0                      # the true cost bounds, summed at leaves only
+                for t in range(c1):
+                    T1 += tlo[path[t]]
+            else:
+                T1 = P1                      # the same sum: lo is tlo and P0 is T0
+            leaf = T1 - g2 * (T1 + absA0)
             if leaf < lowest:
                 lowest = leaf
             r_up = R1 + g2 * R1
             if r_up < best_up:
                 best_up = r_up
+                thr = _threshold(best_up, muS)
                 for t in range(c1):
                     best_path[t] = path[t]
                 for t in range(c1, maxd + 1):
@@ -191,7 +243,8 @@ def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, be
             continue
         rt = r_lo * sm if r_lo * sm < r_hi * sm else r_hi * sm
         lb = P1 + S1 + rt
-        if lb - (g2 * (P1 + absA0 + r_hi * abs(sm)) + _ETA) >= best_up:   # rt's product may underflow
+        margin = g2 * (P1 + absA0 + r_hi * abs(sm)) + _ETA             # rt's product may underflow
+        if lb - margin >= thr:
             continue
         for w in range(W):
             Ud[depth + 1, w] = Ud[depth, w]
@@ -200,6 +253,20 @@ def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, be
             if p < 0:
                 break
             Ud[depth + 1, p >> 6] &= ~(np.uint64(1) << np.uint64(p & 63))
+        if nK > 0:                           # credit each clique with slack 1 in every completion
+            cr = 0.0
+            for K in range(nK):
+                if hit[K] > 0 or mu[K] <= 0.0:
+                    continue
+                alive = False
+                for q in range(kptr[K], kptr[K + 1]):
+                    if _fits(rows, kmem[q], Ud[depth + 1]):
+                        alive = True
+                        break
+                if not alive:
+                    cr += mu[K]
+            if cr > 0.0 and lb + cr - margin - gK * (abs(lb) + cr) >= thr:
+                continue
         bc = 1 << 60                         # branch on the uncovered unit with the fewest groups that fit
         gb = -1
         for w in range(W):
@@ -237,15 +304,70 @@ def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, be
     return status, nodes, best_up, lowest, best_path
 
 
-def search(pool, root, keep, k: int, Q: int, best_up: float, node_limit: int) -> CoverSearch:
+def _clique_arrays(keep, fixed, cliques, mu):
+    """The cliques the kernel credits, in its index: those with no fixed member (a fixed member hits its cliques
+    in every completion), each over its members in ``keep`` as positions in ``keep``, with its dual, and each kept
+    row's list of those cliques. A clique with no kept member is credited at every node: its slack is 1 in every
+    design over ``keep``."""
+    pos = {int(j): t for t, j in enumerate(keep)}
+    fx = set(int(j) for j in fixed)
+    kmem, kptr, mus = [], [0], []
+    per = [[] for _ in range(keep.size)]
+    for K, m in zip(cliques, mu):
+        if fx & set(int(j) for j in K):
+            continue
+        local = [pos[int(j)] for j in K if int(j) in pos]
+        for t in local:
+            per[t].append(len(mus))
+        kmem += local
+        kptr.append(len(kmem))
+        mus.append(float(m))
+    gkptr = np.zeros(keep.size + 1, dtype=np.int64)
+    gkptr[1:] = np.cumsum([len(p) for p in per])
+    gk = np.array([K for p in per for K in p], dtype=np.int64)
+    return (np.asarray(kptr, dtype=np.int64), np.asarray(kmem, dtype=np.int64), np.asarray(mus, dtype=float),
+            gkptr, gk)
+
+
+def search(pool, root, keep, k: int, Q: int, best_up: float, node_limit: int, fixed=()) -> CoverSearch:
     """Search the exact covers of the arm by the pool rows ``keep`` for one whose upper bound is below ``best_up``,
-    with at least ``k`` groups, placing at most ``node_limit`` groups. ``root`` is :func:`.columns.root_lp`'s."""
+    with at least ``k`` groups, placing at most ``node_limit`` groups. ``root`` holds the duals: ``pi``, ``sigma``
+    and rigorous lower bounds on every pool row's ``reduced_costs`` (:func:`.columns.root_lp`'s, or a residual
+    LP's). ``fixed`` are pool rows already chosen: their units start covered, their cost bounds start the sums,
+    they count toward ``k``, and they are part of the design returned. The rows in ``keep`` are disjoint from
+    them.
+
+    Duals from an LP with clique rows (:func:`.columns._residual_lp`) also carry ``cliques``, their duals ``mu``
+    and lower bounds ``cost_lo`` on the shifted costs. The node bound then sums the shifted costs, a node is pruned
+    when the bound reaches ``best_up`` plus the sum of ``mu``, and every clique with no chosen member and no member
+    that still fits adds its dual, since its slack is 1 in every completion. Leaves' lower bounds and the incumbent
+    use the true cost bounds."""
     keep = np.asarray(keep, dtype=np.int64)
+    fixed = np.asarray(fixed, dtype=np.int64)
     n = int(pool.unit_indices.size)
+    cliques = tuple(getattr(root, "cliques", ()))
+    mu_all = np.asarray(getattr(root, "mu", np.zeros(0)), dtype=float)
+    shifted = getattr(root, "cost_lo", None)
+    has_shift = shifted is not None
+    shifted = pool.cost_lo if shifted is None else np.asarray(shifted, dtype=float)
+    unc = np.ones(n, dtype=np.bool_)
+    for j in fixed:
+        unc[pool.members[j][pool.members[j] >= 0]] = False
+    P0 = float(shifted[fixed].sum()) if fixed.size else 0.0
+    R0 = float(pool.cost_up[fixed].sum()) if fixed.size else 0.0
+    T0 = float(pool.cost_lo[fixed].sum()) if fixed.size else 0.0
+    k_rem = max(int(k) - int(fixed.size), 0)
+    g2 = 2.0 * _gamma(2 * n + 8) + 4.0 * _U
+    if not unc.any():                        # the fixed groups are the design
+        upper = R0 + g2 * R0
+        if k_rem > 0 or upper >= best_up:
+            return CoverSearch("proved", np.zeros(0, np.int64), float(best_up), float(best_up), 0)
+        return CoverSearch("proved", fixed, float(upper), float(min(upper, T0 - g2 * T0)), 0)
     if keep.size == 0:
         return CoverSearch("proved", keep, float(best_up), float(best_up), 0)
     rows = np.ascontiguousarray(pool.members[keep], dtype=np.int64)
-    lo = np.ascontiguousarray(pool.cost_lo[keep], dtype=float)
+    lo = np.ascontiguousarray(shifted[keep], dtype=float)
+    tlo = np.ascontiguousarray(pool.cost_lo[keep], dtype=float)
     up = np.ascontiguousarray(pool.cost_up[keep], dtype=float)
     rc = np.asarray(root.reduced_costs, dtype=float)[keep]
     C = rows.shape[0]
@@ -261,14 +383,20 @@ def search(pool, root, keep, k: int, Q: int, best_up: float, node_limit: int) ->
     gptr = np.zeros(n + 1, dtype=np.int64)
     gptr[1:] = np.cumsum(np.bincount(unit, minlength=n))
     sm = float(root.sigma) + float(rc.min())
-    S0 = math.fsum(float(x) for x in root.pi)
-    absA0 = float(np.abs(root.pi).sum()) * (1.0 + _gamma(n))
-    g2 = 2.0 * _gamma(2 * n + 8) + 4.0 * _U
+    pi_unc = np.asarray(root.pi, dtype=float)[unc]
+    S0 = math.fsum(float(x) for x in pi_unc)
+    absA0 = float(np.abs(pi_unc).sum()) * (1.0 + _gamma(n))
+    kptr, kmem, mu, gkptr, gk = _clique_arrays(keep, fixed, cliques, mu_all)
+    muS = math.fsum(float(m) for m in mu_all)
+    muS = muS * (1.0 + 2.0 * _U) if muS > 0 else 0.0
+    gK = _gamma(int(mu.size) + 4)
     W = -(-n // 64)
     status, nodes, upper, lowest, path = _cover(
-        n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, int(k), int(Q), float(best_up), g2,
-        int(node_limit))
+        n, W, rows, size, lo, up, tlo, pisum, gptr, gcols, S0, absA0, sm, k_rem, int(Q), float(best_up), g2,
+        int(node_limit), unc, P0, R0, T0, kptr, kmem, mu, gkptr, gk, float(muS), gK, has_shift)
     found = keep[path[path >= 0]]
+    if found.size and fixed.size:
+        found = np.concatenate([fixed, found])
     return CoverSearch("node_limit" if status else "proved", found, float(upper),
                        float(min(upper, lowest)), int(nodes))
 

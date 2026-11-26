@@ -20851,14 +20851,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "elimination-on-point-costs"
-  find = "    rc = pool.cost_lo - sigma\n"
-  replace = "    rc = pool.cost - sigma\n"
+  find = "    lo = pool.cost_lo if cost_lo is None else cost_lo\n"
+  replace = "    lo = pool.cost if cost_lo is None else cost_lo\n"
   models = "reduced costs from the computed costs, which can lie above the exact ones, so a group of a cheaper design is left out"
 
   [[target.mutant]]
   id = "reduced-cost-rounding-ignored"
-  find = "    return rc - 2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc))\n"
-  replace = "    return rc\n"
+  find = "    rc = rc - 2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc))\n"
+  replace = "    pass\n"
   models = "the reduced costs' own rounding left out of their lower bounds"
 
   [[target.mutant]]
@@ -20904,6 +20904,30 @@ test-command = "python -m pytest mlsynth/tests/test_pangeo_cover.py -q -p no:cac
 timeout = 900.0
 
   [[target.mutant]]
+  id = "no-proof-from-the-first-mips-design"
+  find = "        if solves == 1 and info[\"search\"] == \"node_limit\":"
+  replace = "        if False:"
+  models = "the MIP loop running on after its first MIP without trying the proof search from that MIP's design, so a 40-geo arm at Q = 2 pays for a second MIP the search proves without"
+
+  [[target.mutant]]
+  id = "the-quick-search-takes-the-whole-limit"
+  find = "        quick = min(int(cover.SEARCH_QUICK_LIMIT), int(search_node_limit))"
+  replace = "        quick = int(search_node_limit)"
+  models = "the quick search from the staged start running to the full node limit, which is the cost every capped arm pays before the MIP loop starts"
+
+  [[target.mutant]]
+  id = "the-second-search-forgets-its-incumbent"
+  find = "            found = _search_from(pool, root, k, max_size, int(search_node_limit), best[2],"
+  replace = "            found = _search_from(pool, root, k, max_size, int(search_node_limit), best[2] * 2,"
+  models = "the proof after the first MIP started from twice that design's upper bound, so its margin keeps groups the design already excludes and the search has to rediscover the design"
+
+  [[target.mutant]]
+  id = "a-first-mip-proof-is-reported-as-a-staged-one"
+  find = "                info.update(search=\"proved\", search_start=\"first_mip\")"
+  replace = "                info.update(search=\"proved\", search_start=\"staged\")"
+  models = "the report not saying which start the proof came from, so a design the MIP found reads as one the search found"
+
+  [[target.mutant]]
   id = "the-capped-search-hands-its-design-to-the-mip"
   find = "        info.update(search=found[\"search\"], search_nodes=found[\"nodes\"])"
   replace = "        info.update(search=found[\"search\"], search_nodes=found[\"nodes\"])\n        seed = np.union1d(seed, found[\"rows\"]).astype(seed.dtype)"
@@ -20929,8 +20953,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-dual-bound-is-the-root-bound"
-  find = "            lower = min(found[\"lower\"], upper)"
-  replace = "            lower = float(L)"
+  find = "        lower = min(found[\"lower\"], upper)"
+  replace = "        lower = float(L)"
   models = "the root Lagrangian bound reported as the proof's lower bound: valid, but 8 to 33% under the optimum on these panels, so a proved design reports a gap the search closed"
 
 [[target]]
@@ -23622,6 +23646,360 @@ timeout = 600.0
   models = "rho-hat and the missing-cell count left off method_details, so the 1/rho-hat scale of the weights is not reported"
 
 [[target]]
+name = "pangeo-cover-fixed"
+module-path = "mlsynth/utils/pangeo_helpers/cover.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover_reopt.py mlsynth/tests/test_pangeo_cover.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-fixed-groups-cost-nothing"
+  find = "    P0 = float(shifted[fixed].sum()) if fixed.size else 0.0"
+  replace = "    P0 = 0.0"
+  models = "a search below a fixed group whose bound leaves out that group's cost: the costs are nonnegative, so the bound stays valid, but it prunes nothing the group's cost would and searches the whole subtree (42,735 nodes against 129 at 12 geos below a group whose cost reaches the incumbent)"
+
+  [[target.mutant]]
+  id = "the-fixed-groups-do-not-count-toward-k"
+  find = "    k_rem = max(int(k) - int(fixed.size), 0)"
+  replace = "    k_rem = int(k)"
+  models = "the cardinality row applied to the groups below a fixed group alone, so a design holding the fixed group needs one group too many and the optimum can be out of reach"
+
+  [[target.mutant]]
+  id = "the-first-branch-may-be-a-covered-unit"
+  find = "        if not unc[i]:\n            continue\n        c = gptr[i + 1] - gptr[i]"
+  replace = "        c = gptr[i + 1] - gptr[i]"
+  models = "the root branching on a unit a fixed group already covers, whose groups all overlap it, so the search ends at once and reports no design"
+
+  [[target.mutant]]
+  id = "the-duals-of-covered-units-are-summed"
+  find = "    pi_unc = np.asarray(root.pi, dtype=float)[unc]"
+  replace = "    pi_unc = np.asarray(root.pi, dtype=float)"
+  models = "the bound below a fixed group counting the duals of units that group covers, which with the root's duals overstates every node's bound and prunes designs that beat the incumbent"
+
+[[target]]
+name = "pangeo-cover-reopt"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover_children.py mlsynth/tests/test_pangeo_cover_reopt.py mlsynth/tests/test_pangeo_cover.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "no-branch-is-pruned-by-its-bound"
+  find = "        if bound >= best:\n            continue"
+  replace = "        if False:\n            continue"
+  models = "every first-level branch searched whatever its residual bound, which at 40 geos would search the 30 of 67 branches the residual LP proves out"
+
+  [[target.mutant]]
+  id = "the-branches-search-with-the-root-duals"
+  find = "        res = cover.search(pool, duals, left, k, Q, best, node_limit - nodes - 1, fixed=(j,))"
+  replace = "        res = cover.search(pool, root, left, k, Q, best, node_limit - nodes - 1, fixed=(j,))"
+  models = "the residual LP solved and its duals dropped, so below the first level the search prunes as the plain one does and the re-optimisation buys only the branch bounds"
+
+  [[target.mutant]]
+  id = "the-incumbent-stays-at-the-start"
+  find = "            best, rows_best = res.upper, res.rows"
+  replace = "            rows_best = res.rows"
+  models = "a design found in one branch not tightening the incumbent the next branches are searched and pruned against"
+
+  [[target.mutant]]
+  id = "the-branch-bound-leaves-out-the-fixed-group"
+  find = "        out.append((j, _down(L + lo_j), left, duals))"
+  replace = "        out.append((j, _down(L), left, duals))"
+  models = "the branch bound without the fixed group's cost, valid but below the root's own bound, so a branch the residual LP could prune is searched"
+
+  [[target.mutant]]
+  id = "the-fixed-group-is-closed"
+  find = "        lo[a] = up[a] = 1.0\n"
+  replace = "        pass\n"
+  models = "a child whose fixed group keeps the bound 0 of a group meeting itself: its units have no group left, the child LP is infeasible and a branch holding a design is pruned"
+
+  [[target.mutant]]
+  id = "the-fixed-group-is-left-free"
+  find = "        lo[a] = up[a] = 1.0\n"
+  replace = "        up[a] = 1.0\n"
+  models = "the fixed group bounded by [0, 1] instead of fixed at 1"
+  expected = "survived"
+  accepted-because = "EQUIVALENT: the groups meeting the fixed group are closed, so its units' rows have one open column, the fixed group, and x = 1 there is forced by the rows: the same feasible set and the same value"
+
+  [[target.mutant]]
+  id = "the-meeting-groups-stay-open"
+  find = "        up = left_mask.astype(float)\n"
+  replace = "        up = np.ones(keep.size)\n"
+  models = "the groups meeting the fixed group left open in its child"
+  expected = "survived"
+  accepted-because = "EQUIVALENT: with the fixed group at 1 its units' rows hold every other group meeting it at 0, so the feasible set and the child's value are unchanged; the bounds only take those columns out of the ratio test"
+
+  [[target.mutant]]
+  id = "the-children-start-cold"
+  find = "        res = solve_boxed_lp(c, A, rl, ru, lo, up, basis=parent.basis, cutoff=cutoff)"
+  replace = "        res = solve_boxed_lp(c, A, rl, ru, lo, up, cutoff=cutoff)"
+  models = "each child solved from the slack basis instead of the parent's optimal basis and inverse, which stays dual feasible when only bounds change (Koberstein 2005, chapter 1, p. 2)"
+
+  [[target.mutant]]
+  id = "the-children-ignore-the-incumbent"
+  find = "        res = solve_boxed_lp(c, A, rl, ru, lo, up, basis=parent.basis, cutoff=cutoff)"
+  replace = "        res = solve_boxed_lp(c, A, rl, ru, lo, up, basis=parent.basis, cutoff=None)"
+  models = "every child solved to its optimum although its bound already reaches the incumbent (Pan, Linear Programming Computation, 2nd ed., 2023, Lemma 8.3.4)"
+
+  [[target.mutant]]
+  id = "the-cutoff-is-unscaled"
+  find = "    cutoff = float(best_up) * scale if np.isfinite(best_up) else None"
+  replace = "    cutoff = float(best_up) if np.isfinite(best_up) else None"
+  models = "the incumbent handed to the children in the pool's cost scale while their LP runs in the power-of-two scale of mip._cost_scale"
+
+  [[target.mutant]]
+  id = "the-duals-are-not-unscaled"
+  find = "        y = res.y / scale\n"
+  replace = "        y = res.y\n"
+  models = "the children's multipliers read in the LP's scaled costs, so the bound is the scaled one, above the true bound when the scale exceeds 1"
+
+  [[target.mutant]]
+  id = "the-clique-duals-have-the-wrong-sign"
+  find = "        for K, m in zip(kept, np.maximum(-y[n + 1:], 0.0)):"
+  replace = "        for K, m in zip(kept, np.maximum(y[n + 1:], 0.0)):"
+  models = "the clique rows' multipliers read with the sign of a >= row, so every mu clips to 0 and the cuts' gain is lost"
+
+  [[target.mutant]]
+  id = "the-cardinality-dual-is-dropped"
+  find = "        sigma = max(float(y[n]), 0.0) if kk > 0 else 0.0\n"
+  replace = "        sigma = 0.0\n"
+  models = "the cardinality row's multiplier left out of the child's bound"
+
+  [[target.mutant]]
+  id = "the-cliques-keep-closed-groups"
+  find = "            K_left = K[in_left[K]]\n"
+  replace = "            K_left = K\n"
+  models = "a clique of the parent handed to a child with members the child has closed"
+
+  [[target.mutant]]
+  id = "an-infeasible-parent-has-children-solved"
+  find = "        if left.size == 0 or parent.status == \"infeasible\":"
+  replace = "        if left.size == 0:"
+  models = "children solved from the basis of a parent LP that has no point"
+
+  [[target.mutant]]
+  id = "the-gate-is-skipped"
+  find = "    if budget > 0:\n        first = cover.search("
+  replace = "    if False:\n        first = cover.search("
+  models = "the second search re-optimised at once, with no plain stage: 77 s against 0.52 s on the 20-market Q = 3 arm at twice the optimum"
+
+  [[target.mutant]]
+  id = "the-plain-stage-may-overspend"
+  find = "        if first.status == \"proved\" or budget >= node_limit:"
+  replace = "        if first.status == \"proved\":"
+  models = "re-optimisation started after a plain stage that already spent the whole node limit"
+
+  [[target.mutant]]
+  id = "the-reoptimised-stage-gets-the-whole-limit"
+  find = "    rest = _search_reopt(pool, root, keep, k, Q, best, max(int(node_limit) - nodes, 0))"
+  replace = "    rest = _search_reopt(pool, root, keep, k, Q, best, int(node_limit))"
+  models = "the node limit given to each stage in full, so the gated search may place twice it"
+
+  [[target.mutant]]
+  id = "the-plain-incumbent-is-dropped"
+  find = "            best, rows = first.upper, first.rows\n"
+  replace = "            rows = first.rows\n"
+  models = "a design the plain stage found not passed to the re-optimised stage as its incumbent"
+
+  [[target.mutant]]
+  id = "the-branch-error-ignores-underflow"
+  find = "    e2 = (g * float(np.abs(neg).sum()) + _ETA) * (1.0 + g) + _ETA     # as lagrangian_bound: two products"
+  replace = "    e2 = g * float(np.abs(neg).sum()) * (1.0 + g)"
+  models = "a branch's Lagrangian bound with its summation error formed by two products that underflow"
+  expected = "survived"
+  accepted-because = "GUARD, not a cause, as pangeo-cost-range/the-lagrangian-error-ignores-underflow: the margin u times the sum falls below the products' eta only when the sum of negative reduced costs lies in [2^-1022, 2^-1021), and a bound tight to within eta there is out of reach of any test built on panels."
+
+  [[target.mutant]]
+  id = "the-child-mask-is-not-cleared"
+  find = "        in_left[left] = False\n"
+  replace = "        pass\n"
+  models = "the mask of one child's groups left set for the next, so a later child's cliques keep groups that child has closed"
+
+  [[target.mutant]]
+  id = "the-children-price-the-whole-pool"
+  find = "np.asarray(mu, dtype=float), restrict=True)"
+  replace = "np.asarray(mu, dtype=float), restrict=False)"
+  models = "each child's reduced costs computed over all of the pool instead of over the groups its LP keeps, the per-child cost the restriction removes"
+
+  [[target.mutant]]
+  id = "the-unpriced-rows-read-zero"
+  find = "    out = np.full(len(pool), -np.inf)\n"
+  replace = "    out = np.zeros(len(pool))\n"
+  models = "the rows a restricted call does not compute read 0, which is no lower bound on a reduced cost that may be negative"
+
+  [[target.mutant]]
+  id = "the-plain-design-is-lost"
+  find = "    if rest.rows.size:\n        rows = rest.rows\n"
+  replace = "    rows = rest.rows\n"
+  models = "the plain stage's design dropped when the re-optimised stage proves nothing cheaper exists"
+
+  [[target.mutant]]
+  id = "the-budget-is-the-kept-groups"
+  find = "    return int(sum(int((~inc[:, inc[a]].any(axis=1)).sum()) for a in np.flatnonzero(inc[:, g0])))"
+  replace = "    return int(keep.size)"
+  models = "the plain stage's budget taken as the kept groups, not the children's columns"
+
+  [[target.mutant]]
+  id = "the-stage-is-not-reported"
+  find = "            info[\"second_search\"] = found[\"stage\"]\n"
+  replace = "            info[\"second_search\"] = \"reoptimised\"\n"
+  models = "the diagnostics naming re-optimisation whatever stage proved"
+
+[[target]]
+name = "pangeo-cover-cliques"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover_cliques.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-lift-checks-only-the-support"
+  find = "            out.append(j)\n            ok &= inc[:, inc[j]].any(axis=1)\n"
+  replace = "            out.append(j)\n"
+  models = "the prototype's lifting: every kept group meeting the support clique's members joins, two of them can miss each other, and the row cuts off designs (38 of 39 cuts at 40 geos)"
+
+  [[target.mutant]]
+  id = "a-clique-with-a-common-unit-is-kept"
+  find = "            if len(R) >= 3 and v > _VIOLATION and not frozenset.intersection(*(sets[a] for a in R)):"
+  replace = "            if len(R) >= 3 and v > _VIOLATION:"
+  models = "cliques whose groups all hold one unit, which that unit's cover row already implies: cuts that add LP rows and never move the bound"
+
+  [[target.mutant]]
+  id = "an-unviolated-clique-is-kept"
+  find = "            if len(R) >= 3 and v > _VIOLATION and not"
+  replace = "            if len(R) >= 3 and not"
+  models = "every clique a root grows added whether the LP point violates it or not"
+
+  [[target.mutant]]
+  id = "two-groups-make-a-clique"
+  find = "            if len(R) >= 3 and v"
+  replace = "            if len(R) >= 2 and v"
+  models = "two-group cliques, which two groups sharing a unit never violate in a cover LP, kept as rows"
+  expected = "survived"
+  accepted-because = "EQUIVALENT. Two groups are adjacent in the conflict graph only when they share a unit, so every two-group clique has a common unit and the second test on the same line (the intersection of the members' unit sets is nonempty) skips it whether the length test reads < 3 or < 2. A one-group clique is skipped by the same test. The length test stays as the statement of the rule the docstring gives (three or more groups)."
+
+  [[target.mutant]]
+  id = "the-root-stays-in-the-graph"
+  find = "        alive.discard(i)\n"
+  replace = "        pass\n"
+  models = "a root left in the graph after its subproblem, so a later root can grow the same clique again and the round returns repeats (Marzi, Rossi and Smriglio 2019, Algorithm 1, step 15 deletes it)"
+
+  [[target.mutant]]
+  id = "the-greedy-takes-the-lightest"
+  find = "                j = min(cand, key=lambda v: (-w[v], v))"
+  replace = "                j = min(cand, key=lambda v: (w[v], v))"
+  models = "Algorithm 2 growing each root's clique from its lightest neighbour, which stops at small, unviolated cliques where heaviest-first finds the violated one"
+
+  [[target.mutant]]
+  id = "the-roots-in-index-order"
+  find = "    for i in sorted(range(m), key=lambda a: (len(adj[a]), a)):"
+  replace = "    for i in range(m):"
+  models = "the roots taken in index order, not by nondecreasing degree (Hoffman and Padberg's order, which keeps the early subproblems small and lets later roots work on a smaller graph)"
+
+  [[target.mutant]]
+  id = "the-violation-bound-skips-no-root"
+  find = "        if w[i] + math.fsum(w[j] for j in near) - 1.0 > _VIOLATION:"
+  replace = "        if True:"
+  models = "no upper bound on a root's violation before its clique is grown (Marzi, Rossi and Smriglio 2019, Algorithm 1, step 5)"
+  expected = "survived"
+  accepted-because = "EQUIVALENT. A clique grown from root i lies inside i and its remaining neighbours, so its weight is at most the bound plus 1; when the bound is at or below the tolerance no clique from i passes the violation test on the line that records it, and the output is the same. The check saves the greedy growth on roots that cannot yield a cut."
+
+  [[target.mutant]]
+  id = "no-clique-is-lifted"
+  find = "            lifted = np.sort(_lift(K, mem, order, inc))"
+  replace = "            lifted = np.array(sorted(K), dtype=np.int64)"
+  models = "cliques over the LP support only, so groups outside the support that the clique could hold get no shift and no credit"
+
+  [[target.mutant]]
+  id = "the-branches-drop-the-cliques"
+  find = "    A, rl, ru, kept = _parent_lp(pool, keep, k, cliques)"
+  replace = "    A, rl, ru, kept = _parent_lp(pool, keep, k, ())"
+  models = "cliques separated at the root and left out of the depth-1 residual LPs, so the subtrees search on duals without them"
+
+  [[target.mutant]]
+  id = "no-cliques-in-the-proof"
+  find = "    cliques = _separate_cliques(pool, keep, k)\n"
+  replace = "    cliques = ()\n"
+  models = "the re-optimised proof search with no clique separation, stage 2 alone"
+
+  [[target.mutant]]
+  id = "the-bound-keeps-the-clique-duals"
+  find = "        - sum((Fraction(float(m)) for m in mu), Fraction(0))"
+  replace = "        - 0"
+  models = "the Lagrangian bound over shifted costs without subtracting the clique duals' sum, which overstates the bound and prunes branches holding the optimum"
+
+  [[target.mutant]]
+  id = "the-costs-are-not-shifted"
+  find = "    lo = _shifted(pool, kept, mu) if kept else None"
+  replace = "    lo = None"
+  models = "clique duals priced in the bound and the credit but not in the groups' costs, a valid bound below the LP's that throws the cuts' gain away"
+
+[[target]]
+name = "pangeo-cover-credit"
+module-path = "mlsynth/utils/pangeo_helpers/cover.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cover_cliques.py mlsynth/tests/test_pangeo_cover.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "no-clique-is-credited"
+  find = "            if cr > 0.0 and lb + cr - margin"
+  replace = "            if False and lb + cr - margin"
+  models = "the shifted costs and the raised threshold without the slack credit: the root cliques at 40 geos took the proof from 2.89 to 7.41 million nodes"
+
+  [[target.mutant]]
+  id = "a-clique-already-hit-is-credited"
+  find = "                if hit[K] > 0 or mu[K] <= 0.0:"
+  replace = "                if mu[K] <= 0.0:"
+  models = "credit for a clique a chosen group is in, whose slack is 0: its dual counted twice, pruning designs through it"
+
+  [[target.mutant]]
+  id = "a-clique-that-can-still-be-filled-is-credited"
+  find = "                if not alive:\n                    cr += mu[K]"
+  replace = "                if True:\n                    cr += mu[K]"
+  models = "credit for a clique a group that still fits could fill, whose slack a completion can make 0"
+
+  [[target.mutant]]
+  id = "the-threshold-leaves-out-the-clique-duals"
+  find = "    if muS == 0.0:\n        return best_up"
+  replace = "    if True:\n        return best_up"
+  models = "nodes pruned at the incumbent on a bound over shifted costs, which charges every design the clique duals it does not pay"
+
+  [[target.mutant]]
+  id = "the-leaves-are-bounded-by-the-shifted-costs"
+  find = "            leaf = T1 - g2 * (T1 + absA0)"
+  replace = "            leaf = P1 - g2 * (P1 + absA0)"
+  models = "a leaf's lower bound from its shifted cost, above its true cost when it holds a clique member, so the reported lower bound can pass the optimum"
+
+  [[target.mutant]]
+  id = "the-leaf-sum-misses-its-last-group"
+  find = "                for t in range(c1):\n                    T1 += tlo[path[t]]"
+  replace = "                for t in range(depth):\n                    T1 += tlo[path[t]]"
+  models = "a leaf's true-cost lower bound without the group that completed it, so the certified gap opens by that group's cost"
+
+  [[target.mutant]]
+  id = "a-fixed-groups-clique-is-credited"
+  find = "        if fx & set(int(j) for j in K):\n            continue\n"
+  replace = "\n"
+  models = "a clique holding a fixed group credited once its other members stop fitting, though the fixed group fills it in every completion"
+
+  [[target.mutant]]
+  id = "the-node-bound-sums-the-true-costs"
+  find = "    lo = np.ascontiguousarray(shifted[keep], dtype=float)"
+  replace = "    lo = np.ascontiguousarray(pool.cost_lo[keep], dtype=float)"
+  models = "the node bound over the unshifted costs against the raised threshold, valid but below the clique LP's bound"
+
+  [[target.mutant]]
+  id = "the-leaf-reads-the-shifted-running-sum"
+  find = "    has_shift = shifted is not None"
+  replace = "    has_shift = False"
+  models = "a leaf's lower bound read from the running sum of the clique-shifted costs, which exceeds the design's true cost by the duals of the cliques it hits, so the search reports a lower bound above the optimum"
+
+  [[target.mutant]]
+  id = "the-leaf-sums-the-path-again-without-shifts"
+  find = "    has_shift = shifted is not None"
+  replace = "    has_shift = True"
+  models = "every leaf summing the true costs along the path again although no clique shifts them, the cost the running sum saves"
+  expected = "survived"
+  accepted-because = "EQUIVALENT in result: without shifts the path sum and the running sum are the same numbers added in the same order, so every bound and design is bit for bit the same (pinned by test_unshifted_costs_give_the_leaf_bound_of_the_running_sum). The difference is time: on the seasonal arm of 32 geos at Q = 3 the search's 1,383,220 nodes took 11.1 to 11.8 s with the path sum against 9.6 s without, single-threaded, mirrored runs."
+
+[[target]]
 name = "dual-simplex"
 module-path = "mlsynth/utils/solvers/dual_simplex.py"
 test-command = "python -m pytest mlsynth/tests/test_dual_simplex.py -q -p no:cacheprovider -x -W ignore"
@@ -23876,8 +24254,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-node-bound-ignores-underflow"
-  find = "        if lb - (g2 * (P1 + absA0 + r_hi * abs(sm)) + _ETA) >= best_up:   # rt's product may underflow"
-  replace = "        if lb - g2 * (P1 + absA0 + r_hi * abs(sm)) >= best_up:"
+  find = "        margin = g2 * (P1 + absA0 + r_hi * abs(sm)) + _ETA             # rt's product may underflow"
+  replace = "        margin = g2 * (P1 + absA0 + r_hi * abs(sm))"
   models = "a partial design pruned on a bound one of whose terms, r sigma, is a product that underflows"
   expected = "survived"
   accepted-because = "GUARD, not a cause: r sigma is a term of the node bound, not of its error, so no gamma margin covers its delta; a prune it decides needs the bound within eta / 2 of the incumbent at a subnormal scale, which no panel-built test reaches."
