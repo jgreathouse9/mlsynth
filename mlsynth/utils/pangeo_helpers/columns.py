@@ -568,12 +568,55 @@ def _reduced_costs(members: np.ndarray, cost: np.ndarray, pi: np.ndarray, sigma:
     return rc
 
 
+@dataclass(frozen=True, init=False)
+class _Rows:
+    """Values on some rows of the pool, read as an array over the whole pool that is -inf off those rows: indexing
+    with an array of rows or a mask returns what that array would, and ``numpy.asarray`` builds it. A branch's
+    search reads only its own groups, and an array over the 4.6 million groups of a 40-geo Q = 3 arm cost 25 ms
+    per branch to fill."""
+
+    rows: np.ndarray
+    values: np.ndarray
+    size: int
+
+    def __init__(self, rows, values, size):
+        rows = np.asarray(rows, dtype=np.int64)
+        order = np.argsort(rows, kind="stable")
+        object.__setattr__(self, "rows", rows[order])
+        object.__setattr__(self, "values", np.asarray(values, dtype=float)[order])
+        object.__setattr__(self, "size", int(size))
+
+    @property
+    def shape(self):
+        return (self.size,)
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, idx):
+        idx = np.asarray(idx)
+        if idx.dtype == bool:
+            idx = np.flatnonzero(idx)
+        idx = idx.astype(np.int64)
+        out = np.full(idx.shape, -np.inf)
+        if self.rows.size:
+            pos = np.minimum(np.searchsorted(self.rows, idx), self.rows.size - 1)
+            hit = self.rows[pos] == idx
+            out[hit] = self.values[pos[hit]]
+        return out
+
+    def __array__(self, dtype=None, copy=None):
+        full = np.full(self.size, -np.inf)
+        full[self.rows] = self.values
+        return full if dtype is None else full.astype(dtype)
+
+
 def _rc_lower(pool: ColumnPool, pi: np.ndarray, sigma: float, cost_lo: Optional[np.ndarray] = None,
               rows: Optional[np.ndarray] = None) -> np.ndarray:
     """Rigorous lower bounds on every group's exact reduced cost: cost_lo (the pool's, or lower bounds on shifted
     costs) minus its duals and sigma, less the rounding of that sum of width + 1 terms (Rump 2010, Theorem 2.1).
-    With ``rows``, only those groups are computed, to the same doubles, and every other entry is -inf, a lower
-    bound on any reduced cost: a branch's search reads only the groups its LP keeps."""
+    With ``rows``, only those groups are computed, to the same doubles, and returned as a :class:`_Rows`, -inf on
+    every other row, a lower bound on any reduced cost: a branch's search reads only the groups its LP keeps."""
     pad = np.append(np.asarray(pi, dtype=float), 0.0)     # position -1 (padding) reads the 0
     apad = np.abs(pad)
     lo = pool.cost_lo if cost_lo is None else cost_lo
@@ -588,9 +631,7 @@ def _rc_lower(pool: ColumnPool, pi: np.ndarray, sigma: float, cost_lo: Optional[
     rc = rc - 2.0 * _gamma(pool.members.shape[1] + 3) * (mag + np.abs(rc))
     if rows is None:
         return rc
-    out = np.full(len(pool), -np.inf)
-    out[rows] = rc
-    return out
+    return _Rows(rows, rc, len(pool))
 
 
 def lagrangian_bound(pool: ColumnPool, pi: np.ndarray, sigma: float, k: int) -> Tuple[float, np.ndarray]:
@@ -767,24 +808,35 @@ def _lp(pool: ColumnPool, cols: np.ndarray, units: np.ndarray, kk: int, cliques)
     return (res if res.status == 0 else None), kept, scale
 
 
-def _shifted(pool: ColumnPool, cliques, mu: np.ndarray) -> np.ndarray:
+def _shifted(pool: ColumnPool, cliques, mu: np.ndarray, rows: Optional[np.ndarray] = None) -> np.ndarray:
     """Rigorous lower bounds on every group's shifted cost, cost_lo plus the duals of the cliques it is in: the
     float sum of at most m + 1 terms (m the most cliques a group is in) less twice its rounding (Higham 2002,
-    Lemma 3.1)."""
+    Lemma 3.1).
+
+    With ``rows``, only those groups are computed, to the same doubles (m still counts every group's cliques), and
+    returned as a :class:`_Rows`, -inf on every other row, a lower bound on any shifted cost. A branch's search
+    reads only its groups and its fixed group, and the whole pool cost each branch 89 ms at the 4.6 million groups
+    of a 40-geo Q = 3 arm."""
+    pairs = list(zip(cliques, mu))
     shift = np.zeros(len(pool))
-    count = np.zeros(len(pool), dtype=np.int64)
-    for K, m in zip(cliques, mu):
+    for K, m in pairs:
         shift[K] += float(m)
-        count[K] += 1
-    lo = pool.cost_lo + shift
-    return lo - 2.0 * _gamma(int(count.max()) + 2) * (np.abs(pool.cost_lo) + shift)
+    members = np.concatenate([np.asarray(K, dtype=np.int64) for K, _ in pairs]) if pairs else np.zeros(0, np.int64)
+    most = int(np.unique(members, return_counts=True)[1].max()) if members.size else 0
+    gam = 2.0 * _gamma(most + 2)
+    if rows is None:
+        return (pool.cost_lo + shift) - gam * (np.abs(pool.cost_lo) + shift)
+    rows = np.asarray(rows, dtype=np.int64)
+    c, d = pool.cost_lo[rows], shift[rows]
+    return _Rows(rows, (c + d) - gam * (np.abs(c) + d), len(pool))
 
 
 @dataclass(frozen=True)
 class _Duals:
     """A residual LP's duals, in the form cover.search reads: ``pi`` over every unit (0 on covered ones), ``sigma``,
     rigorous lower bounds on every pool row's reduced cost, and the LP's cliques (pool rows) with their duals
-    ``mu >= 0`` and rigorous lower bounds on every row's shifted cost (None without cliques)."""
+    ``mu >= 0`` and rigorous lower bounds on every row's shifted cost (None without cliques). A branch's bounds are
+    :class:`_Rows` over its own groups, -inf elsewhere."""
 
     pi: np.ndarray
     sigma: float
@@ -826,13 +878,14 @@ def _residual_lp(pool: ColumnPool, cols: np.ndarray, units: np.ndarray, kk: int,
 
 
 def _bound_from(pool: ColumnPool, cols: np.ndarray, units: np.ndarray, kk: int, kept, pi: np.ndarray,
-                sigma: float, mu: np.ndarray, restrict: bool = False):
+                sigma: float, mu: np.ndarray, restrict: bool = False, shift_rows: Optional[np.ndarray] = None):
     """The :class:`_Duals` and rigorous Lagrangian bound of :func:`_residual_lp` for multipliers ``pi`` (on
     ``units``), ``sigma >= 0`` (on ``sum(x) >= kk``) and ``mu >= 0`` (one per clique in ``kept``) over the groups
     ``cols``. Any multipliers of those signs give a valid bound (Geoffrion 1974); optimal ones give the LP's value.
-    With ``restrict`` the reduced costs are computed over ``cols`` only (:func:`_rc_lower`). Returns ``(duals, L)``,
+    With ``restrict`` the reduced costs are computed over ``cols`` only (:func:`_rc_lower`), and with ``shift_rows``
+    the shifted costs over those rows only (:func:`_shifted`), which must hold ``cols``. Returns ``(duals, L)``,
     L a rational."""
-    lo = _shifted(pool, kept, mu) if kept else None
+    lo = _shifted(pool, kept, mu, rows=shift_rows) if kept else None
     rc = _rc_lower(pool, pi, sigma, lo, rows=cols if restrict else None)
     neg = np.minimum(rc[cols], 0.0)
     s2 = float(neg.sum())
@@ -975,7 +1028,8 @@ def _iter_branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cli
                 use.append(K_left)
                 mu.append(float(m))
         in_left[left] = False
-        duals, L = _bound_from(pool, left, units, kk, use, pi, sigma, np.asarray(mu, dtype=float), restrict=True)
+        duals, L = _bound_from(pool, left, units, kk, use, pi, sigma, np.asarray(mu, dtype=float), restrict=True,
+                               shift_rows=np.append(left, j))     # the search reads the fixed group's too
         yield (j, _down(L + lo_j), left, duals)
 
 

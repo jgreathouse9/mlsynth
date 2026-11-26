@@ -443,11 +443,11 @@ def _search(pool, root, keep, k, Q, best_up, node_limit, fixed, prog) -> CoverSe
     mu_all = np.asarray(getattr(root, "mu", np.zeros(0)), dtype=float)
     shifted = getattr(root, "cost_lo", None)
     has_shift = shifted is not None
-    shifted = pool.cost_lo if shifted is None else np.asarray(shifted, dtype=float)
+    shifted = pool.cost_lo if shifted is None else shifted     # an array, or a row lookup (columns._Rows)
     unc = np.ones(n, dtype=np.bool_)
     for j in fixed:
         unc[pool.members[j][pool.members[j] >= 0]] = False
-    P0 = float(shifted[fixed].sum()) if fixed.size else 0.0
+    P0 = float(np.asarray(shifted[fixed], dtype=float).sum()) if fixed.size else 0.0
     R0 = float(pool.cost_up[fixed].sum()) if fixed.size else 0.0
     T0 = float(pool.cost_lo[fixed].sum()) if fixed.size else 0.0
     k_rem = max(int(k) - int(fixed.size), 0)
@@ -463,7 +463,7 @@ def _search(pool, root, keep, k, Q, best_up, node_limit, fixed, prog) -> CoverSe
     lo = np.ascontiguousarray(shifted[keep], dtype=float)
     tlo = np.ascontiguousarray(pool.cost_lo[keep], dtype=float)
     up = np.ascontiguousarray(pool.cost_up[keep], dtype=float)
-    rc = np.asarray(root.reduced_costs, dtype=float)[keep]
+    rc = np.asarray(root.reduced_costs[keep], dtype=float)           # index first: a branch's is a row lookup
     C = rows.shape[0]
     size = (rows >= 0).sum(axis=1).astype(np.int64)
     pad = np.append(np.asarray(root.pi, dtype=float), 0.0)
