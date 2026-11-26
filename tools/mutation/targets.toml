@@ -23779,7 +23779,7 @@ timeout = 1200.0
   id = "the-gate-is-skipped"
   find = "    if budget > 0:\n        first = cover.search("
   replace = "    if False:\n        first = cover.search("
-  models = "the second search re-optimised at once, with no plain stage: 48.6 s against 0.45 s on the 20-market Q = 3 arm at twice the optimum"
+  models = "the second search re-optimised at once, with no plain stage: 77 s against 0.52 s on the 20-market Q = 3 arm at twice the optimum"
 
   [[target.mutant]]
   id = "the-plain-stage-may-overspend"

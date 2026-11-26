@@ -1004,10 +1004,11 @@ def _search_gated(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up:
     :func:`_reopt_budget` nodes, then, if that does not prove, the re-optimised search (:func:`_search_reopt`) with
     the rest of the node limit and the better incumbent. Re-optimisation solves one LP per branch, so it pays when
     the plain search is long and the branches few; when the incumbent is far above the optimum the branches are
-    many and the plain search proves first. Measured on a 20-market arm at Q = 3 with the incumbent at, 20% above
-    and twice the optimum, the plain stage proved in 0.01, 0.05 and 0.45 s, where re-optimisation alone took 1.2,
-    5.8 and 48.6 s; on three 40-market arms at Q = 2 from the optimum it cost at most 0.3 s over re-optimisation
-    alone. Returns a :class:`.cover.CoverSearch` whose ``stage`` says which stage ended it."""
+    many and the plain search proves first. Measured on one thread on a 20-market arm at Q = 3 with the incumbent
+    at, 20% above and twice the optimum, the plain stage proved in 0.01, 0.05 and 0.52 s, where re-optimisation
+    alone took 0.74, 4.3 and 77 s; on three 40-market arms at Q = 2, started from the first MIP's design, the gated
+    search proved in 2.8, 3.4 and 1.6 s, where the plain search alone took 2.9, 3.8 and 2.1 s. Returns a
+    :class:`.cover.CoverSearch` whose ``stage`` says which stage ended it."""
     keep = np.asarray(keep, dtype=np.int64)
     budget = min(_reopt_budget(pool, keep), int(node_limit))
     best, rows, nodes = float(best_up), np.zeros(0, np.int64), 0
