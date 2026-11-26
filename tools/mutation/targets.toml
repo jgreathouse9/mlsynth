@@ -20905,9 +20905,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "no-proof-from-the-first-mips-design"
-  find = "        if solves == 1 and info[\"search\"] == \"node_limit\":"
+  find = "        if solves == 1 and info[\"search\"] == \"node_limit\" and \"second_search\" not in info:"
   replace = "        if False:"
-  models = "the MIP loop running on after its first MIP without trying the proof search from that MIP's design, so a 40-geo arm at Q = 2 pays for a second MIP the search proves without"
+  models = "the MIP loop running on after its first MIP without trying the proof search from that MIP's design (the quick search holding none), so an arm pays for MIPs the search proves without"
 
   [[target.mutant]]
   id = "the-quick-search-takes-the-whole-limit"
