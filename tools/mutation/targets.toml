@@ -23821,8 +23821,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-unpriced-rows-read-zero"
-  find = "    out = np.full(len(pool), -np.inf)\n"
-  replace = "    out = np.zeros(len(pool))\n"
+  find = "        out = np.full(idx.shape, -np.inf)\n"
+  replace = "        out = np.zeros(idx.shape)\n"
   models = "the rows a restricted call does not compute read 0, which is no lower bound on a reduced cost that may be negative"
 
   [[target.mutant]]
@@ -23927,7 +23927,7 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-costs-are-not-shifted"
-  find = "    lo = _shifted(pool, kept, mu) if kept else None"
+  find = "    lo = _shifted(pool, kept, mu, rows=shift_rows) if kept else None"
   replace = "    lo = None"
   models = "clique duals priced in the bound and the credit but not in the groups' costs, a valid bound below the LP's that throws the cuts' gain away"
 
@@ -24483,10 +24483,10 @@ test-command = "python -m pytest mlsynth/tests/test_pangeo_branch_rows.py -q -p 
 timeout = 900.0
 
   [[target.mutant]]
-  id = "a-lookup-miss-reads-zero"
-  find = "        out = np.full(idx.shape, -np.inf)"
-  replace = "        out = np.zeros(idx.shape)"
-  models = "a row a branch never computed read as 0, not -inf: a reduced or shifted cost that is not a lower bound, so the search can prune a branch holding the optimum"
+  id = "the-full-array-reads-zero-off-the-rows"
+  find = "        full = np.full(self.size, -np.inf)"
+  replace = "        full = np.zeros(self.size)"
+  models = "a row lookup built into the whole-pool array with 0, not -inf, off its rows: a reduced or shifted cost that is not a lower bound"
 
   [[target.mutant]]
   id = "a-lookup-reads-a-mask-as-rows-0-and-1"
