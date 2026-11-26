@@ -20905,9 +20905,9 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "no-proof-from-the-first-mips-design"
-  find = "        if solves == 1 and info[\"search\"] == \"node_limit\":"
+  find = "        if solves == 1 and info[\"search\"] == \"node_limit\" and \"second_search\" not in info:"
   replace = "        if False:"
-  models = "the MIP loop running on after its first MIP without trying the proof search from that MIP's design, so a 40-geo arm at Q = 2 pays for a second MIP the search proves without"
+  models = "the MIP loop running on after its first MIP without trying the proof search from that MIP's design (the quick search holding none), so an arm pays for MIPs the search proves without"
 
   [[target.mutant]]
   id = "the-quick-search-takes-the-whole-limit"
@@ -20917,8 +20917,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-second-search-forgets-its-incumbent"
-  find = "            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,"
-  replace = "            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from * 2, rows_from,"
+  find = "_incumbent(pool, [mip_rows])\n            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,"
+  replace = "_incumbent(pool, [mip_rows])\n            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from * 2, rows_from,"
   models = "the proof after the first MIP started from twice that design's upper bound, so its margin keeps groups the design already excludes and the search has to rediscover the design"
 
   [[target.mutant]]
@@ -23839,8 +23839,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-stage-is-not-reported"
-  find = "            info[\"second_search\"] = found[\"stage\"]\n"
-  replace = "            info[\"second_search\"] = \"reoptimised\"\n"
+  find = "_incumbent(pool, [mip_rows])\n            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,\n                                 progress=progress)\n            info[\"search_nodes\"] += found[\"nodes\"]\n            info[\"second_search\"] = found[\"stage\"]\n"
+  replace = "_incumbent(pool, [mip_rows])\n            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,\n                                 progress=progress)\n            info[\"search_nodes\"] += found[\"nodes\"]\n            info[\"second_search\"] = \"reoptimised\"\n"
   models = "the diagnostics naming re-optimisation whatever stage proved"
 
 [[target]]
@@ -24358,8 +24358,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-proof-after-the-first-mip-is-not-watched"
-  find = "                                 progress=progress)"
-  replace = "                                 progress=None)"
+  find = "_incumbent(pool, [mip_rows])\n            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,\n                                 progress=progress)"
+  replace = "_incumbent(pool, [mip_rows])\n            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,\n                                 progress=None)"
   models = "the second search run without the array, so its nodes, often most of a solve's, never show"
 
   [[target.mutant]]
@@ -24385,12 +24385,6 @@ name = "pangeo-second-search-incumbent"
 module-path = "mlsynth/utils/pangeo_helpers/columns.py"
 test-command = "python -m pytest mlsynth/tests/test_pangeo_second_search.py -q -p no:cacheprovider -x -W ignore"
 timeout = 600.0
-
-  [[target.mutant]]
-  id = "the-second-search-starts-from-the-mip"
-  find = "            z_from, rows_from = _incumbent(pool, [mip_rows, quick_rows])"
-  replace = "            z_from, rows_from = _incumbent(pool, [mip_rows])"
-  models = "the proof after the first MIP started from that MIP's design whatever the quick search held: 920 against 1.10 on a 36-geo Q = 3 arm, a margin that keeps nearly every group"
 
   [[target.mutant]]
   id = "the-quick-design-is-forgotten"
@@ -24541,3 +24535,51 @@ timeout = 600.0
   find = "SEARCH_NODE_LIMIT = 200_000_000"
   replace = "SEARCH_NODE_LIMIT = 1_500_000"
   models = "the proof after the first MIP capped at 1.5 million nodes, so a 40-geo Q = 3 arm goes to the MIP loop, whose fifth MIP passed 1,800 s"
+
+[[target]]
+name = "pangeo-first-window"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_first_window.py mlsynth/tests/test_pangeo_second_search.py mlsynth/tests/test_pangeo_cover_progress.py -q -p no:cacheprovider -x -W ignore"
+timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-window-design-is-ignored"
+  find = "        z_from, rows_from = _incumbent(pool, [window_rows, quick_rows])"
+  replace = "        z_from, rows_from = _incumbent(pool, [quick_rows])"
+  models = "the proof started from the quick search's design whatever the window held: a 50-geo Q = 2 arm whose quick design is 8.7% above the optimum took 335 s against 34 s"
+
+  [[target.mutant]]
+  id = "the-proof-runs-again-after-the-first-mip"
+  find = " and \"second_search\" not in info:"
+  replace = ":"
+  models = "a proof capped at its budget run a second time after the first MIP, doubling the worst case"
+
+  [[target.mutant]]
+  id = "the-start-is-mislabelled"
+  find = "                start = \"first_window\" if rows_from is window_rows else \"quick_design\""
+  replace = "                start = \"quick_design\" if rows_from is window_rows else \"first_window\""
+  models = "the diagnostics naming the wrong design as the one the proof started from"
+
+  [[target.mutant]]
+  id = "the-window-proofs-stage-is-not-reported"
+  find = "        if rows_from is not None:\n            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,\n                                 progress=progress)\n            info[\"search_nodes\"] += found[\"nodes\"]\n            info[\"second_search\"] = found[\"stage\"]\n"
+  replace = "        if rows_from is not None:\n            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,\n                                 progress=progress)\n            info[\"search_nodes\"] += found[\"nodes\"]\n            info[\"second_search\"] = \"reoptimised\"\n"
+  models = "the diagnostics naming re-optimisation whatever stage proved the design from the window"
+
+  [[target.mutant]]
+  id = "the-window-ignores-the-search-node-limit"
+  find = "                                     min(int(cover.WINDOW_NODE_LIMIT), int(search_node_limit)), progress=progress)"
+  replace = "                                     int(cover.WINDOW_NODE_LIMIT), progress=progress)"
+  models = "a caller's search_node_limit not holding the window search, so a solve asked for a short search runs up to 20 million window nodes"
+
+  [[target.mutant]]
+  id = "the-window-search-is-not-watched"
+  find = "                                     min(int(cover.WINDOW_NODE_LIMIT), int(search_node_limit)), progress=progress)"
+  replace = "                                     min(int(cover.WINDOW_NODE_LIMIT), int(search_node_limit)), progress=None)"
+  models = "the window search run without the progress array, so its nodes never show and the array's total falls short of search_nodes"
+
+  [[target.mutant]]
+  id = "a-zero-window-budget-still-searches"
+  find = "        if min(int(cover.WINDOW_NODE_LIMIT), int(search_node_limit)) > 0:"
+  replace = "        if True:"
+  models = "a window search run with no node budget, which places nothing and leaves the diagnostics reporting a window search that did not happen"

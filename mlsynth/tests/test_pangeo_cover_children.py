@@ -367,6 +367,7 @@ def test_a_non_finite_cost_reaching_the_child_lps_is_refused():
 
 def _second_search_setup(monkeypatch):
     monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
+    monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)            # no window search: the MIP supplies the design
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
     monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
     monkeypatch.setattr(columns, "FIRST_MIN", 1)

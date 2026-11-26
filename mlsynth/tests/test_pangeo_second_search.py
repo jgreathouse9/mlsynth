@@ -1,9 +1,9 @@
 """The proof after the first MIP: its incumbent, and the cost of its gate.
 
-When the quick cover search stops at its cap, :func:`columns.solve_exact` runs the first MIP and then searches again
-from an incumbent. That incumbent is the better of the two designs it holds: the quick search's and the first MIP's.
-A first MIP held to too few groups can return a design far above the quick search's (on a 36-geo Q = 3 seasonal arm,
-920.1 against 1.104), and searching from it keeps nearly every group.
+When the quick cover search stops at its cap, :func:`columns.solve_exact` searches again from an incumbent: the quick
+search's design, before any MIP, or the first MIP's when the quick search holds none. A first MIP held to too few
+groups can return a design far above the quick search's (on a 36-geo Q = 3 seasonal arm, 920.1 against 1.104), and
+searching from it keeps nearly every group (``test_pangeo_quick_proof.py``).
 
 The gated search's plain-stage budget (:func:`columns._reopt_budget`) counts the columns re-optimisation would solve,
 branch by branch; it is used only up to the node limit, so it stops counting there. Counted in full it costs the
@@ -82,6 +82,7 @@ def test_smoke_a_poor_first_mip_does_not_set_the_second_searchs_incumbent(monkey
     n, Q = 14, 3
     Y, idx = _panel(2, n), np.arange(n)
     _poor_first_window(monkeypatch.setattr)
+    monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)       # the window search is test_pangeo_first_window.py's
     solve, designs = _recording_mip()
     gated, quick = _spy_gated(monkeypatch), _spy_quick(monkeypatch)
     chosen, d = columns.solve_exact(idx, Y, Q, search_node_limit=30, solve=solve)
@@ -128,16 +129,17 @@ def test_an_empty_design_is_never_the_incumbent_and_a_tie_keeps_the_first():
 @given(seed=st.integers(0, 10**6), n=st.integers(6, 13), Q=st.integers(2, 3), limit=st.sampled_from([5, 20, 60]))
 def test_property_the_second_search_starts_from_the_better_design_and_the_solve_is_exact(seed, n, Q, limit):
     """Property: over panels, sizes and caps, with a first MIP held to one group and the seed groups, the second
-    search's incumbent is the better of the quick search's and that MIP's designs, and the solve reaches the
-    optimum."""
+    search's incumbent is the quick search's design when it holds one (that proof runs before any MIP) and the
+    first MIP's otherwise, and the solve reaches the optimum."""
     if not columns.feasible(n, Q, 1):
         return
     Y, idx = _panel(seed, n), np.arange(n)
     solve, designs = _recording_mip()
     gated, quick = [], []
     real_g, real_q = columns._search_gated, columns._search
-    saved = (columns.FIRST_PER_UNIT, columns.FIRST_MIN)
+    saved = (columns.FIRST_PER_UNIT, columns.FIRST_MIN, cover.WINDOW_NODE_LIMIT)
     _poor_first_window(setattr)
+    cover.WINDOW_NODE_LIMIT = 0                               # the window search is test_pangeo_first_window.py's
 
     def rec_g(pool, root, keep, k, Q_, best_up, node_limit, **kw):
         gated.append(best_up)
@@ -152,12 +154,11 @@ def test_property_the_second_search_starts_from_the_better_design_and_the_solve_
         chosen, d = columns.solve_exact(idx, Y, Q, search_node_limit=limit, solve=solve)
     finally:
         columns._search_gated, columns._search = real_g, real_q
-        columns.FIRST_PER_UNIT, columns.FIRST_MIN = saved
+        columns.FIRST_PER_UNIT, columns.FIRST_MIN, cover.WINDOW_NODE_LIMIT = saved
     pool = columns.score_columns(idx, Y, Q)
     if gated:
-        mip_up = _rows_up(pool, _rows_of(designs[0], n))
         q_rows = quick[0]["rows"]
-        want = min(mip_up, _rows_up(pool, q_rows)) if len(q_rows) else mip_up
+        want = _rows_up(pool, q_rows) if len(q_rows) else _rows_up(pool, _rows_of(designs[0], n))
         assert gated[0] == columns._up(want)
     _, d_ref = columns.solve_exact(idx, Y, Q)
     assert d["objective_value"] == pytest.approx(d_ref["objective_value"], rel=1e-9, abs=1e-12)

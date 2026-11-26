@@ -269,6 +269,7 @@ def test_the_proof_after_the_first_mip_reoptimises_the_duals(monkeypatch):
     """Integration: with no plain-stage budget, the second search, from the first MIP's design, is the re-optimised
     one (``test_pangeo_cover_children.py`` pins the plain stage). The oracle is the plain search run to its proof."""
     monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
+    monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)            # no window search: the MIP supplies the design
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
     monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
     monkeypatch.setattr(columns, "FIRST_MIN", 1)

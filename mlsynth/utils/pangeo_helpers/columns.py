@@ -87,7 +87,9 @@ in it.
 
 Search. Before any MIP, the exact-cover search of :mod:`.cover` enumerates designs depth first, pruned by the same
 Lagrangian bound, and a search that ends under its node cap proves its design optimal with a certified gap; no MIP
-runs. A search stopped by the cap leaves the proof to the MIP loop below, which runs as it would without the search.
+runs. A search stopped by the cap is followed by the search of the first MIP's window and the proof from the
+better design (:func:`solve_exact`); only a proof stopped by its cap leaves the work to the MIP loop below, which
+runs as it would without the search.
 The first MIP takes the groups of least reduced cost (``FIRST_PER_UNIT`` per unit, at least ``FIRST_MIN``)
 and the groups of a fixed design (:func:`seed_partition`), so it has a design. The best design's cost :math:`z` is the
 optimum when every group left out has :math:`\\bar c > z - L`. Otherwise the next MIP takes the groups up to the
@@ -1142,6 +1144,17 @@ def _incumbent(pool: ColumnPool, designs) -> Tuple[Optional[Fraction], Optional[
     return best_z, best_rows
 
 
+def _search_window(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up: float, node_limit: int,
+                   progress=None) -> "cover.CoverSearch":
+    """The best design over the first window, the groups ``keep`` that the first MIP would hold (the groups of least
+    reduced cost and the seed partition), by the gated search (:func:`_search_gated`), cheaper than ``best_up``: its
+    rows when it finds one, none when it proves the window holds nothing cheaper. Measured against HiGHS on the same
+    window, single-threaded, it found the same designs: 3.4 s against 11.6 s on a 50-geo Q = 2 seasonal arm, 0.43 s
+    against 5.8 s at 40 geos, and under 0.01 s against 4.1 and 7.1 s on 36- and 40-geo Q = 3 arms, where it proved
+    from the quick search's design that the window held nothing cheaper."""
+    return _search_gated(pool, root, keep, k, Q, best_up, node_limit, progress=progress)
+
+
 def _search_from(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int, z_up: Fraction,
                  rows: Sequence[int], progress=None) -> dict:
     """The proof search over the groups a design's upper bound z_up cannot exclude, with that design as the
@@ -1177,7 +1190,13 @@ def solve_exact(
     the design with no MIP: ``backend`` is ``"search"``, ``mip_solves`` 0, ``dual_bound`` a rigorous lower bound on
     the optimum, ``objective_upper`` one above the design's exact cost and ``mip_gap`` the gap between them relative
     to the design's cost, as the MIP path reports it (absolute when that cost is 0).
-    A search stopped by the cap leaves the MIP loop to run as without it. ``search`` reports which happened
+    A quick search stopped by its cap is followed, before any MIP, by the search of the first window
+    (:func:`_search_window`: the groups the first MIP would hold, searched from the quick search's design), then by
+    the proof (:func:`_search_from`) from the better of the two designs. When neither holds a design, the proof runs
+    from the first MIP's. A proof stopped by the cap leaves the MIP loop to run as without it, and is not run again.
+    ``window_search`` reports the window search's status (``"off"`` with no window budget), and ``search_start``
+    where a proved design's proof began: ``"staged"`` (the quick search), ``"first_window"``, ``"quick_design"``
+    or ``"first_mip"``. ``search`` reports which happened
     (``"proved"``, ``"node_limit"``, ``"off"``, or ``"unavailable"`` without numba) and ``search_nodes`` the groups
     the search placed.
 
@@ -1211,6 +1230,8 @@ def solve_exact(
     lp_seconds = time.perf_counter() - t1
     L, rc = root.bound, root.reduced_costs               # rigorous lower bounds
     seed = np.array([column_index(g, n) for g in seed_partition(n)])
+    count = min(len(pool), max(FIRST_MIN, FIRST_PER_UNIT * n))        # the first window: the first MIP's groups
+    delta = float(np.partition(rc, count - 1)[count - 1])
     pos = {int(u): p for p, u in enumerate(idx)}
     info = dict(search="off", search_nodes=0, search_start=None)
     quick_rows = np.zeros(0, dtype=np.int64)          # the quick search's best design, when it found one
@@ -1244,14 +1265,34 @@ def solve_exact(
         if found["search"] == "proved":
             info["search_start"] = "staged"
             return proved(found, 0, 0.0)
+        # the first window, searched from the quick search's design instead of solved by a MIP, and the proof from
+        # the better of the two designs: at Q = 2 the window can hold the optimum where the quick design is 8.7%
+        # above it (a 50-geo arm), and at Q = 3 the quick design can be the optimum where the window's best is 920
+        window_rows = np.zeros(0, dtype=np.int64)
+        info["window_search"] = "off"
+        if min(int(cover.WINDOW_NODE_LIMIT), int(search_node_limit)) > 0:
+            window = np.union1d(np.flatnonzero(rc <= delta), seed)
+            z_q, _ = _incumbent(pool, [quick_rows])
+            found_w = _search_window(pool, root, window, k, max_size, _up(z_q) if z_q is not None else np.inf,
+                                     min(int(cover.WINDOW_NODE_LIMIT), int(search_node_limit)), progress=progress)
+            info.update(search_nodes=info["search_nodes"] + found_w.nodes, window_search=found_w.status)
+            window_rows = np.asarray(found_w.rows, dtype=np.int64)
+        z_from, rows_from = _incumbent(pool, [window_rows, quick_rows])
+        if rows_from is not None:
+            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,
+                                 progress=progress)
+            info["search_nodes"] += found["nodes"]
+            info["second_search"] = found["stage"]
+            if found["search"] == "proved":
+                start = "first_window" if rows_from is window_rows else "quick_design"
+                info.update(search="proved", search_start=start)
+                return proved(found, 0, 0.0)
 
     def upper(chosen) -> Fraction:
         """A rigorous upper bound on a design's exact cost: the sum of its groups' cost_up, in rationals."""
         rows = [column_index(tuple(sorted(pos[int(u)] for u in c["members"])), n) for c in chosen]
         return sum((Fraction(float(pool.cost_up[j])) for j in rows), Fraction(0))
 
-    count = min(len(pool), max(FIRST_MIN, FIRST_PER_UNIT * n))
-    delta = float(np.partition(rc, count - 1)[count - 1])
     best = last = None
     solves, mip_seconds = 0, 0.0
     while True:
@@ -1265,13 +1306,11 @@ def solve_exact(
         margin = best[2] - Fraction(L)                 # exact: every group left out has rc_lo > delta
         if margin <= Fraction(delta) or keep.size >= len(pool):
             break
-        if solves == 1 and info["search"] == "node_limit":
-            # the proof search again, from the better of the first MIP's design and the quick search's: a first
-            # MIP held to too few groups can return a design far above the quick search's (920 against 1.10 on a
-            # 36-geo Q = 3 arm), and its margin would keep nearly every group
+        if solves == 1 and info["search"] == "node_limit" and "second_search" not in info:
+            # the proof from the first MIP's design, when the quick search stopped before holding any design
             mip_rows = np.asarray([column_index(tuple(sorted(pos[int(u)] for u in c["members"])), n)
                                    for c in best[0]], dtype=np.int64)
-            z_from, rows_from = _incumbent(pool, [mip_rows, quick_rows])
+            z_from, rows_from = _incumbent(pool, [mip_rows])
             found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,
                                  progress=progress)
             info["search_nodes"] += found["nodes"]

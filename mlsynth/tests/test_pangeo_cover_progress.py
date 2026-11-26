@@ -111,12 +111,12 @@ def test_the_start_design_reports_through_the_array():
 
 
 def test_solve_exact_reports_every_search_it_ran_through_one_array():
-    """Unit: an arm whose quick search is capped and whose proof runs after the first MIP: the array's total is the
+    """Unit: an arm whose quick search is capped, so the window search and the proof run: the array's total is the
     solve's ``search_nodes`` (the fixed group of each re-optimised branch counts as a node), and the design and its
     diagnostics are those of the solve without the array."""
     Y, idx, _, _, _ = _setup(4, 12, 3)
     plain_c, plain_d = columns.solve_exact(idx, Y, 3, search_node_limit=20)
-    assert "second_search" in plain_d                                  # the arm reaches the proof after the MIP
+    assert "second_search" in plain_d and plain_d["window_search"] != "off"
     prog = cover.new_progress()
     c, d = columns.solve_exact(idx, Y, 3, search_node_limit=20, progress=prog)
     assert [sorted(x["members"]) for x in c] == [sorted(x["members"]) for x in plain_c]
@@ -125,6 +125,21 @@ def test_solve_exact_reports_every_search_it_ran_through_one_array():
     assert prog[P.P_DONE] == 1.0
     assert prog[P.P_TOTAL] == d["search_nodes"] > 0
     assert prog[P.P_SEARCHES] >= 2
+
+
+def test_the_proof_after_the_first_mip_reports_through_the_array(monkeypatch):
+    """Unit: with no quick design and no window search, the proof runs after the first MIP, and its nodes reach the
+    array: the total is the solve's ``search_nodes``."""
+    monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
+    monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
+    monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)
+    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
+    monkeypatch.setattr(columns, "FIRST_MIN", 1)
+    Y, idx, _, _, _ = _setup(4, 12, 3)
+    prog = cover.new_progress()
+    _, d = columns.solve_exact(idx, Y, 3, search_node_limit=20, progress=prog)
+    assert d["window_search"] == "off" and "second_search" in d and d["mip_solves"] >= 1
+    assert prog[P.P_TOTAL] == d["search_nodes"] > 0
 
 
 def test_the_reoptimised_search_counts_each_branch_fixed_group_as_a_node():
