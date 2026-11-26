@@ -1189,6 +1189,9 @@ def solve_exact(
 
     count = min(len(pool), max(FIRST_MIN, FIRST_PER_UNIT * n))
     delta = float(np.partition(rc, count - 1)[count - 1])
+    # the least upper bound among the searches' designs: the loop's margin is z - L for the best design held, theirs
+    # or its MIPs', so a first MIP far above the searches' design does not keep the loop widening its window
+    held, _ = _incumbent(pool, [quick_rows])
     best = last = None
     solves, mip_seconds = 0, 0.0
     while True:
@@ -1199,7 +1202,8 @@ def solve_exact(
         last = d
         if best is None or d["objective_value"] < best[1]["objective_value"]:
             best = (chosen, d, upper(chosen))
-        margin = best[2] - Fraction(L)                 # exact: every group left out has rc_lo > delta
+        z_held = best[2] if held is None else min(best[2], held)
+        margin = z_held - Fraction(L)                  # exact: every group left out has rc_lo > delta
         if margin <= Fraction(delta) or keep.size >= len(pool):
             break
         if solves == 1 and info["search"] == "node_limit":
@@ -1216,6 +1220,9 @@ def solve_exact(
             if found["search"] == "proved":
                 info.update(search="proved", search_start="first_mip")
                 return proved(found, solves, mip_seconds)
+            # its design is the best held: at least as good as the incumbent it started from
+            held, _ = _incumbent(pool, [np.asarray(found["rows"], dtype=np.int64)])
+            margin = min(best[2], held) - Fraction(L)
         # at most GROWTH times the groups, and never past z - L: a first design far above the optimum would
         # otherwise admit almost every group at once
         count = min(len(pool), count * GROWTH)

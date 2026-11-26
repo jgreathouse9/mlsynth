@@ -24427,3 +24427,27 @@ timeout = 600.0
   find = "    budget = min(_reopt_budget(pool, keep, cap=int(node_limit)), int(node_limit))"
   replace = "    budget = min(_reopt_budget(pool, keep), int(node_limit))"
   models = "the gated search asking for the uncapped budget, the hang the cap exists to remove"
+
+[[target]]
+name = "pangeo-loop-margin"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_loop_margin.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-loop-ignores-the-held-design"
+  find = "        z_held = best[2] if held is None else min(best[2], held)\n"
+  replace = "        z_held = best[2]\n"
+  models = "the MIP loop's margin taken from its own designs only, so after a first MIP far above the searches' design it keeps widening windows that design has already closed"
+
+  [[target.mutant]]
+  id = "the-quick-design-is-not-held"
+  find = "    held, _ = _incumbent(pool, [quick_rows])\n"
+  replace = "    held = None\n"
+  models = "the quick search's design left out of the margin, so until the second search the loop widens on the first MIP's design"
+
+  [[target.mutant]]
+  id = "the-second-searchs-design-is-not-held"
+  find = "            held, _ = _incumbent(pool, [np.asarray(found[\"rows\"], dtype=np.int64)])\n            margin = min(best[2], held) - Fraction(L)\n"
+  replace = "            pass\n"
+  models = "the proof after the first MIP stopped at its cap and its design dropped, so a design it found below the quick search's does not narrow the next windows"
