@@ -70,6 +70,9 @@ START_PER_UNIT = 40
 START_NODE_LIMIT = 200_000
 
 _U = 2.0 ** -53
+#: The underflow unit, the smallest positive subnormal: a product's absolute error below the normal range (Rump 2010,
+#: eq. 2.3; see :mod:`.columns`).
+_ETA = 2.0 ** -1074
 
 
 def _gamma(k: int) -> float:
@@ -169,10 +172,10 @@ def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, be
         if u1 == 0:                          # a design
             if c1 < k:
                 continue
-            leaf = P1 - g2 * (P1 + absA0)
+            leaf = P1 - (g2 * (P1 + absA0) + _ETA)
             if leaf < lowest:
                 lowest = leaf
-            r_up = R1 + g2 * R1
+            r_up = R1 + g2 * R1 + _ETA
             if r_up < best_up:
                 best_up = r_up
                 for t in range(c1):
@@ -188,7 +191,7 @@ def _cover(n, W, rows, size, lo, up, pisum, gptr, gcols, S0, absA0, sm, k, Q, be
             continue
         rt = r_lo * sm if r_lo * sm < r_hi * sm else r_hi * sm
         lb = P1 + S1 + rt
-        if lb - g2 * (P1 + absA0 + r_hi * abs(sm)) >= best_up:
+        if lb - (g2 * (P1 + absA0 + r_hi * abs(sm) + _ETA) + 2.0 * _ETA) >= best_up:   # rt's product, g2's
             continue
         for w in range(W):
             Ud[depth + 1, w] = Ud[depth, w]
@@ -259,7 +262,7 @@ def search(pool, root, keep, k: int, Q: int, best_up: float, node_limit: int) ->
     gptr[1:] = np.cumsum(np.bincount(unit, minlength=n))
     sm = float(root.sigma) + float(rc.min())
     S0 = math.fsum(float(x) for x in root.pi)
-    absA0 = float(np.abs(root.pi).sum()) * (1.0 + _gamma(n))
+    absA0 = float(np.abs(root.pi).sum()) * (1.0 + _gamma(n)) + _ETA
     g2 = 2.0 * _gamma(2 * n + 8) + 4.0 * _U
     W = -(-n // 64)
     status, nodes, upper, lowest, path = _cover(

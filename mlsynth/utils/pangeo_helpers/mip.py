@@ -194,12 +194,16 @@ def _cost_scale(cost) -> float:
     costs multiplied by 1e-12 gave a design 368 dearer than the optimum in the
     original units, with both gaps at 0, and the same costs scaled into this
     band gave the optimum at every scale from 1e-14 to 1e6. A power of two
-    multiplies exactly, so the minimizing design is unchanged."""
+    multiplies exactly, so the minimizing design is unchanged. The exponent is
+    capped at 1023, the largest power of two: when the largest cost is below
+    about 2^-993 it lands at top 2^1023, below the band (2^-51 at the smallest
+    subnormal), instead of raising OverflowError (jgreathouse9/mlsynth#1170)."""
     top = float(np.max(np.abs(np.asarray(cost, dtype=float)))) if len(cost) else 0.0
     if top == 0.0 or not np.isfinite(top):
         return 1.0
     _, e = math.frexp(top)                    # top = m 2^e, 0.5 <= m < 1
-    return math.ldexp(1.0, 30 - e)
+    return math.ldexp(1.0, min(30 - e, 1023))  # 2^1023 is the largest power of two: below about 2^-993 the
+                                              # largest cost lands at top 2^1023 < 2^30 (#1170)
 
 
 def _run_highs(h):
