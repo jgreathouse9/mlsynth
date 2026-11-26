@@ -1189,9 +1189,12 @@ def solve_exact(
 
     count = min(len(pool), max(FIRST_MIN, FIRST_PER_UNIT * n))
     delta = float(np.partition(rc, count - 1)[count - 1])
-    # the least upper bound among the searches' designs: the loop's margin is z - L for the best design held, theirs
-    # or its MIPs', so a first MIP far above the searches' design does not keep the loop widening its window
-    held, _ = _incumbent(pool, [quick_rows])
+    # the upper bound of the second search's design when it stops at its cap: the loop's margin is z - L for the
+    # best design held, its MIPs' or that one, so a first MIP far above the searches' design does not keep the loop
+    # widening its window. The quick search's design needs no place here: before the second search, a window that
+    # admits all of its groups gives a MIP design at least as good, and the second search starts from the better of
+    # the two and returns one at least as good
+    held = None
     best = last = None
     solves, mip_seconds = 0, 0.0
     while True:

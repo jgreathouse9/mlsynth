@@ -6,8 +6,9 @@ MIPs' designs. When the first MIP is held to too few groups (#1166) its design i
 searches already hold, so the loop kept widening windows the searches' design had already closed: on a 24-geo Q = 4
 seasonal arm, four MIPs and 190 s after the searches held a design within 3% of the optimum.
 
-The loop now takes z as the least of its MIPs' designs and the searches' (the quick search's, and the proof after the
-first MIP's when it stops at its cap). Its exit is unchanged in meaning: when the window holds every group with
+The loop now takes z as the least of its MIPs' designs and the design of the proof after the first MIP when that proof
+stops at its cap; that design is at least as good as the quick search's, from which the proof starts when it is the
+better. Its exit is unchanged in meaning: when the window holds every group with
 reduced cost at most z - L, the last MIP's design is the optimum.
 """
 from __future__ import annotations

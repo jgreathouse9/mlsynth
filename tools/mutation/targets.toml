@@ -24441,12 +24441,6 @@ timeout = 600.0
   models = "the MIP loop's margin taken from its own designs only, so after a first MIP far above the searches' design it keeps widening windows that design has already closed"
 
   [[target.mutant]]
-  id = "the-quick-design-is-not-held"
-  find = "    held, _ = _incumbent(pool, [quick_rows])\n"
-  replace = "    held = None\n"
-  models = "the quick search's design left out of the margin, so until the second search the loop widens on the first MIP's design"
-
-  [[target.mutant]]
   id = "the-second-searchs-design-is-not-held"
   find = "            held, _ = _incumbent(pool, [np.asarray(found[\"rows\"], dtype=np.int64)])\n            margin = min(best[2], held) - Fraction(L)\n"
   replace = "            pass\n"
