@@ -23653,7 +23653,7 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-fixed-groups-cost-nothing"
-  find = "    P0 = float(shifted[fixed].sum()) if fixed.size else 0.0"
+  find = "    P0 = float(np.asarray(shifted[fixed], dtype=float).sum()) if fixed.size else 0.0"
   replace = "    P0 = 0.0"
   models = "a search below a fixed group whose bound leaves out that group's cost: the costs are nonnegative, so the bound stays valid, but it prunes nothing the group's cost would and searches the whole subtree (42,735 nodes against 129 at 12 geos below a group whose cost reaches the incumbent)"
 
@@ -23815,14 +23815,14 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-children-price-the-whole-pool"
-  find = "np.asarray(mu, dtype=float), restrict=True)"
-  replace = "np.asarray(mu, dtype=float), restrict=False)"
+  find = "np.asarray(mu, dtype=float), restrict=True,"
+  replace = "np.asarray(mu, dtype=float), restrict=False,"
   models = "each child's reduced costs computed over all of the pool instead of over the groups its LP keeps, the per-child cost the restriction removes"
 
   [[target.mutant]]
   id = "the-unpriced-rows-read-zero"
-  find = "    out = np.full(len(pool), -np.inf)\n"
-  replace = "    out = np.zeros(len(pool))\n"
+  find = "        out = np.full(idx.shape, -np.inf)\n"
+  replace = "        out = np.zeros(idx.shape)\n"
   models = "the rows a restricted call does not compute read 0, which is no lower bound on a reduced cost that may be negative"
 
   [[target.mutant]]
@@ -23927,7 +23927,7 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-costs-are-not-shifted"
-  find = "    lo = _shifted(pool, kept, mu) if kept else None"
+  find = "    lo = _shifted(pool, kept, mu, rows=shift_rows) if kept else None"
   replace = "    lo = None"
   models = "clique duals priced in the bound and the credit but not in the groups' costs, a valid bound below the LP's that throws the cuts' gain away"
 
@@ -24475,6 +24475,42 @@ timeout = 600.0
   find = "    return list(_iter_branches(pool, root, keep, k, cliques, best_up))"
   replace = "    return _iter_branches(pool, root, keep, k, cliques, best_up)"
   models = "_branches handing back the generator, which its callers index and measure as a list"
+
+[[target]]
+name = "pangeo-branch-rows"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_branch_rows.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-full-array-reads-zero-off-the-rows"
+  find = "        full = np.full(self.size, -np.inf)"
+  replace = "        full = np.zeros(self.size)"
+  models = "a row lookup built into the whole-pool array with 0, not -inf, off its rows: a reduced or shifted cost that is not a lower bound"
+
+  [[target.mutant]]
+  id = "a-lookup-reads-a-mask-as-rows-0-and-1"
+  find = "        if idx.dtype == bool:"
+  replace = "        if False:"
+  models = "a boolean mask cast to rows 0 and 1 instead of the rows it selects"
+
+  [[target.mutant]]
+  id = "a-lookup-searches-unsorted-rows"
+  find = "        order = np.argsort(rows, kind=\"stable\")"
+  replace = "        order = np.arange(rows.size)"
+  models = "rows kept in the order given and binary-searched as if sorted, so a branch's groups read other groups' values"
+
+  [[target.mutant]]
+  id = "the-fixed-group-has-no-shifted-cost"
+  find = "                               shift_rows=np.append(left, j))     # the search reads the fixed group's too"
+  replace = "                               shift_rows=left)"
+  models = "the fixed group's shifted cost left at -inf, so every bound in the branch's search is -inf and nothing is pruned"
+
+  [[target.mutant]]
+  id = "the-rounding-counts-only-the-rows-cliques"
+  find = "    most = int(np.unique(members, return_counts=True)[1].max()) if members.size else 0"
+  replace = "    members = members if rows is None else members[np.isin(members, rows)]\n    most = int(np.unique(members, return_counts=True)[1].max()) if members.size else 0"
+  models = "the rounding allowance set by the cliques of the computed rows only, so the rows get other doubles than the whole-pool computation"
 
 [[target]]
 name = "pangeo-proof-budget"
