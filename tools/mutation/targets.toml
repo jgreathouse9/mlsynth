@@ -24619,6 +24619,14 @@ timeout = 900.0
   find = "                if lo > 0.0:\n                    tj = L + lo + f_lo"
   replace = "                if lo > -1e300:\n                    tj = L + lo + f_lo"
   models = "reduced-cost fixing applied to groups whose reduced cost is negative, where L + rc is not a bound on the designs that use them, so groups of the optimum are dropped"
+  expected = "survived"
+  accepted-because = "EQUIVALENT: fixing runs only at a node that was not pruned, where L plus the chosen groups' cost is below the incumbent, and a group with a negative reduced cost lowers that sum further, so the test L + rc + cost >= incumbent never holds and no group is dropped. Recorded because the equivalence is the finding: the rule needs no sign check to be valid. The non-equivalent defect, fixing against a threshold below the incumbent, is the next mutant."
+
+  [[target.mutant]]
+  id = "the-fixing-threshold-is-below-the-incumbent"
+  find = "                    if tj >= best:\n                        continue"
+  replace = "                    if tj >= best - 0.5 * abs(best):\n                        continue"
+  models = "groups fixed out when their bound reaches half the incumbent, below it, so groups of a design cheaper than the incumbent are dropped and the tree proves the optimum of a smaller problem"
 
   [[target.mutant]]
   id = "designs-short-of-the-cardinality-row-are-kept"

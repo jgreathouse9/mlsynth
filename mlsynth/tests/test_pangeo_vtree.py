@@ -265,6 +265,47 @@ def test_the_float_bound_is_tight_on_benign_inputs():
     assert float(Lx) - L <= 1e-12 * scale
 
 
+def test_the_multipliers_sum_is_rounded_down_when_no_reduced_cost_is_negative():
+    """With every reduced cost positive the bound is the multipliers' sum alone, which no per-group slack covers.
+    Adding 1.5e-16 to 1.0 rounds up each time (half an ulp of 1.0 is 1.1e-16), so the floating-point sum exceeds the
+    exact one and only the outer slack brings the bound back under it."""
+    n = 9
+    pi = np.array([1.0] + [1.5e-16] * (n - 1))
+    members = np.array([[0, 1, -1, -1], [2, 3, -1, -1], [4, 5, 6, 7]], dtype=np.int64)
+    clo = np.array([10.0, 10.0, 10.0])
+    unc = np.ones(n, dtype=bool)
+    naive = 0.0
+    for x in pi:
+        naive += x
+    assert Fraction(naive) > sum((Fraction(float(x)) for x in pi), Fraction(0))     # the hazard is real
+    L, rcl = _bound(members, clo, pi, 0.0, unc, 0)
+    Lx, _ = _exact_bound(members, clo, pi, 0.0, unc, 0)
+    assert all(rcl > 0) and Fraction(L) <= Lx
+
+
+def test_overlapping_groups_past_the_first_word_are_never_combined():
+    """Units 64 and up sit in a second mask word. On a 66-unit pool whose only partition costs 82, two groups that
+    share unit 64, (0, 64) and (1, 64, 65), with the pairs (2, 3) ... (62, 63) would cover every unit for 31.2. The
+    tree must drop (1, 64, 65) once (0, 64) is chosen, and return the partition."""
+    n = 66
+    groups = [(2 * i, 2 * i + 1) for i in range(32)] + [(64, 65), (0, 64), (1, 64, 65)]
+    cost = [1.0] * 32 + [50.0, 0.1, 0.1]
+    w = max(len(g) for g in groups)
+    members = -np.ones((len(groups), w), dtype=np.int64)
+    for j, g in enumerate(groups):
+        members[j, :len(g)] = sorted(g)
+    c = np.asarray(cost)
+    pool = columns.ColumnPool(np.arange(n), members, c, np.zeros(len(groups), dtype=np.int64), True, c.copy(), c.copy())
+
+    class Root:
+        pi, sigma = np.zeros(n), 0.0
+
+    res = vtree.search(pool, Root(), np.arange(len(pool)), 1, np.inf, 10**6)
+    assert res.status == "proved"
+    _assert_cover(pool, res.rows, n, 1)
+    assert _close(float(pool.cost[res.rows].sum()), 82.0)
+
+
 def test_covered_units_carry_no_multiplier_in_the_bound():
     rng = np.random.default_rng(4)
     n, C = 8, 30
