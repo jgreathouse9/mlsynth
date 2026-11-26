@@ -24363,6 +24363,12 @@ timeout = 600.0
   models = "the second search run without the array, so its nodes, often most of a solve's, never show"
 
   [[target.mutant]]
+  id = "the-reoptimised-stage-is-not-watched"
+  find = "    rest = _search_reopt(pool, root, keep, k, Q, best, max(int(node_limit) - nodes, 0), progress=progress)"
+  replace = "    rest = _search_reopt(pool, root, keep, k, Q, best, max(int(node_limit) - nodes, 0))"
+  models = "the re-optimised stage run without the array, so a gated search's total shows only its plain stage"
+
+  [[target.mutant]]
   id = "the-quick-search-is-not-watched"
   find = "        found = _search(pool, root, k, max_size, quick, progress=progress)"
   replace = "        found = _search(pool, root, k, max_size, quick)"

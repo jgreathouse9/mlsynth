@@ -138,6 +138,19 @@ def test_the_reoptimised_search_counts_each_branch_fixed_group_as_a_node():
     assert prog[P.P_SEARCHES] >= 1
 
 
+def test_the_gated_search_reports_both_stages_through_the_array(monkeypatch):
+    """Unit: a plain stage held to 3 nodes hands the rest to the re-optimised stage; the array's total is the gated
+    search's node count, both stages included."""
+    _, _, pool, k, root = _setup(9, 14, 2)
+    start = cover.start_design(pool, root, k, 2)
+    monkeypatch.setattr(columns, "_reopt_budget", lambda pool_, keep_: 3)
+    prog = cover.new_progress()
+    res = columns._search_gated(pool, root, np.arange(len(pool)), k, 2, start.upper * 1.5, 10**7, progress=prog)
+    assert res.stage == "reoptimised"
+    assert prog[P.P_TOTAL] == res.nodes > 3
+    assert prog[P.P_SEARCHES] >= 2
+
+
 # --- the counters move while the search runs ----------------------------------------------------------------------
 
 def test_the_counters_can_be_read_from_another_thread_while_the_search_runs():
