@@ -81,6 +81,11 @@ SEARCH_NODE_LIMIT = 200_000_000
 #: search takes over. Its budget is the children's column count, which grows with the arm: 16.6 million nodes
 #: (273 s) on the 40-geo Q = 3 arm, proving nothing, where every arm whose plain stage proved did so within this.
 PLAIN_STAGE_LIMIT = 1_500_000
+#: The proof (columns._search_from) is the volume-bound tree (.vtree), which places at most this many nodes, and at
+#: most the search node limit, before the MIP loop takes over. Its nodes cost more than the plain search's and prune
+#: far more: proving a 40-geo Q = 3 seasonal arm from the optimum took 97 thousand (17.5 s, one thread), where the
+#: gated search took 48 million (573 s).
+VOLUME_NODE_LIMIT = 5_000_000
 #: The search over the first window (columns._search_window) places at most this many nodes, and at most the search
 #: node limit; the window of a 50-geo Q = 2 seasonal arm took 1.0 million.
 WINDOW_NODE_LIMIT = 20_000_000

@@ -113,7 +113,7 @@ from scipy.optimize import linprog
 
 from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from ..solvers.dual_simplex import solve_boxed_lp
-from . import cover, mip
+from . import cover, mip, vtree
 
 try:  # numba is the optional ``fast`` extra; without it the same code runs as Python
     from numba import njit
@@ -1157,12 +1157,17 @@ def _search_window(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up
 
 def _search_from(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int, z_up: Fraction,
                  rows: Sequence[int], progress=None) -> dict:
-    """The proof search over the groups a design's upper bound z_up cannot exclude, with that design as the
-    incumbent (:func:`_search_gated`): returned as the best design when the search finds none cheaper. Its
-    searches report to ``progress``."""
+    """The proof over the groups a design's upper bound z_up cannot exclude, with that design as the incumbent: the
+    volume-bound tree (:func:`.vtree.search`, at most ``node_limit`` and ``cover.VOLUME_NODE_LIMIT`` nodes), which
+    bounds every node by its own problem where the gated search (:func:`_search_gated`) bounds every node by the
+    root's duals. The design is returned as the best when the tree finds none cheaper. The tree reports to
+    ``progress``. Measured from the optimum on seasonal arms, single-threaded, against the gated search: 17.5 s
+    against 573 s at 40 geos and Q = 3, 0.71 s against 12.6 s at 50 geos and Q = 2, 0.25 s against 2.9 s at 36 geos
+    and Q = 3."""
     t = time.perf_counter()
     keep = np.flatnonzero(root.reduced_costs <= _up(z_up - Fraction(root.bound)))
-    res = _search_gated(pool, root, keep, k, Q, _up(z_up), node_limit, progress=progress)
+    res = vtree.search(pool, root, keep, k, _up(z_up), min(int(node_limit), int(cover.VOLUME_NODE_LIMIT)),
+                       progress=progress)
     found = res.rows if res.rows.size else np.asarray(rows, dtype=np.int64)
     return dict(search=res.status, rows=found, lower=res.lower, nodes=res.nodes, kept=keep.size, stage=res.stage,
                 seconds=time.perf_counter() - t)

@@ -80,8 +80,12 @@ except ImportError:  # pragma: no cover - the suite runs with numba installed
 CANONICAL_NAME = "mlsynth.utils.pangeo_helpers.vtree"
 _CACHE = __name__ == CANONICAL_NAME
 
-#: Volume steps per node at most. On a 40-geo Q = 3 seasonal arm, proving from the optimum: 17.3 s at 50 steps,
-#: 24.1 s at 300 and 58.8 s at 1,000 (97, 41 and 34 thousand nodes).
+#: Volume steps per node at most. Proving from the optimum on seasonal arms, single-threaded: 15.7, 17.5 and 21.6 s
+#: at 20, 50 and 150 steps on a 40-geo Q = 3 arm (165, 97 and 70 thousand nodes), 0.83, 0.71 and 0.82 s on a
+#: 50-geo Q = 2 arm, 0.18, 0.25 and 0.33 s on a 36-geo Q = 3 arm. The step rules of COIN-OR Vol (the step factor
+#: doubled after a green step, raised by 1.1 after two yellow ones, cut by 0.67 after ten red ones; alpha from 0.01,
+#: halved every 80 steps; a moving target) placed 2 to 20 times the nodes on the same arms at every step count
+#: (40-geo Q = 3: 37 to 124 s), so the tree keeps the papers' rules.
 ITERATIONS = 50
 
 #: The kernel writes the progress array (:func:`.cover.new_progress`) every this many nodes.
