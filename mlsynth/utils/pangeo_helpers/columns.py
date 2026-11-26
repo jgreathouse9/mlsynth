@@ -972,16 +972,26 @@ def _branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cliques=
     return out
 
 
-def _reopt_budget(pool: ColumnPool, keep: np.ndarray) -> int:
+def _reopt_budget(pool: ColumnPool, keep: np.ndarray, cap: Optional[int] = None) -> int:
     """The plain stage's node budget in :func:`_search_gated`: the children's columns, summed over the first level
     of :func:`_branches` (each child's LP has one column per group it keeps), so the plain search gets about as many
-    nodes as re-optimisation would solve LP columns. 0 when no group is kept."""
+    nodes as re-optimisation would solve LP columns. 0 when no group is kept.
+
+    With ``cap`` the count stops once it reaches the cap and returns ``min(count, cap)``: in full it costs the
+    branches times the kept groups, and over a nearly whole pool (2.39 million groups at 36 geos and Q = 3, with
+    the tens of thousands of branches that brings) that ran past half an hour, for a budget the gate then cut to
+    its node limit."""
     keep = np.asarray(keep, dtype=np.int64)
     if keep.size == 0:
         return 0
     inc = _incidence(pool.members[keep], int(pool.unit_indices.size))
     g0 = int(np.argmin(inc.sum(axis=0)))
-    return int(sum(int((~inc[:, inc[a]].any(axis=1)).sum()) for a in np.flatnonzero(inc[:, g0])))
+    total = 0
+    for a in np.flatnonzero(inc[:, g0]):
+        total += int((~inc[:, inc[a]].any(axis=1)).sum())
+        if cap is not None and total >= cap:
+            return int(cap)
+    return total
 
 
 def _branch_bounds(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, Q: int):
@@ -1040,7 +1050,7 @@ def _search_gated(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up:
     search proved in 2.8, 3.4 and 1.6 s, where the plain search alone took 2.9, 3.8 and 2.1 s. Returns a
     :class:`.cover.CoverSearch` whose ``stage`` says which stage ended it. Both stages report to ``progress``."""
     keep = np.asarray(keep, dtype=np.int64)
-    budget = min(_reopt_budget(pool, keep), int(node_limit))
+    budget = min(_reopt_budget(pool, keep, cap=int(node_limit)), int(node_limit))
     best, rows, nodes = float(best_up), np.zeros(0, np.int64), 0
     if budget > 0:
         first = cover.search(pool, root, keep, k, Q, best, budget, progress=progress)
@@ -1053,6 +1063,20 @@ def _search_gated(pool: ColumnPool, root: RootLP, keep, k: int, Q: int, best_up:
     if rest.rows.size:
         rows = rest.rows
     return cover.CoverSearch(rest.status, rows, rest.upper, rest.lower, nodes + rest.nodes, stage="reoptimised")
+
+
+def _incumbent(pool: ColumnPool, designs) -> Tuple[Optional[Fraction], Optional[np.ndarray]]:
+    """The design of least rigorous upper bound among ``designs`` (arrays of pool rows), its bound the sum of its
+    groups' cost_up in rationals: ``(upper, rows)``. Empty designs are skipped and a tie keeps the earlier;
+    ``(None, None)`` when every design is empty."""
+    best_z, best_rows = None, None
+    for rows in designs:
+        if len(rows) == 0:
+            continue
+        z = sum((Fraction(float(pool.cost_up[j])) for j in rows), Fraction(0))
+        if best_z is None or z < best_z:
+            best_z, best_rows = z, rows
+    return best_z, best_rows
 
 
 def _search_from(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int, z_up: Fraction,
@@ -1126,6 +1150,7 @@ def solve_exact(
     seed = np.array([column_index(g, n) for g in seed_partition(n)])
     pos = {int(u): p for p, u in enumerate(idx)}
     info = dict(search="off", search_nodes=0, search_start=None)
+    quick_rows = np.zeros(0, dtype=np.int64)          # the quick search's best design, when it found one
 
     def proved(found: dict, solves: int, mip_secs: float):
         """The design a finished search proved, reported as the MIP path reports one (its gap relative to the
@@ -1152,6 +1177,7 @@ def solve_exact(
         quick = min(int(cover.SEARCH_QUICK_LIMIT), int(search_node_limit))
         found = _search(pool, root, k, max_size, quick, progress=progress)
         info.update(search=found["search"], search_nodes=found["nodes"])
+        quick_rows = np.asarray(found["rows"], dtype=np.int64)
         if found["search"] == "proved":
             info["search_start"] = "staged"
             return proved(found, 0, 0.0)
@@ -1177,9 +1203,13 @@ def solve_exact(
         if margin <= Fraction(delta) or keep.size >= len(pool):
             break
         if solves == 1 and info["search"] == "node_limit":
-            # the proof search again, from the first MIP's design: its upper bound sets the margin
-            found = _search_from(pool, root, k, max_size, int(search_node_limit), best[2],
-                                 [column_index(tuple(sorted(pos[int(u)] for u in c["members"])), n) for c in best[0]],
+            # the proof search again, from the better of the first MIP's design and the quick search's: a first
+            # MIP held to too few groups can return a design far above the quick search's (920 against 1.10 on a
+            # 36-geo Q = 3 arm), and its margin would keep nearly every group
+            mip_rows = np.asarray([column_index(tuple(sorted(pos[int(u)] for u in c["members"])), n)
+                                   for c in best[0]], dtype=np.int64)
+            z_from, rows_from = _incumbent(pool, [mip_rows, quick_rows])
+            found = _search_from(pool, root, k, max_size, int(search_node_limit), z_from, rows_from,
                                  progress=progress)
             info["search_nodes"] += found["nodes"]
             info["second_search"] = found["stage"]
