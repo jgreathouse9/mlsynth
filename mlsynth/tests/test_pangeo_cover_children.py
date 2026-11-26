@@ -55,6 +55,9 @@ def _optimum_with(pool, idx, Q, k, row):
     the groups disjoint from it."""
     g = _units(pool, row)
     rows = [j for j in range(len(pool)) if j == row or not (g & _units(pool, j))]
+    covered = set().union(*(set(int(p) for p in pool.members[j][pool.members[j] >= 0]) for j in rows))
+    if len(covered) < len(idx):          # a unit no group covers: no design (checked here, not left to the MIP: #1169)
+        return np.inf
     try:
         _, d = mip.solve_partition(pool.candidates(rows), idx, min_pairs=k, return_diagnostics=True)
     except MlsynthEstimationError as exc:

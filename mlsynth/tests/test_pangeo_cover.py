@@ -208,19 +208,19 @@ def test_the_proof_after_the_first_mip_starts_from_its_design(monkeypatch):
     monkeypatch.setattr(columns, "FIRST_MIN", 1)
     Y = _panel(23, 14)
     idx = np.arange(14)
-    seen, real, real_reopt = [], cover.search, columns._search_reopt
+    seen, real, real_gated = [], cover.search, columns._search_gated
 
     def rec(pool, root, keep, k, Q, best_up, node_limit, fixed=()):
-        if not len(fixed):                                         # the start and the quick search
+        if not len(fixed) and len(seen) < 2:                       # the start and the quick search
             seen.append((len(keep), best_up, node_limit))
         return real(pool, root, keep, k, Q, best_up, node_limit, fixed=fixed)
 
-    def rec_reopt(pool, root, keep, k, Q, best_up, node_limit):     # the proof after the first MIP
+    def rec_gated(pool, root, keep, k, Q, best_up, node_limit):     # the proof after the first MIP
         seen.append((len(keep), best_up, node_limit))
-        return real_reopt(pool, root, keep, k, Q, best_up, node_limit)
+        return real_gated(pool, root, keep, k, Q, best_up, node_limit)
 
     monkeypatch.setattr(cover, "search", rec)
-    monkeypatch.setattr(columns, "_search_reopt", rec_reopt)
+    monkeypatch.setattr(columns, "_search_gated", rec_gated)
     first = []
 
     def spy(cands, ix, **kw):
