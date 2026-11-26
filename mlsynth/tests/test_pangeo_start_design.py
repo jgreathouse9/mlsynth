@@ -100,6 +100,18 @@ def test_the_start_reports_every_window_through_the_progress_array(monkeypatch):
     assert prog[cover.P_SEARCHES] == len(seen) and prog[cover.P_TOTAL] == res.nodes
 
 
+def test_a_window_stopped_by_its_cap_without_a_design_is_not_widened(monkeypatch):
+    """Unit: a start whose search stops at its node cap before finding a design returns at once: a wider window
+    under the same cap is no likelier to finish."""
+    n, Q = 12, 3
+    pool, k, root = _setup(1, n, Q)
+    monkeypatch.setattr(cover, "START_PER_UNIT", 1)
+    monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
+    seen = _spy(monkeypatch)
+    res = cover.start_design(pool, root, k, Q)
+    assert len(seen) == 1 and seen[0][1].status == "node_limit" and res.rows.size == 0
+
+
 # --- edge cases ---------------------------------------------------------------------------------------------------
 
 def test_with_no_design_in_the_pool_the_last_window_is_the_whole_pool(monkeypatch):

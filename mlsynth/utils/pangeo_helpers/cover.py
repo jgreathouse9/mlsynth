@@ -29,7 +29,8 @@ those groups. The groups left out have reduced cost above :math:`z - L` for the 
 
 Start. A first search over the ``START_PER_UNIT`` n groups of least reduced cost, capped at ``START_NODE_LIMIT``
 nodes, gives a design whose upper bound sets the reduced-cost margin for the proof search. A window that holds no
-design is widened ``START_GROWTH``-fold and searched again, up to the whole pool: at Q = 4 the first window can cover
+design (its search finished and found none) is widened ``START_GROWTH``-fold and searched again, up to the whole
+pool: at Q = 4 the first window can cover
 every unit and hold no exact cover (a 24-geo seasonal arm's 960 groups, proved empty in 614 nodes), and a proof
 search with no incumbent keeps every group (1.27 million there, 666 s).
 
@@ -487,8 +488,9 @@ def _search(pool, root, keep, k, Q, best_up, node_limit, fixed, prog) -> CoverSe
 
 def start_design(pool, root, k: int, Q: int, progress: Optional[np.ndarray] = None) -> CoverSearch:
     """A first design: a search capped at ``START_NODE_LIMIT`` nodes over the ``START_PER_UNIT`` n groups of least
-    reduced cost, repeated over ``START_GROWTH`` times as many groups while a window holds no design, up to the whole
-    pool. Each search reports to ``progress`` as :func:`search` does; the result's nodes are all the searches'."""
+    reduced cost, repeated over ``START_GROWTH`` times as many groups while a window is proved to hold no design, up
+    to the whole pool. A window whose search stopped at its cap without a design is not widened: a wider window
+    under the same cap is no likelier to finish. Each search reports to ``progress`` as :func:`search` does; the result's nodes are all the searches'."""
     rc = np.asarray(root.reduced_costs, dtype=float)
     count = min(rc.size, START_PER_UNIT * int(pool.unit_indices.size))
     nodes = 0
@@ -496,6 +498,6 @@ def start_design(pool, root, k: int, Q: int, progress: Optional[np.ndarray] = No
         small = np.flatnonzero(rc <= np.partition(rc, count - 1)[count - 1])
         res = search(pool, root, small, k, Q, np.inf, START_NODE_LIMIT, progress=progress)
         nodes += res.nodes
-        if res.rows.size or count >= rc.size:
+        if res.rows.size or res.status != "proved" or count >= rc.size:
             return replace(res, nodes=nodes)
         count = min(rc.size, count * START_GROWTH)
