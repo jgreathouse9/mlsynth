@@ -19,7 +19,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings, strategies as st
 
 from mlsynth.exceptions import MlsynthConfigError
-from mlsynth.utils.pangeo_helpers import columns, cover, vtree
+from mlsynth.utils.pangeo_helpers import columns, cover, matching, vtree
 
 
 def _panel(seed, n, T=12, levels=5.0):
@@ -166,14 +166,19 @@ def test_the_node_limit_stops_the_tree():
 
 
 def test_more_than_64_units_take_two_mask_words():
-    """A 70-unit pairs arm (Q = 1): the units' masks need two 64-bit words; the tree proves the plain search's
-    optimum."""
+    """A 70-unit pairs arm (Q = 1): the units' masks need two 64-bit words. Pairs are a minimum-cost perfect
+    matching, so the oracle is the blossom matcher (:func:`.matching.min_weight_matching`, certified by its duals);
+    the plain cover search does not prove this arm in 10^9 nodes."""
     n = 70
     pool, root, k = _arm(13, n, 1)
+    W = np.zeros((n, n))
+    for j in range(len(pool)):
+        a, b = (int(u) for u in pool.members[j] if u >= 0)
+        W[a, b] = W[b, a] = float(pool.cost[j])
     res = vtree.search(pool, root, np.arange(len(pool)), k, np.inf, 10**7)
     assert res.status == "proved"
     _assert_cover(pool, res.rows, n, k)
-    assert _close(float(pool.cost[res.rows].sum()), _plain_optimum(pool, root, k, 1))
+    assert _close(float(pool.cost[res.rows].sum()), matching.min_weight_matching(W)["cost"])
 
 
 def test_the_progress_array_receives_the_search():

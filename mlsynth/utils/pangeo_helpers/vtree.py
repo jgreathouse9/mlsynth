@@ -17,18 +17,21 @@ Lagrangian bound of the node's set-partitioning problem with :math:`x \\in [0, 1
    \\bar c_G = c_G - \\sigma - \\sum_{i \\in G} \\pi_i,
 
 a lower bound on every completion for any such multipliers (Geoffrion, "Lagrangean relaxation for integer
-programming", Math. Programming Study 2 (1974) 82-114). The multipliers come from the volume algorithm as Barahona
-and Anbil state it ("On some difficult linear programs coming from set partitioning", Discrete Applied Mathematics
-118 (2002) 3-11, pp. 7-8): from the parent's multipliers (the root LP's at the root), a direction from the averaged
-primal :math:`v = 1 - A\\bar x`, a step :math:`\\lambda (T - \\bar z) / \\lVert v \\rVert^2` toward the target
-:math:`T`, a move only when it raises the bound, :math:`\\lambda` raised by 1.1 (to at most 2) after a green step
-and cut by 0.66 after 20 red steps in a row (unless below 0.0005), and the average updated as
-:math:`\\bar x \\leftarrow \\alpha x + (1 - \\alpha) \\bar x` with :math:`\\alpha` the minimiser of the unit rows'
-residual over :math:`[u/10, u]`, :math:`u` halved every 100 steps in which :math:`\\bar z` rose less than 1%. The
-target is the node's pruning threshold, the incumbent less the chosen groups' cost, and the steps stop as soon as the
-bound reaches it; with no incumbent the target is the paper's, raised to 1.05 :math:`\\bar z` as :math:`\\bar z`
-rises. At most ``iterations`` steps are taken per node. Measured on seasonal arms, most nodes are pruned at their
-parent's multipliers before any step.
+programming", Math. Programming Study 2 (1974) 82-114). The multipliers come from the volume algorithm (Barahona and
+Anbil, "The volume algorithm: producing primal solutions with a subgradient method", Math. Programming 87 (2000)
+385-399, p. 391), started from the parent's multipliers (the root LP's at the root): a direction from the averaged
+primal :math:`v = 1 - A\\bar x`, a move only when it raises the bound, and the average updated as
+:math:`\\bar x \\leftarrow \\alpha x + (1 - \\alpha) \\bar x`. The step is their equation (7) (p. 388),
+:math:`\\lambda (T - \\bar z) / \\lVert v \\rVert^2` with :math:`T` an upper bound on the optimum, here the node's
+pruning threshold, the incumbent less the chosen groups' cost; the cardinality row's multiplier is held at zero or
+above, as their p. 388 does for an inequality row; and the steps stop as soon as the bound reaches :math:`T`. The
+remaining rules are as the same authors state them in "On some difficult linear programs coming from set
+partitioning", Discrete Applied Mathematics 118 (2002) 3-11, p. 8: :math:`\\lambda` raised by 1.1 (to at most 2)
+after a green step and cut by 0.66 after 20 red steps in a row (unless below 0.0005); :math:`\\alpha` the minimiser
+of the unit rows' residual over :math:`[u/10, u]`, :math:`u` starting at 0.1 and halved every 100 steps in which
+:math:`\\bar z` rose less than 1%; and, with no incumbent, a target raised to :math:`1.05 \\bar z` each time
+:math:`\\bar z` passes :math:`0.95 T`. At most ``iterations`` steps are taken per node. Measured on seasonal arms,
+most nodes are pruned at their parent's multipliers before any step.
 
 Reduced-cost fixing at every node. A group with :math:`\\bar c_G > 0` enters a completion only by raising its cost
 to at least :math:`L + \\bar c_G`, so where that reaches the incumbent the group is dropped for the node's subtree
