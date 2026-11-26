@@ -118,10 +118,26 @@ def test_subnormal_covariates_with_large_weights_keep_the_bracket(sy, sc, om):
         assert _brackets(Y, kw, pool, Q, "ss_res") == []
 
 
+def test_many_subnormal_covariates_keep_the_upper_bracket():
+    """Unit: each covariate's om v^2 is formed as (om v) v, so its square loses up to eta / 2 per covariate. A few
+    are covered by the trajectory bound's own guards; forty are not, and without the term an upper bound fell below
+    the exact cost by 0.054 eta (seed 2, three units). The draws share one generator across the three regimes, so
+    the loop replays them in order."""
+    for seed in range(4):
+        rng = np.random.default_rng(seed)
+        for n, T, M, sy, sc, om in ((4, 2, 20, -560, -535, 1.0), (4, 2, 40, -560, -536, 1.0), (3, 2, 40, -560, -537, 0.5)):
+            Y = np.ldexp(rng.normal(size=(n, T)).cumsum(axis=1) + rng.normal(size=(n, 1)), sy)
+            kw = dict(cov=np.ldexp(rng.normal(size=(n, M)), sc), cov_scales=rng.uniform(0.5, 2.0, M),
+                      cov_weights=om * rng.uniform(0.1, 2.0, M))
+            pool = columns.score_columns(np.arange(n), Y, 2, **kw)
+            assert _brackets(Y, kw, pool, 2, "ss_res") == []
+
+
 def test_subnormal_period_weights_keep_the_bracket_at_a_normal_scale():
     """Unit: the weighted objective forms w d d as (w d) d. With some weights subnormal and the paths at a normal
-    scale, w d underflows and the second d multiplies its error, so the allowance scales with the largest
-    deviation. Weights are only validated to sum past 1e-12, so this is inside the domain."""
+    scale, w d underflows and the second d multiplies its error, up to (eta / 2) |d|. The gap's own error term,
+    at least k1 |d| sw / 2, covers that whenever |d| is large enough for it to matter. Weights are only validated to
+    sum past 1e-12, so this is inside the domain."""
     n, Q, T = 5, 2, 8
     Y = 1e6 * _panel(11, n, T)
     w = np.array([1.0, 1e-310, 2.0, 5e-320, 1.0, 1e-315, 0.5, 1.0])

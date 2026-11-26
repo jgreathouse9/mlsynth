@@ -23816,15 +23816,9 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-residual-squares-may-underflow"
-  find = "    e_s = (T * _ETA) * (2.0 + dmax)\n"
+  find = "    e_s = (T * _ETA) * 2.0\n"
   replace = "    e_s = 0.0\n"
   models = "cause 1 of #1170: the residual sum of squares taken with only its relative error; its T squares underflow below the normal range, and the trajectory objectives' bounds stop bracketing the exact cost (6,343 groups over the measured grid)"
-
-  [[target.mutant]]
-  id = "the-weighted-square-ignores-the-deviation"
-  find = "    e_s = (T * _ETA) * (2.0 + dmax)\n"
-  replace = "    e_s = (T * _ETA) * 2.0\n"
-  models = "w d d's underflow taken as two half-units, not w d's multiplied by the second d: wrong when a period weight is subnormal and the deviations are normal"
 
   [[target.mutant]]
   id = "the-totals-square-may-underflow-from-below"

@@ -35,9 +35,10 @@ bounds hold provided no underflow occurs; below the normal range a product, quot
 error of at most :math:`\\eta / 2`, :math:`\\eta = 2^{-1074}`, and no relative one (Rump 2010, eq. 2.3 on p. 302,
 :math:`a \\circ b = \\mathrm{fl}(a \\circ b)(1 + \\varepsilon) + \\delta`, :math:`\\varepsilon\\delta = 0`). Three
 squares that form a cost bound carry that error with no relative term to cover it: the residual sum of squares
-(its :math:`T` squares, :math:`T(2 + \\max_t |d_t|)\\eta` in all, since the weighted form rounds :math:`w_t d_t` before
-the second :math:`d_t` multiplies it, the rest covering the two quotients; the final square and scaling add
-:math:`\\eta` of their own), the square of the
+(its :math:`T` squares, :math:`2T\\eta` in all, the rest covering the two quotients; the final square and scaling add
+:math:`\\eta` of their own; the weighted form rounds :math:`w_t d_t` before the second :math:`d_t` multiplies it, an
+error of at most :math:`|d_t|\\eta / 2` that the gap's error term :math:`e_r \\ge k_1 |d_t| \\sqrt{w_{\\max}} / 2`
+covers whenever it is not below :math:`\\eta`), the square of the
 difference of totals, and each covariate's :math:`\\omega_j v_j^2`, whose error the weight multiplies. Each adds
 :math:`\\eta` to an upper bound or subtracts it from a lower one. That is exact when the result is subnormal, since
 addition then does not round (eq. 2.4), and rounds away when it is normal, where :math:`\\delta = 0`, so at normal
@@ -308,21 +309,17 @@ def _traj(pos, m, c, A, Nu, w, use_w, W, sw, k1, g_s, g_mu, r):
             S += r[t]
         mu = S / T
     s = 0.0
-    dmax = 0.0
     for t in range(T):
         d = r[t] - mu
         if use_w:
             s += w[t] * d * d
-            if abs(d) > dmax:
-                dmax = abs(d)
         else:
             s += d * d
     e_r = k1 * abs_cn * sw
     rbar = abs_cn * (1.0 + 2.0 * k1)
     e_mu = g_mu * g_mu * rbar * rbar * sw * sw
-    # the T squares of s may underflow, each by eta / 2 (times d for w d d, whose w d is rounded first); the rest of
-    # e_s covers the quotients below (module docstring)
-    e_s = (T * _ETA) * (2.0 + dmax)
+    # the T squares of s may underflow, each by eta / 2; the rest of e_s covers the quotients below (module docstring)
+    e_s = (T * _ETA) * 2.0
     q_up = np.sqrt((s + e_s) / (1.0 - g_s))
     q2 = s / (1.0 + g_s) - e_mu - e_s
     q_lo = np.sqrt(q2) if q2 > 0.0 else 0.0
