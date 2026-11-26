@@ -16,7 +16,7 @@ import pathlib
 import cvxpy as cp
 import numpy as np
 import pytest
-from hypothesis import HealthCheck, given, settings, strategies as st
+from hypothesis import HealthCheck, example, given, settings, strategies as st
 
 from mlsynth import PANGEO
 from mlsynth.exceptions import MlsynthConfigError, MlsynthEstimationError
@@ -335,9 +335,12 @@ def test_the_optimum_is_found_at_any_cost_scale(backend, scale):
 
 @settings(max_examples=200, deadline=None)
 @given(c=st.lists(st.floats(0.0, 1e300, allow_nan=False, allow_subnormal=False), min_size=1, max_size=20))
+@example(c=[1e-300])                               # below 2^-993, where the exponent is capped
+@example(c=[2.0 ** -994])                          # the last cost the band reaches
 def test_the_cost_scale_is_a_power_of_two_into_the_band(c):
-    """Property: the factor is a power of two (exact in floating point), and the largest cost times it lies in
-    [2^29, 2^30); all-zero costs are left alone."""
+    """Property: the factor is a power of two (exact in floating point); the largest cost times it lies in
+    [2^29, 2^30) wherever a finite power of two puts it there, and the factor is 2^1023 below that, the largest
+    cost then landing under 2^29; all-zero costs are left alone."""
     import math
     c = np.array(c)
     f = mip._cost_scale(c)
@@ -345,8 +348,10 @@ def test_the_cost_scale_is_a_power_of_two_into_the_band(c):
     assert m == 0.5
     if c.max() == 0.0:
         assert f == 1.0
-    else:
+    elif 30 - math.frexp(c.max())[1] <= 1023:
         assert 2.0 ** 29 <= c.max() * f < 2.0 ** 30
+    else:
+        assert f == 2.0 ** 1023 and c.max() * f < 2.0 ** 29
 
 
 def test_the_absolute_gap_is_scaled_with_the_costs(monkeypatch):

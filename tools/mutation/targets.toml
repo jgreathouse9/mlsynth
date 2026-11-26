@@ -23885,8 +23885,14 @@ timeout = 1200.0
 [[target]]
 name = "pangeo-cost-scale"
 module-path = "mlsynth/utils/pangeo_helpers/mip.py"
-test-command = "python -m pytest mlsynth/tests/test_pangeo_cost_range.py -q -p no:cacheprovider -x -W ignore"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_cost_range.py mlsynth/tests/test_pangeo_mip_hardening.py -q -p no:cacheprovider -x -W ignore"
 timeout = 1200.0
+
+  [[target.mutant]]
+  id = "the-cost-scale-is-capped-short"
+  find = "    return math.ldexp(1.0, min(30 - e, 1023))"
+  replace = "    return math.ldexp(1.0, min(30 - e, 1022))"
+  models = "the exponent capped one below the largest finite power of two, so a cost at 2^-994 misses the band a finite scale reaches"
 
   [[target.mutant]]
   id = "the-cost-scale-is-uncapped"
