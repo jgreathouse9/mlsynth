@@ -18849,8 +18849,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-q-sweep-on-the-automatic-backend"
-  find = "        mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n    )\n    sweep, results"
-  replace = "        mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n    )\n    sweep, results"
+  find = "        mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n    )\n    sweep, results"
+  replace = "        mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n    )\n    sweep, results"
   models = "automatic Q selection designing every Q on the automatic backend whatever was configured"
 
   [[target.mutant]]
@@ -19551,14 +19551,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-seed-not-given-to-the-automatic-sweep"
-  find = "        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n    )\n    sweep, results = _sweep_designs("
-  replace = "        mip_abs_gap=mip_abs_gap,\n    )\n    sweep, results = _sweep_designs("
+  find = "        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n    )\n    sweep, results = _sweep_designs("
+  replace = "        mip_abs_gap=mip_abs_gap,\n        certify_node_limit=certify_node_limit,\n    )\n    sweep, results = _sweep_designs("
   models = "automatic Q's candidate designs drawn with seed 0, so the returned design's labels ignore the seed"
 
   [[target.mutant]]
   id = "the-seed-not-given-to-the-diagnostic-sweep"
-  find = "            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        )\n        metadata[\"q_sweep\"]"
-  replace = "            mip_abs_gap=mip_abs_gap,\n        )\n        metadata[\"q_sweep\"]"
+  find = "            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n            certify_node_limit=certify_node_limit,\n        )\n        metadata[\"q_sweep\"]"
+  replace = "            mip_abs_gap=mip_abs_gap,\n            certify_node_limit=certify_node_limit,\n        )\n        metadata[\"q_sweep\"]"
   models = "the fixed-Q fit's diagnostic sweep designed with seed 0, so its row for the fitted Q disagrees with the fit"
 
 [[target]]
@@ -20463,8 +20463,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-gaps-not-passed-to-the-mip"
-  find = "                mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,\n                solve=solve_partition)\n"
-  replace = "                solve=solve_partition)\n"
+  find = "                mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,\n                solve=solve_partition, certify_node_limit=certify_node_limit)\n"
+  replace = "                solve=solve_partition, certify_node_limit=certify_node_limit)\n"
   models = "the config's gaps stopping at the pipeline"
 
   [[target.mutant]]
@@ -20697,8 +20697,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "pipeline-solve-not-passed"
-  find = "                solve=solve_partition)\n"
-  replace = "                solve=None)\n"
+  find = "                solve=solve_partition, certify_node_limit=certify_node_limit)\n"
+  replace = "                solve=None, certify_node_limit=certify_node_limit)\n"
   models = "the restricted MIPs solved past pipeline.solve_partition, so a backend patch there does not reach them"
 
 
@@ -24562,8 +24562,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-start-is-mislabelled"
-  find = "                start = \"first_window\" if rows_from is window_rows else \"quick_design\""
-  replace = "                start = \"quick_design\" if rows_from is window_rows else \"first_window\""
+  find = "            start = \"first_window\" if rows_from is window_rows else \"quick_design\""
+  replace = "            start = \"quick_design\" if rows_from is window_rows else \"first_window\""
   models = "the diagnostics naming the wrong design as the one the proof started from"
 
   [[target.mutant]]
