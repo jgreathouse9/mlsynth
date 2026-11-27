@@ -24,6 +24,11 @@ class PangeoExcludedUnitWarning(UserWarning):
     """A market left out of the design (an odd arm's pairs on the exact path)."""
 
 
+class PangeoCertifiedGapWarning(UserWarning):
+    """An arm's design returned without a proof of optimality, with the gap its node budget certified (the exact
+    path's ``certify_node_limit``; the arm's ``mip_reports`` entry has the design's bound and the gap)."""
+
+
 @dataclass(frozen=True)
 class SupergeoPair:
     """One supergeo pair within an arm.
@@ -126,8 +131,11 @@ class MipSolveReport:
     solver_name : str or None
         The MIP solver that ran (HiGHS, SCIP, ...).
     status : str
-        The final status (``"optimal"`` or ``"optimal_inaccurate"``; other
-        statuses raise).
+        The final status: ``"optimal"`` or ``"optimal_inaccurate"`` from a
+        MIP or a finished search, or ``"certified_gap"`` when the exact
+        path's node budget ran out first and the design comes with the gap
+        it certified (``search`` is then ``"certified"``). Other statuses
+        raise.
     presolve_retry : bool
         True when the first solve was not optimal and was repeated once with
         presolve off.
@@ -162,8 +170,11 @@ class MipSolveReport:
         when it proved the design optimal and no MIP ran (``backend`` is then
         ``"search"``, ``proven_gap`` its certified gap and ``dual_bound`` a
         rigorous lower bound on the optimum), ``"node_limit"`` when its node
-        cap stopped it and the MIP took over, ``"off"`` or ``"unavailable"``
-        (no numba); None when the design did not come from :mod:`.columns`.
+        cap stopped it and the MIP took over, ``"certified"`` when the proof's
+        cap and then the certify budget stopped it and the design is returned
+        with its certified gap (``proven_gap``, ``dual_bound``; no MIP ran),
+        ``"off"`` or ``"unavailable"`` (no numba); None when the design did not
+        come from :mod:`.columns`.
     search_nodes : int or None
         Groups the search placed.
     """

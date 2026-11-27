@@ -18849,8 +18849,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-q-sweep-on-the-automatic-backend"
-  find = "        mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n    )\n    sweep, results"
-  replace = "        mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n    )\n    sweep, results"
+  find = "        mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n    )\n    sweep, results"
+  replace = "        mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n    )\n    sweep, results"
   models = "automatic Q selection designing every Q on the automatic backend whatever was configured"
 
   [[target.mutant]]
@@ -19551,14 +19551,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-seed-not-given-to-the-automatic-sweep"
-  find = "        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n    )\n    sweep, results = _sweep_designs("
-  replace = "        mip_abs_gap=mip_abs_gap,\n    )\n    sweep, results = _sweep_designs("
+  find = "        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n    )\n    sweep, results = _sweep_designs("
+  replace = "        mip_abs_gap=mip_abs_gap,\n        certify_node_limit=certify_node_limit,\n    )\n    sweep, results = _sweep_designs("
   models = "automatic Q's candidate designs drawn with seed 0, so the returned design's labels ignore the seed"
 
   [[target.mutant]]
   id = "the-seed-not-given-to-the-diagnostic-sweep"
-  find = "            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        )\n        metadata[\"q_sweep\"]"
-  replace = "            mip_abs_gap=mip_abs_gap,\n        )\n        metadata[\"q_sweep\"]"
+  find = "            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n            certify_node_limit=certify_node_limit,\n        )\n        metadata[\"q_sweep\"]"
+  replace = "            mip_abs_gap=mip_abs_gap,\n            certify_node_limit=certify_node_limit,\n        )\n        metadata[\"q_sweep\"]"
   models = "the fixed-Q fit's diagnostic sweep designed with seed 0, so its row for the fitted Q disagrees with the fit"
 
 [[target]]
@@ -20463,8 +20463,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-gaps-not-passed-to-the-mip"
-  find = "                mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,\n                solve=solve_partition)\n"
-  replace = "                solve=solve_partition)\n"
+  find = "                mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,\n                solve=solve_partition, certify_node_limit=certify_node_limit)\n"
+  replace = "                solve=solve_partition, certify_node_limit=certify_node_limit)\n"
   models = "the config's gaps stopping at the pipeline"
 
   [[target.mutant]]
@@ -20697,8 +20697,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "pipeline-solve-not-passed"
-  find = "                solve=solve_partition)\n"
-  replace = "                solve=None)\n"
+  find = "                solve=solve_partition, certify_node_limit=certify_node_limit)\n"
+  replace = "                solve=None, certify_node_limit=certify_node_limit)\n"
   models = "the restricted MIPs solved past pipeline.solve_partition, so a backend patch there does not reach them"
 
 
@@ -24562,8 +24562,8 @@ timeout = 1200.0
 
   [[target.mutant]]
   id = "the-start-is-mislabelled"
-  find = "                start = \"first_window\" if rows_from is window_rows else \"quick_design\""
-  replace = "                start = \"quick_design\" if rows_from is window_rows else \"first_window\""
+  find = "            start = \"first_window\" if rows_from is window_rows else \"quick_design\""
+  replace = "            start = \"quick_design\" if rows_from is window_rows else \"first_window\""
   models = "the diagnostics naming the wrong design as the one the proof started from"
 
   [[target.mutant]]
@@ -24777,3 +24777,87 @@ timeout = 900.0
   find = "    kap = float(PRICING_KAPPA if kappa is None else kappa)"
   replace = "    kap = float(PRICING_KAPPA)"
   models = "the search dropping the caller's kappa, so the setting documented on it does nothing"
+
+[[target]]
+name = "pangeo-certified-gap"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_certify.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-cutoff-is-not-capped-at-the-incumbent"
+  find = "        last = U >= best_up\n        if last:\n            U = best_up"
+  replace = "        last = U >= best_up"
+  models = "the last round searching below a cutoff above the incumbent, more nodes than the plain proof for nothing"
+
+  [[target.mutant]]
+  id = "the-leaf-bound-is-dropped"
+  find = "        lower = cutoff = min(U, Fraction(float(res.lower)))"
+  replace = "        lower = cutoff = U"
+  models = "a round's cutoff reported as proved when the tree reached a leaf below it, a dual bound above a design the tree saw"
+
+  [[target.mutant]]
+  id = "a-capped-round-is-taken-as-proved"
+  find = "        if res.status != \"proved\":\n            break\n"
+  replace = "        if res.status != \"proved\" and res.rows.size:\n            break\n"
+  models = "a round stopped by the budget raising the bound to its cutoff, a certificate for designs it never searched"
+
+  [[target.mutant]]
+  id = "a-found-design-is-thrown-away"
+  find = "        if res.rows.size:\n            best_rows = np.asarray(res.rows, dtype=np.int64)"
+  replace = "        if False:\n            best_rows = np.asarray(res.rows, dtype=np.int64)"
+  models = "the rounds keeping the incumbent when a round found a cheaper design"
+
+  [[target.mutant]]
+  id = "the-rounds-go-on-after-a-proof"
+  find = "        if res.rows.size or last:\n            status = \"proved\""
+  replace = "        if last:\n            status = \"proved\""
+  models = "a round that found and proved the optimum taken as one more step, spending budget after the answer is known"
+
+  [[target.mutant]]
+  id = "each-round-gets-the-whole-budget"
+  find = "        left -= int(res.nodes)\n"
+  replace = "        pass\n"
+  models = "the budget not shared across rounds, so certify_node_limit no longer bounds the work"
+
+  [[target.mutant]]
+  id = "the-groups-kept-are-the-incumbents"
+  find = "        keep = np.flatnonzero(root.reduced_costs <= _up(U - L))"
+  replace = "        keep = np.flatnonzero(root.reduced_costs <= _up(best_up - L))"
+  models = "every round searching the groups the incumbent keeps, so a low cutoff saves nothing"
+
+  [[target.mutant]]
+  id = "the-cutoff-steps-from-the-incumbent"
+  find = "        U = L * (1 + Fraction(cover.CERTIFY_STEP)) ** i"
+  replace = "        U = L * (1 + Fraction(cover.CERTIFY_STEP)) ** (i + 1)"
+  models = "the first round skipped, the cutoffs one step higher than documented"
+
+  [[target.mutant]]
+  id = "a-certified-gap-falls-to-the-mip-loop"
+  find = "            if certify_node_limit > 0:\n                return finish(found, 0, 0.0, start)\n"
+  replace = "            if False:\n                return finish(found, 0, 0.0, start)\n"
+  models = "a capped proof after the quick search going to the MIP loop despite a certify budget, the 120-geo arm never returning"
+
+  [[target.mutant]]
+  id = "a-capped-proof-from-the-first-mip-goes-uncertified"
+  find = "            if certify_node_limit > 0:\n                return finish(found, solves, mip_seconds, \"first_mip\")\n"
+  replace = "            if False:\n                return finish(found, solves, mip_seconds, \"first_mip\")\n"
+  models = "a capped proof from the first MIP's design left to the MIP loop despite a certify budget"
+
+  [[target.mutant]]
+  id = "no-warning-for-a-certified-gap"
+  find = "            PangeoCertifiedGapWarning, stacklevel=3)"
+  replace = "            UserWarning, stacklevel=3)"
+  models = "a design returned without a proof under a generic warning a caller cannot filter for"
+
+  [[target.mutant]]
+  id = "a-certified-gap-reported-optimal"
+  find = "        d.update(status=\"certified_gap\")"
+  replace = "        pass"
+  models = "a design the budget stopped short of proving reported with status optimal"
+
+  [[target.mutant]]
+  id = "the-certify-budget-is-not-checked"
+  find = "            or certify_node_limit < 0:\n        raise MlsynthConfigError(\n            f\"certify_node_limit"
+  replace = "            or certify_node_limit < -10**18:\n        raise MlsynthConfigError(\n            f\"certify_node_limit"
+  models = "a negative certify budget accepted and taken as no rounds, without saying so"

@@ -163,12 +163,12 @@ def test_the_window_search_is_held_to_the_search_node_limit(monkeypatch):
 
 
 def test_a_capped_proof_leaves_the_mip_loop_and_is_not_repeated(monkeypatch):
-    """Unit: when the proof stops at its cap, the MIP loop runs and reaches the optimum, and the proof is not run
-    again after the first MIP."""
+    """Unit: when the proof stops at its cap and the certify budget is 0, the MIP loop runs and reaches the optimum,
+    and the proof is not run again after the first MIP."""
     n, Q = 14, 3
     Y, idx = _panel(2, n), np.arange(n)
     log = _Log(monkeypatch.setattr)
-    _, d = columns.solve_exact(idx, Y, Q, search_node_limit=30, solve=log.solve)
+    _, d = columns.solve_exact(idx, Y, Q, search_node_limit=30, solve=log.solve, certify_node_limit=0)
     assert log.events[:4] == ["quick", "window", "proof", "mip"] and log.events.count("proof") == 1
     assert d["search"] == "node_limit" and d["mip_solves"] >= 1
     assert d["objective_value"] == pytest.approx(_optimum(idx, Y, Q), rel=1e-9)

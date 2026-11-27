@@ -86,7 +86,7 @@ def test_smoke_a_poor_first_mip_does_not_set_the_second_searchs_incumbent(monkey
     monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)       # the window search is test_pangeo_first_window.py's
     solve, designs = _recording_mip()
     gated, quick = _spy_proof(monkeypatch), _spy_quick(monkeypatch)
-    chosen, d = columns.solve_exact(idx, Y, Q, search_node_limit=30, solve=solve)
+    chosen, d = columns.solve_exact(idx, Y, Q, search_node_limit=30, solve=solve, certify_node_limit=0)
     pool = columns.score_columns(idx, Y, Q)
     root = columns.root_lp(pool, columns.min_groups(n, Q, 1))
     q_up = _rows_up(pool, quick[0]["rows"])

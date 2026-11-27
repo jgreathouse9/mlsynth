@@ -88,8 +88,10 @@ in it.
 Search. Before any MIP, the exact-cover search of :mod:`.cover` enumerates designs depth first, pruned by the same
 Lagrangian bound, and a search that ends under its node cap proves its design optimal with a certified gap; no MIP
 runs. A search stopped by the cap is followed by the search of the first MIP's window and the proof from the
-better design (:func:`solve_exact`); only a proof stopped by its cap leaves the work to the MIP loop below, which
-runs as it would without the search.
+better design (:func:`solve_exact`). A proof stopped by its cap is followed by the iterative cutoff
+(:func:`_certify`), which proves the design or, when its node budget runs out, returns it with the gap it certified;
+only with that budget at 0 does a capped proof leave the work to the MIP loop below, which runs as it would without
+the search.
 The first MIP takes the groups of least reduced cost (``FIRST_PER_UNIT`` per unit, at least ``FIRST_MIN``)
 and the groups of a fixed design (:func:`seed_partition`), so it has a design. The best design's cost :math:`z` is the
 optimum when every group left out has :math:`\\bar c > z - L`. Otherwise the next MIP takes the groups up to the
@@ -102,6 +104,7 @@ from __future__ import annotations
 
 import math
 import time
+import warnings
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from math import comb
@@ -114,6 +117,7 @@ from scipy.optimize import linprog
 from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from ..solvers.dual_simplex import solve_boxed_lp
 from . import cover, mip, vtree
+from .structures import PangeoCertifiedGapWarning
 
 try:  # numba is the optional ``fast`` extra; without it the same code runs as Python
     from numba import njit
@@ -1178,6 +1182,61 @@ def _search_from(pool: ColumnPool, root: RootLP, k: int, Q: int, node_limit: int
                 seconds=time.perf_counter() - t)
 
 
+def _certify(pool: ColumnPool, root: RootLP, k: int, Q: int, z_up: Fraction, rows: Sequence[int], node_limit: int,
+             progress=None) -> dict:
+    """The iterative cutoff after a proof stopped by its cap: round i runs the volume-bound tree
+    (:func:`.vtree.search`) below the cutoff :math:`U_i = L (1 + s)^i` (L the root bound, s ``cover.CERTIFY_STEP``),
+    the last cutoff capped at the incumbent's upper bound ``z_up``, over the groups :math:`U_i` cannot exclude
+    (:math:`\\bar c \\le U_i - L`), each round with what the earlier ones left of ``node_limit`` nodes (Lichau, Dupas
+    and Francois, Ann. Oper. Res. 366 (2026), p. 1196, raise a cutoff the same way).
+
+    A round that ends with no design proves every design costs at least the lesser of :math:`U_i` and the tree's
+    lowest leaf lower bound: a pruned node's bound is at least the double at or above :math:`U_i`, and a leaf it
+    reached and kept no design from has its own lower bound. The next round starts from it. A round that ends with
+    a design proves that design optimal, since it searched every design below :math:`U_i` (the round capped at
+    ``z_up`` is the plain proof), and ends the rounds; so does a round stopped by the budget, which keeps any design
+    it found and leaves the bound of the last finished round. Each round costs more than the one before (at 120
+    geos and Q = 2 a 1% step took 12 to 14 times the nodes), so the bound proved rises fast while far below the
+    optimum and stalls near it.
+
+    Returns ``search`` (``"proved"`` or ``"node_limit"``), the best design's ``rows``, ``lower`` (a rigorous lower
+    bound on every design, rounded down; the root bound when no round finished), ``cutoff`` (the highest cutoff a
+    finished round proved, or the root bound), ``rounds``, ``nodes``, ``kept`` (the last round's groups),
+    ``stage="certify"`` and ``seconds``."""
+    t = time.perf_counter()
+    L = Fraction(root.bound)
+    best_rows = np.asarray(rows, dtype=np.int64)
+    best_up = Fraction(z_up)
+    lower = cutoff = L
+    left, nodes, rounds, kept, i = int(node_limit), 0, 0, 0, 1
+    status = "node_limit"
+    while left > 0:
+        U = L * (1 + Fraction(cover.CERTIFY_STEP)) ** i
+        last = U >= best_up
+        if last:
+            U = best_up
+        keep = np.flatnonzero(root.reduced_costs <= _up(U - L))
+        res = vtree.search(pool, root, keep, k, _up(U), left, progress=progress)
+        rounds += 1
+        nodes += int(res.nodes)
+        left -= int(res.nodes)
+        kept = int(keep.size)
+        if res.rows.size:
+            best_rows = np.asarray(res.rows, dtype=np.int64)
+            best_up = sum((Fraction(float(pool.cost_up[j])) for j in best_rows), Fraction(0))
+        if res.status != "proved":
+            break
+        if res.rows.size or last:
+            status = "proved"
+            lower = min(Fraction(float(res.lower)), best_up)
+            cutoff = U
+            break
+        lower = cutoff = min(U, Fraction(float(res.lower)))
+        i += 1
+    return dict(search=status, rows=best_rows, lower=_down(lower), cutoff=_down(cutoff), rounds=rounds, nodes=nodes,
+                kept=kept, stage="certify", seconds=time.perf_counter() - t)
+
+
 def solve_exact(
     unit_indices, Ypre: np.ndarray, max_size: int, *, objective: str = "ss_res",
     weights: Optional[np.ndarray] = None, cov: Optional[np.ndarray] = None,
@@ -1185,6 +1244,7 @@ def solve_exact(
     unit_weights: Optional[np.ndarray] = None, min_pairs: int = 1, backend: str = "auto",
     mip_rel_gap: float = 0.0, mip_abs_gap: float = 0.0, solve: Optional[Callable] = None,
     search_node_limit: Optional[int] = None, progress: Optional[np.ndarray] = None,
+    certify_node_limit: Optional[int] = None,
 ):
     """The exact-cover design of one arm: every group scored (:func:`score_columns`), the root bound
     (:func:`root_lp`), and the MIP (``solve``, :func:`.mip.solve_partition` by default) over the groups the bound
@@ -1207,8 +1267,16 @@ def solve_exact(
     ``window_search`` reports the window search's status (``"off"`` with no window budget), and ``search_start``
     where a proved design's proof began: ``"staged"`` (the quick search), ``"first_window"``, ``"quick_design"``
     or ``"first_mip"``. ``search`` reports which happened
-    (``"proved"``, ``"node_limit"``, ``"off"``, or ``"unavailable"`` without numba) and ``search_nodes`` the groups
-    the search placed.
+    (``"proved"``, ``"node_limit"``, ``"certified"``, ``"off"``, or ``"unavailable"`` without numba) and
+    ``search_nodes`` the groups the search placed.
+
+    A proof stopped by its cap is followed by the iterative cutoff (:func:`_certify`), placing at most
+    ``certify_node_limit`` groups (``cover.CERTIFY_NODE_LIMIT`` when None). When its rounds prove the design, it is
+    returned as above. When they run out first, the best design is returned with no MIP: ``search`` is
+    ``"certified"``, ``status`` ``"certified_gap"``, ``dual_bound`` the highest bound the rounds proved and
+    ``mip_gap`` the gap from the design's upper bound to it, and a :class:`.structures.PangeoCertifiedGapWarning`
+    names the arm's gap. ``certify_rounds`` and ``certify_nodes`` report the rounds. ``certify_node_limit=0``
+    leaves a capped proof to the MIP loop.
 
     ``progress`` (:func:`.cover.new_progress`) receives every search's counts while it runs; its total ends equal to
     ``search_nodes``. Nothing is printed: a caller that wants to watch reads the array from another thread."""
@@ -1218,6 +1286,13 @@ def solve_exact(
             or search_node_limit < 0:
         raise MlsynthConfigError(
             f"search_node_limit must be a non-negative integer (0 skips the search); got {search_node_limit!r}.")
+    if certify_node_limit is None:
+        certify_node_limit = cover.CERTIFY_NODE_LIMIT
+    if isinstance(certify_node_limit, bool) or not isinstance(certify_node_limit, (int, np.integer)) \
+            or certify_node_limit < 0:
+        raise MlsynthConfigError(
+            f"certify_node_limit must be a non-negative integer (0 leaves a capped proof to the MIP loop); "
+            f"got {certify_node_limit!r}.")
     cover._check_progress(progress)
     solve = mip.solve_partition if solve is None else solve
     kw = dict(return_diagnostics=True, backend=backend, mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap)
@@ -1263,6 +1338,26 @@ def solve_exact(
                  lp_value=root.lp_value, lp_rounds=root.rounds, mip_solves=solves, lp_seconds=lp_seconds,
                  objective_value=z, objective_upper=upper, n_selected_pairs=len(chosen))
         return chosen, d
+
+    def finish(found: dict, solves: int, mip_secs: float, start: str):
+        """After a proof stopped by its cap: the iterative cutoff, which proves the design (reported as
+        :func:`proved` reports one) or runs out and returns it with the gap it certified, warning."""
+        z_c, rows_c = _incumbent(pool, [np.asarray(found["rows"], dtype=np.int64)])
+        cert = _certify(pool, root, k, max_size, z_c, rows_c, int(certify_node_limit), progress=progress)
+        info["search_nodes"] += cert["nodes"]
+        info.update(certify_rounds=cert["rounds"], certify_nodes=cert["nodes"])
+        if cert["search"] == "proved":
+            info.update(search="proved", search_start=start)
+            return proved(cert, solves, mip_secs)
+        info["search"] = "certified"
+        chosen, d = proved(cert, solves, mip_secs)
+        d.update(status="certified_gap")
+        warnings.warn(
+            f"PANGEO: the exact design of an arm of {n} markets is returned within a certified gap of "
+            f"{d['mip_gap']:.2%} of its cost (dual bound {d['dual_bound']:.6g}): certify_node_limit "
+            f"({int(certify_node_limit):,} nodes) ran out before the proof finished.",
+            PangeoCertifiedGapWarning, stacklevel=3)
+        return chosen, d
     if backend != "auto":
         pass                                          # a MIP backend asked for by name
     elif search_node_limit > 0 and not cover._NUMBA:
@@ -1293,10 +1388,12 @@ def solve_exact(
                                  progress=progress)
             info["search_nodes"] += found["nodes"]
             info["second_search"] = found["stage"]
+            start = "first_window" if rows_from is window_rows else "quick_design"
             if found["search"] == "proved":
-                start = "first_window" if rows_from is window_rows else "quick_design"
                 info.update(search="proved", search_start=start)
                 return proved(found, 0, 0.0)
+            if certify_node_limit > 0:
+                return finish(found, 0, 0.0, start)
 
     def upper(chosen) -> Fraction:
         """A rigorous upper bound on a design's exact cost: the sum of its groups' cost_up, in rationals."""
@@ -1328,6 +1425,8 @@ def solve_exact(
             if found["search"] == "proved":
                 info.update(search="proved", search_start="first_mip")
                 return proved(found, solves, mip_seconds)
+            if certify_node_limit > 0:
+                return finish(found, solves, mip_seconds, "first_mip")
         # at most GROWTH times the groups, and never past z - L: a first design far above the optimum would
         # otherwise admit almost every group at once
         count = min(len(pool), count * GROWTH)

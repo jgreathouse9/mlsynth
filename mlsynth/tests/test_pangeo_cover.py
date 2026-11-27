@@ -113,7 +113,8 @@ def test_a_capped_start_still_ends_in_a_proof(monkeypatch):
 # --- unit: the node cap and the fallback --------------------------------------------------------------------------
 
 def test_the_node_cap_falls_back_to_the_mip():
-    """Unit: a search stopped by its node cap reports it, and the MIP loop finds the optimum."""
+    """Unit: a search stopped by its node cap reports it, and with the certify budget at 0 (no iterative cutoff,
+    test_pangeo_certify.py) the MIP loop finds the optimum."""
     Y = _panel(6, 12)
     idx = np.arange(12)
     calls = []
@@ -122,7 +123,7 @@ def test_the_node_cap_falls_back_to_the_mip():
         calls.append(1)
         return mip.solve_partition(*a, **k)
 
-    _, d = columns.solve_exact(idx, Y, 2, search_node_limit=1, solve=spy)
+    _, d = columns.solve_exact(idx, Y, 2, search_node_limit=1, solve=spy, certify_node_limit=0)
     _, d_ref = _reference(idx, Y, 2)
     assert d["search"] == "node_limit" and d["mip_solves"] == len(calls) >= 1
     assert d["backend"] != "search"
@@ -130,7 +131,8 @@ def test_the_node_cap_falls_back_to_the_mip():
 
 
 def test_the_fallback_mips_are_the_mip_loops(monkeypatch):
-    """Unit: a capped search leaves the MIP loop unchanged: the same groups reach the same MIPs as with no search.
+    """Unit: a capped search with no certify budget leaves the MIP loop unchanged: the same groups reach the same
+    MIPs as with no search.
     Handing the search's design to the first MIP made HiGHS 2.2 to 2.4 times slower on a 50-geo arm. The first MIP's
     window is cut to one group, so a design handed over would show in its groups."""
     monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
@@ -145,7 +147,7 @@ def test_the_fallback_mips_are_the_mip_loops(monkeypatch):
             seen[_cap].append(sorted(tuple(int(u) for u in c["members"]) for c in cands))
             return mip.solve_partition(cands, ix, **kw)
 
-        columns.solve_exact(idx, Y, 3, search_node_limit=cap, solve=spy)
+        columns.solve_exact(idx, Y, 3, search_node_limit=cap, solve=spy, certify_node_limit=0)
     assert seen[1] == seen[0] and len(seen[0]) >= 1
 
 
@@ -247,11 +249,12 @@ def test_the_proof_after_the_first_mip_starts_from_its_design(monkeypatch):
 
 
 def test_a_search_capped_twice_leaves_the_loop_to_finish(monkeypatch):
-    """Unit: with both searches stopped by their caps the MIP loop runs on, and the design is its optimum."""
+    """Unit: with both searches stopped by their caps and no certify budget, the MIP loop runs on, and the design
+    is its optimum."""
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
     Y = _panel(24, 12)
     idx = np.arange(12)
-    _, d = columns.solve_exact(idx, Y, 2, search_node_limit=1)
+    _, d = columns.solve_exact(idx, Y, 2, search_node_limit=1, certify_node_limit=0)
     _, d_ref = _reference(idx, Y, 2)
     assert d["search"] == "node_limit" and d["search_start"] is None and d["mip_solves"] >= 1
     assert _close(d["objective_value"], d_ref["objective_value"])
