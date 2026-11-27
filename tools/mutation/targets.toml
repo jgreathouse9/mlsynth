@@ -24470,6 +24470,12 @@ timeout = 600.0
   replace = "    return _iter_branches(pool, root, keep, k, cliques, best_up)"
   models = "_branches handing back the generator, which its callers index and measure as a list"
 
+  [[target.mutant]]
+  id = "the-generator-keeps-the-last-branchs-duals"
+  find = "        duals = res = None"
+  replace = "        pass"
+  models = "the generator's frame keeping the previous branch's duals and LP result through a draw that yields before an LP (a group covering the arm, no group left, an infeasible child), so the caller searches with an earlier branch's pool-sized arrays still alive"
+
 [[target]]
 name = "pangeo-branch-rows"
 module-path = "mlsynth/utils/pangeo_helpers/columns.py"
