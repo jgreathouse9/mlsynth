@@ -151,6 +151,7 @@ class PANGEO:
                 assignment_seed=self.config.assignment_seed,
                 certify_node_limit=self.config.certify_node_limit,
                 popmusic_node_limit=self.config.popmusic_node_limit,
+                n_jobs=self.config.n_jobs,
             )
 
             if post_df is not None and not post_df.empty:

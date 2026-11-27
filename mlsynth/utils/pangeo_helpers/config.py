@@ -189,6 +189,11 @@ class PANGEOConfig(BaseModel):
                     "Deterministic. At 120 markets and Q = 2 it lowered the "
                     "start design 9.9% within 11 million nodes. Arms whose "
                     "proof finishes never run it. 0 skips it.")
+    n_jobs: Optional[int] = Field(
+        default=None, ge=1, strict=True,
+        description="Threads the exact path's POPMUSIC runs its trees on. "
+                    "None (default) uses every core; 1 runs them in this "
+                    "thread. The design does not depend on it.")
     recency_decay: float = Field(
         default=0.97, gt=0.0, le=1.0,
         description="Geometric recency-weight decay for objective='weighted' "

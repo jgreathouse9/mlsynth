@@ -26,7 +26,9 @@ moves of 2 to 6 groups found nothing. No cluster is the whole arm: that would be
 from __future__ import annotations
 
 import math
+import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import List, Optional, Sequence
@@ -34,7 +36,7 @@ from typing import List, Optional, Sequence
 import numpy as np
 
 from ...exceptions import MlsynthConfigError
-from . import columns, vtree
+from . import columns, cover, vtree
 
 try:  # numba is the optional ``fast`` extra, as for :mod:`.cover`
     from numba import njit
@@ -53,9 +55,10 @@ DELTA = 8               # markets a cluster grows by
 REPEAT = 3              # passes at one size while they keep improving
 SUB_LIMIT = 2_000_000   # nodes one subproblem's tree may place
 SEED = 0                # the generator of the clusters' seeds, fixed so the design is reproducible
+WAVE = 8                # clusters solved together, on threads; fixed, so the design does not depend on the threads
 
 
-@njit(cache=_CACHE)
+@njit(cache=_CACHE, nogil=True)
 def _enumerate(U, n, Q, B):  # pragma: no cover - compiled; checked through rows_within
     """Every group of 2 to min(2Q, |U|) of the ascending markets U: its row of a complete pool of n units (the groups
     of fewer units first, then the lexicographic rank, :func:`.columns.column_index`) and its members as positions
@@ -171,10 +174,33 @@ def _upper(pool, rows) -> Fraction:
     return sum((Fraction(float(pool.cost_up[j])) for j in rows), Fraction(0))
 
 
+def _commit(old: List[List[int]], new: List[List[int]], cheaper: List[bool], total: int, k: int):
+    """A wave's covers taken in cluster order: cluster i's ``new`` groups replace its ``old`` ones when ``cheaper[i]``
+    (its rigorous upper bound is below theirs) and the design, ``total`` groups before the wave, keeps at least ``k``
+    groups after it. Returns the groups each cluster ends with and the covers taken."""
+    out, taken = [], 0
+    for o, nw, ch in zip(old, new, cheaper):
+        if ch and total - len(o) + len(nw) >= k:
+            out.append(list(nw))
+            total += len(nw) - len(o)
+            taken += 1
+        else:
+            out.append(list(o))
+    return out, taken
+
+
+def _jobs(n_jobs) -> int:
+    if n_jobs is None:
+        return os.cpu_count() or 1
+    if isinstance(n_jobs, bool) or not isinstance(n_jobs, (int, np.integer)) or n_jobs < 1:
+        raise MlsynthConfigError(f"POPMUSIC n_jobs must be a positive integer, or None for every core; got {n_jobs!r}.")
+    return int(n_jobs)
+
+
 def improve(pool, root, k: int, Q: int, rows: Sequence[int], paths: np.ndarray, node_limit: int, *,
             alpha: Optional[int] = None, delta: Optional[int] = None, repeat: Optional[int] = None,
             sub_limit: Optional[int] = None, seed: Optional[int] = None,
-            progress: Optional[np.ndarray] = None) -> dict:
+            progress: Optional[np.ndarray] = None, n_jobs: Optional[int] = None) -> dict:
     """POPMUSIC from the design ``rows`` (rows of the complete ``pool``, an exact cover with at least ``k`` groups),
     as in the module docstring, its clusters by the centroids of ``paths`` (the arm's paths, one row a position of
     ``pool.unit_indices``, centred), its trees placing at most ``node_limit`` groups in all and ``sub_limit`` each.
@@ -183,7 +209,15 @@ def improve(pool, root, k: int, Q: int, rows: Sequence[int], paths: np.ndarray, 
     Returns ``rows`` (the design, int64), ``upper`` (its rigorous upper bound, a Fraction, at most the start's),
     ``start_upper``, ``passes``, ``subproblems`` (trees run), ``improved`` (covers taken), ``nodes``, ``seconds`` and
     ``trace``, one ``(dim, subproblems, improved, nodes)`` a pass. ``progress`` (:func:`.cover.new_progress`)
-    receives every tree's counts."""
+    receives every tree's nodes and searches after each wave.
+
+    A pass's clusters of two or more groups run in waves of ``WAVE``, in cluster order. Each tree of a wave of m
+    trees may place the lesser of ``sub_limit`` and the budget left at the wave's start divided by m (when that is
+    less than one node, only as many trees run as nodes are left, one node each), and every tree's group floor is k
+    less the groups outside its cluster at the wave's start. The trees run on ``n_jobs`` threads (every core when
+    None; 1 runs them in this thread): the compiled tree releases Python's lock, so they run in parallel. Their covers
+    are then taken in cluster order (:func:`_commit`). None of this depends on ``n_jobs``, so neither does the
+    design: ``n_jobs`` changes the time taken and nothing else."""
     t0 = time.perf_counter()
     if isinstance(node_limit, bool) or not isinstance(node_limit, (int, np.integer)) or node_limit < 0:
         raise MlsynthConfigError(f"POPMUSIC node_limit must be a non-negative integer; got {node_limit!r}.")
@@ -191,6 +225,7 @@ def improve(pool, root, k: int, Q: int, rows: Sequence[int], paths: np.ndarray, 
     delta = _count("delta", DELTA if delta is None else delta, 1)
     repeat = _count("repeat", REPEAT if repeat is None else repeat, 1)
     sub_limit = _count("sub_limit", SUB_LIMIT if sub_limit is None else sub_limit, 1)
+    jobs = _jobs(n_jobs)
     n = int(pool.unit_indices.size)
     P = np.asarray(paths, dtype=float)
     pi = np.asarray(root.pi, dtype=float)
@@ -206,27 +241,45 @@ def improve(pool, root, k: int, Q: int, rows: Sequence[int], paths: np.ndarray, 
         passes += 1
         cent = np.array([P[units(j)].mean(axis=0) for j in design])
         parts = clusters(cent, [len(units(j)) for j in design], dim, rng)
-        out, todo, changed, subs0, nodes0 = [], sum(len(p) for p in parts), 0, subs, nodes
-        for part in parts:
-            groups = [design[i] for i in part]
-            todo -= len(groups)
-            if len(groups) < 2 or left <= 0:
-                out += groups
-                continue
+        groups_of = [[design[i] for i in part] for part in parts]
+        active = [c for c, g in enumerate(groups_of) if len(g) >= 2]
+        changed, subs0, nodes0 = 0, subs, nodes
+
+        def solve(c, floor, limit):
+            """Cluster c's markets re-covered exactly below its own upper bound: (old bound, new groups, nodes)."""
+            groups = groups_of[c]
             U = sorted(u for j in groups for u in units(j))
             sub, srows = subproblem(pool, U, Q)
             old = _upper(pool, groups)
-            res = vtree.search(sub, _Duals(pi[U]), np.arange(len(sub)), max(int(k) - len(out) - todo, 1),
-                               columns._up(old), min(left, sub_limit), progress=progress)
-            subs += 1
-            nodes += int(res.nodes)
-            left -= int(res.nodes)
-            new = [int(j) for j in srows[res.rows]]
-            if new and _upper(pool, new) < old:
-                out += new
-                changed += 1
+            res = vtree.search(sub, _Duals(pi[U]), np.arange(len(sub)), floor, columns._up(old), limit)
+            return old, [int(j) for j in srows[res.rows]], int(res.nodes)
+        for w0 in range(0, len(active), WAVE):
+            if left <= 0:
+                break
+            wave = active[w0:w0 + WAVE]
+            limit = min(sub_limit, left // len(wave))
+            if limit == 0:
+                wave, limit = wave[:left], 1
+            total = sum(len(g) for g in groups_of)
+            floors = [max(int(k) - (total - len(groups_of[c])), 1) for c in wave]
+            if jobs > 1 and len(wave) > 1:
+                with ThreadPoolExecutor(max_workers=jobs) as ex:
+                    results = list(ex.map(solve, wave, floors, [limit] * len(wave)))
             else:
-                out += groups
+                results = [solve(c, f, limit) for c, f in zip(wave, floors)]
+            cheaper = [bool(nw) and _upper(pool, nw) < old for old, nw, _ in results]
+            kept, took = _commit([groups_of[c] for c in wave], [nw for _, nw, _ in results], cheaper, total, int(k))
+            for c, g in zip(wave, kept):
+                groups_of[c] = g
+            spent = sum(u for _, _, u in results)
+            subs += len(wave)
+            nodes += spent
+            left -= spent
+            changed += took
+            if progress is not None:
+                progress[cover.P_SEARCHES] += float(len(wave))
+                progress[cover.P_TOTAL] += float(spent)
+        out = [j for g in groups_of for j in g]
         design = out
         taken += changed
         trace.append((dim, subs - subs0, changed, nodes - nodes0))

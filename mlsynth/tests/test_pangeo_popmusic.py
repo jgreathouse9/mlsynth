@@ -200,7 +200,7 @@ def test_every_subproblem_searches_below_its_clusters_upper_bound_with_the_floor
         uppers.append((sorted(u for j in groups for u in _units(p, j)), v))   # the last before a tree is its cluster's
         return v
     monkeypatch.setattr(popmusic, "_upper", up)
-    out = popmusic.improve(pool, root, k, Q, rows, _paths(Y), 10**6, alpha=6, delta=2, repeat=1)
+    out = popmusic.improve(pool, root, k, Q, rows, _paths(Y), 10**6, alpha=6, delta=2, repeat=1, n_jobs=1)
     assert calls and len(calls) == len(seen) == out["subproblems"]
     for c, U in zip(calls, seen):
         assert np.array_equal(c["keep"], np.arange(len(c["sub"]))) and c["sigma"] == 0.0
@@ -224,9 +224,9 @@ def test_the_floor_is_the_groups_the_rest_of_the_design_leaves_short_of_k(monkey
     assert len(out["rows"]) == 6 and _is_cover(pool, out["rows"], n, k)
 
 
-def test_the_passes_share_one_node_budget_and_each_tree_gets_what_is_left(monkeypatch):
-    """Every tree's limit is the lesser of the subproblem cap and what the earlier trees left; the counted nodes
-    are the trees' and never pass the budget."""
+def test_the_passes_share_one_node_budget_and_no_tree_passes_the_cap(monkeypatch):
+    """Every tree's limit is at most the subproblem cap and what the budget left; the counted nodes are the trees'
+    and never pass the budget (the waves' split is pinned in test_pangeo_popmusic_threads.py)."""
     n, Q = 16, 2
     Y, _, pool, k, root = _arm(6, n, Q)
     rows = _seed_design(pool, n)
@@ -239,11 +239,8 @@ def test_the_passes_share_one_node_budget_and_each_tree_gets_what_is_left(monkey
         return res
     monkeypatch.setattr(vtree, "search", tree)
     budget = 40
-    out = popmusic.improve(pool, root, k, Q, rows, _paths(Y), budget, alpha=6, delta=2, sub_limit=25)
-    left = budget
-    for lim, u in zip(limits, used):
-        assert lim == min(25, left) and lim > 0
-        left -= u
+    out = popmusic.improve(pool, root, k, Q, rows, _paths(Y), budget, alpha=6, delta=2, sub_limit=25, n_jobs=1)
+    assert limits and all(0 < lim <= 25 for lim in limits)
     assert out["nodes"] == sum(used) <= budget
 
 

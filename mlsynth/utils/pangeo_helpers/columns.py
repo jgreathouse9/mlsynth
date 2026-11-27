@@ -1245,6 +1245,7 @@ def solve_exact(
     mip_rel_gap: float = 0.0, mip_abs_gap: float = 0.0, solve: Optional[Callable] = None,
     search_node_limit: Optional[int] = None, progress: Optional[np.ndarray] = None,
     certify_node_limit: Optional[int] = None, popmusic_node_limit: Optional[int] = None,
+    n_jobs: Optional[int] = None,
 ):
     """The exact-cover design of one arm: every group scored (:func:`score_columns`), the root bound
     (:func:`root_lp`), and the MIP (``solve``, :func:`.mip.solve_partition` by default) over the groups the bound
@@ -1282,7 +1283,8 @@ def solve_exact(
     ``popmusic_node_limit`` groups (``cover.POPMUSIC_NODE_LIMIT`` when None; 0 skips it), its clusters by the arm's
     pretest paths centred on their means; the rounds then start from its design, which is the one returned when they
     run out. ``popmusic_start`` (the upper bound it started from), ``popmusic_passes``, ``popmusic_subproblems``,
-    ``popmusic_improved`` and ``popmusic_nodes`` report it, and its nodes count in ``search_nodes``.
+    ``popmusic_improved`` and ``popmusic_nodes`` report it, and its nodes count in ``search_nodes``. POPMUSIC runs
+    its trees on ``n_jobs`` threads (every core when None); the design does not depend on it.
 
     ``progress`` (:func:`.cover.new_progress`) receives every search's counts while it runs; its total ends equal to
     ``search_nodes``. Nothing is printed: a caller that wants to watch reads the array from another thread."""
@@ -1305,6 +1307,8 @@ def solve_exact(
             or popmusic_node_limit < 0:
         raise MlsynthConfigError(
             f"popmusic_node_limit must be a non-negative integer (0 skips POPMUSIC); got {popmusic_node_limit!r}.")
+    if n_jobs is not None:
+        popmusic._jobs(n_jobs)                         # refuses a non-positive or non-integer n_jobs by name
     cover._check_progress(progress)
     solve = mip.solve_partition if solve is None else solve
     kw = dict(return_diagnostics=True, backend=backend, mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap)
@@ -1359,7 +1363,7 @@ def solve_exact(
         if popmusic_node_limit > 0:
             paths = np.asarray(Ypre, dtype=float)[idx]
             pm = popmusic.improve(pool, root, k, max_size, rows_c, paths - paths.mean(axis=1, keepdims=True),
-                                  int(popmusic_node_limit), progress=progress)
+                                  int(popmusic_node_limit), progress=progress, n_jobs=n_jobs)
             info["search_nodes"] += pm["nodes"]
             info.update(popmusic_start=float(pm["start_upper"]), popmusic_passes=pm["passes"],
                         popmusic_subproblems=pm["subproblems"], popmusic_improved=pm["improved"],
