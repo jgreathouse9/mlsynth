@@ -415,6 +415,122 @@ The work, in order, each measured by nodes and time to a fixed incumbent:
    of 48 markets reached the optimum at 50 markets where moves of 2 to 6 groups
    found nothing.
 
+Measured, 2026-11-27: items 1, 3 and 4, and the relaxation. Every run is
+single-threaded and alone on the machine, on the seasonal simulated arms
+(`make_seasonal_sales_panel`, seed 0, 42 pretest periods), with the optimum as a
+fixed incumbent unless stated. Node and time ratios are against the library's
+tree on the same arm.
+
+Finding (item 4). POPMUSIC as written above (clusters grown by 8 markets from
+16, at most 3 passes per size, each cluster re-covered by the tree under 2
+million nodes, seed 0) reached the 50-market Q = 2 optimum, 5.405856, from the
+start design 5.875812 in 7.3 s, through clusters of 48 and 56 markets. At 120
+markets and Q = 2, from the start design 10.032762, clusters of 16 to 72 markets
+improved nothing: the start design is optimal inside every cluster those passes
+formed. Clusters
+of 80 reached 9.938, 88 reached 9.284, 96 to 104 reached 9.068 and 112 reached
+9.041550 after 1,519 s, 8.85% above the root bound 8.306326 and below the best
+design any earlier method found (9.042264). At this size finding is solved; the
+proof is not.
+
+Branching (item 3). Ryan-Foster branching on the pair with the largest
+fractional mass in x-bar, or the mass nearest 1/2, with and without a cap on
+pair levels and a minimum count of open groups, finds and proves every optimum,
+but its best variant per arm against the unit rule is: 0.51x the nodes and
+1.99x the time at 20 markets and Q = 4, 1.34x and 1.24x at 36 and Q = 3, 1.15x
+and 1.13x at 40 and Q = 2, 0.99x and 1.01x at 40 and Q = 3, 1.26x and 1.20x at
+50 and Q = 2. The unit rule is multi-node branching on one cover row, which Cho
+and Linderoth find holds its own on dense set partitioning (30 wins of 55 on
+dense small pure-partitioning instances, ICS 2015, Table 1, p. 129), and groups
+of 2Q of n markets are dense. Choosing the unit by the gap mass of its open
+groups, in place of their count, is never better.
+
+Strong branching (item 3) has nothing to save here: a child that survives
+fixing stops its volume steps once its bound passes the incumbent. Its zero-step
+form does save nodes, as a stronger fixing rule. Taking group j removes every
+open group that meets it, so at the parent's multipliers the child's bound is
+L + max(rc_j, 0) plus the negative reduced costs of the open groups clashing
+with j (each reduced cost taken at its upper bound, so the rounding stays on the
+safe side). Dropping the children that bound rules out gave 0.75x the nodes and
+0.77x the time at 40 markets and Q = 3, 0.82x and 0.88x at 60 and Q = 2, 0.80x
+to 0.94x the nodes at the other arms (time 0.95x to 1.3x, on runs under half a
+second), and at 120 markets
+8% more time a node (169.9 against 156.7 us). It is a constant factor against a
+tree that grows 12 to 14 times for each percent of gap, and is not built. A
+build must copy the clashing groups' ids before the fixing loop, which compacts
+the open list in place: a scratch version that read them from the list after
+compaction proved a design that is not the optimum at 40 markets and Q = 2.
+Column dominance (reduction 4 of Garfinkel and Nemhauser, as Cacao et al. state
+it, p. 7: drop a group that costs at least some partition of its markets into
+other groups, valid here since the cardinality row is sum x >= k) removes
+nothing at Q = 2 (no group at 50 or 120 markets is dominated by a two-way split);
+at 40 markets and Q = 3 it covers 6.2% of the pool but none of the groups
+elimination keeps.
+
+Tolerance and iterative cutoff (item 1). Rounds at the cutoff root bound times
+1.01^i, each proving no design lies below its cutoff, cost 1.9x to 3.4x the
+plain proof in total on the arms with known optima (40 markets Q = 3: 18 rounds,
+22.9 s against 8.5 s), as expected, since the last round is the plain proof. The
+gain is a proved lower bound that rises during the run. At 120 markets and
+Q = 2 (12 million nodes a round at most):
+
+| cutoff over the root bound | nodes | seconds |
+|---|---|---|
+| +1.00% | 503 | 0.06 |
+| +2.01% | 7,065 | 1.3 |
+| +3.03% | 87,963 | 19.9 |
+| +4.06% | 1,229,329 | 258 |
+| +5.10% | stopped at 12,000,000, 2 of 412 first-level branches done | 2,071 |
+
+So after 40 minutes every design costs at least 8.643596, and against 9.041550
+the gap is certified at 4.6%. A time-limited plain search certifies only the root
+bound, since depth-first search keeps its shallowest open node there. At about
+13 times the nodes per percent, a 3% certificate (the bound at 8.778) is hours
+away and a 1% certificate (8.952) is out of reach.
+
+The relaxation, measured. Three relaxations past the column LP:
+
+- An LP over pairs of disjoint groups (plus at most one single group, which
+  every design splits into) closes 0.0% of the gap at 36, 40 and 50 markets and
+  0.8% at 20 markets and Q = 4: the root solution already decomposes into
+  disjoint pairs.
+- A group's cost is its between-halves scatter, so a design costs
+  W(groups) - W(halves), W the within-cluster sum of squares (checked on every
+  quadruple to 1e-13). With the Peng-Wei matrices of both partitions, psd,
+  nonnegative, rows summing to 1, nested (Z_h - Z_g psd, Z_h <= 2 Z_g), and
+  triangle cuts on both, the SDP sits 60 to 73% below the optimum at 24 to 40
+  markets, against 15 to 32% for the column LP, and violates almost no cut.
+- Rank-1 and subset-row cuts close 2 to 9% (above), root clique cuts 14%.
+
+The cause is the cost. On the same panels and group shapes the clustering cost
+of the MSSC literature (within-group scatter) leaves a column LP gap of 2.6%,
+1.9% and 4.1% at 24, 32 and 40 markets, against 31.7%, 16.7% and 14.8% under
+PANGEO's cost. Under PANGEO's cost a market lies in a median 75 to 146 groups
+within the integrality gap (3 to 4 under the clustering cost), the root LP is
+fractional everywhere in one piece over the arm (15 to 18 separate pieces under
+the clustering cost), and its groups' markets lie as far apart as random markets
+(0.88 to 0.95 of the mean distance, 0.24 to 0.33 under the clustering cost).
+Every PANGEO group of four costs less than its best cover by two pairs (median
+ratio 0.137). A group of four is cheap when two pairs have nearly equal sums,
+however far apart its markets, so each market belongs to many nearly cancelling
+groups, and the LP spreads its weight over them where a design must find
+disjoint ones. That is the structure of vector number partitioning, where no
+strong relaxation is known: the ILP relaxation is "natural, but not tight"
+(Kojic, Comput. Math. Appl. 60 (2010), p. 2306), exact anticlustering stops near
+30 to 70 items (Papenberg and Klau, Psychol. Methods 26 (2021), preprint
+Table 1, p. 21), and complete Karmarkar-Karp prunes with a scalar bound that has
+no vector form (Mertens, arXiv cs/9903011). The MSSC column LP is tight in
+practice (du Merle et al., SIAM J. Sci. Comput. 21 (2000), p. 1498; Aloise,
+Hansen and Liberti, Math. Program. 131 (2012), Tables 2 to 13, pp. 211 to 216)
+because its cheap groups are local, and the Peng-Wei SDP weakens as clusters
+multiply (Piccialli, Sudoso and Wiegele, SOS-SDP, arXiv 2104.11542v3, p. 29).
+
+What follows. Past about 60 markets at Q = 2 the deliverable is the best design
+with a certified gap: POPMUSIC for the design, the iterative cutoff for the
+bound. A search over halves (once the halves are fixed, pairing them into groups
+is a minimum-weight perfect matching, Edmonds) is the one exact idea left, and
+it changes the algorithm, not the bound.
+
 ### Note for phases 2 and 3: the trajectory cost through a Gram matrix
 
 A group's trajectory cost, the squared distance between its halves' mean paths
@@ -997,7 +1113,9 @@ phase 5's variance.
   210), and the deliverable there is a design with a proven gap.
 - The objective overfits whatever the solver: phase 5 is what turns an optimal
   design into a better experiment.
-- The column LP is 8 to 26% below the optimum on the arms measured. If cuts and
-  branching do not close it, an exact proof stays out of reach past about 100
-  markets at Q = 2, and the deliverable there is a design with a proven gap
-  (phase 3b, item 1).
+- The column LP is 8 to 26% below the optimum on the arms measured, and the
+  cuts, branching rules and relaxations measured in phase 3b close at most 14%
+  of that gap: PANGEO's cost rewards cancellation, as vector number partitioning
+  does. An exact proof stays out of reach past about 100 markets at Q = 2, and
+  the deliverable there is a design with a certified gap (phase 3b: POPMUSIC
+  and the iterative cutoff; 4.6% after 40 minutes at 120 markets).
