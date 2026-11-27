@@ -169,6 +169,7 @@ def run_pangeo(
     mip_rel_gap: float = 0.0,
     mip_abs_gap: float = 0.0,
     assignment_seed: int = 0,
+    certify_node_limit: Optional[int] = None,
 ) -> PangeoResults:
     """Design parallel supergeo pairs within each arm.
 
@@ -196,6 +197,11 @@ def run_pangeo(
     mip_rel_gap, mip_abs_gap : float
         Relative and absolute gaps the exact-cover MIP must close, 0 by
         default; each arm's solve is reported in ``results.mip_reports``.
+    certify_node_limit : int, optional
+        Nodes the exact path may place after a proof stopped by its cap, in
+        the iterative cutoff (:func:`mlsynth.utils.pangeo_helpers.columns.solve_exact`);
+        ``cover.CERTIFY_NODE_LIMIT`` when None, 0 to leave a capped proof to
+        the MIP loop.
     assignment_seed : int
         Seed of the fair coin drawn in each pair, after the pairs are chosen,
         to decide which half is treated (:func:`_coin_flips`). The pairs do
@@ -243,6 +249,7 @@ def run_pangeo(
             q_selection=q_selection, q_min_pairs=q_min_pairs,
             mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,
             mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
+            certify_node_limit=certify_node_limit,
         )
     if max_supergeo_size < 1:
         from ...exceptions import MlsynthConfigError
@@ -322,7 +329,7 @@ def run_pangeo(
                 cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
                 unit_weights=uw, min_pairs=min_pairs, backend=mip_backend,
                 mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,
-                solve=solve_partition)
+                solve=solve_partition, certify_node_limit=certify_node_limit)
             mip_reports[arm] = MipSolveReport.from_diagnostics(
                 solver_diagnostics[arm])
         # Pairs in a canonical order (by first unit) so the k-th coin goes to
@@ -406,6 +413,7 @@ def run_pangeo(
             att_augment=att_augment, att_trend=att_trend,
             mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,
             mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
+            certify_node_limit=certify_node_limit,
         )
         metadata["q_sweep"], _ = _sweep_designs(
             inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)
@@ -557,6 +565,7 @@ def _auto_select_q(
     mip_rel_gap: float = 0.0,
     mip_abs_gap: float = 0.0,
     assignment_seed: int = 0,
+    certify_node_limit: Optional[int] = None,
 ) -> PangeoResults:
     """Choose Q automatically from a sweep over feasible sizes.
 
@@ -579,6 +588,7 @@ def _auto_select_q(
         att_augment=att_augment, att_trend=att_trend,
         mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,
         mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
+        certify_node_limit=certify_node_limit,
     )
     sweep, results = _sweep_designs(
         inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)

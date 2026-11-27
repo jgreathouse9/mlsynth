@@ -2,8 +2,8 @@
 
 :func:`columns._search_from`, the proof from the better of the quick search's and the first window's designs, runs
 the tree over the groups that design's upper bound cannot exclude, with the design as the incumbent. Its nodes are
-capped at the smaller of ``search_node_limit`` and ``cover.VOLUME_NODE_LIMIT``; a capped proof leaves the MIP loop to
-run as before. The oracle is the plain cover search from the root's duals over every group, run to its proof, which
+capped at the smaller of ``search_node_limit`` and ``cover.VOLUME_NODE_LIMIT``; a capped proof is followed by the
+iterative cutoff (test_pangeo_certify.py), or with ``certify_node_limit=0`` leaves the MIP loop to run as before. The oracle is the plain cover search from the root's duals over every group, run to its proof, which
 ``test_pangeo_cover.py`` checks against the full MIP.
 """
 from __future__ import annotations
@@ -102,13 +102,14 @@ def test_the_tree_is_held_to_the_search_node_limit(monkeypatch):
 
 
 def test_a_capped_tree_leaves_the_mip_loop_to_prove(monkeypatch):
-    """A tree stopped by its cap reports ``node_limit``; the MIP loop then runs as before and reaches the optimum."""
+    """A tree stopped by its cap reports ``node_limit``; with the certify budget at 0 the MIP loop then runs as
+    before and reaches the optimum (the iterative cutoff that otherwise follows is test_pangeo_certify.py's)."""
     n, Q = 14, 3
     Y, idx = _panel(2, n), np.arange(n)
     monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 30)
     monkeypatch.setattr(cover, "VOLUME_NODE_LIMIT", 1)
     spy = _Spy(monkeypatch.setattr)
-    _, d = columns.solve_exact(idx, Y, Q, solve=spy.solve)
+    _, d = columns.solve_exact(idx, Y, Q, solve=spy.solve, certify_node_limit=0)
     assert spy.trees[0]["out"].status == "node_limit" and len(spy.mips) >= 1
     assert d["search"] == "node_limit" and d["second_search"] == "volume"
     assert d["objective_value"] == pytest.approx(_optimum(idx, Y, Q), rel=1e-9)

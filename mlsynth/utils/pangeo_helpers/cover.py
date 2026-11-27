@@ -86,6 +86,14 @@ PLAIN_STAGE_LIMIT = 1_500_000
 #: far more: proving a 40-geo Q = 3 seasonal arm from the optimum took 97 thousand (17.5 s, one thread), where the
 #: gated search took 48 million (573 s).
 VOLUME_NODE_LIMIT = 5_000_000
+#: A proof stopped by its cap is followed by the iterative cutoff (columns._certify), which places at most this many
+#: nodes over its rounds and returns the best design with the bound it proved when they run out (``certify_node_limit``
+#: on the exact path; 0 leaves the capped proof to the MIP loop). At 120 geos and Q = 2 a node costs about 160 us, so
+#: this is about 30 minutes; there the rounds proved +4.06% over the root bound within 1.3 million nodes.
+CERTIFY_NODE_LIMIT = 12_000_000
+#: The iterative cutoff's step: round i searches below the root bound times (1 + CERTIFY_STEP)^i. At 120 geos and
+#: Q = 2 each 1% step cost 12 to 14 times the nodes of the one before (503, 7,065, 87,963, 1.2 million).
+CERTIFY_STEP = 0.01
 #: The search over the first window (columns._search_window) places at most this many nodes, and at most the search
 #: node limit; the window of a 50-geo Q = 2 seasonal arm took 1.0 million.
 WINDOW_NODE_LIMIT = 20_000_000

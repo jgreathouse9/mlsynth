@@ -149,6 +149,7 @@ class PANGEO:
                 mip_rel_gap=self.mip_rel_gap,
                 mip_abs_gap=self.mip_abs_gap,
                 assignment_seed=self.config.assignment_seed,
+                certify_node_limit=self.config.certify_node_limit,
             )
 
             if post_df is not None and not post_df.empty:

@@ -162,6 +162,21 @@ class PANGEOConfig(BaseModel):
         default=0.0, ge=0.0, allow_inf_nan=False,
         description="Absolute gap the exact-cover MIP must close, in the "
                     "objective's units; 0 by default.")
+    certify_node_limit: int = Field(
+        default=12_000_000, ge=0, strict=True,
+        description="Nodes the exact path (fast=False, groups larger than "
+                    "pairs) may place after its proof stops at its cap, "
+                    "raising a proved lower bound by the iterative cutoff "
+                    "(rounds below the root bound times 1.01^i). If the "
+                    "rounds prove the design, it is optimal; if the budget "
+                    "runs out first, the best design is returned with the gap "
+                    "it certified (mip_reports: search 'certified', status "
+                    "'certified_gap', dual_bound and proven_gap) and a "
+                    "PangeoCertifiedGapWarning. Deterministic: the same panel "
+                    "gives the same design and bound on any machine. At 120 "
+                    "markets and Q = 2 a node costs about 160 microseconds, so "
+                    "the default is about 30 minutes; there it certified a 4.6% "
+                    "gap. 0 leaves a capped proof to the MIP loop.")
     recency_decay: float = Field(
         default=0.97, gt=0.0, le=1.0,
         description="Geometric recency-weight decay for objective='weighted' "
