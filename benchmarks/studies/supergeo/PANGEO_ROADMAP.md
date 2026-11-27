@@ -531,6 +531,66 @@ bound. A search over halves (once the halves are fixed, pairing them into groups
 is a minimum-weight perfect matching, Edmonds) is the one exact idea left, and
 it changes the algorithm, not the bound.
 
+Built and measured after the certified gap, 2026-11-27. Items 1 and 4 are in
+the library: the iterative cutoff as the certified gap of a capped proof
+(#1188) and POPMUSIC before it (#1190).
+
+POPMUSIC in the library. Inside `solve_exact` POPMUSIC starts from the capped
+proof's design, not from the start design. On the 120-market Q = 2 arm with
+every default it lowered the design from 9.440014 to 9.208466 with its whole
+12 million node budget (17 passes, 47 subproblems, 6 of them improving), and
+the certified gap fell from 8.44% to 6.13% against the dual bound 8.643596
+(4,717 s single-threaded). The 9.041550 above came from the start design
+10.032762 with the same settings: where POPMUSIC ends depends on where it
+starts.
+
+Two more relaxations, on the 40-market Q = 2 seasonal arm (optimum 4.889056,
+column LP 4.165353, 14.80% below):
+
+- Overlapping blocks. Blocks of r markets, each priced exactly over the
+  patterns its markets can take, give a relaxation that is exact on every
+  block (r-neighbourhood-exact in the sense of Eisenbrand, Fiorini, Rohwedder
+  and Wei, arXiv 2607.09222, section 3.1, p. 7, and Lemma 4, p. 8). A
+  subgradient method on the multipliers closed 11.1% of the gap with blocks of
+  3 markets (49 blocks, bound 4.245502 after 873 s) and 11.5% with blocks of 4
+  (20 blocks, 4.248411 after 4,174 s), 13.1% below the optimum either way:
+  about 0.3 points of gap for each market added to a block. Column generation
+  over the same blocks stalled on degenerate duals.
+- RLT level 2 (Sherali and Adams, in Du and Pardalos (eds.), Handbook of
+  Combinatorial Optimization, vol. 1, Kluwer 1998, pp. 479-532). For set
+  partitioning the first two levels already capture published valid
+  inequalities (p. 493), and a product of two groups that share a market is
+  zero (p. 506), after Sherali and Lee (Discrete Appl. Math. 68 (1996)). The
+  build keeps a variable for each pair of disjoint groups whose reduced costs
+  fit in the gap and multiplies each cover row by each kept group: 199,142
+  pairs and 50,621 equality rows. Its LP bound is 4.623153, 5.44% below the
+  optimum, closing 63.3% of the gap, in 8,392 s with HiGHS's interior point
+  method (the simplex stalled). On the 20-market Q = 4 arm it closes all of the
+  31.60% gap in 0.4 s. It is the only relaxation measured here that closes most
+  of the gap, but one root LP at 40 markets takes 2.3 hours and the pair count
+  grows with the square of the pool, so as a node bound past 100 markets it is
+  out of reach. It is the target a cheaper bound would have to approximate.
+
+Grouped panels prove. When the markets fall into latent groups that share
+their time paths or loadings, the column LP is close and the proof finishes,
+at 120 markets too (Q = 2, every default, single-threaded):
+
+| panel | markets | column LP below the optimum | result |
+|---|---|---|---|
+| exact-group factor model (4 groups, 4 factors, T0 = 60) | 40 | 1.66% | proved; RLT-2 closes all of it in 8 s |
+| the same | 50 | 1.37% | proved; RLT-2 closes all of it in 1,004 s |
+| grouped fixed effects (a time path per group plus noise), 3 groups of 18 / 18 / 24, T = 25, noise sd 0.5 / 1.0 | 60 | 4.31% / 4.58% | proved in 9 s / 27 s |
+| the `classo` package's sample data (github.com/zhan-gao/classo), 18 / 18 / 24 markets of its three groups, T = 25 | 60 | 3.67% | proved |
+| Liao, Shi and Zheng, "A Relaxation Approach to Synthetic Control" (arXiv 2508.01793v3), section 5.1, exact groups, J = 120, K = 4, r = 4 | 120 | 1.76% | proved in 10,306 s |
+| the same, section 5.2, approximate groups | 120 | 1.93% | proved in 8,248 s |
+
+Against 8 to 26% on the seasonal arms, this is the cause above seen from the
+other side: when the groups are latent clusters, the cheap groups of four are
+local, as under the clustering cost, and cancellation across distant markets
+has little room. The general-loading design of the same section 5.3 (every
+market's loading drawn on its own) was stopped by a machine restart and is not
+measured.
+
 ### Note for phases 2 and 3: the trajectory cost through a Gram matrix
 
 A group's trajectory cost, the squared distance between its halves' mean paths
@@ -1118,4 +1178,7 @@ phase 5's variance.
   of that gap: PANGEO's cost rewards cancellation, as vector number partitioning
   does. An exact proof stays out of reach past about 100 markets at Q = 2, and
   the deliverable there is a design with a certified gap (phase 3b: POPMUSIC
-  and the iterative cutoff; 4.6% after 40 minutes at 120 markets).
+  and the iterative cutoff; 6.1% with every default at 120 markets, 4.6%
+  against the best design known). Panels whose markets fall into latent groups
+  are the exception: their column LP sits 1.4 to 4.6% below the optimum and
+  the proof finishes at 120 markets.
