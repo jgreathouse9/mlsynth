@@ -1,5 +1,5 @@
 {
- "generated": "2026-11-26T18:47:46Z",
+ "generated": "2026-11-27T18:44:07Z",
  "cases": 218,
  "files": [
   "basedata/Data.csv",
@@ -2493,10 +2493,12 @@
   "mlsynth/utils/pangeo_helpers/parallelism.py",
   "mlsynth/utils/pangeo_helpers/pipeline.py",
   "mlsynth/utils/pangeo_helpers/plotter.py",
+  "mlsynth/utils/pangeo_helpers/popmusic.py",
   "mlsynth/utils/pangeo_helpers/power.py",
   "mlsynth/utils/pangeo_helpers/setup.py",
   "mlsynth/utils/pangeo_helpers/simulation.py",
   "mlsynth/utils/pangeo_helpers/structures.py",
+  "mlsynth/utils/pangeo_helpers/vtree.py",
   "mlsynth/utils/pcr/__init__.py",
   "mlsynth/utils/pcr/core.py",
   "mlsynth/utils/pcr/rank.py",
