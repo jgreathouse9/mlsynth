@@ -683,9 +683,11 @@ upper bound is below the cluster's, so the design never gets worse. The clusters
 grow after a pass that improves nothing, while they stay smaller than the arm.
 ``popmusic_node_limit`` (12 million nodes by default) caps the work, counted in
 nodes so the result is the same on every machine; 0 skips it. Arms whose proof
-finishes never run it. On a 120-geo :math:`Q=2` arm it lowered the start design
-from 10.033 to 9.042 within 11 million nodes, the best design known, which halves
-the certified gap. The per-arm diagnostics report it as ``popmusic_start`` (the
+finishes never run it. On a 120-geo :math:`Q=2` arm it lowered the capped proof's
+design from 9.440 to 9.208 with its whole budget, and the certified gap from 8.4%
+to 6.1%. Started from the arm's start design (10.033) with the same settings, it
+reached 9.042, the best design known: where it ends depends on where it starts.
+The per-arm diagnostics report it as ``popmusic_start`` (the
 bound it started from), ``popmusic_passes``, ``popmusic_subproblems``,
 ``popmusic_improved`` and ``popmusic_nodes``.
 

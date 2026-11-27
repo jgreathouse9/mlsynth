@@ -187,7 +187,8 @@ class PANGEOConfig(BaseModel):
                     "bound is lower, so the design never gets worse, and the "
                     "certified gap is then measured from the better design. "
                     "Deterministic. At 120 markets and Q = 2 it lowered the "
-                    "start design 9.9% within 11 million nodes. Arms whose "
+                    "design 2.5% with the default budget, and the certified "
+                    "gap from 8.4% to 6.1%. Arms whose "
                     "proof finishes never run it. 0 skips it.")
     n_jobs: Optional[int] = Field(
         default=None, ge=1, strict=True,

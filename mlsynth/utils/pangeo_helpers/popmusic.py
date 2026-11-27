@@ -19,9 +19,12 @@ place of their branch and cut. Their dimension grows after every pass; here it s
 ``repeat``. The method is POPMUSIC (partial optimisation metaheuristic under special intensification conditions),
 which they cite to Essays and Surveys in Metaheuristics (Springer, 2002), pp. 613-629.
 
-Measured on a 120-geo Q = 2 seasonal arm from the start design (10.033, single-threaded): 9.0416 after 11.0 million
-nodes over 53 subproblems, the last improvement in a cluster of 112 markets; the best design known is 9.0416, and
-moves of 2 to 6 groups found nothing. No cluster is the whole arm: that would be the capped proof again.
+Measured on a 120-geo Q = 2 seasonal arm inside :func:`.columns.solve_exact` with every default: from the capped
+proof's design (9.440) it reached 9.208 with the whole 12 million node budget, 6 of 47 subproblems improving, and the
+certified gap fell from 8.44% to 6.13% (the dual bound, 8.6436, is the rounds'). Started from the arm's start design
+(10.033) instead, the same passes reached 9.0416, the best design known, within 11.0 million nodes, the last
+improvement in a cluster of 112 markets: where POPMUSIC ends depends on where it starts. Moves of 2 to 6 groups found
+nothing on that arm. No cluster is the whole arm: that would be the capped proof again.
 """
 from __future__ import annotations
 
