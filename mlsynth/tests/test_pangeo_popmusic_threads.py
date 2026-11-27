@@ -135,6 +135,21 @@ def test_each_wave_splits_what_is_left_of_the_budget_evenly_up_to_the_cap(monkey
     assert i == len(calls) and out["nodes"] == sum(u for _, u in calls) <= budget
 
 
+def test_no_tree_passes_the_subproblem_cap_when_the_budget_is_large(monkeypatch):
+    """With a budget far above sub_limit times the wave, the cap is what binds: every tree's limit is sub_limit."""
+    n, Q = 20, 2
+    Y, _, pool, k, root = _arm(6, n, Q)
+    limits, real = [], vtree.search
+
+    def tree(sub, r, keep, kk, best_up, node_limit, **kw):
+        limits.append(int(node_limit))
+        return real(sub, r, keep, kk, best_up, node_limit, **kw)
+    monkeypatch.setattr(vtree, "search", tree)
+    cap = 3
+    popmusic.improve(pool, root, k, Q, _seed_design(n), _paths(Y), 10**6, alpha=4, delta=2, sub_limit=cap, n_jobs=1)
+    assert limits and all(lim == cap for lim in limits), limits
+
+
 def test_the_floor_comes_from_the_design_at_the_start_of_the_wave(monkeypatch):
     """A cluster's floor is k less the groups outside it when its wave starts: with k forcing every group to stay a
     pair, each tree is asked for exactly its cluster's groups."""
