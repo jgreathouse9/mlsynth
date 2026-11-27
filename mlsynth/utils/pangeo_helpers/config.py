@@ -177,6 +177,19 @@ class PANGEOConfig(BaseModel):
                     "markets and Q = 2 a node costs about 160 microseconds, so "
                     "the default is about 30 minutes; there it certified a 4.6% "
                     "gap. 0 leaves a capped proof to the MIP loop.")
+    popmusic_node_limit: int = Field(
+        default=12_000_000, ge=0, strict=True,
+        description="Nodes the exact path (fast=False, groups larger than "
+                    "pairs) may place improving its design by POPMUSIC after "
+                    "its proof stops at its cap and before the iterative "
+                    "cutoff: clusters of the design's nearest groups are "
+                    "re-covered exactly, a cover kept only when its upper "
+                    "bound is lower, so the design never gets worse, and the "
+                    "certified gap is then measured from the better design. "
+                    "Deterministic. At 120 markets and Q = 2 it lowered the "
+                    "design 2.5% with the default budget, and the certified "
+                    "gap from 8.4% to 6.1%. Arms whose "
+                    "proof finishes never run it. 0 skips it.")
     recency_decay: float = Field(
         default=0.97, gt=0.0, le=1.0,
         description="Geometric recency-weight decay for objective='weighted' "

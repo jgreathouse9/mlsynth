@@ -150,6 +150,7 @@ class PANGEO:
                 mip_abs_gap=self.mip_abs_gap,
                 assignment_seed=self.config.assignment_seed,
                 certify_node_limit=self.config.certify_node_limit,
+                popmusic_node_limit=self.config.popmusic_node_limit,
             )
 
             if post_df is not None and not post_df.empty:

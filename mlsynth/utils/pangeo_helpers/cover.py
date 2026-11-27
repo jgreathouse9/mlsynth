@@ -94,6 +94,11 @@ CERTIFY_NODE_LIMIT = 12_000_000
 #: The iterative cutoff's step: round i searches below the root bound times (1 + CERTIFY_STEP)^i. At 120 geos and
 #: Q = 2 each 1% step cost 12 to 14 times the nodes of the one before (503, 7,065, 87,963, 1.2 million).
 CERTIFY_STEP = 0.01
+#: After a proof stopped by its cap and before the iterative cutoff, POPMUSIC (popmusic.improve) re-covers clusters of
+#: the best design's groups exactly, placing at most this many nodes (``popmusic_node_limit`` on the exact path; 0
+#: skips it). At 120 geos and Q = 2 it lowered the capped proof's design from 9.440 to 9.208 with the whole budget,
+#: and the certified gap from 8.44% to 6.13%.
+POPMUSIC_NODE_LIMIT = 12_000_000
 #: The search over the first window (columns._search_window) places at most this many nodes, and at most the search
 #: node limit; the window of a 50-geo Q = 2 seasonal arm took 1.0 million.
 WINDOW_NODE_LIMIT = 20_000_000

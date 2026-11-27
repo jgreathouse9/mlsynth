@@ -18849,8 +18849,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-q-sweep-on-the-automatic-backend"
-  find = "        mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n    )\n    sweep, results"
-  replace = "        mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n    )\n    sweep, results"
+  find = "        mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n        popmusic_node_limit=popmusic_node_limit,\n    )\n    sweep, results"
+  replace = "        mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n        popmusic_node_limit=popmusic_node_limit,\n    )\n    sweep, results"
   models = "automatic Q selection designing every Q on the automatic backend whatever was configured"
 
   [[target.mutant]]
@@ -19551,14 +19551,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-seed-not-given-to-the-automatic-sweep"
-  find = "        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n    )\n    sweep, results = _sweep_designs("
-  replace = "        mip_abs_gap=mip_abs_gap,\n        certify_node_limit=certify_node_limit,\n    )\n    sweep, results = _sweep_designs("
+  find = "        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n        popmusic_node_limit=popmusic_node_limit,\n    )\n    sweep, results = _sweep_designs("
+  replace = "        mip_abs_gap=mip_abs_gap,\n        certify_node_limit=certify_node_limit,\n        popmusic_node_limit=popmusic_node_limit,\n    )\n    sweep, results = _sweep_designs("
   models = "automatic Q's candidate designs drawn with seed 0, so the returned design's labels ignore the seed"
 
   [[target.mutant]]
   id = "the-seed-not-given-to-the-diagnostic-sweep"
-  find = "            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n            certify_node_limit=certify_node_limit,\n        )\n        metadata[\"q_sweep\"]"
-  replace = "            mip_abs_gap=mip_abs_gap,\n            certify_node_limit=certify_node_limit,\n        )\n        metadata[\"q_sweep\"]"
+  find = "            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n            certify_node_limit=certify_node_limit,\n            popmusic_node_limit=popmusic_node_limit,\n        )\n        metadata[\"q_sweep\"]"
+  replace = "            mip_abs_gap=mip_abs_gap,\n            certify_node_limit=certify_node_limit,\n            popmusic_node_limit=popmusic_node_limit,\n        )\n        metadata[\"q_sweep\"]"
   models = "the fixed-Q fit's diagnostic sweep designed with seed 0, so its row for the fitted Q disagrees with the fit"
 
 [[target]]
@@ -20463,8 +20463,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-gaps-not-passed-to-the-mip"
-  find = "                mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,\n                solve=solve_partition, certify_node_limit=certify_node_limit)\n"
-  replace = "                solve=solve_partition, certify_node_limit=certify_node_limit)\n"
+  find = "                mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,\n                solve=solve_partition, certify_node_limit=certify_node_limit,\n                popmusic_node_limit=popmusic_node_limit)\n"
+  replace = "                solve=solve_partition, certify_node_limit=certify_node_limit,\n                popmusic_node_limit=popmusic_node_limit)\n"
   models = "the config's gaps stopping at the pipeline"
 
   [[target.mutant]]
@@ -20697,8 +20697,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "pipeline-solve-not-passed"
-  find = "                solve=solve_partition, certify_node_limit=certify_node_limit)\n"
-  replace = "                solve=None, certify_node_limit=certify_node_limit)\n"
+  find = "                solve=solve_partition, certify_node_limit=certify_node_limit,\n                popmusic_node_limit=popmusic_node_limit)\n"
+  replace = "                solve=None, certify_node_limit=certify_node_limit,\n                popmusic_node_limit=popmusic_node_limit)\n"
   models = "the restricted MIPs solved past pipeline.solve_partition, so a backend patch there does not reach them"
 
 
@@ -24861,3 +24861,147 @@ timeout = 900.0
   find = "            or certify_node_limit < 0:\n        raise MlsynthConfigError(\n            f\"certify_node_limit"
   replace = "            or certify_node_limit < -10**18:\n        raise MlsynthConfigError(\n            f\"certify_node_limit"
   models = "a negative certify budget accepted and taken as no rounds, without saying so"
+
+[[target]]
+name = "pangeo-popmusic"
+module-path = "mlsynth/utils/pangeo_helpers/popmusic.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_popmusic.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "a-group-is-ranked-in-the-wrong-size"
+  find = "                    idx += B[n - 1 - j, m - 1 - i]"
+  replace = "                    idx += B[n - 1 - j, m - i]"
+  models = "a subproblem's groups read from the wrong rows of the pool, so its costs belong to other groups"
+
+  [[target.mutant]]
+  id = "every-size-starts-at-the-pairs"
+  find = "        base += B[n, m]\n"
+  replace = "        pass\n"
+  models = "groups of three or four markets ranked as if they were pairs, the subproblem's costs read from the pair block"
+
+  [[target.mutant]]
+  id = "the-floor-is-dropped"
+  find = "max(int(k) - len(out) - todo, 1)"
+  replace = "1"
+  models = "a re-cover free to merge groups below the design's floor k, returning a design with too few groups"
+
+  [[target.mutant]]
+  id = "the-floor-forgets-the-clusters-to-come"
+  find = "max(int(k) - len(out) - todo, 1)"
+  replace = "max(int(k) - len(out), 1)"
+  models = "a subproblem asked for every group still missing from the floor, so a feasible cluster gets no cover"
+
+  [[target.mutant]]
+  id = "the-budget-is-not-shared"
+  find = "            left -= int(res.nodes)\n"
+  replace = "            pass\n"
+  models = "popmusic_node_limit no longer bounding the work: every tree gets the whole budget"
+
+  [[target.mutant]]
+  id = "a-tree-is-not-capped"
+  find = "min(left, sub_limit)"
+  replace = "left"
+  models = "one subproblem spending the whole budget, the sub_limit cap ignored"
+
+  [[target.mutant]]
+  id = "a-tree-may-pass-the-budget"
+  find = "min(left, sub_limit)"
+  replace = "sub_limit"
+  models = "the last tree placing its full cap past what the budget left"
+
+  [[target.mutant]]
+  id = "the-search-is-not-below-the-cluster"
+  find = "                               columns._up(old), min(left, sub_limit)"
+  replace = "                               np.inf, min(left, sub_limit)"
+  models = "a subproblem searched with no incumbent, spending nodes on covers no better than the cluster's own"
+
+  [[target.mutant]]
+  id = "the-root-duals-of-other-markets"
+  find = "_Duals(pi[U])"
+  replace = "_Duals(pi[:len(U)])"
+  models = "a subproblem bounded by the duals of the wrong markets"
+
+  [[target.mutant]]
+  id = "the-dim-grows-only-on-a-stall"
+  find = "        if changed == 0 or at >= repeat:"
+  replace = "        if changed == 0:"
+  models = "repeat ignored: a size that keeps improving is passed over again and again"
+
+  [[target.mutant]]
+  id = "the-dim-grows-every-pass"
+  find = "        if changed == 0 or at >= repeat:"
+  replace = "        if True:"
+  models = "a size that just improved left before its repeat passes"
+
+  [[target.mutant]]
+  id = "a-cluster-is-the-whole-arm"
+  find = "    while dim < n and left > 0:"
+  replace = "    while dim < n + delta and left > 0:"
+  models = "a last pass over the whole arm, the capped proof run again from inside POPMUSIC"
+
+  [[target.mutant]]
+  id = "the-farthest-groups-join"
+  find = "np.argsort(d, kind=\"mergesort\")"
+  replace = "np.argsort(-d, kind=\"mergesort\")"
+  models = "clusters built from the groups farthest from the seed, not the nearest"
+
+  [[target.mutant]]
+  id = "a-cluster-may-not-fill-to-dim"
+  find = "used + int(sizes[g]) > dim"
+  replace = "used + int(sizes[g]) >= dim"
+  models = "a group that would fill the cluster exactly to dim refused, so clusters stay smaller than dim"
+
+  [[target.mutant]]
+  id = "the-settings-are-not-checked"
+  find = "    if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < least:"
+  replace = "    if isinstance(value, bool) or not isinstance(value, (int, np.integer, float)):"
+  models = "an alpha, delta, repeat or sub_limit of 0, 1 or a float accepted, a pass that cannot run or never ends"
+
+  [[target.mutant]]
+  id = "the-budget-is-not-checked"
+  find = "    if isinstance(node_limit, bool) or not isinstance(node_limit, (int, np.integer)) or node_limit < 0:"
+  replace = "    if not isinstance(node_limit, (int, np.integer)):"
+  models = "a negative or boolean POPMUSIC budget accepted"
+
+[[target]]
+name = "pangeo-popmusic-wiring"
+module-path = "mlsynth/utils/pangeo_helpers/columns.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_popmusic.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-rounds-start-from-the-proofs-design"
+  find = "            z_c, rows_c = pm[\"upper\"], np.asarray(pm[\"rows\"], dtype=np.int64)\n"
+  replace = "            pass\n"
+  models = "POPMUSIC's design thrown away: the rounds and the returned design are the capped proof's"
+
+  [[target.mutant]]
+  id = "the-paths-are-not-centred"
+  find = "paths - paths.mean(axis=1, keepdims=True)"
+  replace = "paths"
+  models = "clusters by raw paths, so a market's level, not its shape, decides its neighbours"
+
+  [[target.mutant]]
+  id = "popmusics-nodes-go-uncounted"
+  find = "            info[\"search_nodes\"] += pm[\"nodes\"]\n"
+  replace = "            pass\n"
+  models = "search_nodes short of the work done, no longer equal to the progress array's total"
+
+  [[target.mutant]]
+  id = "popmusic-is-skipped-by-default"
+  find = "        popmusic_node_limit = cover.POPMUSIC_NODE_LIMIT\n"
+  replace = "        popmusic_node_limit = 0\n"
+  models = "the default budget not the module constant, POPMUSIC off unless asked for"
+
+  [[target.mutant]]
+  id = "the-popmusic-budget-is-not-checked"
+  find = "            or popmusic_node_limit < 0:\n        raise MlsynthConfigError(\n            f\"popmusic_node_limit"
+  replace = "            or popmusic_node_limit < -10**18:\n        raise MlsynthConfigError(\n            f\"popmusic_node_limit"
+  models = "a negative POPMUSIC budget accepted and taken as no POPMUSIC, without saying so"
+
+  [[target.mutant]]
+  id = "popmusic-goes-unreported"
+  find = "                        popmusic_nodes=pm[\"nodes\"])"
+  replace = "                        popmusic_nodes=0)"
+  models = "the diagnostics reporting no POPMUSIC work after it ran"

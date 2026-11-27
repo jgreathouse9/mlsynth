@@ -672,6 +672,25 @@ best design is returned with the gap the rounds certified, and a
 proved every design at least 4.06% above :math:`L` within 1.3 million nodes.
 ``certify_node_limit=0`` leaves a capped proof to the MIP loop instead.
 
+A certified gap has two parts: how far the design sits above the optimum, and how
+far the bound sits below it. Before the rounds, POPMUSIC (partial optimisation
+under special intensification conditions; Bijiga, Warwicker and Rebennack, 2026)
+lowers the first part. Each pass splits the design's groups into clusters, a group
+and the groups nearest it by the average path of their geos, up to a size, and
+solves each cluster again exactly: every way of covering the cluster's geos with
+groups is searched by the same tree, and a cover is kept only when its rigorous
+upper bound is below the cluster's, so the design never gets worse. The clusters
+grow after a pass that improves nothing, while they stay smaller than the arm.
+``popmusic_node_limit`` (12 million nodes by default) caps the work, counted in
+nodes so the result is the same on every machine; 0 skips it. Arms whose proof
+finishes never run it. On a 120-geo :math:`Q=2` arm it lowered the capped proof's
+design from 9.440 to 9.208 with its whole budget, and the certified gap from 8.4%
+to 6.1%. Started from the arm's start design (10.033) with the same settings, it
+reached 9.042, the best design known: where it ends depends on where it starts.
+The per-arm diagnostics report it as ``popmusic_start`` (the
+bound it started from), ``popmusic_passes``, ``popmusic_subproblems``,
+``popmusic_improved`` and ``popmusic_nodes``.
+
 ``results.mip_reports`` records the pairs scored (``columns_scored``), the
 pairs in the last MIP or the search (``columns_solved``), the bound :math:`L`
 (``lagrangian_bound``), and what the search did (``search``: ``"proved"``,
@@ -1430,6 +1449,10 @@ Problems." *Discrete Mathematics* 4(4):305-337.
 Lichau, S., Dupas, R., & Francois, J. (2026). "A Branch-Cut-and-Price
 Algorithm for the Park-and-Loop Routing Problem." *Annals of Operations
 Research* 366:1189-1209 (the iterative cutoff, p. 1196).
+
+Bijiga, L. K., Warwicker, J. A., & Rebennack, S. (2026). "Branch-and-Cut
+POPMUSIC for the Electric Vehicle Routing Problem With Time Windows."
+*Networks*, doi:10.1002/net.70072 (Algorithm 1, p. 12).
 
 Jepsen, M., Petersen, B., Spoorendonk, S., & Pisinger, D. (2008).
 "Subset-Row Inequalities Applied to the Vehicle-Routing Problem with Time
