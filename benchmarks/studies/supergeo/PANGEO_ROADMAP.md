@@ -386,6 +386,19 @@ The work, in order, each measured by nodes and time to a fixed incumbent:
    and Frasinaru, Carpathian J. Math. 41 (2025), p. 471, do), and with a cap on
    the new cuts per group (Barkel and Sotirov, p. 17), and are judged by nodes
    saved, not by the root bound.
+
+   Measured at the root, 2026-11-27. On the 50-market Q = 2 arm the root LP
+   has no group at 1: 51 fractional groups at arbitrary values, one connected
+   piece over all 50 markets, 2 to 7 fractional groups per market, and the
+   cardinality row binding at 13, the optimum's group count (11 groups of four,
+   2 of three). Subset-row cuts to saturation (24 cuts) close 2% of the gap
+   (8.37% to 8.21%) and save 8% of the proof's nodes. Exact rank-1 separation
+   (a MIP over the cover and cardinality rows' multipliers) finds a violated cut
+   in each of 15 rounds, but each cut is dense (every kept group) and the 15
+   close 9% (to 7.61%), tailing to 0.01 points a round. Rank-1 cuts are not the
+   lever at Q = 2; on a 20-market Q = 4 arm subset-row cuts closed a quarter of
+   the gap and saved 25% of the nodes, so they are kept for larger groups. The
+   order below moves branching and finding ahead of further cut work at Q = 2.
 3. Branching. Ryan-Foster branching on the pair of units with the largest
    fractional mass in the volume algorithm's averaged primal x-bar, same group
    or not (the pair rule of Olariu and Frasinaru, Prop. 4.2, pp. 469-470),
