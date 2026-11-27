@@ -265,6 +265,38 @@ def test_the_default_certify_budget_is_the_module_constant(monkeypatch):
     assert seen == [cover.CERTIFY_NODE_LIMIT]
 
 
+def _first_mip_setup(monkeypatch):
+    """No quick or window design, so the proof starts from the first MIP's design, and the proof is capped."""
+    monkeypatch.setattr(cover, "START_NODE_LIMIT", 0)
+    monkeypatch.setattr(cover, "WINDOW_NODE_LIMIT", 0)
+    monkeypatch.setattr(cover, "SEARCH_QUICK_LIMIT", 1)
+    monkeypatch.setattr(cover, "VOLUME_NODE_LIMIT", 1)
+    monkeypatch.setattr(columns, "FIRST_PER_UNIT", 0)
+    monkeypatch.setattr(columns, "FIRST_MIN", 1)
+
+
+def test_a_capped_proof_from_the_first_mips_design_is_certified_too(monkeypatch):
+    """When the proof starts from the first MIP's design and stops at its cap, the rounds follow it, prove the
+    optimum, and the MIP loop stops at that one MIP."""
+    n, Q = 14, 3
+    Y, idx, pool, k, root = _arm(13, n, Q)
+    _first_mip_setup(monkeypatch)
+    _, d = columns.solve_exact(idx, Y, Q)
+    assert d["search_start"] == "first_mip" and d["search"] == "proved" and d["mip_solves"] == 1
+    assert d["certify_rounds"] >= 1
+    assert d["objective_value"] == pytest.approx(_optimum(pool, root, k, Q), rel=1e-9)
+
+
+def test_a_certified_gap_from_the_first_mips_design_counts_that_mip(monkeypatch):
+    n, Q = 14, 3
+    Y, idx, pool, k, root = _arm(13, n, Q)
+    _first_mip_setup(monkeypatch)
+    with pytest.warns(PangeoCertifiedGapWarning):
+        _, d = columns.solve_exact(idx, Y, Q, certify_node_limit=1)
+    assert d["search"] == "certified" and d["status"] == "certified_gap" and d["mip_solves"] == 1
+    assert d["dual_bound"] <= _optimum(pool, root, k, Q) * (1 + 1e-12)
+
+
 # --- failures -----------------------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("bad", [-1, 2.5, True, "10"])

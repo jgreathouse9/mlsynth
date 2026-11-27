@@ -24839,6 +24839,12 @@ timeout = 900.0
   models = "a capped proof after the quick search going to the MIP loop despite a certify budget, the 120-geo arm never returning"
 
   [[target.mutant]]
+  id = "a-capped-proof-from-the-first-mip-goes-uncertified"
+  find = "            if certify_node_limit > 0:\n                return finish(found, solves, mip_seconds, \"first_mip\")\n"
+  replace = "            if False:\n                return finish(found, solves, mip_seconds, \"first_mip\")\n"
+  models = "a capped proof from the first MIP's design left to the MIP loop despite a certify budget"
+
+  [[target.mutant]]
   id = "no-warning-for-a-certified-gap"
   find = "            PangeoCertifiedGapWarning, stacklevel=3)"
   replace = "            UserWarning, stacklevel=3)"
