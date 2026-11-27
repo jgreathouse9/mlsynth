@@ -184,21 +184,28 @@ def test_every_subproblem_searches_below_its_clusters_upper_bound_with_the_floor
     n, Q = 14, 2
     Y, _, pool, k, root = _arm(3, n, Q, min_pairs=6)
     rows = _seed_design(pool, n)
-    calls, real = [], vtree.search
+    calls, real, uppers = [], vtree.search, []
 
     def tree(sub, r, keep, kk, best_up, node_limit, **kw):
-        calls.append(dict(sub=sub, pi=np.array(r.pi), sigma=r.sigma, keep=np.array(keep), k=kk, best_up=best_up))
+        calls.append(dict(sub=sub, pi=np.array(r.pi), sigma=r.sigma, keep=np.array(keep), k=kk, best_up=best_up,
+                          cluster=uppers[-1]))
         return real(sub, r, keep, kk, best_up, node_limit, **kw)
     monkeypatch.setattr(vtree, "search", tree)
     seen = []
-    real_sub = popmusic.subproblem
+    real_sub, real_up = popmusic.subproblem, popmusic._upper
     monkeypatch.setattr(popmusic, "subproblem", lambda p, U, q: seen.append(np.array(U)) or real_sub(p, U, q))
+
+    def up(p, groups):
+        v = real_up(p, groups)
+        uppers.append((sorted(u for j in groups for u in _units(p, j)), v))   # the last before a tree is its cluster's
+        return v
+    monkeypatch.setattr(popmusic, "_upper", up)
     out = popmusic.improve(pool, root, k, Q, rows, _paths(Y), 10**6, alpha=6, delta=2, repeat=1)
     assert calls and len(calls) == len(seen) == out["subproblems"]
     for c, U in zip(calls, seen):
         assert np.array_equal(c["keep"], np.arange(len(c["sub"]))) and c["sigma"] == 0.0
         assert np.array_equal(c["pi"], np.asarray(root.pi, dtype=float)[U])
-        assert 1 <= c["k"] and c["best_up"] >= 0
+        assert c["cluster"][0] == U.tolist() and c["best_up"] == columns._up(c["cluster"][1]) and c["k"] >= 1
     assert _is_cover(pool, out["rows"], n, k)
 
 
@@ -248,20 +255,28 @@ def test_a_zero_budget_returns_the_start_unchanged_with_no_pass():
     assert out["rows"].tolist() == rows.tolist() and out["passes"] == 0 and out["nodes"] == 0
 
 
-def test_dim_grows_after_a_pass_that_improves_nothing_and_stops_below_the_arm(monkeypatch):
-    """The cluster size starts at alpha, grows by delta after a pass with no improvement or repeat passes at one
-    size, and no pass runs at a size of the whole arm or more."""
-    n, Q = 14, 2
-    Y, _, pool, k, root = _arm(3, n, Q)
+@pytest.mark.parametrize("seed,repeat", [(3, 1), (3, 2), (6, 3), (9, 2)])
+def test_dim_grows_after_a_pass_that_improves_nothing_or_repeat_passes_and_stops_below_the_arm(seed, repeat):
+    """The cluster size starts at alpha and stays after a pass that improves while fewer than ``repeat`` passes ran
+    at it; it grows by delta otherwise. No pass runs at a size of the whole arm or more, and with budget left the last
+    pass is the last size below the arm."""
+    n, Q, alpha, delta = 16, 2, 4, 3
+    Y, _, pool, k, root = _arm(seed, n, Q)
     rows = _seed_design(pool, n)
-    dims, real = [], popmusic.clusters
-    monkeypatch.setattr(popmusic, "clusters", lambda c, s, dim, rng: dims.append(dim) or real(c, s, dim, rng))
-    out = popmusic.improve(pool, root, k, Q, rows, _paths(Y), 10**7, alpha=4, delta=3, repeat=2)
-    assert dims[0] == 4 and all(d < n for d in dims) and dims == sorted(dims)
-    for a, b in zip(dims, dims[1:]):
-        assert b - a in (0, 3)
-    assert all(dims.count(d) <= 2 for d in set(dims)) and out["passes"] == len(dims)
-    assert dims[-1] + 3 >= n
+    out = popmusic.improve(pool, root, k, Q, rows, _paths(Y), 10**7, alpha=alpha, delta=delta, repeat=repeat)
+    tr = out["trace"]
+    assert tr and tr[0][0] == alpha and all(d < n for d, *_ in tr) and len(tr) == out["passes"]
+    at = 0
+    for (d, _, improved, _), nxt in zip(tr, tr[1:] + [None]):
+        at += 1
+        grows = improved == 0 or at >= repeat
+        if nxt is not None:
+            assert nxt[0] == (d + delta if grows else d)
+        if grows:
+            at = 0
+    assert tr[-1][0] + delta >= n and out["nodes"] < 10**7
+    assert sum(t[1] for t in tr) == out["subproblems"] and sum(t[2] for t in tr) == out["improved"]
+    assert sum(t[3] for t in tr) == out["nodes"]
 
 
 def test_with_alpha_at_the_arms_size_no_pass_runs():
@@ -316,6 +331,18 @@ def test_a_capped_proof_runs_popmusic_and_certifies_from_its_design(monkeypatch)
     assert d["popmusic_nodes"] == out["nodes"] and d["popmusic_passes"] == out["passes"]
     assert d["popmusic_improved"] == out["improved"] and d["popmusic_start"] == float(out["start_upper"])
     assert d["search_nodes"] >= d["popmusic_nodes"] + d["certify_nodes"]
+
+
+def test_popmusics_trees_count_in_the_search_nodes_and_the_progress_total(monkeypatch):
+    """POPMUSIC's nodes are part of ``search_nodes``, which ends equal to the progress array's total."""
+    n, Q = 14, 3
+    Y, idx, *_ = _arm(2, n, Q)
+    _capped(monkeypatch)
+    monkeypatch.setattr(popmusic, "ALPHA", 4)
+    monkeypatch.setattr(popmusic, "DELTA", 2)
+    prog = cover.new_progress()
+    _, d = columns.solve_exact(idx, Y, Q, progress=prog)
+    assert d["popmusic_nodes"] > 0 and d["search_nodes"] == int(prog[cover.P_TOTAL])
 
 
 def test_a_better_popmusic_design_is_the_one_returned_with_its_certified_gap(monkeypatch):

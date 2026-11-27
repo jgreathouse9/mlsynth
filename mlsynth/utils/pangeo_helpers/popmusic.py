@@ -172,35 +172,41 @@ def _upper(pool, rows) -> Fraction:
 
 
 def improve(pool, root, k: int, Q: int, rows: Sequence[int], paths: np.ndarray, node_limit: int, *,
-            alpha: int = ALPHA, delta: int = DELTA, repeat: int = REPEAT, sub_limit: int = SUB_LIMIT,
-            seed: int = SEED, progress: Optional[np.ndarray] = None) -> dict:
+            alpha: Optional[int] = None, delta: Optional[int] = None, repeat: Optional[int] = None,
+            sub_limit: Optional[int] = None, seed: Optional[int] = None,
+            progress: Optional[np.ndarray] = None) -> dict:
     """POPMUSIC from the design ``rows`` (rows of the complete ``pool``, an exact cover with at least ``k`` groups),
     as in the module docstring, its clusters by the centroids of ``paths`` (the arm's paths, one row a position of
     ``pool.unit_indices``, centred), its trees placing at most ``node_limit`` groups in all and ``sub_limit`` each.
+    ``alpha``, ``delta``, ``repeat``, ``sub_limit`` and ``seed`` are the module's constants when None.
 
     Returns ``rows`` (the design, int64), ``upper`` (its rigorous upper bound, a Fraction, at most the start's),
-    ``start_upper``, ``passes``, ``subproblems`` (trees run), ``improved`` (covers taken), ``nodes`` and
-    ``seconds``. ``progress`` (:func:`.cover.new_progress`) receives every tree's counts."""
+    ``start_upper``, ``passes``, ``subproblems`` (trees run), ``improved`` (covers taken), ``nodes``, ``seconds`` and
+    ``trace``, one ``(dim, subproblems, improved, nodes)`` a pass. ``progress`` (:func:`.cover.new_progress`)
+    receives every tree's counts."""
     t0 = time.perf_counter()
     if isinstance(node_limit, bool) or not isinstance(node_limit, (int, np.integer)) or node_limit < 0:
         raise MlsynthConfigError(f"POPMUSIC node_limit must be a non-negative integer; got {node_limit!r}.")
-    alpha, delta = _count("alpha", alpha, 2), _count("delta", delta, 1)
-    repeat, sub_limit = _count("repeat", repeat, 1), _count("sub_limit", sub_limit, 1)
+    alpha = _count("alpha", ALPHA if alpha is None else alpha, 2)
+    delta = _count("delta", DELTA if delta is None else delta, 1)
+    repeat = _count("repeat", REPEAT if repeat is None else repeat, 1)
+    sub_limit = _count("sub_limit", SUB_LIMIT if sub_limit is None else sub_limit, 1)
     n = int(pool.unit_indices.size)
     P = np.asarray(paths, dtype=float)
     pi = np.asarray(root.pi, dtype=float)
     design = [int(j) for j in rows]
     start = _upper(pool, design)
-    rng = np.random.default_rng(seed)
+    rng = np.random.default_rng(SEED if seed is None else seed)
     units = lambda j: [int(u) for u in pool.members[j] if u >= 0]  # noqa: E731
     left = int(node_limit)
     passes = subs = taken = nodes = 0
     dim, at = alpha, 0
+    trace = []
     while dim < n and left > 0:
         passes += 1
         cent = np.array([P[units(j)].mean(axis=0) for j in design])
         parts = clusters(cent, [len(units(j)) for j in design], dim, rng)
-        out, todo, changed = [], sum(len(p) for p in parts), 0
+        out, todo, changed, subs0, nodes0 = [], sum(len(p) for p in parts), 0, subs, nodes
         for part in parts:
             groups = [design[i] for i in part]
             todo -= len(groups)
@@ -223,8 +229,10 @@ def improve(pool, root, k: int, Q: int, rows: Sequence[int], paths: np.ndarray, 
                 out += groups
         design = out
         taken += changed
+        trace.append((dim, subs - subs0, changed, nodes - nodes0))
         at += 1
         if changed == 0 or at >= repeat:
             dim, at = dim + delta, 0
     return dict(rows=np.asarray(design, dtype=np.int64), upper=_upper(pool, design), start_upper=start,
-                passes=passes, subproblems=subs, improved=taken, nodes=nodes, seconds=time.perf_counter() - t0)
+                passes=passes, subproblems=subs, improved=taken, nodes=nodes, seconds=time.perf_counter() - t0,
+                trace=trace)
