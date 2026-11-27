@@ -24705,3 +24705,75 @@ timeout = 900.0
   find = "    res = vtree.search(pool, root, keep, k, _up(z_up), min(int(node_limit), int(cover.VOLUME_NODE_LIMIT)),\n                       progress=progress)"
   replace = "    res = vtree.search(pool, root, keep, k, _up(z_up), min(int(node_limit), int(cover.VOLUME_NODE_LIMIT)))"
   models = "the proof not reporting through the progress array, so its nodes are missing from the total a caller reads"
+
+[[target]]
+name = "pangeo-vtree-pricing"
+module-path = "mlsynth/utils/pangeo_helpers/vtree.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_vtree_pricing.py -q -p no:cacheprovider -x -W ignore"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "every-group-is-priced-at-every-step"
+  find = "        if _may_skip(W, mf, abs(sgt - sf), delta, cmax, pfmax, sf, ptmax, sgt):"
+  replace = "        if False:"
+  models = "the skip test never passing, so the pricing is the old full pass at every step: the same iterates, none of the time saved"
+
+  [[target.mutant]]
+  id = "the-skip-ignores-rounding"
+  find = "    return W * mf + ms + err + _ETA < delta"
+  replace = "    return W * mf + ms < delta"
+  models = "a group skipped on the movement alone, when rounding at either point can put its computed reduced cost below zero at the trial point, so the step differs from pricing every group"
+
+  [[target.mutant]]
+  id = "the-skip-ignores-group-size"
+  find = "    return W * mf + ms + err + _ETA < delta"
+  replace = "    return mf + ms + err + _ETA < delta"
+  models = "the movement bound taken for one multiplier, when a group's reduced cost carries one per unit, so a group of several units that turns negative is skipped"
+
+  [[target.mutant]]
+  id = "the-skip-ignores-the-cardinality-multiplier"
+  find = "    return W * mf + ms + err + _ETA < delta"
+  replace = "    return W * mf + err + _ETA < delta"
+  models = "the cardinality row's multiplier left out of the movement, when it enters every group's reduced cost, so a group that turns negative as sigma rises is skipped"
+
+  [[target.mutant]]
+  id = "the-movement-is-measured-from-the-last-step"
+  find = "        if _may_skip(W, mf, abs(sgt - sf), delta, cmax, pfmax, sf, ptmax, sgt):"
+  replace = "        if _may_skip(W, mv, abs(sgt - sprev), delta, cmax, pfmax, sf, ptmax, sgt):"
+  models = "the movement taken from the previous trial point, not from the last full pass, so the moves since that pass accumulate unchecked"
+
+  [[target.mutant]]
+  id = "the-full-pass-does-not-record-its-point"
+  find = "        pf[u] = pi[u]"
+  replace = "        pass"
+  models = "the stored reduced costs measured at one point and the movement from another, so the skip bound does not bound the change"
+
+  [[target.mutant]]
+  id = "the-active-list-holds-only-negative-groups"
+  find = "        if rc < delta:\n            act[na] = i"
+  replace = "        if rc < 0.0:\n            act[na] = i"
+  models = "groups with a reduced cost between zero and delta left out of the active list, so one that turns negative before the next full pass is never priced"
+
+  [[target.mutant]]
+  id = "the-cost-term-of-the-rounding-is-dropped"
+  find = "        cmax = max(cmax, abs(clo[j]))"
+  replace = "        pass"
+  models = "the rounding margin computed without the groups' cost magnitudes, which dominate it on large levels, so rounding can still flip a skipped group"
+
+  [[target.mutant]]
+  id = "the-multiplier-term-of-the-rounding-is-dropped"
+  find = "        pimax = max(pimax, abs(pi[u]))"
+  replace = "        pass"
+  models = "the rounding margin computed without the multipliers' magnitudes at the full pass, so rounding of that evaluation is not covered"
+
+  [[target.mutant]]
+  id = "an-invalid-kappa-is-accepted"
+  find = "    if not (np.isfinite(kap) and kap >= 0.0):"
+  replace = "    if False:"
+  models = "a negative or non-finite kappa handed to the kernel, where a negative one sets a negative delta and a NaN one compares false, so a malformed setting goes unreported"
+
+  [[target.mutant]]
+  id = "the-search-ignores-kappa"
+  find = "    kap = float(PRICING_KAPPA if kappa is None else kappa)"
+  replace = "    kap = float(PRICING_KAPPA)"
+  models = "the search dropping the caller's kappa, so the setting documented on it does nothing"

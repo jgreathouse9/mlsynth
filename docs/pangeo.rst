@@ -514,7 +514,12 @@ therefore reaches the optimum of :eq:`mip` in three steps
    :math:`Q=4` arm they leave the bound 22% under the optimum one level down,
    where the partial design's own LP is 0.75% under it. At every node a pair
    whose reduced cost would lift the bound past :math:`z` is dropped for the
-   rest of that branch (Nemhauser and Wolsey, 1988). The bound is computed in
+   rest of that branch (Nemhauser and Wolsey, 1988). Each volume step prices
+   only the pairs whose reduced cost can turn negative given how far the
+   multipliers have moved since the last pass over all of them, with both
+   evaluations' rounding allowed for, so every step is the one that pricing
+   every pair would take, bit for bit, at about half the time (8.5 s against
+   15.9 s on a 40-geo :math:`Q=3` arm). The bound is computed in
    floating point with its rounding subtracted, and tested against exact
    rational arithmetic. A proof that ends within its cap (5 million nodes, and
    at most the search's node limit) proves the design optimal; one the cap
