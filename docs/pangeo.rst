@@ -659,13 +659,29 @@ optimum (32.8 s). With 200 million nodes for the proof, that arm proves in
 pass its design to the MIPs: on the 50-geo arm that made HiGHS take 58 to 64 s
 over the same pairs, against 26 to 29 s without it.
 
+Past about 60 geos at :math:`Q=2` a proof does not finish: the LP bound sits
+8 to 26% below the optimum, and each percent of that gap the proof closes
+costs about 13 times the nodes of the one before. A proof stopped by its cap is
+therefore followed by the iterative cutoff (Lichau, Dupas and Francois, 2026):
+round :math:`i` searches for a design below :math:`L(1.01)^i`, and a round
+that finds none proves that every design costs at least that much. If a round
+reaches the best design, the design is optimal; if ``certify_node_limit`` (12
+million nodes by default, about 30 minutes at 120 geos) runs out first, the
+best design is returned with the gap the rounds certified, and a
+``PangeoCertifiedGapWarning`` says so. On a 120-geo :math:`Q=2` arm the rounds
+proved every design at least 4.06% above :math:`L` within 1.3 million nodes.
+``certify_node_limit=0`` leaves a capped proof to the MIP loop instead.
+
 ``results.mip_reports`` records the pairs scored (``columns_scored``), the
 pairs in the last MIP or the search (``columns_solved``), the bound :math:`L`
 (``lagrangian_bound``), and what the search did (``search``: ``"proved"``,
-``"node_limit"``, ``"off"``, or ``"unavailable"`` without numba) with the pairs
-it placed (``search_nodes``). When it proved the design, ``backend`` is
-``"search"``, ``dual_bound`` a lower bound on the optimum and ``proven_gap``
-the certified gap. The per-arm diagnostics add the LP's rounds and value,
+``"node_limit"``, ``"certified"``, ``"off"``, or ``"unavailable"`` without
+numba) with the pairs it placed (``search_nodes``). When it proved the design,
+``backend`` is ``"search"``, ``dual_bound`` a lower bound on the optimum and
+``proven_gap`` the certified gap. When the certify budget ran out, ``search``
+is ``"certified"``, ``status`` is ``"certified_gap"``, and ``dual_bound`` and
+``proven_gap`` hold the bound the rounds proved and the gap from the design to
+it. The per-arm diagnostics add the LP's rounds and value,
 the MIPs solved, and the seconds spent scoring, on the LP and in the MIPs. An
 arm larger than 20 million pairs raises and names ``fast=True``.
 
@@ -1410,6 +1426,10 @@ Linear Programming." *Mathematical Programming* 99:283-296.
 
 Chvatal, V. (1973). "Edmonds Polytopes and a Hierarchy of Combinatorial
 Problems." *Discrete Mathematics* 4(4):305-337.
+
+Lichau, S., Dupas, R., & Francois, J. (2026). "A Branch-Cut-and-Price
+Algorithm for the Park-and-Loop Routing Problem." *Annals of Operations
+Research* 366:1189-1209 (the iterative cutoff, p. 1196).
 
 Jepsen, M., Petersen, B., Spoorendonk, S., & Pisinger, D. (2008).
 "Subset-Row Inequalities Applied to the Vehicle-Routing Problem with Time
