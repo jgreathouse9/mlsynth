@@ -334,6 +334,87 @@ Small, shared, no change to the answer when HiGHS behaves. Lands first.
 - Acceptance: optima matching phase 2's MIP and brute force; time on the phase 0
   panels.
 
+### Phase 3b: the proof past 100 markets (added 2026-11-27)
+
+Where it stands. The proof after the first MIP is the volume-bound exact-cover
+tree (`pangeo_helpers/vtree.py`, #1183): a Lagrangian bound at every node from
+the volume algorithm (Barahona and Anbil 2000, 2002), reduced-cost fixing at
+every node, rounding bounded. Exact lazy pricing (#1184) keeps every iterate and
+halves its time. Proofs from the optimum take seconds or less up to 50 markets
+(8.5 s at 40 markets and Q = 3). At 120 markets and Q = 2 the proof does not
+finish: from the start design, 3 million nodes in reduced-cost order reached a
+design 8.86% above the root bound, inside the first of 4,911 first-level
+branches, and an exact proof extrapolates to about 10^8 nodes.
+
+What limits it, measured. The number of nodes, set by the relaxation: the root
+LP over every group sits 8 to 26% below the optimum on arms with known optima,
+and at 120 markets the bound closes about 0.7 points a level, so nodes are
+pruned only near depth 11 to 12. Per node, the volume steps are 80 to 90% of the
+time. Ruled out: more volume steps at shallow nodes (fewer nodes, never less
+time: 21.6 to 52.3 s against 18.2 s at 40 markets and Q = 3), the COIN-OR Vol
+step rules, the yellow-step and fix-to-one rules of Barahona and Ladanyi (2006),
+small re-cover moves on the incumbent, and a semidefinite bound: a group's cost
+is a quadratic form over its markets, but every point of the column LP maps to a
+point of any SDP built from positive semidefiniteness and constraints each group
+satisfies, with the same cost, so no such SDP beats the column LP (measured: 2
+to 46% of the LP bound at 24 to 50 markets). The generalized BQP inequalities of
+Barkel and Sotirov (arXiv 2605.02456, eqs. 7 to 8, p. 8) are implied by the
+column LP for the same reason. Threads over the first-level branches are
+deferred until these options are exhausted, so that a result does not depend on
+the number of cores.
+
+The work, in order, each measured by nodes and time to a fixed incumbent:
+
+1. Tolerance. A stated relative gap: the search proves its design within it and
+   reports the gap proved; exact stays the default. On arms with known optima,
+   1% cut the proof 1.5x and 2% cut it 2x at 40 markets and Q = 3, every design
+   inside its gap. At 120 markets, the 1% and 2% runs measure whether a proof
+   finishes. An iterative cutoff (prove that no design lies below the root bound
+   times 1.01^i, raising i; Lichau, Dupas and Francois, Ann. Oper. Res. 366
+   (2026), p. 1196) is the same idea run upward.
+2. Cuts on the column LP, in the node bound. Rank-1 Chvatal-Gomory cuts on the
+   cover rows: for units C and weights rho, sum over groups of
+   floor(sum of rho_i over the group's units in C) times x_G is at most
+   floor(sum of rho_i) (Lichau et al., eq. 6, p. 1196). Three units with
+   rho = 1/2 is the subset-row cut: the groups holding two or more of the three
+   sum to at most 1. With all cuts in, rank-1 cuts closed 57 to 84% of the root
+   gap left by column generation in Oliveira, Pessoa and Roboredo (4OR 23
+   (2025), Table 2, p. 238). The capacity form, the groups meeting a unit set S
+   sum to at least ceil(|S| / 2Q), is a rank-1 rounding of the cover rows too.
+   Root clique cuts raised the 40-market root bound but nearly doubled the proof
+   nodes, so the cuts go in at the root only, withdrawn in the tree (as Olariu
+   and Frasinaru, Carpathian J. Math. 41 (2025), p. 471, do), and with a cap on
+   the new cuts per group (Barkel and Sotirov, p. 17), and are judged by nodes
+   saved, not by the root bound.
+
+   Measured at the root, 2026-11-27. On the 50-market Q = 2 arm the root LP
+   has no group at 1: 51 fractional groups at arbitrary values, one connected
+   piece over all 50 markets, 2 to 7 fractional groups per market, and the
+   cardinality row binding at 13, the optimum's group count (11 groups of four,
+   2 of three). Subset-row cuts to saturation (24 cuts) close 2% of the gap
+   (8.37% to 8.21%) and save 8% of the proof's nodes. Exact rank-1 separation
+   (a MIP over the cover and cardinality rows' multipliers) finds a violated cut
+   in each of 15 rounds, but each cut is dense (every kept group) and the 15
+   close 9% (to 7.61%), tailing to 0.01 points a round. Rank-1 cuts are not the
+   lever at Q = 2; on a 20-market Q = 4 arm subset-row cuts closed a quarter of
+   the gap and saved 25% of the nodes, so they are kept for larger groups. At
+   Q = 2, branching (item 3) and finding (item 4) come before further cut work.
+3. Branching. Ryan-Foster branching on the pair of units with the largest
+   fractional mass in the volume algorithm's averaged primal x-bar, same group
+   or not (the pair rule of Olariu and Frasinaru, Prop. 4.2, pp. 469-470),
+   against the present rule (the uncovered unit with the fewest open groups).
+   Then strong branching, a few volume steps per candidate child scored by the
+   product rule, with the number of candidates set by an estimate of tree size
+   (You, Yang, Wang and Yin, SSRN 4630549, sections 3 and 5). Branching rules are
+   compared with a fixed incumbent and cuts at the root only.
+4. Finding. POPMUSIC over the whole incumbent: each pass splits its groups into
+   disjoint clusters by the centroid of their markets' pretest paths, re-solves
+   each cluster exactly with the tree, warm-started, and grows the cluster size
+   until one cluster is the arm (Bijiga, Warwicker and Rebennack, Networks 2026,
+   Algorithm 1, p. 12; after Ribeiro, Hansen, Taillard and Voss 2002). Re-covers
+   of 48 markets reached the optimum at 50 markets where moves of 2 to 6 groups
+   found nothing.
+
 ### Note for phases 2 and 3: the trajectory cost through a Gram matrix
 
 A group's trajectory cost, the squared distance between its halves' mean paths
@@ -896,7 +977,7 @@ pairs to keep. Neither repairs a design after a market is lost.
 
 ## Order and dependencies
 
-Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 0c (the general solver against the closed form on pairs: heuristic stopping, odd-set cuts, the matching oracles), then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 5's
+Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 0c (the general solver against the closed form on pairs: heuristic stopping, odd-set cuts, the matching oracles), then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 3b follows 3, its items in their listed order, with threads after all of them. Phase 5's
 closed form and backtest can start after phase 1 and run beside 2 to 4; its
 Trimmed Match simulations follow phase 6, and phase 6b follows phase 6. The Trimmed Match benchmark (phase 7)
 lands with phase 6. Phases 5b, 5c and 5d follow phase 5's held-out MDE, which
@@ -916,3 +997,7 @@ phase 5's variance.
   210), and the deliverable there is a design with a proven gap.
 - The objective overfits whatever the solver: phase 5 is what turns an optimal
   design into a better experiment.
+- The column LP is 8 to 26% below the optimum on the arms measured. If cuts and
+  branching do not close it, an exact proof stays out of reach past about 100
+  markets at Q = 2, and the deliverable there is a design with a proven gap
+  (phase 3b, item 1).
