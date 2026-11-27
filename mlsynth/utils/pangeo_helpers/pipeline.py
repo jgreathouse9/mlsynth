@@ -170,6 +170,7 @@ def run_pangeo(
     mip_abs_gap: float = 0.0,
     assignment_seed: int = 0,
     certify_node_limit: Optional[int] = None,
+    popmusic_node_limit: Optional[int] = None,
 ) -> PangeoResults:
     """Design parallel supergeo pairs within each arm.
 
@@ -202,6 +203,11 @@ def run_pangeo(
         the iterative cutoff (:func:`mlsynth.utils.pangeo_helpers.columns.solve_exact`);
         ``cover.CERTIFY_NODE_LIMIT`` when None, 0 to leave a capped proof to
         the MIP loop.
+    popmusic_node_limit : int, optional
+        Nodes POPMUSIC (:mod:`mlsynth.utils.pangeo_helpers.popmusic`) may
+        place improving the design after a proof stopped by its cap, before
+        the iterative cutoff; ``cover.POPMUSIC_NODE_LIMIT`` when None, 0 to
+        skip it.
     assignment_seed : int
         Seed of the fair coin drawn in each pair, after the pairs are chosen,
         to decide which half is treated (:func:`_coin_flips`). The pairs do
@@ -250,6 +256,7 @@ def run_pangeo(
             mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,
             mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
             certify_node_limit=certify_node_limit,
+            popmusic_node_limit=popmusic_node_limit,
         )
     if max_supergeo_size < 1:
         from ...exceptions import MlsynthConfigError
@@ -329,7 +336,8 @@ def run_pangeo(
                 cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
                 unit_weights=uw, min_pairs=min_pairs, backend=mip_backend,
                 mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,
-                solve=solve_partition, certify_node_limit=certify_node_limit)
+                solve=solve_partition, certify_node_limit=certify_node_limit,
+                popmusic_node_limit=popmusic_node_limit)
             mip_reports[arm] = MipSolveReport.from_diagnostics(
                 solver_diagnostics[arm])
         # Pairs in a canonical order (by first unit) so the k-th coin goes to
@@ -414,6 +422,7 @@ def run_pangeo(
             mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,
             mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
             certify_node_limit=certify_node_limit,
+            popmusic_node_limit=popmusic_node_limit,
         )
         metadata["q_sweep"], _ = _sweep_designs(
             inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)
@@ -566,6 +575,7 @@ def _auto_select_q(
     mip_abs_gap: float = 0.0,
     assignment_seed: int = 0,
     certify_node_limit: Optional[int] = None,
+    popmusic_node_limit: Optional[int] = None,
 ) -> PangeoResults:
     """Choose Q automatically from a sweep over feasible sizes.
 
@@ -589,6 +599,7 @@ def _auto_select_q(
         mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,
         mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
         certify_node_limit=certify_node_limit,
+        popmusic_node_limit=popmusic_node_limit,
     )
     sweep, results = _sweep_designs(
         inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)

@@ -116,7 +116,7 @@ from scipy.optimize import linprog
 
 from ...exceptions import MlsynthConfigError, MlsynthEstimationError
 from ..solvers.dual_simplex import solve_boxed_lp
-from . import cover, mip, vtree
+from . import cover, mip, popmusic, vtree
 from .structures import PangeoCertifiedGapWarning
 
 try:  # numba is the optional ``fast`` extra; without it the same code runs as Python
@@ -1244,7 +1244,7 @@ def solve_exact(
     unit_weights: Optional[np.ndarray] = None, min_pairs: int = 1, backend: str = "auto",
     mip_rel_gap: float = 0.0, mip_abs_gap: float = 0.0, solve: Optional[Callable] = None,
     search_node_limit: Optional[int] = None, progress: Optional[np.ndarray] = None,
-    certify_node_limit: Optional[int] = None,
+    certify_node_limit: Optional[int] = None, popmusic_node_limit: Optional[int] = None,
 ):
     """The exact-cover design of one arm: every group scored (:func:`score_columns`), the root bound
     (:func:`root_lp`), and the MIP (``solve``, :func:`.mip.solve_partition` by default) over the groups the bound
@@ -1278,6 +1278,12 @@ def solve_exact(
     names the arm's gap. ``certify_rounds`` and ``certify_nodes`` report the rounds. ``certify_node_limit=0``
     leaves a capped proof to the MIP loop.
 
+    Before the rounds, POPMUSIC (:func:`.popmusic.improve`) lowers the capped proof's design, placing at most
+    ``popmusic_node_limit`` groups (``cover.POPMUSIC_NODE_LIMIT`` when None; 0 skips it), its clusters by the arm's
+    pretest paths centred on their means; the rounds then start from its design, which is the one returned when they
+    run out. ``popmusic_start`` (the upper bound it started from), ``popmusic_passes``, ``popmusic_subproblems``,
+    ``popmusic_improved`` and ``popmusic_nodes`` report it, and its nodes count in ``search_nodes``.
+
     ``progress`` (:func:`.cover.new_progress`) receives every search's counts while it runs; its total ends equal to
     ``search_nodes``. Nothing is printed: a caller that wants to watch reads the array from another thread."""
     if search_node_limit is None:
@@ -1293,6 +1299,12 @@ def solve_exact(
         raise MlsynthConfigError(
             f"certify_node_limit must be a non-negative integer (0 leaves a capped proof to the MIP loop); "
             f"got {certify_node_limit!r}.")
+    if popmusic_node_limit is None:
+        popmusic_node_limit = cover.POPMUSIC_NODE_LIMIT
+    if isinstance(popmusic_node_limit, bool) or not isinstance(popmusic_node_limit, (int, np.integer)) \
+            or popmusic_node_limit < 0:
+        raise MlsynthConfigError(
+            f"popmusic_node_limit must be a non-negative integer (0 skips POPMUSIC); got {popmusic_node_limit!r}.")
     cover._check_progress(progress)
     solve = mip.solve_partition if solve is None else solve
     kw = dict(return_diagnostics=True, backend=backend, mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap)
@@ -1340,9 +1352,19 @@ def solve_exact(
         return chosen, d
 
     def finish(found: dict, solves: int, mip_secs: float, start: str):
-        """After a proof stopped by its cap: the iterative cutoff, which proves the design (reported as
-        :func:`proved` reports one) or runs out and returns it with the gap it certified, warning."""
+        """After a proof stopped by its cap: POPMUSIC on its design, then the iterative cutoff from POPMUSIC's,
+        which proves the design (reported as :func:`proved` reports one) or runs out and returns it with the gap it
+        certified, warning."""
         z_c, rows_c = _incumbent(pool, [np.asarray(found["rows"], dtype=np.int64)])
+        if popmusic_node_limit > 0:
+            paths = np.asarray(Ypre, dtype=float)[idx]
+            pm = popmusic.improve(pool, root, k, max_size, rows_c, paths - paths.mean(axis=1, keepdims=True),
+                                  int(popmusic_node_limit), progress=progress)
+            info["search_nodes"] += pm["nodes"]
+            info.update(popmusic_start=float(pm["start_upper"]), popmusic_passes=pm["passes"],
+                        popmusic_subproblems=pm["subproblems"], popmusic_improved=pm["improved"],
+                        popmusic_nodes=pm["nodes"])
+            z_c, rows_c = pm["upper"], np.asarray(pm["rows"], dtype=np.int64)
         cert = _certify(pool, root, k, max_size, z_c, rows_c, int(certify_node_limit), progress=progress)
         info["search_nodes"] += cert["nodes"]
         info.update(certify_rounds=cert["rounds"], certify_nodes=cert["nodes"])
