@@ -999,6 +999,11 @@ def _iter_branches(pool: ColumnPool, root: RootLP, keep: np.ndarray, k: int, cli
     kk = max(int(k) - 1, 0)
     in_left = np.zeros(len(pool), dtype=bool)          # a child's groups, as a mask over the pool
     for a in order:
+        # The generator's frame keeps its locals between draws, and the branches below that yield before an LP
+        # (a group covering the arm, no group left, an infeasible child) would leave the previous branch's duals
+        # and LP result bound here while the caller searches the new branch: up to 74 MB and 37 MB at the 4.6
+        # million groups of a 40-geo Q = 3 arm. They are dropped as each draw starts.
+        duals = res = None
         j = int(keep[a])
         G = inc[a]
         left_mask = ~inc[:, G].any(axis=1)

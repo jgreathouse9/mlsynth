@@ -13,7 +13,7 @@ import gc
 import weakref
 
 import numpy as np
-from hypothesis import HealthCheck, given, settings, strategies as st
+from hypothesis import HealthCheck, example, given, settings, strategies as st
 
 from mlsynth.utils.pangeo_helpers import columns, cover
 
@@ -120,6 +120,7 @@ def _eager(real):
 @settings(max_examples=30, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 @given(seed=st.integers(0, 10**6), n=st.integers(4, 12), Q=st.integers(1, 3),
        limit=st.sampled_from([0, 1, 7, 50, 10**7]), incumbent=st.sampled_from([np.inf, 1e3, 0.0]))
+@example(seed=2115, n=4, Q=2, limit=7, incumbent=np.inf)     # a group covering the arm, searched after a branch
 def test_property_the_lazy_search_is_the_eager_search_holding_one_branch(seed, n, Q, limit, incumbent):
     """Property: over arms, sizes, node caps and incumbents, the search over branches drawn one at a time returns
     what it returns over the branches built in full first (status, design, bounds, nodes), and no earlier branch's
@@ -150,3 +151,76 @@ def test_property_the_lazy_search_is_the_eager_search_holding_one_branch(seed, n
     assert (lazy.status, lazy.nodes, lazy.upper, lazy.lower) == (eager.status, eager.nodes, eager.upper, eager.lower)
     assert np.array_equal(lazy.rows, eager.rows)
     assert all(a == 0 for a in alive)
+
+
+# --- the generator holds no earlier branch -------------------------------------------------------------------------
+
+def _draw_watching(monkeypatch, pool, root, keep, k):
+    """Draw every branch of _iter_branches as _search_reopt does (the loop names rebound at each draw); after each
+    draw, collect garbage and count the earlier branches' duals and child LP results still alive. Returns the
+    counts per draw and whether each branch had duals."""
+    results, real = [], columns.solve_boxed_lp
+
+    def rec(*a, **kw):
+        out = real(*a, **kw)
+        if kw.get("basis") is not None:              # a child's LP; the parent's is held for the whole level
+            results.append(weakref.ref(out))
+        return out
+    monkeypatch.setattr(columns, "solve_boxed_lp", rec)
+    duals_refs, counts, had = [], [], []
+    seen_results = 0
+    for j, bound, left, duals in columns._iter_branches(pool, root, keep, k, ()):
+        mine = results[seen_results:]                 # this draw's child LP, if it solved one
+        gc.collect()
+        counts.append((sum(r() is not None for r in duals_refs),
+                       sum(r() is not None for r in results[:seen_results])))
+        seen_results = len(results)
+        had.append(duals is not None)
+        if duals is not None:
+            duals_refs.append(weakref.ref(duals))
+        del mine
+    return counts, had
+
+
+def test_a_branch_with_no_residual_lp_holds_no_earlier_branchs_duals(monkeypatch):
+    """Unit: the group that covers the whole arm is drawn after branches with duals and leaves the generator before
+    any LP; when it is drawn, no earlier branch's duals or LP result are alive."""
+    pool, k, root = _setup(2115, 4, 2, T=8)
+    counts, had = _draw_watching(monkeypatch, pool, root, np.arange(len(pool)), k)
+    assert any(had[i] and not had[i + 1] for i in range(len(had) - 1)), "a branch with duals, then one without"
+    assert all(c == (0, 0) for c in counts), f"earlier branches alive at a draw: {counts}"
+
+
+def test_a_branch_with_no_group_left_holds_no_earlier_branch(monkeypatch):
+    """Edge: with the kept groups cut so that some fixed group leaves units no kept group fits, that branch leaves
+    the generator before any LP, and holds nothing of the branch before it."""
+    pool, k, root = _setup(5, 8, 2)
+    rng = np.random.default_rng(0)
+    for _ in range(40):
+        keep = np.flatnonzero(rng.random(len(pool)) < 0.35)
+        if keep.size == 0:
+            continue
+        gen_rows = list(columns._iter_branches(pool, root, keep, k, ()))
+        if any(r[3] is not None for r in gen_rows) and any(r[2].size == 0 for r in gen_rows):
+            break
+    else:  # pragma: no cover - the fixed draws above contain such a subset
+        raise AssertionError("no kept subset with an empty branch")
+    del gen_rows
+    counts, had = _draw_watching(monkeypatch, pool, root, keep, k)
+    assert all(c == (0, 0) for c in counts), f"earlier branches alive at a draw: {counts}"
+
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow,
+                                                                 HealthCheck.function_scoped_fixture])
+@given(seed=st.integers(0, 10**6), n=st.integers(4, 10), Q=st.integers(1, 3), share=st.sampled_from([1.0, 0.6, 0.3]))
+@example(seed=2115, n=4, Q=2, share=1.0)
+def test_property_no_draw_holds_an_earlier_branch(monkeypatch, seed, n, Q, share):
+    """Property: over arms and kept subsets, when any branch is drawn no earlier branch's duals or child LP result
+    are alive, whichever way the branch before it left the generator."""
+    if not columns.feasible(n, Q, 1):
+        return
+    pool, k, root = _setup(seed, n, Q, T=8)
+    rng = np.random.default_rng(seed)
+    keep = np.arange(len(pool)) if share == 1.0 else np.flatnonzero(rng.random(len(pool)) < share)
+    counts, _ = _draw_watching(monkeypatch, pool, root, keep, k)
+    assert all(c == (0, 0) for c in counts), f"earlier branches alive at a draw: {counts}"
