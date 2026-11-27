@@ -37,6 +37,7 @@ def _benjamini_yekutieli_min(p_values: np.ndarray) -> float:
     m \\cdot C(m) / j`; we return that scalar.
     """
     p = np.asarray(p_values, dtype=float).ravel()
+    p = p[np.isfinite(p)]
     m = p.size
     if m == 0:
         return float("nan")
@@ -79,13 +80,18 @@ def fdr_unconfoundedness_test(
         return np.full(T0, np.nan), float("nan")
     Y_stack = np.concatenate(rows_Y)
     X_stack = np.vstack(rows_X)
+    finite_rows = np.isfinite(Y_stack) & np.all(np.isfinite(X_stack), axis=1)
+    Y_fit = Y_stack[finite_rows]
+    X_fit = X_stack[finite_rows]
+    if Y_fit.size <= X_fit.shape[1]:
+        return np.full(T0, np.nan), float("nan")
     try:
-        beta, *_ = np.linalg.lstsq(X_stack, Y_stack, rcond=None)
-        resid = Y_stack - X_stack @ beta
-        sigma = float(np.sqrt((resid ** 2).sum() / max(resid.size - X_stack.shape[1], 1)))
+        beta, *_ = np.linalg.lstsq(X_fit, Y_fit, rcond=None)
+        resid = Y_fit - X_fit @ beta
+        sigma = float(np.sqrt((resid ** 2).sum() / max(resid.size - X_fit.shape[1], 1)))
     except np.linalg.LinAlgError:
-        sigma = float(np.std(Y_stack))
-    if sigma <= 0:
+        sigma = float(np.std(Y_fit))
+    if not np.isfinite(sigma) or sigma <= 0:
         sigma = 1.0
 
     # Per-period v_eta_t = sqrt(1/n_treated + sum_i w_{t,i}^2).
@@ -95,9 +101,10 @@ def fdr_unconfoundedness_test(
     from math import erf, sqrt
     z = gap[:T0] / np.maximum(sigma * v_eta[:T0], 1e-12)
     # 2 * (1 - Phi(|z|)).
-    p_values = np.empty(T0)
+    p_values = np.full(T0, np.nan)
     for i, zi in enumerate(z):
-        p_values[i] = 2.0 * (1.0 - 0.5 * (1.0 + erf(abs(zi) / sqrt(2.0))))
+        if np.isfinite(zi):
+            p_values[i] = 2.0 * (1.0 - 0.5 * (1.0 + erf(abs(zi) / sqrt(2.0))))
     min_p_adj = _benjamini_yekutieli_min(p_values)
     return p_values, min_p_adj
 
@@ -171,20 +178,46 @@ def normalised_placebo_test(
         )
         Y0_hat_p = np.zeros(inputs.T)
         w_p_mat = np.zeros((inputs.T, n_p_donors))
+        p = placebo_inputs.X.shape[2]
         for t in range(inputs.T):
-            Z1, Z0 = _build_period_targets(placebo_inputs, t, Y0_hat_p)
-            if Z1.size == 0:
-                w = np.full(n_p_donors, 1.0 / n_p_donors)
+            Z1, Z0, active = _build_period_targets(placebo_inputs, t, Y0_hat_p)
+            n_active = int(active.sum())
+            if Z1.size == 0 or n_active == 0:
+                outcome_ok = np.isfinite(placebo_inputs.Y[n_treated:, t])
+                w_full = np.zeros(n_p_donors)
+                if outcome_ok.any():
+                    w_full[outcome_ok] = 1.0 / outcome_ok.sum()
             else:
-                V_diag = V_p[t, : Z0.shape[0]]
+                use_lag = (Z0.shape[0] == 1 + p)
+                if use_lag:
+                    V_diag = V_p[t, : 1 + p]
+                else:
+                    V_diag = V_p[t, 1 : 1 + p]
                 V_diag = np.where(V_diag > 1e-12, V_diag, 1.0)
-                w, _ = solve_dsc_weights(Z1, Z0, V_diag, el_tolerance=el_tolerance)
-            w_p_mat[t] = w
-            Y0_hat_p[t] = float(placebo_inputs.Y[n_treated:, t] @ w)
-        Y_treated_mean_p = placebo_inputs.Y[:n_treated].mean(axis=0)
+                w_active, _ = solve_dsc_weights(
+                    Z1, Z0, V_diag, el_tolerance=el_tolerance
+                )
+                w_full = np.zeros(n_p_donors)
+                w_full[active] = w_active
+            w_p_mat[t] = w_full
+            Y_t_donors = placebo_inputs.Y[n_treated:, t]
+            Y_t_donors = np.where(np.isfinite(Y_t_donors), Y_t_donors, 0.0)
+            Y0_hat_p[t] = float(Y_t_donors @ w_full)
+        Y_tr_p = placebo_inputs.Y[:n_treated]
+        tr_ok = np.isfinite(Y_tr_p)
+        tr_counts = tr_ok.sum(axis=0)
+        Y_treated_mean_p = np.full(inputs.T, np.nan)
+        valid_t = tr_counts > 0
+        Y_treated_mean_p[valid_t] = (
+            np.where(tr_ok[:, valid_t], Y_tr_p[:, valid_t], 0.0).sum(axis=0)
+            / tr_counts[valid_t]
+        )
         gap_p = Y_treated_mean_p - Y0_hat_p
-        placebo_raw[r] = float(gap_p[inputs.T0:].mean())
+        post_gap = gap_p[inputs.T0:]
+        finite_post = post_gap[np.isfinite(post_gap)]
+        placebo_raw[r] = float(finite_post.mean()) if finite_post.size > 0 else float("nan")
 
     # SE is just the sample SD of the placebo ATTs (per Section 3.2 last paragraph).
-    se = float(np.std(placebo_raw, ddof=1))
+    finite_raw = placebo_raw[np.isfinite(placebo_raw)]
+    se = float(np.std(finite_raw, ddof=1)) if finite_raw.size > 1 else float("nan")
     return placebo_raw, se
