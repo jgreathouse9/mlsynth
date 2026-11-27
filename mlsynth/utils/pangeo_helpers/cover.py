@@ -96,7 +96,8 @@ CERTIFY_NODE_LIMIT = 12_000_000
 CERTIFY_STEP = 0.01
 #: After a proof stopped by its cap and before the iterative cutoff, POPMUSIC (popmusic.improve) re-covers clusters of
 #: the best design's groups exactly, placing at most this many nodes (``popmusic_node_limit`` on the exact path; 0
-#: skips it). At 120 geos and Q = 2 it lowered the start design from 10.033 to 9.0416 within 11.0 million nodes.
+#: skips it). At 120 geos and Q = 2 it lowered the capped proof's design from 9.440 to 9.208 with the whole budget,
+#: and the certified gap from 8.44% to 6.13%.
 POPMUSIC_NODE_LIMIT = 12_000_000
 #: The search over the first window (columns._search_window) places at most this many nodes, and at most the search
 #: node limit; the window of a 50-geo Q = 2 seasonal arm took 1.0 million.
