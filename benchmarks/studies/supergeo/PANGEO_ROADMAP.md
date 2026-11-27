@@ -397,8 +397,8 @@ The work, in order, each measured by nodes and time to a fixed incumbent:
    in each of 15 rounds, but each cut is dense (every kept group) and the 15
    close 9% (to 7.61%), tailing to 0.01 points a round. Rank-1 cuts are not the
    lever at Q = 2; on a 20-market Q = 4 arm subset-row cuts closed a quarter of
-   the gap and saved 25% of the nodes, so they are kept for larger groups. The
-   order below moves branching and finding ahead of further cut work at Q = 2.
+   the gap and saved 25% of the nodes, so they are kept for larger groups. At
+   Q = 2, branching (item 3) and finding (item 4) come before further cut work.
 3. Branching. Ryan-Foster branching on the pair of units with the largest
    fractional mass in the volume algorithm's averaged primal x-bar, same group
    or not (the pair rule of Olariu and Frasinaru, Prop. 4.2, pp. 469-470),
