@@ -361,6 +361,27 @@ def test_a_better_popmusic_design_is_the_one_returned_with_its_certified_gap(mon
     assert d["popmusic_nodes"] == 5
 
 
+def test_the_rounds_start_from_popmusics_design_not_the_proofs(monkeypatch):
+    """The certify rounds receive POPMUSIC's design and bound, whatever the proof held: with POPMUSIC stubbed to
+    return the seed partition (a different exact cover), the rounds start from exactly that design and bound."""
+    n, Q = 14, 3
+    Y, idx, pool, k, root = _arm(2, n, Q)
+    _capped(monkeypatch)
+    seed_rows = _seed_design(pool, n)
+    starts, real_cert = [], columns._certify
+    monkeypatch.setattr(popmusic, "improve", lambda pl, rt, kk, q, rows, paths, limit, **kw: starts.append(
+        np.array(rows)) or dict(rows=seed_rows, upper=_upper(pool, seed_rows), start_upper=_upper(pool, rows),
+                                passes=1, subproblems=1, improved=1, nodes=0, seconds=0.0))
+    certs = []
+    monkeypatch.setattr(columns, "_certify", lambda pl, rt, kk, q, z_up, rows, limit, **kw: certs.append(
+        (z_up, sorted(np.asarray(rows).tolist()))) or real_cert(pl, rt, kk, q, z_up, rows, limit, **kw))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", PangeoCertifiedGapWarning)
+        columns.solve_exact(idx, Y, Q, certify_node_limit=1)
+    assert starts and sorted(starts[0].tolist()) != sorted(seed_rows.tolist())
+    assert certs == [(_upper(pool, seed_rows), sorted(seed_rows.tolist()))]
+
+
 def test_a_zero_popmusic_budget_skips_it(monkeypatch):
     n, Q = 14, 3
     Y, idx, *_ = _arm(2, n, Q)
