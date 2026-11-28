@@ -63,7 +63,8 @@ python benchmarks/run_benchmarks.py --all     # durable paper/reference validati
    A `plot_*` helper returns its `Figure` and does not call `plt.show()`; library
    code does not `print`. A diagnostic the caller might act on becomes a typed
    field on the result (usually `MethodDetailsResults`) or a `warnings.warn` —
-   never stdout, and never discarded.
+   never stdout, and never discarded. The one exception is a solver's log, and
+   only when the caller asks for it (invariant 10).
 8. **Closed forms first.** When a problem, or a case of it, has a closed-form
    solution, solve that case in closed form, not with an iterative or
    combinatorial solver, in every solver: optimisation, matching, partitioning,
@@ -100,6 +101,25 @@ python benchmarks/run_benchmarks.py --all     # durable paper/reference validati
    optimum on 14 of 16 panels, while scoring was 1% of the solve's time. The
    residual formed directly from centred data, with rigorous bounds, replaced it
    (branch `claude/pangeo-columns-least-squares`).
+10. **Solvers are silent by default and loggable on request.** Every solver
+   written here (an interior point or first-order LP method, column
+   generation, a dual ascent, a branch and bound, a local search) takes a
+   `verbose` option, off by default, and exposed through the estimator's
+   config when the solver runs inside one. Off, it produces no output of any
+   kind. On, it reports while it runs, not after: one line per iteration or
+   node batch, flushed as it is written, carrying whatever the method's
+   progress turns on (iteration, objective, bound and gap, primal and dual
+   residuals, step lengths, the size of the active set or support, columns or
+   cuts added and removed, elapsed time). The lines go through the `logging`
+   module, from a module-level `logging.getLogger(__name__)` (INFO for the
+   iteration lines, DEBUG for anything finer), never through `print`; with
+   `verbose` on and no handler configured by the caller, the solver attaches a
+   stderr handler to its own logger, so the log appears without logging set
+   up. The tests assert both sides: nothing is emitted by default, and the
+   per-iteration lines appear with `verbose` on. Prototype and study scripts
+   for a new solver follow the same rule in their own form: progress written
+   per iteration to an unbuffered log file that can be read while the run is
+   going, not piped through a filter that holds it until the end.
 
 ## Design doctrine (the Unix rules)
 
