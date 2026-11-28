@@ -756,6 +756,80 @@ each, gated union moves on the blank window `frac_E`, then `fast_partition`
 deleted. Acceptance: on the 4b panels, held-out cost within 10% of the whole-arm
 design where one exists, and no fallback warning past `MAX_COLUMNS`.
 
+#### 4c: streamed scoring, the exact path past the column limit (measured, not built)
+
+`MAX_COLUMNS` is a memory limit, not a time limit: the exact path scores every
+group once and keeps all of them (members, cost, both bounds, split; about 64
+bytes a group at Q = 2, plus the root LP's and the search's working copies).
+Scoring itself is cheap, so groups can be scored as they are enumerated and
+kept only when they can matter. Measured single-threaded and alone on the
+machine, with PANGEO's own compiled `_score_group` in a streaming loop
+(scratch `q34/stream_score.py`, `q34/stream_cg.py`; seasonal panels from
+`make_seasonal_sales_panel`, seed 0, T = 60, design window the first 42
+periods; the stacked panel is the weather panel of the Tucker POC below):
+
+- One streamed pass equals `score_columns`: at 60 markets the same 523,625
+  groups, the same sum of costs and the same minimum, bit for bit.
+- Pass time. At 120 markets, 8,502,550 groups in 6.3 s (1.34 million a
+  second), against 6.5 s for `score_columns`, which stores them all; at 212
+  markets, 83,391,631 groups in 60.8 s. On the stacked three-series panel (156
+  columns per market), 11.1 s at 120 markets and 106.6 s at 212. A reduced-cost
+  test inside the loop adds 1 to 2 s per pass.
+- The root LP streamed. Column generation as `root_lp` runs it, but each round's
+  pricing is one streamed pass that keeps only the most negative reduced costs;
+  the Lagrangian bound with the final duals is one more pass, with the rounding
+  bounds of `lagrangian_bound`, and elimination at an incumbent z one more.
+
+| Markets | Rounds (streamed / stored) | LP value and bound L | Survivors at z (streamed / stored) | Time (streamed / stored) |
+| --- | --- | --- | --- | --- |
+| 40 | 6 / 6 | 4.165353, equal | 1,403 / 1,403 of 102,050 at the optimum 4.889056 | 0.7 s / 0.2 s |
+| 120 | 13 / 14 | 8.306326, equal | 210,300 / 210,217 of 8,502,550 at 9.426645 | 94 + 6 s / 7 + 11 s |
+
+  The survivor counts at 120 differ because the LP has more than one optimal
+  dual; both sets are valid. Of the 94 s, 81 s are the passes and 0.7 s the
+  LPs, and the first seven rounds only climb from the seeds' LP value (10,157)
+  to 31.8.
+
+What it opens, and what it does not:
+
+- Elimination is rigorous, so the best design over the survivors is the best
+  design overall. At 120 markets 2.5% of the groups survive; if 211 markets is
+  similar, about 2 million, within the column limit, and 211 markets becomes
+  the problem the exact path already solves below 148: root bound, elimination,
+  the search, POPMUSIC and the certified gap.
+- It does not narrow the root LP's gap, which is what has stopped proofs past
+  about 80 markets at Q = 2 (8.31 against the best known 9.04 at 120 markets,
+  8%; the cuts and branching rules of phase 3b closed at most 14% of it, RLT
+  63% at 8,392 s). On seasonal panels the deliverable at 211 markets is a
+  certified gap, not a proof. Panels whose markets fall into latent groups had
+  root gaps of 1.4 to 4.6% and proofs at 120 markets (phase 3b), so real DMA
+  panels may do better; only a measurement on one says.
+- The MDE grows with about the square root of the design's cost, so a
+  certified 5% gap bounds the MDE within about 2.5% of the optimum's.
+
+Avenues, in order:
+
+1. Certified designs at 211 markets: streamed root LP, elimination at a good
+   z (4b's strata with their exact re-solves supply it, and a better z leaves
+   fewer survivors), then the existing search on the survivors. Unmeasured
+   engineering: parts of the search locate a group by its position in the full
+   enumeration (`column_index`), so it cannot yet run on a pool of survivors
+   alone; the first step is to find every such place. Acceptance: at 211
+   markets, a design with a certified gap and no fallback warning.
+2. Size bands or regional constraints (the "Later" item below): groups only
+   among similar-sized or nearby markets. They shrink the problem and may
+   narrow the root gap, since cheap groups can no longer cancel across distant
+   markets, which is what decides whether a proof is reachable.
+3. Stronger relaxations on the survivors only. RLT and subset-row cuts were
+   too expensive over every group; over a few million survivors they may not
+   be. Unmeasured.
+4. Speed. The passes are 86% of the time and score groups independently, so
+   they split across threads; seeding the LP with a good design's groups should
+   remove the climbing rounds; and the projected pricing filter (the Tucker item
+   below) skips exact scoring for groups that cannot enter a round. Estimated
+   at 15 to 25 minutes for the root LP at 211 markets as it stands, from 61 s a
+   pass and the round counts above.
+
 ### Phase 5: power analysis
 
 The variance of the design's iROAS estimate has a closed form, and the window it
@@ -1262,11 +1336,33 @@ Recorded from discussion, not designed or measured.
   of loadings across all the variables, an embedding for 4b's strata when
   there is more than one series per market (phase 5d's several KPIs). Only an
   embedding: 4b's measurements say the strata must be repaired by the exact
-  re-solves and judged on held-out cost, whatever the embedding.
+  re-solves and judged on held-out cost, whatever the embedding. The partial
+  Tucker decomposition of Sergin et al. (INFORMS J. Data Sci. 4(1), 2025,
+  section 3.3, eq. (1), p. 39) compresses only the time and variable modes and
+  keeps each market's core slice; with orthonormal factors, distances between
+  core slices are projected distances. First measurements (scratch
+  `q34/tucker_poc.py`; sales, temperature and rainfall loading on seasonal
+  demand factors, each centred per market and scaled to sales, weather weighted
+  0.25, stacked into one row per market):
+  - The stacked rows are PANGEO's own objective: scoring them reproduces the
+    group costs to a relative 2.5e-15.
+  - Every split's cost on the embedding is a lower bound on its exact cost.
+    At 24 markets it is loose: a median 0.71 of the exact cost with an
+    8-dimensional Tucker core, 0.91 with 8-dimensional PCA of the stacked rows
+    (Eckart-Young makes PCA the tighter at equal dimension). With the exact
+    root duals, 1,113 (Tucker) and 445 (PCA) of 12,926 groups survive
+    elimination against 30 with exact costs, so the bound does not replace
+    exact scoring for elimination.
+  - Its use is as a pricing filter in 4c: a group whose projected reduced cost
+    is nonnegative at the round's duals cannot enter the round, so only the
+    rest need exact scoring. PCA rejected 96.6% of groups at 24 markets with
+    the exact duals. The strata comparison (sales-only PCA, the Tucker core,
+    the market-mode factor rows LRRHTD clusters on (Zhang et al., IEEE Signal Process. Lett. 25(3), 2018, Algorithm 1, step 16), the true communities, each repaired by
+    the exact re-solves) is still running.
 
 ## Order and dependencies
 
-Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 0c (the general solver against the closed form on pairs: heuristic stopping, odd-set cuts, the matching oracles), then 1 (independent, small), then 2 and 3 in sequence, then 4 (4a, then 4b). Phase 3b follows 3, its items in their listed order, with threads after all of them. Phase 5's
+Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 0c (the general solver against the closed form on pairs: heuristic stopping, odd-set cuts, the matching oracles), then 1 (independent, small), then 2 and 3 in sequence, then 4 (4a, then 4b, then 4c, whose z comes from 4b). Phase 3b follows 3, its items in their listed order, with threads after all of them. Phase 5's
 closed form and backtest can start after phase 1 and run beside 2 to 4; its
 Trimmed Match simulations follow phase 6, and phase 6b follows phase 6. The Trimmed Match benchmark (phase 7)
 lands with phase 6. Phases 5b, 5c and 5d follow phase 5's held-out MDE, which

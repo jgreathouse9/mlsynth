@@ -88,3 +88,29 @@ read.
   author list. The journal version (Foundations and Trends in Machine Learning
   2(3), 235-274, as Shaw cites it) was not read, so the check is against the
   arXiv version.
+
+## sergin2025lrtsd
+- Reference: Sergin, N. D., Hu, J., Li, Z., Zhang, C., Tsung, F., & Yan, H. (2025).
+  "Low-Rank Robust Subspace Tensor Clustering for Metro Passenger Flow
+  Modeling." INFORMS Journal on Data Science 4(1), 33-50.
+  doi:10.1287/ijds.2022.0028.
+- Read: sections 1 to 3.4 (pp. 33-40), from the PDF's extracted text, page
+  numbers from the running heads.
+- Used for: the partial Tucker decomposition on the non-clustering modes,
+  L = C x_2 U_2 x_3 U_3 with a core C in R^{N x P2 x P3} that keeps the sample
+  mode, orthonormal U_2 and U_3, and clustering done on the core (section 3.3,
+  eq. (1), p. 39). The roadmap uses only this embedding; the paper's
+  self-expressive subspace clustering and sparse anomaly term are not used.
+- Checks: none second-hand.
+
+## zhang2018lrrhtd
+- Reference: Zhang, J., Li, X., Jing, P., Liu, J., & Su, Y. (2018). "Low-Rank
+  Regularized Heterogeneous Tensor Decomposition for Subspace Clustering."
+  IEEE Signal Processing Letters 25(3), 333-337.
+- Read: the whole letter, from the PDF's extracted text.
+- Used for: its clustering step is k-means on the rows of the low-rank
+  sample-mode factor Z (section III, Algorithm 1, step 16), the embedding the
+  Tucker POC compares against. Its experiments are two face-image datasets
+  (CBCL, ORL) scored against image labels.
+- Checks: none second-hand.
+
