@@ -25005,3 +25005,59 @@ timeout = 900.0
   find = "                        popmusic_nodes=pm[\"nodes\"])"
   replace = "                        popmusic_nodes=0)"
   models = "the diagnostics reporting no POPMUSIC work after it ran"
+
+
+[[target]]
+name = "pangeo-power-weights"
+module-path = "mlsynth/utils/pangeo_helpers/power.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_power_weights.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "power-weights-pairs-by-count"
+  find = "    w = np.array([p[\"weight\"] for p in pairs], dtype=float)\n"
+  replace = "    w = np.array([p[\"n_t\"] for p in pairs], dtype=float)\n"
+  models = "the MDE of a count-weighted estimator reported beside a population-weighted ATT (the defect fixed here)"
+
+  [[target.mutant]]
+  id = "the-weights-are-ignored"
+  find = "    if unit_weights is None:\n        return float(len(treated))\n"
+  replace = "    if True:\n        return float(len(treated))\n"
+  models = "unit_weights accepted and dropped, every pair weighted by its treated count"
+
+  [[target.mutant]]
+  id = "a-missing-weight-is-taken-as-zero"
+  find = "        if u not in unit_weights:\n            raise MlsynthDataError("
+  replace = "        if False:\n            raise MlsynthDataError("
+  models = "a treated unit without a weight failing as a KeyError, not a reported data error"
+
+  [[target.mutant]]
+  id = "a-non-positive-weight-is-accepted"
+  find = "        if not (np.isfinite(v) and v > 0.0):\n"
+  replace = "        if not np.isfinite(v):\n"
+  models = "a zero or negative weight accepted, silently removing or inverting a pair's share"
+
+  [[target.mutant]]
+  id = "a-non-finite-weight-is-accepted"
+  find = "        if not (np.isfinite(v) and v > 0.0):\n"
+  replace = "        if not (v > 0.0):\n"
+  models = "an infinite weight accepted, so one pair takes the whole level and the others NaN"
+
+  [[target.mutant]]
+  id = "n-treated-reports-the-weight"
+  find = "    n_treated = int(sum(p[\"n_t\"] for p in pairs))\n"
+  replace = "    n_treated = int(sum(p[\"weight\"] for p in pairs))\n"
+  models = "PowerCurve.n_treated reporting the treated population, not the treated unit count"
+
+
+[[target]]
+name = "pangeo-power-weights-pipeline"
+module-path = "mlsynth/utils/pangeo_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_power_weights.py -q -p no:cacheprovider -x -W ignore"
+timeout = 600.0
+
+  [[target.mutant]]
+  id = "the-pipeline-drops-the-weight-column"
+  find = "            unit_weights=(None if uw is None\n"
+  replace = "            unit_weights=(None if True\n"
+  models = "weight_col reaching the design and the ATT, never the power analysis"
