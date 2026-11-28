@@ -206,3 +206,53 @@ def test_property_the_exact_default_costs_at_most_the_heuristic(seed, n, Q):
     heur = fp_mod.fast_partition(np.arange(n), Yw, Q)
     hcost = _cost(Yw, names, [([names[u] for u in g["side_a"]], [names[u] for u in g["side_b"]]) for g in heur])
     assert exact <= hcost * (1 + 1e-9) + 1e-9
+
+
+# --- option (a): the automatic Q sweep stops at the largest Q the exact path scores ---------------------------------
+
+def _inputs(sizes, T=20, seed=0):
+    from mlsynth.utils.pangeo_helpers import prepare_pangeo_inputs
+    rng = np.random.default_rng(seed)
+    rows = []
+    for a, m in zip("ABC", sizes):
+        Y = rng.standard_normal((m, T)).cumsum(axis=1)
+        rows += [(f"{a}{i}", t, float(Y[i, t]), a) for i in range(m) for t in range(T)]
+    df = pd.DataFrame(rows, columns=["unit", "time", "sales", "arm"])
+    return prepare_pangeo_inputs(df=df, **BASE)
+
+
+def test_the_sweep_cap_is_the_largest_q_the_largest_arm_can_score(monkeypatch):
+    inp = _inputs([10, 14])
+    monkeypatch.setattr(columns, "MAX_COLUMNS", columns.count_columns(14, 2))
+    assert pipeline._q_upper(inp) == 2                   # Q = 3 at 14 markets has more groups; Q = 2 fits exactly
+    monkeypatch.setattr(columns, "MAX_COLUMNS", columns.count_columns(14, 2) - 1)
+    assert pipeline._q_upper(inp) == 1
+
+
+def test_the_sweep_designs_no_q_past_the_cap_and_never_falls_back(monkeypatch):
+    n = 12
+    monkeypatch.setattr(columns, "MAX_COLUMNS", columns.count_columns(n, 2))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", PangeoHeuristicFallbackWarning)
+        res = _fit(_df(n=n))                             # max_supergeo_size None: the automatic sweep
+    assert max(row["q"] for row in res.metadata["q_sweep"]) == 2
+    assert not res.metadata["heuristic_arms"]
+
+
+def test_the_sweep_keeps_q_1_when_even_pairs_exceed_the_limit(monkeypatch):
+    monkeypatch.setattr(columns, "MAX_COLUMNS", 0)
+    assert pipeline._q_upper(_inputs([8])) == 1
+
+
+@settings(max_examples=60, deadline=None)
+@given(sizes=st.lists(st.integers(2, 40), min_size=1, max_size=3), limit=st.integers(0, 3_000_000))
+def test_property_the_sweep_cap_respects_every_bound(sizes, limit):
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(columns, "MAX_COLUMNS", limit)
+        q = pipeline._q_upper(_inputs(sizes, T=6))
+    big, small = max(sizes), min(sizes)
+    assert 1 <= q <= max(1, min((small + 1) // 2, pipeline._AUTO_Q_CAP))
+    if q > 1:
+        assert columns.count_columns(big, q) <= limit           # every arm can be scored at the cap
+    if q < min((small + 1) // 2, pipeline._AUTO_Q_CAP):
+        assert columns.count_columns(big, q + 1) > limit        # and the next Q could not be

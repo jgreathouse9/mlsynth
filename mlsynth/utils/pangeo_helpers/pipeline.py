@@ -529,9 +529,18 @@ def _select_q(sweep, *, method: str = "mde_min", q_min_pairs: int = 1):
 
 def _q_upper(inputs: PangeoInputs) -> int:
     """Upper bound on Q for the sweep: the range over which Q meaningfully
-    trades matching granularity against pair count for the smallest arm."""
-    min_arm = min(int(idx.size) for idx in inputs.arm_units.values())
-    return max(1, min((min_arm + 1) // 2, _AUTO_Q_CAP))
+    trades matching granularity against pair count for the smallest arm,
+    stopped at the largest Q at which the largest arm's candidate groups fit
+    within ``columns.MAX_COLUMNS``, so that every Q the sweep designs is
+    designed by the exact path (a larger Q would fall back to the clustering
+    heuristic, whose designs measured 5 to 26 times the exact path's cost and
+    would be compared with exact designs). Q = 1 is always kept."""
+    sizes = [int(idx.size) for idx in inputs.arm_units.values()]
+    q = max(1, min((min(sizes) + 1) // 2, _AUTO_Q_CAP))
+    biggest = max(sizes)
+    while q > 1 and _columns.count_columns(biggest, q) > _columns.MAX_COLUMNS:
+        q -= 1
+    return q
 
 
 def _sweep_designs(inputs: PangeoInputs, *, q_upper: int, run_kwargs: dict):
