@@ -7,9 +7,9 @@ Jiang, Stein & Ying 2023). The Supergeo idea -- group geos into composite
 pair, without trimming any geo -- is retained, including its set-
 partitioning mixed-integer program.
 
-The departure is the **matching objective**. Supergeo (and the scalable
-OSD variant) match on a *scalar* aggregate (the summed response) or a few
-summary covariate balances. PANGEO instead matches on the full
+The departure is the **matching objective**. Supergeo matches on a
+*scalar* aggregate (the summed response) or a few summary covariate
+balances. PANGEO instead matches on the full
 pre-treatment **trajectory**: it chooses the partition whose treatment and
 control halves are as *parallel as possible* over the pre-period, scored
 by the difference-in-differences pre-period residual sum of squares (the
@@ -130,7 +130,6 @@ class PANGEO:
                 inputs=inputs,
                 max_supergeo_size=self.max_supergeo_size,
                 min_pairs=self.min_pairs,
-                fast=self.fast,
                 fast_candidates=self.fast_candidates,
                 objective=self.objective,
                 recency_decay=self.recency_decay,
@@ -151,6 +150,7 @@ class PANGEO:
                 assignment_seed=self.config.assignment_seed,
                 certify_node_limit=self.config.certify_node_limit,
                 popmusic_node_limit=self.config.popmusic_node_limit,
+                search_node_limit=self.config.search_node_limit,
             )
 
             if post_df is not None and not post_df.empty:

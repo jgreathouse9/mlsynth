@@ -18849,27 +18849,21 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-q-sweep-on-the-automatic-backend"
-  find = "        mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n        popmusic_node_limit=popmusic_node_limit,\n    )\n    sweep, results"
-  replace = "        mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n        popmusic_node_limit=popmusic_node_limit,\n    )\n    sweep, results"
+  find = "        mip_backend=mip_backend, mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n        popmusic_node_limit=popmusic_node_limit,\n        search_node_limit=search_node_limit,\n    )\n    sweep, results"
+  replace = "        mip_rel_gap=mip_rel_gap,\n        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n        popmusic_node_limit=popmusic_node_limit,\n        search_node_limit=search_node_limit,\n    )\n    sweep, results"
   models = "automatic Q selection designing every Q on the automatic backend whatever was configured"
 
   [[target.mutant]]
   id = "groups-beyond-pairs-scored-by-the-paper-objective"
-  find = "    if objective == \"supergeo_total\" and (fast or max_supergeo_size != 1):"
+  find = "    if objective == \"supergeo_total\" and max_supergeo_size != 1:"
   replace = "    if False:"
-  models = "run_pangeo accepting supergeo_total with Q > 1 (a per-half cap, not the paper's group cap) or on the fast path"
+  models = "run_pangeo accepting supergeo_total with Q > 1 (a per-half cap, not the paper's group cap)"
 
 [[target]]
 name = "pangeo-supergeo-total-config"
 module-path = "mlsynth/utils/pangeo_helpers/config.py"
 test-command = "python -m pytest mlsynth/tests/test_pangeo_supergeo_total.py -q -p no:cacheprovider -x"
 timeout = 600.0
-
-  [[target.mutant]]
-  id = "the-fast-path-allowed"
-  find = "            if self.fast:"
-  replace = "            if False:"
-  models = "supergeo_total accepted with fast=True, whose trajectory clustering does not optimise it"
 
   [[target.mutant]]
   id = "groups-beyond-pairs-allowed"
@@ -19425,14 +19419,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "an-explicit-backend-overridden"
-  find = "    pairs_path = (not fast) and max_supergeo_size == 1 and mip_backend == \"auto\""
-  replace = "    pairs_path = (not fast) and max_supergeo_size == 1"
+  find = "    pairs_path = max_supergeo_size == 1 and mip_backend == \"auto\""
+  replace = "    pairs_path = max_supergeo_size == 1"
   models = "mip_backend highspy or cvxpy ignored at Q = 1"
 
   [[target.mutant]]
   id = "larger-supergeos-sent-to-the-matcher"
-  find = "    pairs_path = (not fast) and max_supergeo_size == 1 and mip_backend == \"auto\""
-  replace = "    pairs_path = (not fast) and mip_backend == \"auto\""
+  find = "    pairs_path = max_supergeo_size == 1 and mip_backend == \"auto\""
+  replace = "    pairs_path = mip_backend == \"auto\""
   models = "Q >= 2 groups handed to the pairs path"
 
   [[target.mutant]]
@@ -19467,8 +19461,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-solver-label-not-updated"
-  find = "                   if fast else \"sorted pairing (closed form)\" if closed_form"
-  replace = "                   if fast else \"cvxpy/HiGHS set-partitioning MIP\" if closed_form"
+  find = "                   if fell_back else \"sorted pairing (closed form)\" if closed_form"
+  replace = "                   if fell_back else \"cvxpy/HiGHS set-partitioning MIP\" if closed_form"
   models = "metadata naming the MIP for a design the closed form made"
 
 [[target]]
@@ -19551,14 +19545,14 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "the-seed-not-given-to-the-automatic-sweep"
-  find = "        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n        popmusic_node_limit=popmusic_node_limit,\n    )\n    sweep, results = _sweep_designs("
-  replace = "        mip_abs_gap=mip_abs_gap,\n        certify_node_limit=certify_node_limit,\n        popmusic_node_limit=popmusic_node_limit,\n    )\n    sweep, results = _sweep_designs("
+  find = "        mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n        certify_node_limit=certify_node_limit,\n        popmusic_node_limit=popmusic_node_limit,\n        search_node_limit=search_node_limit,\n    )\n    sweep, results = _sweep_designs("
+  replace = "        mip_abs_gap=mip_abs_gap,\n        certify_node_limit=certify_node_limit,\n        popmusic_node_limit=popmusic_node_limit,\n        search_node_limit=search_node_limit,\n    )\n    sweep, results = _sweep_designs("
   models = "automatic Q's candidate designs drawn with seed 0, so the returned design's labels ignore the seed"
 
   [[target.mutant]]
   id = "the-seed-not-given-to-the-diagnostic-sweep"
-  find = "            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n            certify_node_limit=certify_node_limit,\n            popmusic_node_limit=popmusic_node_limit,\n        )\n        metadata[\"q_sweep\"]"
-  replace = "            mip_abs_gap=mip_abs_gap,\n            certify_node_limit=certify_node_limit,\n            popmusic_node_limit=popmusic_node_limit,\n        )\n        metadata[\"q_sweep\"]"
+  find = "            mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,\n            certify_node_limit=certify_node_limit,\n            popmusic_node_limit=popmusic_node_limit,\n            search_node_limit=search_node_limit,\n        )\n        metadata[\"q_sweep\"]"
+  replace = "            mip_abs_gap=mip_abs_gap,\n            certify_node_limit=certify_node_limit,\n            popmusic_node_limit=popmusic_node_limit,\n            search_node_limit=search_node_limit,\n        )\n        metadata[\"q_sweep\"]"
   models = "the fixed-Q fit's diagnostic sweep designed with seed 0, so its row for the fitted Q disagrees with the fit"
 
 [[target]]
@@ -20463,8 +20457,8 @@ timeout = 600.0
 
   [[target.mutant]]
   id = "the-gaps-not-passed-to-the-mip"
-  find = "                mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,\n                solve=solve_partition, certify_node_limit=certify_node_limit,\n                popmusic_node_limit=popmusic_node_limit)\n"
-  replace = "                solve=solve_partition, certify_node_limit=certify_node_limit,\n                popmusic_node_limit=popmusic_node_limit)\n"
+  find = "                mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,\n                solve=solve_partition, certify_node_limit=certify_node_limit,\n                popmusic_node_limit=popmusic_node_limit, search_node_limit=search_node_limit)\n"
+  replace = "                solve=solve_partition, certify_node_limit=certify_node_limit,\n                popmusic_node_limit=popmusic_node_limit, search_node_limit=search_node_limit)\n"
   models = "the config's gaps stopping at the pipeline"
 
   [[target.mutant]]
@@ -20697,8 +20691,8 @@ timeout = 900.0
 
   [[target.mutant]]
   id = "pipeline-solve-not-passed"
-  find = "                solve=solve_partition, certify_node_limit=certify_node_limit,\n                popmusic_node_limit=popmusic_node_limit)\n"
-  replace = "                solve=None, certify_node_limit=certify_node_limit,\n                popmusic_node_limit=popmusic_node_limit)\n"
+  find = "                solve=solve_partition, certify_node_limit=certify_node_limit,\n                popmusic_node_limit=popmusic_node_limit, search_node_limit=search_node_limit)\n"
+  replace = "                solve=None, certify_node_limit=certify_node_limit,\n                popmusic_node_limit=popmusic_node_limit, search_node_limit=search_node_limit)\n"
   models = "the restricted MIPs solved past pipeline.solve_partition, so a backend patch there does not reach them"
 
 
@@ -25061,3 +25055,120 @@ timeout = 600.0
   find = "            unit_weights=(None if uw is None\n"
   replace = "            unit_weights=(None if True\n"
   models = "weight_col reaching the design and the ATT, never the power analysis"
+
+
+[[target]]
+name = "pangeo-default-exact-pipeline"
+module-path = "mlsynth/utils/pangeo_helpers/pipeline.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_default_exact.py -q -p no:cacheprovider -x -W ignore::DeprecationWarning"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "every-group-arm-takes-the-heuristic"
+  find = "        elif _columns.count_columns(int(idx.size), max_supergeo_size) > _columns.MAX_COLUMNS:\n"
+  replace = "        elif True:\n"
+  models = "the default reverting to the clustering heuristic, so no arm with groups is designed by the exact path"
+
+  [[target.mutant]]
+  id = "an-arm-at-the-limit-falls-back"
+  find = "        elif _columns.count_columns(int(idx.size), max_supergeo_size) > _columns.MAX_COLUMNS:\n"
+  replace = "        elif _columns.count_columns(int(idx.size), max_supergeo_size) >= _columns.MAX_COLUMNS:\n"
+  models = "an arm with exactly MAX_COLUMNS groups, which the exact path can score, sent to the heuristic"
+
+  [[target.mutant]]
+  id = "the-fallback-says-nothing"
+  find = "            warnings.warn(\n                f\"PANGEO: arm {arm!r} has"
+  replace = "            (lambda *a, **k: None)(\n                f\"PANGEO: arm {arm!r} has"
+  models = "an uncertified heuristic design returned without the PangeoHeuristicFallbackWarning"
+
+  [[target.mutant]]
+  id = "the-fallback-arm-goes-unrecorded"
+  find = "            fell_back.append(arm)\n"
+  replace = "            pass\n"
+  models = "results.metadata naming no heuristic arm and the exact solver after a fallback"
+
+  [[target.mutant]]
+  id = "the-search-budget-is-not-passed"
+  find = "                popmusic_node_limit=popmusic_node_limit, search_node_limit=search_node_limit)\n"
+  replace = "                popmusic_node_limit=popmusic_node_limit)\n"
+  models = "search_node_limit accepted and recorded while the exact path runs its own module default"
+
+  [[target.mutant]]
+  id = "the-fixed-q-sweep-drops-the-search-budget"
+  find = "            search_node_limit=search_node_limit,\n        )\n        metadata[\"q_sweep\"]"
+  replace = "        )\n        metadata[\"q_sweep\"]"
+  models = "the audit sweep beside a fixed Q designing each Q with the module default budget"
+
+  [[target.mutant]]
+  id = "the-auto-q-sweep-drops-the-search-budget"
+  find = "        search_node_limit=search_node_limit,\n    )\n    sweep, results"
+  replace = "    )\n    sweep, results"
+  models = "the automatic Q selection designing each Q with the module default budget"
+
+  [[target.mutant]]
+  id = "the-sweep-is-not-capped"
+  find = "    while q > 1 and _columns.count_columns(biggest, q) > _columns.MAX_COLUMNS:\n        q -= 1\n"
+  replace = "    pass\n"
+  models = "the Q sweep comparing exact designs with heuristic ones at a Q too large to score"
+
+  [[target.mutant]]
+  id = "the-cap-reads-the-smallest-arm"
+  find = "    biggest = max(sizes)\n"
+  replace = "    biggest = min(sizes)\n"
+  models = "the sweep cap set by the smallest arm, so the largest arm falls back inside the sweep"
+
+  [[target.mutant]]
+  id = "run-pangeo-takes-fast-without-warning"
+  find = "        warnings.warn(_FAST_DEPRECATED, DeprecationWarning, stacklevel=2)\n        fast = None"
+  replace = "        fast = None"
+  models = "a direct run_pangeo caller passing fast and never told it is deprecated"
+
+
+[[target]]
+name = "pangeo-default-exact-config"
+module-path = "mlsynth/utils/pangeo_helpers/config.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_default_exact.py -q -p no:cacheprovider -x -W ignore::DeprecationWarning"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-search-budget-reverts"
+  find = "DESIGN_SEARCH_NODE_LIMIT = 5_000_000\n"
+  replace = "DESIGN_SEARCH_NODE_LIMIT = 200_000_000\n"
+  models = "the default search budget back at the proof budget, an hour per large arm"
+
+  [[target.mutant]]
+  id = "the-popmusic-budget-reverts"
+  find = "DESIGN_POPMUSIC_NODE_LIMIT = 1_000_000\n"
+  replace = "DESIGN_POPMUSIC_NODE_LIMIT = 12_000_000\n"
+  models = "the default POPMUSIC budget back at the module constant"
+
+  [[target.mutant]]
+  id = "the-certify-budget-reverts"
+  find = "DESIGN_CERTIFY_NODE_LIMIT = 500_000\n"
+  replace = "DESIGN_CERTIFY_NODE_LIMIT = 12_000_000\n"
+  models = "the default certify budget back at the module constant"
+
+  [[target.mutant]]
+  id = "the-config-takes-fast-without-warning"
+  find = "        if self.fast is not None:\n            warnings.warn(_FAST_DEPRECATED"
+  replace = "        if False:\n            warnings.warn(_FAST_DEPRECATED"
+  models = "fast accepted and ignored without the DeprecationWarning that says so"
+
+  [[target.mutant]]
+  id = "a-negative-search-budget-is-accepted"
+  find = "        default=DESIGN_SEARCH_NODE_LIMIT, ge=0, strict=True,"
+  replace = "        default=DESIGN_SEARCH_NODE_LIMIT, strict=True,"
+  models = "a negative search budget accepted at configuration and failing, or running nothing, inside the search"
+
+
+[[target]]
+name = "pangeo-default-exact-estimator"
+module-path = "mlsynth/estimators/pangeo.py"
+test-command = "python -m pytest mlsynth/tests/test_pangeo_default_exact.py -q -p no:cacheprovider -x -W ignore::DeprecationWarning"
+timeout = 900.0
+
+  [[target.mutant]]
+  id = "the-estimator-drops-the-search-budget"
+  find = "                search_node_limit=self.config.search_node_limit,\n"
+  replace = "                search_node_limit=None,\n"
+  models = "PANGEOConfig.search_node_limit accepted and never reaching the design"

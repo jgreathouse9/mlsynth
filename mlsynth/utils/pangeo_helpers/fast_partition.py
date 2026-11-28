@@ -1,36 +1,35 @@
-"""OSD-style fast partition for PANGEO (Shaw 2025 analog).
+"""Clustering partition for PANGEO: the fallback past ``columns.MAX_COLUMNS``.
 
-The exact PANGEO design (``parallelism.enumerate_candidate_pairs`` + the
-set-partitioning MIP in ``mip.solve_partition``) considers every admissible
-supergeo subset of size ``2..2Q`` -- ``O(n^{2Q})`` candidates -- then solves an
-NP-hard exact-cover MIP. That is the runtime bottleneck.
+PANGEO's exact search scores every admissible supergeo pair of size ``2..2Q``
+(``columns.score_columns``) before it searches. An arm with more admissible
+pairs than ``columns.MAX_COLUMNS`` cannot be scored that way, and only such an
+arm is designed here, with ``PangeoHeuristicFallbackWarning``. The partition
+replaces the enumeration with a clustering step and keeps the exact split of
+each group.
 
-This module borrows the two-stage idea of Shaw (2025), "Optimized Supergeo
-Design": replace the exhaustive candidate enumeration with a clustering step,
-keeping the exact per-group split.
+Grouping -- ``group_units``
+    Each unit's pre-period trajectory is level-removed (its own temporal mean
+    subtracted, leaving the shape), embedded on its leading principal
+    components, ordered by hierarchical linkage, and cut into contiguous
+    groups of size ``2..2Q``, each splittable into two halves of size
+    ``<= Q``. Level removal makes the grouping target PANGEO's parallel-trends
+    score, under which units that move in parallel at any level match. The
+    cut guarantees an exact cover.
 
-Setup (Stage 1) -- ``group_units``
-    Each unit's pre-period trajectory is *level-removed* (subtract its own
-    temporal mean, leaving the shape), embedded with PCA, hierarchically
-    ordered, and chunked into size-bounded groups (each splittable into two
-    halves of size ``<= Q``). Level removal is what makes the grouping target
-    PANGEO's parallel-trends notion -- units that move in parallel (same shape,
-    any level) land together -- rather than Supergeo's level matching. The
-    chunking guarantees an exact cover with every group of size ``2..2Q``.
+Splitting -- ``fast_partition``
+    Each group is split by :func:`parallelism.best_split`, the split that
+    minimises the level-removed gap variance
+    ``min_split sum_t [(Ybar_A - Ybar_B)_t - delta]^2``. A few candidate
+    groupings are generated (varying the linkage and a small embedding
+    perturbation) and the one with the smallest total score is returned, in
+    the same ``{members, score, side_a, side_b}`` contract as the exact path.
 
-Optimization (Stage 2) -- ``fast_partition``
-    For each group, the unchanged :func:`parallelism.best_split` returns the
-    optimal level-removed split (the free-:math:`\\delta` DiD gap variance
-    ``min_split sum_t [(Ybar_A - Ybar_B)_t - delta]^2``). A handful of candidate
-    groupings are generated (varying linkage / a small embedding perturbation,
-    as in OSD) and the design with the smallest total score is returned, in the
-    same ``{members, score, side_a, side_b}`` contract as the exact path -- with
-    no subset enumeration and no MIP.
-
-This is a heuristic: it restricts pairs to clustered groups (a ``(1+eps)``-style
-trade under trajectory-cluster separability), so its total score is ``>=`` the
-exact optimum but tight when the parallel structure is clear. The exact path
-remains available as the oracle / default.
+The partition is a heuristic: it restricts the pairs to contiguous groups of
+one ordering, so its total score is ``>=`` the exact optimum, and it carries no
+bound on the gap. Measured against the exact search, its designs cost 6.4 to
+26.8 times the optimum on simulated seasonal arms of 20 to 80 markets at
+Q = 2, 8.4 to 17.5 times at Q = 3, and 1.7 to 2.1 times on arms with grouped
+factor structure.
 """
 
 from __future__ import annotations
@@ -118,7 +117,7 @@ def group_units(
     # Level removal: keep the trajectory *shape* (parallel-trends notion).
     shape = Y - Y.mean(axis=1, keepdims=True)
 
-    # PCA embedding (denoise; mirrors OSD). Skip when there is nothing to reduce.
+    # Principal-component embedding (denoises the shapes). Skip when there is nothing to reduce.
     d = min(embedding_dim, n - 1, shape.shape[1])
     if d >= 1 and shape.shape[1] > d:
         from sklearn.decomposition import PCA
@@ -155,7 +154,7 @@ def fast_partition(
     seed: int = 0,
     return_diagnostics: bool = False,
 ):
-    """OSD-style fast supergeo-pair partition (drop-in for the enumerate+MIP path).
+    """Clustering supergeo-pair partition (the fallback for an arm past ``columns.MAX_COLUMNS``).
 
     Generates ``n_candidates`` size-bounded groupings (Stage 1), splits each
     group with :func:`parallelism.best_split` (Stage 2), and returns the design

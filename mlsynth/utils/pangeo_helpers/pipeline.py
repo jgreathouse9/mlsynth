@@ -15,6 +15,7 @@ from typing import Dict, Optional, Sequence
 import numpy as np
 
 from .fast_partition import fast_partition
+from . import columns as _columns
 from .columns import score_columns, solve_exact
 from .mip import solve_partition
 from .pairs import solve_pairs
@@ -25,7 +26,8 @@ from .parallelism import (
 )
 from .power import compute_pangeo_power
 from .setup import PangeoInputs
-from .structures import (ArmDesign, MipSolveReport, PangeoExcludedUnitWarning, PangeoResults,
+from .structures import (ArmDesign, MipSolveReport, PangeoExcludedUnitWarning, PangeoHeuristicFallbackWarning,
+                         PangeoResults,
                          SupergeoPair)
 
 # Upper bound on Q for automatic selection (bounds the candidate-pair
@@ -150,7 +152,7 @@ def run_pangeo(
     *,
     max_supergeo_size: Optional[int] = None,
     min_pairs: int = 1,
-    fast: bool = False,
+    fast: Optional[bool] = None,
     fast_candidates: int = 5,
     objective: str = "ss_res",
     recency_decay: float = 0.97,
@@ -171,6 +173,7 @@ def run_pangeo(
     assignment_seed: int = 0,
     certify_node_limit: Optional[int] = None,
     popmusic_node_limit: Optional[int] = None,
+    search_node_limit: Optional[int] = None,
 ) -> PangeoResults:
     """Design parallel supergeo pairs within each arm.
 
@@ -208,6 +211,15 @@ def run_pangeo(
         place improving the design after a proof stopped by its cap, before
         the iterative cutoff; ``cover.POPMUSIC_NODE_LIMIT`` when None, 0 to
         skip it.
+    search_node_limit : int, optional
+        Nodes the exact path's capped search may place (quick search, first
+        window and proof); ``cover.SEARCH_NODE_LIMIT`` when None.
+    fast : bool, optional
+        Deprecated: passing it raises a DeprecationWarning and changes
+        nothing. Every arm is designed by the exact path, except an arm with
+        more candidate groups than ``columns.MAX_COLUMNS``, which falls back
+        to the clustering heuristic with a ``PangeoHeuristicFallbackWarning``
+        and is listed in ``metadata["heuristic_arms"]``.
     assignment_seed : int
         Seed of the fair coin drawn in each pair, after the pairs are chosen,
         to decide which half is treated (:func:`_coin_flips`). The pairs do
@@ -238,11 +250,14 @@ def run_pangeo(
         Post-period horizons to evaluate (default ``range(2, 13)`` = 2..12).
     """
     assignment_seed = _check_seed(assignment_seed)
-    if objective == "supergeo_total" and (fast or max_supergeo_size != 1):
+    if fast is not None:
+        from .config import _FAST_DEPRECATED
+        warnings.warn(_FAST_DEPRECATED, DeprecationWarning, stacklevel=2)
+        fast = None                     # the exact path runs whatever its value; inner designs do not warn again
+    if objective == "supergeo_total" and max_supergeo_size != 1:
         from ...exceptions import MlsynthConfigError
         raise MlsynthConfigError(
-            "objective='supergeo_total' supports pairs (max_supergeo_size=1) "
-            "on the exact path (fast=False) only.")
+            "objective='supergeo_total' supports pairs (max_supergeo_size=1) only.")
     if max_supergeo_size is None:
         return _auto_select_q(
             inputs, min_pairs=min_pairs, fast=fast,
@@ -257,6 +272,7 @@ def run_pangeo(
             mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
             certify_node_limit=certify_node_limit,
             popmusic_node_limit=popmusic_node_limit,
+            search_node_limit=search_node_limit,
         )
     if max_supergeo_size < 1:
         from ...exceptions import MlsynthConfigError
@@ -294,7 +310,7 @@ def run_pangeo(
     # closed form (sorted totals) for the paper's objective without covariates,
     # by the blossom matcher for every other cost; an explicit MIP backend
     # keeps the MIP (pairs.py; CLAUDE.md invariant 8, closed forms first).
-    pairs_path = (not fast) and max_supergeo_size == 1 and mip_backend == "auto"
+    pairs_path = max_supergeo_size == 1 and mip_backend == "auto"
     closed_form = pairs_path and objective == "supergeo_total" and cov is None
 
     arm_designs = {}
@@ -302,22 +318,13 @@ def run_pangeo(
     solver_diagnostics = {}
     mip_reports = {}
     chosen_by_arm = {}
+    fell_back = []
     for arm, idx in inputs.arm_units.items():
         if closed_form:
             Ypre = Y[:, e_idx]
             totals = np.array([float(Ypre[[u]].sum()) for u in idx])
             chosen, solver_diagnostics[arm] = solve_pairs(
                 None, idx, totals=totals, min_pairs=min_pairs)
-        elif fast:
-            # OSD-style heuristic: cluster into size-bounded groups + split,
-            # skipping the O(n^{2Q}) enumeration and the exact-cover MIP.
-            chosen, solver_diagnostics[arm] = fast_partition(
-                idx, Y[:, e_idx], max_supergeo_size,
-                objective=objective, weights=weights,
-                cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
-                unit_weights=uw, n_candidates=fast_candidates,
-                min_pairs=min_pairs, seed=0, return_diagnostics=True,
-            )
         elif pairs_path:
             candidates = score_columns(
                 idx, Y[:, e_idx], max_supergeo_size,
@@ -327,6 +334,23 @@ def run_pangeo(
             ).candidates()
             chosen, solver_diagnostics[arm] = solve_pairs(
                 candidates, idx, min_pairs=min_pairs)
+        elif _columns.count_columns(int(idx.size), max_supergeo_size) > _columns.MAX_COLUMNS:
+            # More groups than the exact path scores: the clustering heuristic, uncertified, until phase 4b's
+            # strata replace it (benchmarks/studies/supergeo/PANGEO_ROADMAP.md, phase 4).
+            warnings.warn(
+                f"PANGEO: arm {arm!r} has {int(idx.size)} markets, which at max_supergeo_size="
+                f"{max_supergeo_size} make {_columns.count_columns(int(idx.size), max_supergeo_size):,} candidate "
+                f"groups, more than the {_columns.MAX_COLUMNS:,} (MAX_COLUMNS) the exact path scores; its design "
+                f"comes from the clustering heuristic and carries no certified gap.",
+                PangeoHeuristicFallbackWarning, stacklevel=2)
+            fell_back.append(arm)
+            chosen, solver_diagnostics[arm] = fast_partition(
+                idx, Y[:, e_idx], max_supergeo_size,
+                objective=objective, weights=weights,
+                cov=cov, cov_scales=cov_scales, cov_weights=cov_w,
+                unit_weights=uw, n_candidates=fast_candidates,
+                min_pairs=min_pairs, seed=0, return_diagnostics=True,
+            )
         else:
             # Every group scored in compiled code; the MIP sees only the
             # groups the root LP's Lagrangian bound cannot exclude (columns.py).
@@ -337,7 +361,7 @@ def run_pangeo(
                 unit_weights=uw, min_pairs=min_pairs, backend=mip_backend,
                 mip_rel_gap=mip_rel_gap, mip_abs_gap=mip_abs_gap,
                 solve=solve_partition, certify_node_limit=certify_node_limit,
-                popmusic_node_limit=popmusic_node_limit)
+                popmusic_node_limit=popmusic_node_limit, search_node_limit=search_node_limit)
             mip_reports[arm] = MipSolveReport.from_diagnostics(
                 solver_diagnostics[arm])
         # Pairs in a canonical order (by first unit) so the k-th coin goes to
@@ -385,11 +409,12 @@ def run_pangeo(
         "arm_sizes": {a: int(idx.size) for a, idx in inputs.arm_units.items()},
         "max_supergeo_size": max_supergeo_size,
         "T_pre": T0,
-        "solver": ("OSD-style fast partition (PCA clustering + per-group split)"
-                   if fast else "sorted pairing (closed form)" if closed_form
+        "solver": ("clustering heuristic (more candidate groups than MAX_COLUMNS)"
+                   if fell_back else "sorted pairing (closed form)" if closed_form
                    else "Edmonds blossom matching" if pairs_path
                    else "cvxpy/HiGHS set-partitioning MIP"),
-        "fast_candidates": fast_candidates if fast else None,
+        "fast_candidates": fast_candidates if fell_back else None,
+        "heuristic_arms": list(fell_back),
         "solver_diagnostics": solver_diagnostics,
         "objective": objective,
         "mip_backend": mip_backend,
@@ -425,6 +450,7 @@ def run_pangeo(
             mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
             certify_node_limit=certify_node_limit,
             popmusic_node_limit=popmusic_node_limit,
+            search_node_limit=search_node_limit,
         )
         metadata["q_sweep"], _ = _sweep_designs(
             inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)
@@ -505,9 +531,18 @@ def _select_q(sweep, *, method: str = "mde_min", q_min_pairs: int = 1):
 
 def _q_upper(inputs: PangeoInputs) -> int:
     """Upper bound on Q for the sweep: the range over which Q meaningfully
-    trades matching granularity against pair count for the smallest arm."""
-    min_arm = min(int(idx.size) for idx in inputs.arm_units.values())
-    return max(1, min((min_arm + 1) // 2, _AUTO_Q_CAP))
+    trades matching granularity against pair count for the smallest arm,
+    stopped at the largest Q at which the largest arm's candidate groups fit
+    within ``columns.MAX_COLUMNS``, so that every Q the sweep designs is
+    designed by the exact path (a larger Q would fall back to the clustering
+    heuristic, whose designs measured 6.4 to 26.8 times the exact path's cost and
+    would be compared with exact designs). Q = 1 is always kept."""
+    sizes = [int(idx.size) for idx in inputs.arm_units.values()]
+    q = max(1, min((min(sizes) + 1) // 2, _AUTO_Q_CAP))
+    biggest = max(sizes)
+    while q > 1 and _columns.count_columns(biggest, q) > _columns.MAX_COLUMNS:
+        q -= 1
+    return q
 
 
 def _sweep_designs(inputs: PangeoInputs, *, q_upper: int, run_kwargs: dict):
@@ -558,7 +593,7 @@ def _auto_select_q(
     inputs: PangeoInputs,
     *,
     min_pairs: int,
-    fast: bool = False,
+    fast: Optional[bool] = None,
     fast_candidates: int = 5,
     objective: str,
     recency_decay: float,
@@ -578,6 +613,7 @@ def _auto_select_q(
     assignment_seed: int = 0,
     certify_node_limit: Optional[int] = None,
     popmusic_node_limit: Optional[int] = None,
+    search_node_limit: Optional[int] = None,
 ) -> PangeoResults:
     """Choose Q automatically from a sweep over feasible sizes.
 
@@ -602,6 +638,7 @@ def _auto_select_q(
         mip_abs_gap=mip_abs_gap, assignment_seed=assignment_seed,
         certify_node_limit=certify_node_limit,
         popmusic_node_limit=popmusic_node_limit,
+        search_node_limit=search_node_limit,
     )
     sweep, results = _sweep_designs(
         inputs, q_upper=_q_upper(inputs), run_kwargs=run_kwargs)
