@@ -1,11 +1,11 @@
 """Phase 4a: the exact path is PANGEO's default design; ``fast`` is deprecated.
 
-The clustering heuristic (``fast_partition``) measured 5 to 26 times the optimum's cost on seasonal arms of 20 to 120
-markets and 1.7 to 2.1 times on grouped ones, while the exact path proves the optimum in seconds to minutes up to
-about 80 markets at Q = 2. So the default design is the exact path with small node budgets (search / POPMUSIC /
-certify = 5M / 1M / 0.5M), ``fast`` is accepted for one release with a DeprecationWarning and no longer changes the
-path, and the heuristic runs only where the exact path cannot score every group (past ``columns.MAX_COLUMNS``), with
-``PangeoHeuristicFallbackWarning``.
+The clustering heuristic (``fast_partition``) measured 6.4 to 26.8 times the optimum's cost on seasonal arms of 20 to
+80 markets (11.3 times the best design found at 120) and 1.7 to 2.1 times on grouped ones, while the exact path proves
+the optimum in seconds to minutes up to about 80 markets at Q = 2. So the default design is the exact path with small
+node budgets (search / POPMUSIC / certify = 5M / 1M / 0.5M), ``fast`` is accepted for one release with a
+DeprecationWarning and no longer changes the path, and the heuristic runs only where the exact path cannot score every
+group (past ``columns.MAX_COLUMNS``), with ``PangeoHeuristicFallbackWarning``.
 """
 from __future__ import annotations
 

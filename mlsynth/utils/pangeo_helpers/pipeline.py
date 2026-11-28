@@ -533,7 +533,7 @@ def _q_upper(inputs: PangeoInputs) -> int:
     stopped at the largest Q at which the largest arm's candidate groups fit
     within ``columns.MAX_COLUMNS``, so that every Q the sweep designs is
     designed by the exact path (a larger Q would fall back to the clustering
-    heuristic, whose designs measured 5 to 26 times the exact path's cost and
+    heuristic, whose designs measured 6.4 to 26.8 times the exact path's cost and
     would be compared with exact designs). Q = 1 is always kept."""
     sizes = [int(idx.size) for idx in inputs.arm_units.values()]
     q = max(1, min((min(sizes) + 1) // 2, _AUTO_Q_CAP))
