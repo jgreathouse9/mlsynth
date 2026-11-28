@@ -157,3 +157,19 @@ read.
   same-or-different branching rule (section 3.1, p. 239).
 - Checks: Sato and Fukumura (2012) is cited through this paper and not read.
 
+## sherali1996spp
+- Reference: Sherali, H. D., & Lee, Y. (1996). "Tighter representations for
+  set partitioning problems." Discrete Applied Mathematics 68, 153-167.
+- Read: the abstract and sections 1 to 4 (pp. 153-163), from the PDF's
+  extracted text (a scan with an OCR layer), page numbers located by
+  extracting pages alone.
+- Used for: the level-d relaxation multiplies the cover rows by every product
+  of d variables; the first level SPP_1 keeps, for each column k and each row
+  i that k does not cover, x_k = sum of w_(jk) over the columns j covering i
+  that share no row with k (eqs. (12)-(14), p. 158). It implies Balas's
+  elementary inequalities (Proposition 2, p. 159), and fixing w_(jk) = 0 for
+  the columns j outside a set Q makes x_k <= sum over Q of x_j valid
+  (Proposition 4, p. 160). The roadmap's RLT-2 is this first level, with the
+  pairs restricted to those that fit in the gap.
+- Checks: none second-hand.
+

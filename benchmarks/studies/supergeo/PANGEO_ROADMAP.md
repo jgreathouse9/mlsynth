@@ -562,7 +562,9 @@ column LP 4.165353, 14.80% below):
   (20 blocks, 4.248411 after 4,174 s), 13.1% below the optimum either way:
   about 0.3 points of gap for each market added to a block. Column generation
   over the same blocks stalled on degenerate duals.
-- RLT level 2 (Sherali and Adams, in Du and Pardalos (eds.), Handbook of
+- RLT level 1 in Sherali and Lee's numbering (products of two groups,
+  their SPP_1, eqs. (12)-(14), p. 158; labelled RLT-2 in this roadmap for the
+  degree of its products) (Sherali and Adams, in Du and Pardalos (eds.), Handbook of
   Combinatorial Optimization, vol. 1, Kluwer 1998, pp. 479-532). For set
   partitioning the first two levels already capture published valid
   inequalities (p. 493), and a product of two groups that share a market is
@@ -1452,7 +1454,17 @@ Recorded from discussion, not designed or measured.
     160,024 to 212,647 at 24: tighter with the dimension, PCA tighter than the core at
     each, and short of exact scoring throughout. The strata comparison (sales-only PCA, the Tucker core,
     the market-mode factor rows LRRHTD clusters on (Zhang et al., IEEE Signal Process. Lett. 25(3), 2018, Algorithm 1, step 16), the true communities, each repaired by
-    the exact re-solves) is still running.
+    the exact re-solves) ran on 64 markets, strata of 16, masking 1.0, seeds 0
+    to 7 (the runs for seeds 8 to 19 and for masking 2.0 were stopped). In-sample
+    / held-out / held-out sales cost against the exact design, mean of 8 seeds,
+    start then after the re-solves: sales-only PCA 1.50/1.38/1.33 to
+    1.07/1.04/1.03; the Tucker core 1.29/1.20/1.20 to 1.07/1.04/1.04; the
+    market-mode rows 1.20/1.07/1.08 to 1.05/1.03/1.02; the true communities
+    1.20/1.07/1.08 to 1.06/1.02/1.01. The market-mode rows start where the true
+    communities start on every seed (the weather series recover the
+    communities), the Tucker core on 4 of 8, and the re-solves bring all four
+    within 3 points of each other, so the embedding decides the start, not the
+    design the strata reach.
 
 ## Order and dependencies
 
