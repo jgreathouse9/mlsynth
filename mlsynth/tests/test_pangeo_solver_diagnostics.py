@@ -98,12 +98,16 @@ class TestExactMIPDiagnostics:
 
 
 class TestPipelineSurfacesDiagnostics:
-    def test_fast_path_metadata(self):
+    def test_heuristic_fallback_metadata(self, monkeypatch):
+        from mlsynth.utils.pangeo_helpers import columns
+        from mlsynth.utils.pangeo_helpers.structures import PangeoHeuristicFallbackWarning
         df = _panel(12, 24, seed=3)
-        res = PANGEO(PANGEOConfig(
-            df=df, outcome="sales", arm="arm", unitid="unit", time="time",
-            max_supergeo_size=2, fast=True, fast_candidates=4,
-            compute_power=False, display_graphs=False)).fit()
+        monkeypatch.setattr(columns, "MAX_COLUMNS", 10)          # the arm has more groups: the heuristic runs
+        with pytest.warns(PangeoHeuristicFallbackWarning):
+            res = PANGEO(PANGEOConfig(
+                df=df, outcome="sales", arm="arm", unitid="unit", time="time",
+                max_supergeo_size=2, fast_candidates=4,
+                compute_power=False, display_graphs=False)).fit()
         assert "solver_diagnostics" in res.metadata
         assert res.metadata["fast_candidates"] == 4
         d = res.metadata["solver_diagnostics"]["A"]

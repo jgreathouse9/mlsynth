@@ -466,7 +466,8 @@ def test_the_config_refuses_a_negative_popmusic_budget():
     with pytest.raises(Exception, match="popmusic_node_limit"):
         PANGEOConfig(df=df, outcome="sales", arm="arm", unitid="unit", time="time", popmusic_node_limit=-1)
     cfg = PANGEOConfig(df=df, outcome="sales", arm="arm", unitid="unit", time="time")
-    assert cfg.popmusic_node_limit == cover.POPMUSIC_NODE_LIMIT
+    from mlsynth.utils.pangeo_helpers.config import DESIGN_POPMUSIC_NODE_LIMIT
+    assert cfg.popmusic_node_limit == DESIGN_POPMUSIC_NODE_LIMIT
 
 
 def test_the_estimator_passes_its_popmusic_budget_to_the_exact_path(monkeypatch):

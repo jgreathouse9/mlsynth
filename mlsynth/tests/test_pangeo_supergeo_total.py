@@ -254,10 +254,9 @@ class TestConfig:
         f = PANGEOConfig.model_fields
         assert f["objective"].default == "ss_res"
         assert f["mip_backend"].default == "auto"
-        assert f["fast"].default is True
+        assert f["fast"].default is None
 
     @pytest.mark.parametrize("override", [
-        {"fast": True},
         {"max_supergeo_size": 2},
         {"max_supergeo_size": None},
         {"compute_q_sweep": True},
@@ -273,10 +272,7 @@ class TestConfig:
             _long(np.random.default_rng(0).normal(100, 10, (4, 6))),
             "sales", "arm", "unit", "time")
         with pytest.raises(MlsynthConfigError):
-            run_pangeo(inp, max_supergeo_size=2, fast=False,
-                       objective="supergeo_total", compute_power=False)
-        with pytest.raises(MlsynthConfigError):
-            run_pangeo(inp, max_supergeo_size=1, fast=True,
+            run_pangeo(inp, max_supergeo_size=2,
                        objective="supergeo_total", compute_power=False)
 
     def test_run_pangeo_rejects_an_unknown_backend(self):

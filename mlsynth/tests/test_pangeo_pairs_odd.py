@@ -252,9 +252,9 @@ def test_one_unit_gives_no_pairs():
         ppairs.solve_pairs(None, np.arange(1), totals=np.zeros(1))
 
 
-@pytest.mark.parametrize("kw", [{"mip_backend": "cvxpy"}, {"fast": True}])
-def test_the_mip_and_the_fast_path_still_raise_on_an_odd_arm(kw):
-    """Failure: an explicit MIP backend and the fast path have no leave-one-out; an odd arm still raises."""
+@pytest.mark.parametrize("kw", [{"mip_backend": "cvxpy"}])
+def test_the_mip_still_raises_on_an_odd_arm(kw):
+    """Failure: an explicit MIP backend has no leave-one-out; an odd arm still raises."""
     with pytest.raises(MlsynthEstimationError):
         _design(_panel(7, 5), objective="ss_res", **kw)
 

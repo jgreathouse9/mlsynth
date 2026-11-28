@@ -220,11 +220,11 @@ class TestFastModeWiring:
         assert cfg.fast is True
         assert cfg.fast_candidates == 8
 
-    def test_fast_default_is_true(self, sales_panel):
-        # Fast is the default; the exact MIP is the opt-out (fast=False).
+    def test_fast_default_is_none(self, sales_panel):
+        # Phase 4a: the exact path is the default design; fast is deprecated.
         cfg = PANGEOConfig(df=sales_panel, outcome="sales", arm="arm",
                            unitid="unit", time="time", display_graphs=False)
-        assert cfg.fast is True
+        assert cfg.fast is None
 
     def test_fast_fit_exact_cover_respects_Q(self, sales_panel):
         res = PANGEO({"df": sales_panel, "outcome": "sales", "arm": "arm",
@@ -240,21 +240,21 @@ class TestFastModeWiring:
                 u for u in res.assignment if u.startswith(arm))
             assert len(covered) == len(set(covered)) == d.n_units
 
-    def test_fast_metadata_records_heuristic_solver(self, sales_panel):
-        res = PANGEO({"df": sales_panel, "outcome": "sales", "arm": "arm",
-                      "unitid": "unit", "time": "time", "max_supergeo_size": 2,
-                      "fast": True, "compute_power": False,
-                      "display_graphs": False}).fit()
-        solver = res.metadata["solver"].lower()
-        assert "fast" in solver or "osd" in solver or "heuristic" in solver
+    def test_fast_true_no_longer_selects_the_heuristic(self, sales_panel):
+        with pytest.warns(DeprecationWarning):
+            res = PANGEO({"df": sales_panel, "outcome": "sales", "arm": "arm",
+                          "unitid": "unit", "time": "time", "max_supergeo_size": 2,
+                          "fast": True, "compute_power": False,
+                          "display_graphs": False}).fit()
+        assert "heuristic" not in res.metadata["solver"].lower()
+        assert res.metadata["heuristic_arms"] == []
 
-    def test_default_fit_uses_fast_solver(self, sales_panel):
-        # Default is now the heuristic; metadata records it.
+    def test_default_fit_uses_the_exact_path(self, sales_panel):
         res = PANGEO({"df": sales_panel, "outcome": "sales", "arm": "arm",
                       "unitid": "unit", "time": "time", "max_supergeo_size": 2,
                       "compute_power": False, "display_graphs": False}).fit()
-        solver = res.metadata["solver"].lower()
-        assert "fast" in solver or "osd" in solver
+        assert "heuristic" not in res.metadata["solver"].lower()
+        assert all(d.get("path") != "fast" for d in res.metadata["solver_diagnostics"].values())
 
     def test_exact_is_opt_out(self, sales_panel):
         # The exact MIP is reachable via fast=False.
