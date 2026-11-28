@@ -262,6 +262,11 @@ migration or refactor PR.
   (`benchmarks/cases/<name>.py`, link the source on GitHub) and/or its
   replication page, so readers can see it is validated and inspect the outputs.
   Keep the benchmarks index page current as cases are added.
+- Cite books, papers and theorems by `agents/agents_citations.md`: checked
+  against the source's own pages, at the theorem / equation / page that holds
+  the claim, with the version read and the result's conditions; a result a
+  source cites is checked at its origin; failed checks are recorded. Study
+  branches keep a `SOURCES.md` per study.
 - Keep the decision tree (`docs/choose.rst`) current as estimators are added or
   change regime — it is the primary "which estimator do I use" navigation.
 - Section underlines must be ≥ the title length (RST requirement).
