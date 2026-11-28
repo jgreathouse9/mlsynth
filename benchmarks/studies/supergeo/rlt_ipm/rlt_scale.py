@@ -7,7 +7,8 @@ kept at the optimum z (root reduced cost <= z - L) and the disjoint pairs of the
   every H and every unit i not in H;  cardinality * x_H: sum_{G in Pair(H)} w_GH - (k - 1) x_H >= 0;  0 <= x, w <= 1.
 Bound: for row duals y clipped to their allowed signs, B(y) = sum_r (y_r > 0 ? y_r lhs_r : y_r rhs_r)
 + sum_v min(r_v l_v, r_v u_v), r = c - A'y; valid at any y, up to float rounding (not claimed rigorous here).
-Panel: make_seasonal_sales_panel (seed 0, T = 60, design window 42), Q = 2. Optima (solve_exact): 40 4.889056,
+Panel: make_seasonal_sales_panel (seed PANEL_SEED, default 0, T = 60, design window 42), Q = 2; for a seed other than 0
+the optimum z comes from columns.solve_exact. Optima (solve_exact): 40 4.889056,
 60 5.759575, 80 6.260568. Single-threaded.
 python -u rlt_scale.py <worktree> <n> <solver> <time_limit_s> [<option=value> ...]"""
 import os, sys, time, resource
@@ -22,16 +23,23 @@ from fractions import Fraction
 import highspy
 from mlsynth.utils.pangeo_helpers import columns, make_seasonal_sales_panel, prepare_pangeo_inputs
 OPT = {20: 5.0738116454316975, 24: 4.533603317537888, 30: 4.383420575945047, 40: 4.889056469467156, 60: 5.7595746451645775, 80: 6.260567565706034}
-Q = 2; z = OPT[n]
+Q = 2
+if int(os.environ.get("PANEL_SEED", "0")) == 0 and n in OPT:
+    z = OPT[n]
+else:   # other seeds: the optimum from solve_exact (prepared below, before the LP is built)
+    z = None
 T0 = time.perf_counter()
 def say(m):
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6
     print(f"[{time.perf_counter() - T0:7.1f}s, peak {rss:.1f} GB] {m}", flush=True)
 
-panel = make_seasonal_sales_panel(units_per_arm=n, arms=("A",), T=60, seed=0)
+PANEL_SEED = int(os.environ.get("PANEL_SEED", "0"))
+panel = make_seasonal_sales_panel(units_per_arm=n, arms=("A",), T=60, seed=PANEL_SEED)
 inp = prepare_pangeo_inputs(df=panel, outcome="sales", arm="arm", unitid="unit", time="time")
 idx = np.asarray(inp.arm_units["A"]); Y = inp.Y[:, :42]
 pool = columns.score_columns(idx, Y, Q); k = columns.min_groups(n, Q, 1); root = columns.root_lp(pool, k)
+if z is None:
+    z = float(columns.solve_exact(idx, Y, Q)[1]["objective_value"])
 L = float(root.bound)
 zf = Fraction(z) * (1 + Fraction(1, 10**9))
 keep = np.flatnonzero(root.reduced_costs <= columns._up(zf - Fraction(root.bound)))

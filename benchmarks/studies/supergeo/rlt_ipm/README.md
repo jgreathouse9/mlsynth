@@ -29,6 +29,9 @@ reduced costs fit together. All single-threaded (OMP, OpenBLAS, MKL and numba at
 | `rca_presolve.py <wt> <n>` | singleton-row and forcing-constraint presolve, rank and strict feasibility after it |
 | `rca_facial.py <wt> <n> <out.npz>` | primal-side facial reduction (uncertified; at 24 markets it removed feasible columns) |
 | `rca_facial2.py <wt> <n> <out.npz>` | dual-side facial reduction with exposing-vector certificates (`HIGHS_LOG=<file>` for the solver's log) |
+| `run_general.sh <wt> <python> <out> <n> <seed>` | step 1 after the RCA, for one arm: the HiGHS reference, the certified facial reduction, and the working configuration on the face and on the unreduced LP; one summary line per step in `<out>/summary.log` |
+
+`PANEL_SEED=<s>` (default 0) selects the panel seed for every script that builds the LP through `rlt_scale.py`; for a seed other than 0 the optimum comes from `columns.solve_exact`.
 
 The RCA's runs, in the order the ladder used them (24 markets, reference value
 4.344031 from HiGHS simplex on the full LP):

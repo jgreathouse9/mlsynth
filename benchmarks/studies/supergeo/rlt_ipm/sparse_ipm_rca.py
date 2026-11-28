@@ -96,7 +96,7 @@ def bound(y):
 
 
 info("Problem")
-info(f"  Name                  : pair-product relaxation, seasonal panel seed 0, {g['n']} markets, Q = 2")
+info(f"  Name                  : pair-product relaxation, seasonal panel seed {g['PANEL_SEED']}, {g['n']} markets, Q = 2")
 info(f"  Objective sense       : minimize")
 info(f"  Constraints           : {m:,} ({int(eq.sum()):,} equality, {nge:,} >=)")
 info(f"  Scalar variables      : {NV:,} (groups {C:,}, pairs {P:,}, surplus {nge:,})")
