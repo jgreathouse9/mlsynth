@@ -115,3 +115,61 @@ read.
   (CBCL, ORL) scored against image labels.
 - Checks: none second-hand.
 
+## baldacci2008vrp
+- Reference: Baldacci, R., Christofides, N., & Mingozzi, A. (2008). "An exact
+  algorithm for the vehicle routing problem based on the set partitioning
+  formulation with additional cuts." Mathematical Programming, Ser. A 115,
+  351-385. doi:10.1007/s10107-007-0178-5.
+- Read: the abstract and section 4.1 (p. 360), from the PDF's extracted text;
+  the page located by extracting it alone.
+- Used for: the exact method solves the problem reduced to the routes whose
+  reduced cost, at the dual solution of the bounding procedure, is smaller than
+  the gap between a valid upper bound and the bound, with an integer
+  programming solver (section 4.1, p. 360). The upper bound is a valid one.
+- Checks: this is the origin wang2023fmrsp credits for the reduced problem;
+  checked here.
+
+## wang2023fmrsp
+- Reference: Wang, S., Baldacci, R., Yu, Y., Zhang, Y., Tang, J., Luo, X., &
+  Sun, W. (2023). "An Exact Method for a First-Mile Ridesharing Problem."
+  Transportation Science 57(6), 1581-1604. doi:10.1287/trsc.2022.0139.
+- Read: the abstract and sections 4.3 and 4.4 (pp. 1590-1592), from the PDF's
+  extracted text, page numbers from the running heads.
+- Used for: the primal heuristic that guesses the upper bound as
+  (1 + alpha) times the lower bound (alpha = 0.03), enumerates the routes in
+  that gap, solves the reduced problem, repeats with the design found as the
+  new bound, and stops with a proof when the reduced problem is complete
+  (section 4.3, p. 1591).
+- Checks: the reduced problem is credited to baldacci2008vrp, checked at its
+  origin.
+
+## sato2019modularity
+- Reference: Sato, K., & Izunaga, Y. (2019). "An enhanced MILP-based
+  branch-and-price approach to modularity density maximization on graphs."
+  Computers and Operations Research 106, 236-245.
+- Read: the abstract, the contributions list (pp. 237-238) and sections 3.1 to
+  3.3 (pp. 239-240), from the PDF's extracted text, page numbers located by
+  extracting pages alone.
+- Used for: the set-packing relaxation of the restricted master (the
+  set-covering relaxation of Sato and Fukumura for minimisation), restoring a
+  constraint when it is over-satisfied (section 3.2, p. 239); generating
+  several vertex-disjoint columns per pricing round (section 3.3, p. 240); the
+  same-or-different branching rule (section 3.1, p. 239).
+- Checks: Sato and Fukumura (2012) is cited through this paper and not read.
+
+## sherali1996spp
+- Reference: Sherali, H. D., & Lee, Y. (1996). "Tighter representations for
+  set partitioning problems." Discrete Applied Mathematics 68, 153-167.
+- Read: the abstract and sections 1 to 4 (pp. 153-163), from the PDF's
+  extracted text (a scan with an OCR layer), page numbers located by
+  extracting pages alone.
+- Used for: the level-d relaxation multiplies the cover rows by every product
+  of d variables; the first level SPP_1 keeps, for each column k and each row
+  i that k does not cover, x_k = sum of w_(jk) over the columns j covering i
+  that share no row with k (eqs. (12)-(14), p. 158). It implies Balas's
+  elementary inequalities (Proposition 2, p. 159), and fixing w_(jk) = 0 for
+  the columns j outside a set Q makes x_k <= sum over Q of x_j valid
+  (Proposition 4, p. 160). The roadmap's RLT-2 is this first level, with the
+  pairs restricted to those that fit in the gap.
+- Checks: none second-hand.
+
