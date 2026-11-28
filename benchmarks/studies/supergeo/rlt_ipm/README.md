@@ -30,6 +30,10 @@ reduced costs fit together. All single-threaded (OMP, OpenBLAS, MKL and numba at
 | `rca_facial.py <wt> <n> <out.npz>` | primal-side facial reduction (uncertified; at 24 markets it removed feasible columns) |
 | `rca_facial2.py <wt> <n> <out.npz>` | dual-side facial reduction with exposing-vector certificates (`HIGHS_LOG=<file>` for the solver's log) |
 | `run_general.sh <wt> <python> <out> <n> <seed>` | step 1 after the RCA, for one arm: the HiGHS reference, the certified facial reduction, and the working configuration on the face and on the unreduced LP; one summary line per step in `<out>/summary.log` |
+| `run_scaling.sh <wt> <python> <out> <g> <p> [...]` | step 2, criterion 3: for each pair of factors, the reference and the fixed configuration on the unreduced LP, one line per LP in `<out>/scaling.log` |
+
+
+`GROUP_GAP_FACTOR=<g>` and `PAIR_GAP_FACTOR=<p>` (default 1) keep the groups, and the pairs, whose reduced costs fit in that multiple of the gap: weaker but valid relaxations with more pairs per row.
 
 `PANEL_SEED=<s>` (default 0) selects the panel seed for every script that builds the LP through `rlt_scale.py`; for a seed other than 0 the optimum comes from `columns.solve_exact`.
 

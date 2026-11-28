@@ -55,10 +55,18 @@ while True:
     lp.a_matrix_.format_ = highspy.MatrixFormat.kColwise
     lp.a_matrix_.start_ = M.indptr; lp.a_matrix_.index_ = M.indices; lp.a_matrix_.value_ = M.data
     st = solve(h, lp)
+    if st != "Optimal":
+        # an unconverged interior point leaves an inexact exposing vector (30 markets, seed 0, round 1: status
+        # Unknown, b'y = 2e-5, min z = -5.6e-5); its bound cannot be mapped back (-83 against 4.38). Re-solve with
+        # crossover so the certificate is a vertex.
+        print(f"round {rnd}: interior point ended {st}; re-solving with crossover", flush=True)
+        h.setOptionValue("run_crossover", "on"); h.setOptionValue("time_limit", 7200.0)
+        st = solve(h, lp)
     y = np.asarray(h.getSolution().col_value)[:m]
     z = AF.T @ y
     ny = max(float(np.max(np.abs(y))), 1e-300)
-    ok = float(z.min()) >= -EPS * ny * 10 and abs(float(b @ y)) <= EPS * ny * float(np.abs(b).sum()) * 10
+    ok = (st == "Optimal" and float(z.min()) >= -EPS * ny * 10
+          and abs(float(b @ y)) <= EPS * ny * float(np.abs(b).sum()) * 10)
     Zk = Fj[z > TAU * ny]
     print(f"round {rnd}: {st}; {k:,} columns left; exposing vector |y| {ny:.2e}, min z {float(z.min()):.2e}, b'y "
           f"{float(b @ y):.2e} (certificate {'valid' if ok else 'INVALID'}); {Zk.size:,} new zeros (x "

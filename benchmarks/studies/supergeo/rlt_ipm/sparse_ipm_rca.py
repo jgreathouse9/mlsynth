@@ -78,18 +78,24 @@ def nz_range(x):
     return f"nnz: {x.size:<10,} min={x.min():.2e}  max={x.max():.2e}" if x.size else "nnz: 0"
 
 
+def _bound_full(y):
+    yy = np.where(one, np.maximum(y, 0.0), y)
+    r = cost - A.T @ yy
+    return float(np.sum(np.where(yy > 0, yy * lhs, yy * np.where(np.isinf(rhs), 0.0, rhs))) + np.sum(np.minimum(r, 0.0)))
+
+
 def bound(y):
     if y.size != M_FULL:
         yf = np.zeros(M_FULL); yf[ROWS] = y; y = yf
-        # facial-reduction certificates: y - sum_k lambda_k y_k, last round first, lambda_k the least that makes the
-        # reduced costs on Z_k nonnegative (z_k = A'y_k >= 0 off the earlier rounds' zeros, b'y_k ~ 0)
+        # facial-reduction certificates: y - sum_k lambda_k y_k, last round first. B(y - lambda y_k) is concave in
+        # lambda, so each lambda_k maximises it over a log grid (and 0), instead of forcing every reduced cost on Z_k
+        # to be nonnegative: with an inexact certificate (b'y_k != 0, z_k slightly negative) that lambda can be huge
+        # and lambda * b'y_k then swamps the bound (30 markets, seed 0: -2.1e4 against 4.38).
         if FR_Y:
-            Asf = sp.hstack([A, sp.csc_matrix((-np.ones(nge), (np.flatnonzero(ge), np.arange(nge))), shape=(M_FULL, nge))]).tocsc()
-            cfull = np.r_[cost, np.zeros(nge)]
             for yk, Zk in reversed(list(zip(FR_Y, FR_Z))):
-                r = cfull - Asf.T @ y; zk = Asf.T @ yk
-                need = np.max(np.maximum(-r[Zk], 0.0) / zk[Zk]) if Zk.size else 0.0
-                y = y - 1.0001 * need * yk
+                lams = np.r_[0.0, np.logspace(-6, 12, 145)]
+                vals = [_bound_full(y - lam * yk) for lam in lams]
+                y = y - lams[int(np.argmax(vals))] * yk
     yy = np.where(one, np.maximum(y, 0.0), y)
     r = cost - A.T @ yy
     return float(np.sum(np.where(yy > 0, yy * lhs, yy * np.where(np.isinf(rhs), 0.0, rhs))) + np.sum(np.minimum(r, 0.0)))

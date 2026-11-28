@@ -42,11 +42,17 @@ if z is None:
     z = float(columns.solve_exact(idx, Y, Q)[1]["objective_value"])
 L = float(root.bound)
 zf = Fraction(z) * (1 + Fraction(1, 10**9))
-keep = np.flatnonzero(root.reduced_costs <= columns._up(zf - Fraction(root.bound)))
+# GROUP_GAP_FACTOR > 1 keeps the groups whose reduced cost fits in that multiple of the gap (more groups, more rows,
+# and pairs growing with their square): the scaling direction, since pairs per row grow with the group count.
+GROUP_GAP_FACTOR = float(os.environ.get("GROUP_GAP_FACTOR", "1"))
+keep = np.flatnonzero(root.reduced_costs <= columns._up(Fraction(GROUP_GAP_FACTOR) * (zf - Fraction(root.bound))))
 rc = np.asarray(root.reduced_costs, float)[keep]; c = np.asarray(pool.cost, float)[keep]
 mem = np.asarray(pool.members[keep], np.int64); C = keep.size; W = mem.shape[1]
 inc = columns._incidence(mem, n).astype(bool)
 gap = z * (1 + 1e-9) - L
+# PAIR_GAP_FACTOR > 1 keeps the pairs whose reduced costs fit in that multiple of the gap; the groups (and so the
+# rows) are unchanged. The LP stays a valid relaxation, only weaker (the scaling test: pairs grow, rows fixed).
+PAIR_GAP_FACTOR = float(os.environ.get("PAIR_GAP_FACTOR", "1"))
 # pairs: disjoint (bit masks, n <= 62 not needed: compare incidence blocks) and fitting in the gap
 PA_l, PB_l = [], []
 incf = inc.astype(np.float32)
@@ -54,7 +60,7 @@ order = np.argsort(rc)
 for a0 in range(0, C, 2048):
     blk = np.arange(a0, min(C, a0 + 2048))
     ov = incf[blk] @ incf.T                                  # overlaps
-    ok = (ov == 0) & ((rc[blk, None] + rc[None, :]) <= gap)
+    ok = (ov == 0) & ((rc[blk, None] + rc[None, :]) <= PAIR_GAP_FACTOR * gap)
     ok &= (np.arange(C)[None, :] > blk[:, None])
     a, b = np.nonzero(ok)
     PA_l.append(blk[a]); PB_l.append(b)
