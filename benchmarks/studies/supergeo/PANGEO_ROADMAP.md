@@ -921,6 +921,108 @@ the reduced costs and L rigorous (as `lagrangian_bound` forms them), z a real
 design's cost, and the restricted bound rigorous itself. Phase 3b's RLT-2 build
 already used this, keeping only the pairs of groups that fit in the gap.
 
+### Measured: solving the pair relaxation, and the restricted interior point's stall
+
+The pair-product relaxation (RLT-2 above; Sherali and Lee's first level) closes
+63.3% of the column LP's gap at 40 markets, but its LP took 8,392 s. These
+measurements ask how to solve it faster, and what that means for its scale.
+Scripts and the exact commands are in `rlt_ipm/` (its README); the panel is
+`make_seasonal_sales_panel` seed 0, Q = 2, single-threaded.
+
+Solvers on the full LP at 40 markets (1,403 groups, 199,142 pairs, 52,025 rows,
+2,030,826 nonzeros):
+
+| solver | result |
+| --- | --- |
+| HiGHS interior point (ipx, scipy) | 4.623153 in 8,392 s |
+| PDLP (highspy 1.16, optimality tolerance 1e-4), alone | optimal in 681 s; bound from its duals 4.622873, 99.9% of the relaxation's gain |
+| Clarabel (augmented system, AMD ordering) | 26 iterations in 3,815 s (147 s each), stopped at the time limit; bound from its duals 4.621811 |
+| HiGHS `solver=hipo` | ran simplex (135,437 iterations, no interior point iterations), stopped at 5,084 s: the option did not select an interior point |
+| subgradient, volume and monotone dual-ascent steps on a block Lagrangian | none moved the bound off the column LP's: at the first point every block's solution is arbitrary, and the zero-cost cycles among the master's support groups absorb the ascent's cost moves |
+| the pair-gap elementary inequalities (the projection of the relaxation that needs no pair variables; Sherali and Lee, Propositions 2 and 4) | 13.2% of the gap, the same as Balas's elementary inequalities without the gap test: the relaxation's strength is in the pair variables, not in a cheap family of group-space cuts |
+
+PDLP returns no duals when it stops at a time limit, so a bound from it exists
+only when it finishes. The normal matrix A Theta A' of the 40-market LP has
+12.2 million nonzeros, 0.45% of its 52,025^2 entries; the obstacle to a direct
+factorisation is fill, which Clarabel's 147 s per iteration measures.
+
+The size that limits the relaxation is the pair count, not the solver: 199,142
+pairs at 40 markets, and, scaling the survivor counts, of order 2 million at 60,
+6 million at 80 and 10^9 at 120. A support-restricted interior point with pair
+pricing (Zanetti and Gondzio, sections 3.2 to 3.4) stores only the support and
+prices the rest, so it would remove that limit if the support stays small. A
+prototype (`sparse_ipm2.py`) reached the LP value at 20 markets in 24 iterations
+(bound 5.0738116454, the optimum) and stalled at 24 markets.
+
+The stall, as a five-why ladder. Incident: 24 markets, 8,867 rows, reference
+4.344031 (HiGHS simplex, 626 s). From iteration 53, mu fell to 1e-21 while the
+primal residual stayed at 5e-5 and the support froze at 12,783 of 16,832 pairs;
+200 iterations, no convergence. The run reproduces exactly.
+
+| link | candidate | result | evidence |
+| --- | --- | --- | --- |
+| support | the leave rule drops pairs needed for feasibility | cleared as the first cause | the second version removed none and stalled the same way |
+| restricted problem | the frozen support is infeasible | eliminated | HiGHS on the support at iteration 53: optimal at 4.344030813 |
+| Newton solve | the primal direction is wrong | the failing link | the relative residual of A_J dv = rp grows from 1e-10 to 1e-4 (iteration 29), 0.5 (53) and 1 to 30 (54 on); the dual side holds at 1e-16 |
+| shift | C1: the diagonal shift is 1e-10 times the largest diagonal entry, so it grows with theta_max | cause | at iteration 40 it gives 1.3e-3, against 1.2e-9 (no shift, LDL'), 2.9e-8 (shift relative to each entry) and 1.4e-10 (regularised augmented system with refinement) |
+| centring | C2: mu falls about 30x per iteration while the primal residual does not, so theta spans 30 orders of magnitude | cause | at iteration 58 no solve variant recovers the direction (every one at 1 or above) |
+| support | C3: up to m = 8,867 pairs removed in one iteration | cause | the removed values, each under 1e-6, sum to a residual of 1e-3 |
+| support | C4: pairs removed late are priced back in, at v = s = sqrt(mu), next to the boundary | cause on the facially reduced LP | every step collapse there (to 0.000 to 0.05) follows a re-entry while removals continue |
+| data | 648 of 8,867 rows of A_J dependent (b consistent) | condition, not a cause | 20 markets has 389 dependent rows of 3,140 and converges |
+| data | no strictly feasible point | condition, not a cause | see below; the stall survives on the reduced, strictly feasible face |
+
+The ablation at 24 markets, each arm one change from its neighbour:
+
+| arm | shift | centring guard | removal | result |
+| --- | --- | --- | --- | --- |
+| baseline | max diagonal | off | cap m | stalls |
+| A1 | per entry | off | cap m | stalls (8,867 removed at iteration 63, then mu collapses) |
+| A2 | max diagonal | on | none triggered | stalls (solve residual 1 from iteration 54) |
+| A3 | per entry | on | cap m | stalls (residual jumps 4.9e-5 to 1.3e-3 after a mass removal) |
+| A4 | per entry | on | off | optimal, 80 iterations, 4.3440307658 |
+| A5 | per entry | on | cap m/50 | optimal, 80 iterations, 4.3440307658 |
+| A6 | per entry | off | off | stalls (mu 3e-23, theta 1e-31 to 5e21) |
+
+The guard holds the centring target at or above mu_0 |rp| / (10 |rp_0|), so
+complementarity falls no faster than the primal residual; MOSEK's homogeneous
+algorithm has this property by construction when the step uses eta = 1 -
+gamma (Andersen and Andersen 2000, eqs. (8.10) and (8.11), p. 205), and MOSEK
+requires full row rank, checked in preprocessing (p. 211 and section 8).
+
+The relaxation has no strictly feasible point. The gap filter keeps only pairs
+that fit in the gap, which cuts the polytope down to the neighbourhood of the
+optimal designs. At 20 markets 3,504 of 3,552 columns (98.6%) are zero in every
+feasible solution; at 24 markets 4,559 of 17,671, each certified by an exposing
+vector y with A'y >= 0, b'y = 0 (dual-side facial reduction, Im and Wolkowicz),
+after which the face is strictly feasible (t* = 0.25 at 20 markets, 1.8e-4 at
+24) and has 5,351 independent rows. The singleton-row and forcing-constraint
+rules of presolve (Andersen and Andersen 1995) find 24 of the 168 dead groups at
+20 markets; the rest needs the exposing-vector LP, which at 24 markets took 158
+s by interior point (dual simplex stalled in phase 1 on it). A primal-side
+reduction with tolerances removed feasible columns at 24 markets (its LP's
+optimum came out at 4.5918, above 4.344031); only the certified one is used.
+On the face, the reduced problem's duals bound the full LP only after the
+exposing vectors are added back (20 markets: -76 without them, 5.0738116453
+with them).
+
+On the face, the dual norm falls from 3e4 to 4 to 10, but the original settings
+still stall (mu 1e-21, primal residual 5e-5): the missing strict feasibility is
+a condition, and C1 and C2 are independent causes. The fixed settings with
+removals capped at m/50 also stall there (C4). With the shift fix, the guard and
+no removal before convergence, the face solves in 59 iterations (bound
+4.3440265019 through the certificate, 1.0e-6 below the reference), against 80
+for A4 on the unreduced LP, with 5,351 rows to factor instead of 8,867.
+
+Open, in the order they matter for a build: whether this configuration holds on
+other arms and seeds; the solve accuracy at convergence (the primal residual of
+the solve reaches 1e-4 by iteration 48 on the face); a homogeneous-model step in
+place of the guard; the entry threshold (pairs priced between -1e-3 and 0 wait
+until the restricted problem converges); the starting point; row and column
+scaling; and the support size as pairs grow with the rows fixed, which no run
+so far tests (24 markets has 1.9 pairs per row). The cost of finding the face
+is part of the scaling question: the exposing-vector LP is as large as the
+relaxation.
+
 ### Phase 5: power analysis
 
 The variance of the design's iROAS estimate has a closed form, and the window it
