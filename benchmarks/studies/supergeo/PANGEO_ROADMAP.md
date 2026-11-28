@@ -820,15 +820,104 @@ Avenues, in order:
    among similar-sized or nearby markets. They shrink the problem and may
    narrow the root gap, since cheap groups can no longer cancel across distant
    markets, which is what decides whether a proof is reachable.
-3. Stronger relaxations on the survivors only. RLT and subset-row cuts were
-   too expensive over every group; over a few million survivors they may not
-   be. Unmeasured.
+3. Stronger relaxations. Measured below: subset-row cuts close 3 to 11% of
+   the gap and run out; RLT-2 was already built on the groups that fit in the
+   gap (phase 3b: 63.3% at 40 markets in 8,392 s), so restricting it to the
+   survivors is not a new saving. What remains is a cheaper approximation of
+   RLT-2.
 4. Speed. The passes are 86% of the time and score groups independently, so
    they split across threads; seeding the LP with a good design's groups should
    remove the climbing rounds; and the projected pricing filter (the Tucker item
    below) skips exact scoring for groups that cannot enter a round. Estimated
    at 15 to 25 minutes for the root LP at 211 markets as it stands, from 61 s a
    pass and the round counts above.
+
+#### Measured after 4c: column generation, guessed gaps, subset-row cuts
+
+All on the seasonal panels of 4c (seed 0, T = 60, design window the first 42
+periods, Q = 2), single-threaded, priced over the stored pool so that a round
+counts one streamed pass (scratch `q34/cg_variants.py`, `q34/guess_gap.py`,
+`q34/sr_cuts.py`).
+
+Column-generation variants. Every variant ends at the same LP value as
+`root_lp`.
+
+| Variant | Rounds at 40 markets | Rounds at 120 markets |
+| --- | --- | --- |
+| `root_lp`'s rule: the 5n most negative groups | 6 | 14 |
+| the cover rows relaxed to >= 1, over-covered rows restored to = 1 when nothing prices out | 9 (2 restores) | 11 (2 restores) |
+| the batch plus a set of disjoint negative groups | 6 | 12 |
+| seeded also with `fast_partition`'s design | 7 | 12 |
+| disjoint negative groups only | 19 | 32 |
+| the relaxed rows with disjoint groups only | 20 | 28 |
+
+The relaxed rows and the disjoint columns are Sato and Izunaga's accelerations
+(Comput. Oper. Res. 106 (2019): the relaxation, after Sato and Fukumura, section
+3.2, p. 239; one column per vertex-disjoint pricing round, section 3.3,
+p. 240). The relaxed rows save 3 of 14 rounds at 120 markets, a fifth of the
+streamed time; disjoint columns alone add at most n/2 columns a round and are
+slower. Threads on the passes buy more than either.
+
+Guessed gaps. Elimination at an incumbent is the reduced problem of Baldacci,
+Christofides and Mingozzi (Math. Program. 115 (2008), section 4.1, p. 360):
+keep the columns whose reduced cost is smaller than the gap between a valid
+upper bound and the dual bound, and solve the rest exactly. Wang et al.
+(Transp. Sci. 57(6) (2023), section 4.3, p. 1591) guess the upper bound instead,
+zbar = (1 + alpha) L, and raise it until the reduced problem returns a design
+at or below it, which is then optimal: no incumbent is needed. With HiGHS
+(`scipy.optimize.milp`, gaps 0, 900 s per solve) on the reduced exact cover and
+alpha in steps of 3%:
+
+| Markets | Root gap to the optimum | First optimal design | Proof | `solve_exact` |
+| --- | --- | --- | --- | --- |
+| 40 | 17.4% | alpha 9%, 516 of 102,050 groups | alpha 18%, 1,473 groups, 66 s of MIPs in all | 7 s |
+| 60 | 10.2% | alpha 6%, 1,766 of 523,625 groups | alpha 12%, 5,505 groups, 915 s of MIPs in all | 42 s |
+| 80 | 6.9% | none in 900 s at alpha 3% (1,608 of 1,666,900 groups; best 6.340322, 1.3% above the optimum) | none | 288 s |
+
+Every proof matched `solve_exact`. Two findings: reduced pools of 0.1 to 0.5%
+of the groups hold designs within 1.5% of the optimum, a source of z at 211
+markets with no incumbent needed; and HiGHS is far slower on the reduced exact
+cover than PANGEO's own search, so the reduced pool goes to the search, not to
+a general MIP solver. When a step returns a design z* above zbar, the next step
+should set alpha = z* / L - 1 directly (the reduced problem at that gap is
+complete for z*); the stepping above solved four needless MIPs at 40 markets.
+
+Subset-row cuts. For a triple S of markets, the groups holding at least two of
+S sum to at most 1 in every exact cover. Separated exactly over all triples at
+the LP point (left-hand side w_ab + w_ac + w_bc - 2 t_abc from the point's pair
+and triple weights), up to 100 a round, with the cuts' duals in full pricing:
+
+| Markets | Cuts until none is violated | Gap closed | Survivors at the best design known |
+| --- | --- | --- | --- |
+| 40 | 41 | 10.8% | 1,403 to 1,336 |
+| 60 | 28 | 6.3% | 4,250 to 3,995 |
+| 80 | 23 | 2.8% | 8,003 to 7,790 |
+| 120 | 30 | 3.0% | 107,747 to 103,573 (z = 9.041550) |
+
+Negative, and shrinking with the arm, as the clique and odd-set cuts were. The
+objective is linear in the group variables, so any bound gain comes from the
+polytope: the LP's fractional optimum sits at a vertex of the cover polytope
+that no exact cover reaches, and a cut helps only if it separates that vertex.
+Triples are one weak family of such cuts. RLT-2 closes 63.3% at 40 markets
+with valid inequalities of the same polytope (projected from pair space), so
+stronger cover-space inequalities exist; the open question is a family that is
+cheap to separate.
+
+The incumbent decides the pool. At 120 markets, elimination at the best design
+known (9.041550) keeps 107,747 groups; at the default budgets' design
+(9.426645), 210,300. A better z halves the survivors.
+
+Elimination and every bound computed after it. Let z be the cost of a feasible
+design (its rigorous upper bound), L a rigorous Lagrangian bound at duals
+(pi, sigma), and S the groups whose rigorous reduced cost is at most z - L.
+Every design D and every group H in it satisfy cost(D) >= L + rc_H (phase 2),
+so a design holding a group outside S costs more than z, which is at least the
+optimum; an optimal design uses S alone. The optimum over S is the optimum, and
+any rigorous lower bound for the problem restricted to S (an LP, cuts, RLT, a
+search's certificate) is a rigorous lower bound for the whole arm. Conditions:
+the reduced costs and L rigorous (as `lagrangian_bound` forms them), z a real
+design's cost, and the restricted bound rigorous itself. Phase 3b's RLT-2 build
+already used this, keeping only the pairs of groups that fit in the gap.
 
 ### Phase 5: power analysis
 
@@ -1356,7 +1445,12 @@ Recorded from discussion, not designed or measured.
   - Its use is as a pricing filter in 4c: a group whose projected reduced cost
     is nonnegative at the round's duals cannot enter the round, so only the
     rest need exact scoring. PCA rejected 96.6% of groups at 24 markets with
-    the exact duals. The strata comparison (sales-only PCA, the Tucker core,
+    the exact duals. At 60 markets on the same panel (the best design 26 to
+    34% above the root bound, so 13 to 29% of the groups survive exact
+    elimination), PCA leaves 79,337 to 222,517 survivors at 8 dimensions and
+    147,470 to 177,933 at 24, the Tucker core 191,578 to 331,575 at 8 and
+    160,024 to 212,647 at 24: tighter with the dimension, PCA tighter than the core at
+    each, and short of exact scoring throughout. The strata comparison (sales-only PCA, the Tucker core,
     the market-mode factor rows LRRHTD clusters on (Zhang et al., IEEE Signal Process. Lett. 25(3), 2018, Algorithm 1, step 16), the true communities, each repaired by
     the exact re-solves) is still running.
 
