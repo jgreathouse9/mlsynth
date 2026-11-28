@@ -36,11 +36,12 @@ PANGEO is two stages:
 
 #. Design (pre-period data only). Each arm's geos are grouped into
    composite *supergeos* and formed into balanced pairs --- with no geo
-   trimmed --- so that pre-period parallelism is maximised. By default this
-   partition is found by a fast clustering heuristic (the OSD analogue of
-   Shaw 2025); an exact set-partitioning mixed-integer program is available
-   as an opt-out (``fast=False``). Both optimise the same parallelism
-   objective. A power analysis reports the minimum detectable effect (MDE)
+   trimmed --- so that pre-period parallelism is maximised. The partition
+   is found by an exact set-partitioning search that returns a proved
+   optimum, or, when its node budget runs out, the best design found with a
+   certified gap to the optimum. An arm too large for the search (more
+   candidate groups than it scores) is designed by a clustering heuristic
+   instead, with a warning. A power analysis reports the minimum detectable effect (MDE)
    implied by the chosen supergeo size :math:`Q`.
 
 #. Evaluation (after the experiment). The *same* design is scored
@@ -55,7 +56,7 @@ minimises the MDE and tightens the CI — optimising parallelism is
 optimising inferential precision.
 
 This is a principled deviation from Google's Supergeo Design. Chen et
-al. (2023) and OSD (Shaw 2025) match supergeos on a scalar summary —
+al. (2023) match supergeos on a scalar summary —
 the summed baseline response, or a few covariate totals — which collapses
 the time dimension. PANGEO matches on the full pre-period trajectory.
 That difference is not cosmetic: the downstream analysis is a
@@ -103,8 +104,8 @@ so the experiment spans the entire market with nothing discarded (Chen,
 Doudchenko, Jiang, Stein & Ying 2023).
 
 PANGEO keeps this structure but changes *what* the supergeos are matched on.
-Supergeo Design and OSD match on a scalar summary (the summed response, or a
-few covariate totals), which collapses the time dimension; PANGEO matches on
+Supergeo Design matches on a scalar summary (the summed response, or a few
+covariate totals, Chen et al. 2023, section 1, p. 4), which collapses the time dimension; PANGEO matches on
 the full pre-treatment trajectory, choosing pairs whose aggregate paths
 run as parallel as possible. The reason is that the downstream
 difference-in-differences analysis differences trajectories: two markets with
@@ -236,13 +237,15 @@ The concrete failure / stall modes:
   feasible design, but the parallelism :math:`R^2` stays low and the MDE
   blows up — a signal that a geo experiment here is underpowered and the
   read will be noisy regardless of split.
-- The exact program stalls. Set partitioning is NP-hard, so the exact
-  opt-out program (``fast=False``) can be slow or intractable with many geos
-  and a large supergeo size :math:`Q`. The default clustering partition
-  avoids this --- it is :math:`O(n\log n)` and, under cluster structure,
-  matches the exact optimum (see *Forming the supergeos*). If you
-  nonetheless need the exact program, cap :math:`Q` (smaller supergeos), use
-  the automatic :math:`Q` selection, or raise ``min_pairs``.
+- The exact search cannot finish. Set partitioning is NP-hard, so past
+  about 80 geos at :math:`Q=2` the search stops at its node budget and
+  returns its best design with a certified gap (about 9% at 120 geos with
+  the default budgets); raising ``search_node_limit``,
+  ``popmusic_node_limit`` and ``certify_node_limit`` narrows it. Past 148
+  geos at :math:`Q=2` (50 at :math:`Q=3`, 33 at :math:`Q=4`) the search
+  cannot score every candidate group and
+  the arm falls back to a clustering heuristic, which carries no certified
+  gap. A smaller :math:`Q` keeps a larger arm on the exact search.
 - Too few geos / arms. A pool that cannot form a balanced pair (e.g.
   two wildly different markets) has no good design to find.
 
@@ -300,58 +303,50 @@ Forming the supergeos
 ^^^^^^^^^^^^^^^^^^^^^^
 
 Given the per-pair cost :eq:`score`, the design must partition each arm's geos
-into supergeo pairs of minimum total non-parallelism. PANGEO offers two solvers
-for this, and they optimise the *same* objective :eq:`score`. The econometric
-content of the design --- balancing the factor loadings of :eq:`gapdecomp`,
-i.e. making the supergeo halves move in parallel --- is therefore identical
-whichever solver runs; they differ only in how they search. Both run
-independently within each arm (arms hold disjoint geos), and both produce an
-exact cover: every geo is assigned to exactly one supergeo pair, with nothing
-trimmed.
+into supergeo pairs of minimum total non-parallelism. Each arm is designed
+independently (arms hold disjoint geos), and the design is an exact cover:
+every geo is assigned to exactly one supergeo pair, with nothing trimmed.
 
-Clustering partition (default, ``fast=True``). Geo-experiment panels almost
-always have cluster structure: markets fall into a handful of latent types
-that move together up to a level shift (shared seasonality, regional demand,
-category-level trends). When that structure is present the best supergeos are
-just groups of same-type geos, which can be found by clustering, not by
-combinatorial search. The default solver --- an analogue of OSD (Shaw 2025)
-for the trajectory objective --- forms the supergeos in five plain steps:
+Every arm is designed by the exact set-partitioning search below. It returns
+a proved optimum, or, when its node budgets run out, the best design it found
+together with a certified gap: a lower bound on the optimum that the returned
+design is within the stated percentage of. The budgets are
+``search_node_limit``, ``popmusic_node_limit`` and ``certify_node_limit``
+(5,000,000, 1,000,000 and 500,000 nodes by default). On simulated seasonal
+panels the defaults proved the optimum at 40 geos with :math:`Q=3` in 60 s
+and at 80 geos with :math:`Q=2` in 228 s, and at 120 geos with :math:`Q=2`
+returned a design within a certified 9.21% of the optimum in 936 s. Larger
+budgets narrow the gap at a cost in time: 200,000,000, 12,000,000 and
+12,000,000 nodes took it to 6.13% in 4,717 s on the same arm.
 
-#. Level removal. Each geo's pre-period trajectory has its own time-mean
-   subtracted, leaving the *shape* :math:`y_{it}-\bar y_i`. This is the same
-   demeaning as the score :eq:`score`: two geos moving in parallel at any
-   level become identical, so the grouping targets parallel trends instead of
-   matching levels.
-#. Embedding. The shapes are projected onto their leading principal
-   components (denoising; under the factor model :eq:`factor` the shapes span
-   the factor space, which PCA recovers).
-#. Clustering. Hierarchical (Ward) linkage orders the geos so that
-   parallel-moving markets are adjacent.
-#. Size-bounded grouping. The ordering is cut into contiguous groups of size
-   :math:`2,\dots,2Q` --- each splittable into two halves of size :math:`\le
-   Q` --- giving the exact cover. ``min_pairs`` caps the group size so that at
-   least that many pairs form.
-#. Per-group split. Within each group the treatment and control halves are
-   the split minimising :eq:`score` --- the same best split the exact program
-   uses.
+The search scores every admissible pair before it starts, so an arm with more
+admissible pairs than it can hold (``columns.MAX_COLUMNS``, 20 million: past
+148 geos at :math:`Q=2`, 50 at :math:`Q=3` and 33 at :math:`Q=4`) cannot be
+designed this way. Such an arm
+falls back to a clustering heuristic, with a ``PangeoHeuristicFallbackWarning``
+and the arm named in ``results.metadata["heuristic_arms"]``. The heuristic
+removes each geo's level, projects the shapes on their leading principal
+components, orders the geos by hierarchical (Ward) linkage, cuts the ordering
+into contiguous groups of :math:`2,\dots,2Q` geos and splits each group at its
+best split by :eq:`score`; it keeps the best of ``fast_candidates`` such
+groupings. It optimises the same objective and runs in well under a second,
+but it carries no certified gap and is far from the optimum on the panels it
+was measured on: 6.4 to 26.8 times the optimal cost on simulated seasonal
+panels of 20 to 80 geos at :math:`Q=2`, 8.4 to 17.5 times at :math:`Q=3`,
+11.3 times the best design found at 120 geos (102.08 against 9.04), and 1.66
+to 2.13 times the optimum on panels with grouped factor structure. The cost
+is the pre-period noise the effect estimate must overcome, and the minimum
+detectable effect grows with about its square root: a design at 4 times the
+optimal cost has about twice the optimal minimum detectable effect. A smaller
+:math:`Q`
+keeps a larger arm on the exact search.
 
-A handful of candidate groupings are generated (varying the linkage rule and a
-small embedding perturbation, as in OSD) and the one with the lowest total
-:eq:`score` is kept; ``fast_candidates`` sets how many. The cost is
-:math:`O(n\log n)`, against the exponential search below.
+*Remark.* A design's cost never biases the effect estimate: the coin flip
+within each pair, not the grouping, makes the treated and control halves
+comparable in expectation. A worse design costs power only.
 
-*Remark.* The clustering partition is a heuristic: its total cost is
-:math:`\ge` the exact optimum, with equality when the trajectory clusters are
-clean. Checked against a structure-aware oracle (group by the true latent
-clusters, then split each exactly), on clustered panels it *matches* the exact
-optimum --- e.g. at :math:`N=60` geos with supergeos up to :math:`Q=6` it
-recovers the oracle design in well under a second, a regime where the exact
-program cannot even begin (it enumerates :math:`O(N^{2Q})` candidate subsets).
-This is why it is the default. On data with no cluster structure the gap to the
-optimum can be large; there the exact program is preferable when affordable.
-
-The exact set-partitioning program (``fast=False``)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The exact set-partitioning search
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The exact solver enumerates every admissible pair and selects the optimal
 exact cover by mixed-integer programming. Let :math:`\mathcal F` be the family
@@ -394,7 +389,7 @@ the objective is linear in :math:`\mathbf{x}` --- the program is a mixed-integer
 which is what keeps it tractable. Within each chosen pair the two halves are
 the score-minimising split, and a fair coin, drawn independently in each pair
 after the pairs are chosen, decides which half is treated, as in the
-supergeo design of Chen et al. (2023, section 3). The coins come from ``assignment_seed`` (default 0): the pairs do
+supergeo design of Chen et al. (2023, section 2, p. 7). The coins come from ``assignment_seed`` (default 0): the pairs do
 not depend on it, and the same seed on the same pre-period panel labels the
 pairs the same way, so a run with ``post_col`` after the experiment reads the
 assignment the experiment ran. Each pair's coin is on
@@ -702,7 +697,8 @@ is ``"certified"``, ``status`` is ``"certified_gap"``, and ``dual_bound`` and
 ``proven_gap`` hold the bound the rounds proved and the gap from the design to
 it. The per-arm diagnostics add the LP's rounds and value,
 the MIPs solved, and the seconds spent scoring, on the LP and in the MIPs. An
-arm larger than 20 million pairs raises and names ``fast=True``.
+arm with more than 20 million admissible pairs is designed by the clustering
+heuristic instead, with a warning (see Forming the supergeos).
 
 Per-pair objectives
 ^^^^^^^^^^^^^^^^^^^^
@@ -730,8 +726,8 @@ of a candidate split and :math:`\bar g` for its estimation-window mean,
   Sums over markets, no level shift and no trajectory: the level is what
   it balances, and two markets with equal totals score as a perfect match
   whatever their shapes. It is the baseline PANGEO's trajectory objectives
-  are compared against. It is available for pairs (``max_supergeo_size=1``)
-  on the exact path (``fast=False``); with pairs the optimal design pairs
+  are compared against. It is available for pairs (``max_supergeo_size=1``);
+  with pairs the optimal design pairs
   the markets in sorted order of their totals, neighbour with neighbour, and
   PANGEO designs it that way (see Pairs, below).
 
@@ -744,8 +740,8 @@ Pairs: a closed form and a matching
 
 With :math:`Q=1` every supergeo is one geo, so a design of an arm is a
 perfect matching of its geos, and :eq:`mip` is the minimum-weight perfect
-matching problem (Edmonds 1965). On the exact path (``fast=False``) with
-``mip_backend="auto"``, PANGEO solves it directly, in one of two ways.
+matching problem (Edmonds 1965). With ``mip_backend="auto"``, PANGEO solves
+it directly, in one of two ways.
 
 * Under ``"supergeo_total"`` with no covariates, the cost of a pair is the
   squared difference of two scalars, the geos' totals over :math:`\mathcal E`.
@@ -782,8 +778,7 @@ the geo paired with the dummy is the one left out (Kaibel and Walter 2017).
 The geo left out is recorded on ``ArmDesign.excluded_units`` and
 ``results.excluded_units``, named in a warning, and kept out of
 ``results.assignment``; it takes no part in the experiment or its analysis.
-An explicit MIP backend and the fast path have no such step, and an odd arm
-raises there.
+An explicit MIP backend has no such step, and an odd arm raises there.
 
 Supergeo size :math:`Q` and automatic selection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -799,8 +794,12 @@ tracked by the parallelism :math:`R^2` (which is scale-free and rises with
 
 Consequently, if ``max_supergeo_size`` is left unset, PANGEO selects
 :math:`Q` automatically: it solves :eq:`mip` for every feasible
-:math:`Q\in\{1,\dots,\min(\lceil N/2\rceil, 6)\}` and returns the design
-with the smallest mean program MDE. The full sweep --- each :math:`Q`'s
+:math:`Q\in\{1,\dots,\min(\lceil N/2\rceil, 6)\}`, with :math:`N` the
+smallest arm's size, and returns the design with the smallest mean program
+MDE. The sweep stops below the first :math:`Q` at which the largest arm has
+more admissible pairs than the exact search can score (``columns.MAX_COLUMNS``),
+so every :math:`Q` it compares is designed by the exact search; an arm of
+60 geos is swept over :math:`Q\le 2`. The full sweep --- each :math:`Q`'s
 program-pair count, mean program MDE, and the :math:`2/2^{P}`
 randomisation-inference p-value floor for :math:`P` pairs --- is recorded in
 ``results.metadata["q_sweep"]`` and the choice in
@@ -824,10 +823,10 @@ optional ``q_min_pairs`` sets a hard inference floor. Setting
 so a chosen :math:`Q` can be audited against the alternatives.
 
 Solver diagnostics. Every design records how the partition solver ran in
-``results.metadata["solver_diagnostics"]`` (per arm). The clustering
-(``fast=True``) path reports the candidate groupings tried and feasible, the
-winning candidate and its linkage, and each candidate's total score; the exact
-set-partitioning path (``fast=False``) reports the number of candidate
+``results.metadata["solver_diagnostics"]`` (per arm). An arm on the
+clustering fallback reports the candidate groupings tried and feasible, the
+winning candidate and its linkage, and each candidate's total score; an arm
+on the exact search reports the number of candidate
 supergeo pairs :math:`|\mathcal F|`, the MIP objective, optimality gap and
 dual bound, node/iteration counts, and the solve time. The same path puts one
 typed record per arm on ``results.mip_reports``
@@ -847,7 +846,9 @@ Parallelism is level-blind: by :eq:`score` the level shift
 (population, income) that merely shifts a market's level is differenced out
 and never enters the trajectory score. This is correct for parallel-trends
 DiD but says nothing about balance on such characteristics --- the role of
-OSD's scalar covariate matching. PANGEO restores it with a standardised
+the covariate matching in the supergeo design, where the covariates of
+aggregated geos are added up and matched (Chen et al. 2023, section 1,
+p. 4). PANGEO restores it with a standardised
 mean-difference penalty appended to :eq:`score`,
 
 .. math::
@@ -1368,7 +1369,7 @@ References
 
 Chen, A., Doudchenko, N., Jiang, S., Stein, C., & Ying, B. (2023).
 "Supergeo Design: Generalized Matching for Geographic Experiments."
-arXiv:2301.12044.
+arXiv:2301.12044v1.
 
 Bai, Y. (2022). "Optimality of Matched-Pair Designs in Randomized
 Controlled Trials." *American Economic Review* 112(12):3911-3940.
@@ -1381,9 +1382,6 @@ Mathematics* 17:449-467.
 
 Edmonds, J. (1965). "Maximum Matching and a Polyhedron with 0,1-Vertices."
 *Journal of Research of the National Bureau of Standards* 69B:125-130.
-
-Shaw, C. (2025). "Optimized Supergeo Design: A Scalable Framework for
-Geographic Marketing Experiments." arXiv:2506.20499.
 
 Li, K. T. (2023). "Frontiers: A Simple Forward Difference-in-Differences
 Method." *Marketing Science* 43(2):267-279.

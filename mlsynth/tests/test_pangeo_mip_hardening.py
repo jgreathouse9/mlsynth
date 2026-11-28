@@ -280,10 +280,11 @@ def test_a_stated_gap_reaches_the_solver_from_the_config(panel):
         assert r.requested_rel_gap == 0.05 and r.requested_abs_gap == 0.5
 
 
-def test_paths_without_a_mip_report_nothing(panel):
-    """Edge: the fast path (the default) and the pairs path solve no MIP and report none."""
-    assert _fit(panel, max_supergeo_size=2).mip_reports == {}
-    assert _fit(panel, max_supergeo_size=1, fast=False).mip_reports == {}
+def test_the_pairs_path_reports_nothing_and_the_default_path_reports_every_arm(panel):
+    """Edge: the pairs path solves no MIP and reports none; the default (exact) path reports every arm."""
+    assert _fit(panel, max_supergeo_size=1).mip_reports == {}
+    res = _fit(panel, max_supergeo_size=2)
+    assert set(res.mip_reports) == set(res.arm_designs)
 
 
 def test_the_automatic_q_keeps_its_design_s_reports(panel):

@@ -836,13 +836,13 @@ class TestConfigValidation:
 
 class TestEstimatorErrors:
     def test_infeasible_explicit_Q_raises(self):
-        # Q=1 on an odd-sized arm has no 1-vs-1 exact cover.
+        # An arm of 5 holds at most 2 pairs, fewer than min_pairs=3.
         df = make_seasonal_sales_panel(units_per_arm=5, arms=("A", "B"),
                                        T=30, seed=0)
         with pytest.raises(MlsynthEstimationError):
             PANGEO({"df": df, "outcome": "sales", "arm": "arm",
                     "unitid": "unit", "time": "time", "max_supergeo_size": 1,
-                    "display_graphs": False}).fit()
+                    "min_pairs": 3, "display_graphs": False}).fit()
 
     def test_min_pairs_infeasible_raises(self, panel):
         # An arm of 6 with Q=3 yields at most 3 pairs; demanding 5 is infeasible.
@@ -941,17 +941,36 @@ class TestEdgeCases:
         res = PANGEO(cfg).fit()
         assert isinstance(res, PangeoResults)
 
-    def test_auto_q_skips_infeasible(self):
-        # Odd arms: Q=1 is infeasible (no 1-vs-1 cover) and must be skipped,
-        # not crash; a feasible Q is selected.
+    def test_auto_q_skips_infeasible(self, monkeypatch):
+        # A Q whose design raises MlsynthEstimationError is recorded as
+        # infeasible and skipped, not a crash; a feasible Q is selected.
+        from mlsynth.exceptions import MlsynthEstimationError
+        from mlsynth.utils.pangeo_helpers import pipeline
+        real = pipeline.run_pangeo
+
+        def no_q1(inputs, *, max_supergeo_size=None, **kw):
+            if max_supergeo_size == 1:
+                raise MlsynthEstimationError("no cover at Q=1")
+            return real(inputs, max_supergeo_size=max_supergeo_size, **kw)
+        monkeypatch.setattr(pipeline, "run_pangeo", no_q1)
+        df = make_seasonal_sales_panel(units_per_arm=6, arms=("A", "B"),
+                                       T=40, seed=0)
+        res = real(prepare_pangeo_inputs(df=df, outcome="sales", arm="arm",
+                                         unitid="unit", time="time"))
+        sweep = {s["q"]: s["feasible"] for s in res.metadata["q_sweep"]}
+        assert sweep.get(1) is False
+        assert res.metadata["q_selected"] >= 2
+
+    def test_auto_q_on_odd_arms_designs_q1_with_one_market_left_out(self):
+        # The exact pairs path leaves one market out of an odd arm, so Q=1
+        # is feasible there and named in the sweep.
         df = make_seasonal_sales_panel(units_per_arm=5, arms=("A", "B"),
                                        T=40, seed=0)
         res = PANGEO({"df": df, "outcome": "sales", "arm": "arm",
                       "unitid": "unit", "time": "time",
                       "display_graphs": False}).fit()
         sweep = {s["q"]: s["feasible"] for s in res.metadata["q_sweep"]}
-        assert sweep.get(1) is False           # Q=1 infeasible for odd arms
-        assert res.metadata["q_selected"] >= 2
+        assert sweep.get(1) is True
 
     def test_min_pairs_respected(self, panel):
         res = PANGEO({"df": panel, "outcome": "sales", "arm": "arm",

@@ -154,9 +154,9 @@ def test_count_columns(n, Q):
 
 
 def test_too_many_columns_is_reported(monkeypatch):
-    """Failure: an arm whose groups would not fit in memory raises before allocating, naming the fast path."""
+    """Failure: an arm whose groups would not fit in memory raises before allocating, naming max_supergeo_size."""
     monkeypatch.setattr(columns, "MAX_COLUMNS", 100)
-    with pytest.raises(MlsynthEstimationError, match="fast=True"):
+    with pytest.raises(MlsynthEstimationError, match="max_supergeo_size"):
         columns.score_columns(np.arange(10), _panel(0, 10), 2)
 
 

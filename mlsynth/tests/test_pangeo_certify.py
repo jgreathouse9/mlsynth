@@ -314,7 +314,8 @@ def test_the_config_refuses_a_negative_certify_budget():
     with pytest.raises(Exception, match="certify_node_limit"):
         PANGEOConfig(df=df, outcome="sales", arm="arm", unitid="unit", time="time", certify_node_limit=-1)
     cfg = PANGEOConfig(df=df, outcome="sales", arm="arm", unitid="unit", time="time")
-    assert cfg.certify_node_limit == cover.CERTIFY_NODE_LIMIT
+    from mlsynth.utils.pangeo_helpers.config import DESIGN_CERTIFY_NODE_LIMIT
+    assert cfg.certify_node_limit == DESIGN_CERTIFY_NODE_LIMIT
 
 
 # --- properties ---------------------------------------------------------------------------------------------------

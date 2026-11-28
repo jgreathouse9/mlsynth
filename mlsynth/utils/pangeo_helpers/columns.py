@@ -549,7 +549,8 @@ def score_columns(
     if N > MAX_COLUMNS:
         raise MlsynthEstimationError(
             f"PANGEO: {n} units at max_supergeo_size={max_size} make {N:,} candidate groups, more than the "
-            f"{MAX_COLUMNS:,} the exact design scores; use fast=True or a smaller max_supergeo_size.")
+            f"{MAX_COLUMNS:,} the exact design scores; use a smaller max_supergeo_size (the estimator falls back to its "
+            f"clustering heuristic past this size).")
     Y = np.asarray(Ypre, dtype=float)[idx]
     width = max(min(2 * int(max_size), n), 1)
     k = _prepare(Y, objective, weights, None if cov is None else np.asarray(cov, float)[idx], cov_scales,
