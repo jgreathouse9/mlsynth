@@ -13,17 +13,23 @@ workstream (phase 7).
   DiD residual sum of squares of the mean trajectories,
   `min over splits sum_t [(Ybar_A - Ybar_B)_t - delta]^2`, plus an optional
   covariate SMD^2 term. A per-group cost, so a set-partitioning master.
-- Default solver `fast=True`: level-removed trajectories, PCA, hierarchical
-  clustering into size-bounded groups, best split per group (an OSD analog).
-  For PANGEO's objective this is the right structure, since parallel trends asks
-  for similar shapes; the study's finding that similarity clustering fails
-  applies to the pretest-total objective, not here. It returns no gap.
-- Exact solver `fast=False`: every admissible group of size 2..2Q enumerated
-  (O(n^{2Q})), then an exact-cover MIP through highspy or cvxpy with default
-  options.
-- Power: closed-form MDE from the pairs' pre-period residual variance with an
-  AR(1) inflation, the quantity the MIP minimised. A blank window (`frac_E`)
-  holds out the tail of the pre-period, and a held-out residual is computed.
+- Default solver (phase 4a, `claude/pangeo-default-exact`): the exact path for
+  every arm, returning a proved optimum or a certified gap within the node
+  budgets `search_node_limit`, `popmusic_node_limit` and `certify_node_limit`
+  (5M, 1M and 0.5M by default). `fast` is deprecated and changes nothing. An
+  arm with more admissible groups than `columns.MAX_COLUMNS` (past 148 markets
+  at Q = 2, 50 at Q = 3, 33 at Q = 4) falls back to the clustering heuristic
+  (level-removed trajectories, PCA, hierarchical clustering into size-bounded
+  groups, best split per group) with a warning, and no gap. Phase 4b replaces
+  that fallback.
+- Power: closed-form MDE from the pairs' held-out residual variance with an
+  AR(1) inflation. Each pair enters with the weight the effects give it, its
+  treated half's total `weight_col` value or its treated count
+  (`claude/pangeo-power-weights`; before it, power weighted by count under
+  `weight_col` too). The residual is the one the design minimises, but the
+  design sums pair costs unweighted while the program variance weights each by
+  its squared treated share, so the two agree only for equal treated weights.
+  A blank window (`frac_E`) holds out the tail of the pre-period.
 
 ## What the study and the paper establish
 
@@ -672,12 +678,83 @@ has rank at most T - 1 (vector number partitioning, or vector balancing).
   balancing vector covariates such as pretest paths, with a design-based
   variance bound; a comparison arm for phase 5.
 
-### Phase 4: the fast design, certified
+### Phase 4: the exact design by default, strata past the column limit
 
-- `fast=True` keeps its design as the incumbent; the staged search then improves
-  it or certifies it within a time limit and reports the proven gap. The fast
-  path stays the default; the gap makes its quality visible.
-- Acceptance: on the phase 0 panels, the gap reported in seconds.
+#### 4a: the exact path as the default (built, `claude/pangeo-default-exact`)
+
+The clustering heuristic `fast=True` selected was measured against the exact
+path on simulated seasonal arms (`make_seasonal_sales_panel`, T = 60, design
+window the first 42 periods, single-threaded):
+
+| Q | Markets | Heuristic cost / optimum | Root bound alone certifies the heuristic to |
+| --- | --- | --- | --- |
+| 2 | 20 to 80 | 6.39 to 26.76 | 88.7 to 96.6% |
+| 3 | 20 to 40 | 8.45 to 17.53 | 90.1 to 95.4% |
+| 2 | 120 | 11.3 against the best design found (102.08 against 9.04) | 91.9% |
+
+and at 1.66 to 2.13 times the optimum on arms with grouped factor structure (60
+and 120 markets). With the small budgets the exact path proves the optimum at
+40 markets Q = 3 in 60 s and at 80 markets Q = 2 in 228 s, and returns a
+certified 9.21% gap at 120 markets Q = 2 in 936 s; 20M / 3M / 2M reach 7.73% in
+1,691 s and the earlier 200M / 12M / 12M reach 6.13% in 4,717 s. The default
+is the exact path with the small budgets, `fast` is deprecated, and the
+heuristic runs only past `MAX_COLUMNS`. The automatic Q sweep stops below the
+first Q the largest arm cannot score, so it never compares exact designs with
+heuristic ones.
+
+Negative result: POPMUSIC's cluster re-solves on threads (`claude/pangeo-popmusic-threads`,
+kept unmerged) ran in 1,492 s against 1,495 s single-threaded at 120 markets,
+with identical designs. Each wave's time sits in one tree (102.76 s against
+0.017 s for the next), so a wave cannot be shared out.
+
+#### 4b: strata past the column limit (next)
+
+Past `MAX_COLUMNS` the arm is cut into strata and each stratum is designed
+exactly, then cheap union moves between strata are kept only when they lower
+both the fit-window and the held-out cost. Measured at Q = 2 on simulated
+panels from a grouped factor model (4 communities, r = 4 community factors
+whose loadings spread around each community's centre with sd 0.25 x 1.5, and a
+masking dial m: 2 extra AR(1) factors whose loadings are drawn independently of
+community with sd m x 1.5; design window 52 periods, held out the next 52,
+after a burn-in of 200). Ratios are in-sample / held-out cost against the exact
+whole-arm design, means over seeds 0 to 4 unless stated:
+
+- Clusters as strata fail under masking. Rank-4 k-means on the level-removed
+  paths went from 1.38 / 1.20 with no masking to 2.12 / 1.86 at mask 2.0, where
+  it misassigned 50% of markets; the true communities as strata went from
+  1.25 / 1.11 to 1.44 / 1.32. This is the tandem-analysis failure: a
+  dimension-reduction step chosen without the cluster structure can keep the
+  masking directions and lose the contributing ones (Yamamoto and Terada, CSDA
+  79 (2014), section 2, p. 136).
+- Re-optimising across strata repairs it. Starting from the cheaper of capped
+  k-means and fGRC, passes that re-solve each pair of strata exactly as one
+  arm reached 1.09 to 1.15 in sample and 1.03 to 1.10 held out at 64 markets
+  (strata of 16), below the true communities as strata in sample at every
+  masking level and held out at three of four (1.10 against 1.09 at m = 0.5).
+- Scale (one panel each, seed 0, m = 1.0; 4 communities at 120 markets, 6 at
+  240; default budgets). At 120 markets (3 strata of 40), the strata start at 1.203 / 1.094
+  against a whole-arm design certified within 2.98%, and three passes reach
+  1.033 / 1.017 in 456 s, against 2,177 s for the whole-arm design. At 240
+  markets (6 strata of 40, past the column limit, so no whole-arm design) four
+  passes lower the in-sample cost 12.9% from the strata start and the held-out
+  cost 0.8%.
+- Held-out gating. On the Trimmed Match example data (174 geos, 52 weeks; 4
+  windows of 16 design and 8 held-out weeks; costs against the exact pairs
+  design, medians over windows), the heuristic held out at 0.883, strata at
+  0.391, ungated moves at 0.388 with 0.127 in sample (the gap is overfitting),
+  and moves gated on the held-out window at 0.289 (Q = 2 throughout; 6
+  strata). Gated moves were never worse held out than the strata in any
+  window; the slowest union took 11.7 s.
+- Strata sizes. Balanced k-means fixes the cluster sizes by assigning markets
+  to pre-allocated slots with the Hungarian algorithm (Malinen and Franti,
+  S+SSPR 2014, LNCS 8621, p. 35; `scipy.optimize.linear_sum_assignment`,
+  checked against brute force with the sizes held fixed). Strata of 30 to 40
+  markets keep each exact solve to seconds or minutes.
+
+The build: balanced k-means strata of 30 to 40 markets, the exact path within
+each, gated union moves on the blank window `frac_E`, then `fast_partition`
+deleted. Acceptance: on the 4b panels, held-out cost within 10% of the whole-arm
+design where one exists, and no fallback warning past `MAX_COLUMNS`.
 
 ### Phase 5: power analysis
 
@@ -1151,9 +1228,45 @@ Trimmed Match is a different mechanism: its estimator trims the pairs with
 extreme effects after the test, and its design's pair exclusion chooses how many
 pairs to keep. Neither repairs a design after a market is lost.
 
+### Later: weighting, covariates and size (planned near the end of the roadmap)
+
+Recorded from discussion, not designed or measured.
+
+- The MDE-weighted objective, as an option. The program variance is
+  sum_p w_p^2 sigma_p^2 [f(X, rho) + f(T0, rho)], with w_p the treated weight
+  share, while the design sums pair costs unweighted. Weighting each group's
+  cost by its squared treated weight makes the search minimise the in-sample
+  MDE at every horizon at once, and the objective stays a sum over groups, so
+  the exact path and its certificate carry over. Open question: a pair whose
+  halves differ in size or population has a treated weight that depends on its
+  coin, so the weight in the objective needs its expectation over the coin,
+  and the total treated weight is random too. The default stays unweighted.
+- The ATT's weighting, documented. PANGEO's program ATT applies each pair's
+  weight to both the treated and the control means, which is the equal
+  weighting of treated and control trends per sub-experiment that Wing,
+  Freedman and Hollingsworth derive for stacked DiD (NBER WP 32054, section
+  5.3, pp. 17-18); with treated counts it is their trimmed aggregate ATT
+  (eq. (2), p. 12) and with `weight_col` their population-weighted ATT
+  (Table 1, p. 13). A docs passage on `docs/pangeo.rst`.
+- Sample-share weights (their Table 1, third row: treated plus control
+  counts), low priority.
+- Time-varying covariate paths. Each pre-period covariate path enters a group's
+  cost as a standardised, level-removed gap, weighted per covariate, chosen on
+  the held-out window. Still one precomputed cost per group.
+- Size bands or size tiers. A group allowed only when its largest-to-smallest
+  population ratio is under a bound (pruned before scoring), or disjoint
+  population tiers. At 211 markets and Q = 2 the arm has 81.8 million groups;
+  four tiers of about 53 have 1.27 million in all, within `MAX_COLUMNS`.
+- Several KPIs or covariate paths at once. Markets x weeks x variables is a
+  three-way array, and a CP or Tucker factorization gives each market one set
+  of loadings across all the variables, an embedding for 4b's strata when
+  there is more than one series per market (phase 5d's several KPIs). Only an
+  embedding: 4b's measurements say the strata must be repaired by the exact
+  re-solves and judged on held-out cost, whatever the embedding.
+
 ## Order and dependencies
 
-Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 0c (the general solver against the closed form on pairs: heuristic stopping, odd-set cuts, the matching oracles), then 1 (independent, small), then 2 and 3 in sequence, then 4. Phase 3b follows 3, its items in their listed order, with threads after all of them. Phase 5's
+Phase 0, then 0b (the paper's objective, solved by enumeration and the cvxpy and HiGHS MIP, the base every later phase is measured against), then 0c (the general solver against the closed form on pairs: heuristic stopping, odd-set cuts, the matching oracles), then 1 (independent, small), then 2 and 3 in sequence, then 4 (4a, then 4b). Phase 3b follows 3, its items in their listed order, with threads after all of them. Phase 5's
 closed form and backtest can start after phase 1 and run beside 2 to 4; its
 Trimmed Match simulations follow phase 6, and phase 6b follows phase 6. The Trimmed Match benchmark (phase 7)
 lands with phase 6. Phases 5b, 5c and 5d follow phase 5's held-out MDE, which
