@@ -24,6 +24,11 @@ class PangeoExcludedUnitWarning(UserWarning):
     """A market left out of the design (an odd arm's pairs on the exact path)."""
 
 
+class PangeoHeuristicFallbackWarning(UserWarning):
+    """An arm with more candidate groups than the exact path scores (``columns.MAX_COLUMNS``), designed by the
+    clustering heuristic instead: its design carries no certified gap."""
+
+
 class PangeoCertifiedGapWarning(UserWarning):
     """An arm's design returned without a proof of optimality, with the gap its node budget certified (the exact
     path's ``certify_node_limit``; the arm's ``mip_reports`` entry has the design's bound and the gap)."""

@@ -6,10 +6,26 @@ Co-located with the helper package; re-exported from
 
 from __future__ import annotations
 
+import warnings
 from typing import Dict, List, Literal, Optional, Union
 import numpy as np
 import pandas as pd
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+#: The exact path's default node budgets for a design run by the estimator: the capped search (quick search, first
+#: window and proof), POPMUSIC, and the iterative cutoff. Measured on the seasonal simulated arms (seed 0, 42 design
+#: periods, single-threaded): with these budgets the optimum was proved at 40 markets and Q = 3 in 60 s and at 80
+#: markets and Q = 2 in 228 s, the same as with the study budgets (200M / 12M / 12M); at 120 markets and Q = 2 the
+#: design came within a certified 9.2% in 936 s, against 6.1% in 4,717 s with the study budgets. The library
+#: function ``columns.solve_exact`` keeps the study budgets (``cover.SEARCH_NODE_LIMIT`` and the rest) as its own
+#: defaults.
+DESIGN_SEARCH_NODE_LIMIT = 5_000_000
+DESIGN_POPMUSIC_NODE_LIMIT = 1_000_000
+DESIGN_CERTIFY_NODE_LIMIT = 500_000
+
+_FAST_DEPRECATED = ("PANGEO: 'fast' is deprecated and no longer changes the design; it will be removed in a later "
+                    "release. Every arm is designed by the exact path, which returns a proved optimum or a "
+                    "certified gap.")
 
 
 class PANGEOConfig(BaseModel):
@@ -106,52 +122,51 @@ class PANGEOConfig(BaseModel):
         default=0,
         description="Seed of the fair coin drawn in each supergeo pair to "
                     "decide which half is treated (Chen et al. 2023, "
-                    "arXiv:2301.12044, section 3): an integer from 0 to "
+                    "arXiv:2301.12044v1, section 2, p. 7): an integer from 0 to "
                     "2^63 - 1. Fixed by default, so an analysis run with "
                     "post_col labels the pairs as the design run did; set a "
                     "different seed for a different draw.")
-    fast: bool = Field(
-        default=True,
-        description="Partition solver. Default (True) uses the OSD-style fast "
-                    "partition (Shaw 2025 analog): each arm's units are "
-                    "level-removed, PCA-embedded, hierarchically clustered into "
-                    "size-bounded groups, and split per group -- replacing the "
-                    "O(n^{2Q}) candidate enumeration and NP-hard exact-cover "
-                    "MIP with an O(n log n) heuristic. Under cluster structure "
-                    "it matches the exact optimum (validated against a "
-                    "structure-aware oracle) in sub-second time, and is the "
-                    "only tractable path at large Q. Set False to use the exact "
-                    "enumerate+MIP (the optimum; only feasible for small arms / "
-                    "small Q). Both minimise the same de-meaned (DiD) "
-                    "pre-period gap-variance objective.")
+    fast: Optional[bool] = Field(
+        default=None, strict=True,
+        description="Deprecated, and removed in a later release: it no longer "
+                    "changes the design. Every arm is designed by the exact "
+                    "path (every admissible group scored, the root bound, a "
+                    "capped search, POPMUSIC and the iterative cutoff), which "
+                    "returns a proved optimum or a certified gap. The "
+                    "clustering heuristic it used to select measured 5 to 26 "
+                    "times the optimum's cost on seasonal arms of 20 to 120 "
+                    "markets; it now runs only for an arm with more candidate "
+                    "groups than the exact path scores, with "
+                    "PangeoHeuristicFallbackWarning. Passing True or False "
+                    "raises a DeprecationWarning.")
     fast_candidates: int = Field(
         default=5, ge=1,
-        description="Number of candidate groupings tried by the fast partition "
-                    "(varying linkage / a small embedding perturbation, as in "
-                    "OSD); the lowest-total-cost grouping is kept. Only used "
-                    "when fast=True.")
+        description="Number of candidate groupings the clustering heuristic "
+                    "tries (varying linkage / a small embedding perturbation); "
+                    "the lowest-total-cost grouping is kept. Used only for an "
+                    "arm too large for the exact path.")
     objective: Literal["ss_res", "r2", "weighted", "supergeo_total"] = Field(
         default="ss_res",
         description="Per-pair parallelism cost: 'ss_res' (absolute DiD "
                     "residual SS; scale-dependent), 'r2' (1-R^2; scale-free), "
                     "'weighted' (recency-weighted residual SS), or "
-                    "'supergeo_total', the objective of Chen et al. (2023, "
-                    "arXiv:2301.12044): the squared difference of the halves' "
-                    "totals over the estimation window, with no level shift "
-                    "and no trajectory. 'supergeo_total' is available for "
-                    "pairs (max_supergeo_size=1) with fast=False, solved by "
-                    "the exact-cover MIP; reach for it to compare designs on "
-                    "the paper's objective.")
+                    "'supergeo_total', the design objective of Chen et al. "
+                    "(2023, arXiv:2301.12044v1, section 2, p. 8): the squared "
+                    "difference of the halves' totals over the estimation "
+                    "window, with no level shift and no trajectory. "
+                    "'supergeo_total' is available for pairs "
+                    "(max_supergeo_size=1); reach for it to compare designs "
+                    "on the paper's objective.")
     mip_backend: Literal["auto", "highspy", "cvxpy"] = Field(
         default="auto",
-        description="Backend for the exact-cover MIP (fast=False): 'auto' "
+        description="Backend for the exact-cover MIP: 'auto' "
                     "uses highspy when it is installed and cvxpy otherwise; "
                     "'highspy' requires it; 'cvxpy' solves through cvxpy with "
                     "its first installed MILP solver (HiGHS by preference). "
                     "Both state the same program.")
     mip_rel_gap: float = Field(
         default=0.0, ge=0.0, lt=1.0, allow_inf_nan=False,
-        description="Relative gap the exact-cover MIP must close (fast=False, "
+        description="Relative gap the exact-cover MIP must close ("
                     "groups larger than pairs). 0, the default, solves to the "
                     "optimum; HiGHS's own default of 1e-4 returned a design "
                     "0.002% dearer than the optimum on a 20-market panel with "
@@ -162,34 +177,39 @@ class PANGEOConfig(BaseModel):
         default=0.0, ge=0.0, allow_inf_nan=False,
         description="Absolute gap the exact-cover MIP must close, in the "
                     "objective's units; 0 by default.")
+    search_node_limit: int = Field(
+        default=DESIGN_SEARCH_NODE_LIMIT, ge=0, strict=True,
+        description="Nodes the exact path's capped search (groups larger "
+                    "than pairs) may place before POPMUSIC and the certify "
+                    "rounds: the quick search, the first window and the "
+                    "proof. An arm whose proof finishes inside it is returned "
+                    "optimal. Deterministic: the same panel gives the same "
+                    "design on any machine.")
     certify_node_limit: int = Field(
-        default=12_000_000, ge=0, strict=True,
-        description="Nodes the exact path (fast=False, groups larger than "
-                    "pairs) may place after its proof stops at its cap, "
-                    "raising a proved lower bound by the iterative cutoff "
-                    "(rounds below the root bound times 1.01^i). If the "
-                    "rounds prove the design, it is optimal; if the budget "
-                    "runs out first, the best design is returned with the gap "
-                    "it certified (mip_reports: search 'certified', status "
+        default=DESIGN_CERTIFY_NODE_LIMIT, ge=0, strict=True,
+        description="Nodes the exact path (groups larger than pairs) may "
+                    "place after its proof stops at its cap, raising a proved "
+                    "lower bound by the iterative cutoff (rounds below the "
+                    "root bound times 1.01^i). If the rounds prove the design, "
+                    "it is optimal; if the budget runs out first, the best "
+                    "design is returned with the gap it certified "
+                    "(mip_reports: search 'certified', status "
                     "'certified_gap', dual_bound and proven_gap) and a "
-                    "PangeoCertifiedGapWarning. Deterministic: the same panel "
-                    "gives the same design and bound on any machine. At 120 "
-                    "markets and Q = 2 a node costs about 160 microseconds, so "
-                    "the default is about 30 minutes; there it certified a 4.6% "
-                    "gap. 0 leaves a capped proof to the MIP loop.")
+                    "PangeoCertifiedGapWarning. Deterministic. With the "
+                    "default budgets a 120-market Q = 2 seasonal arm was "
+                    "certified within 9.2% in about 15 minutes. 0 leaves a "
+                    "capped proof to the MIP loop.")
     popmusic_node_limit: int = Field(
-        default=12_000_000, ge=0, strict=True,
-        description="Nodes the exact path (fast=False, groups larger than "
-                    "pairs) may place improving its design by POPMUSIC after "
-                    "its proof stops at its cap and before the iterative "
-                    "cutoff: clusters of the design's nearest groups are "
-                    "re-covered exactly, a cover kept only when its upper "
-                    "bound is lower, so the design never gets worse, and the "
-                    "certified gap is then measured from the better design. "
-                    "Deterministic. At 120 markets and Q = 2 it lowered the "
-                    "design 2.5% with the default budget, and the certified "
-                    "gap from 8.4% to 6.1%. Arms whose "
-                    "proof finishes never run it. 0 skips it.")
+        default=DESIGN_POPMUSIC_NODE_LIMIT, ge=0, strict=True,
+        description="Nodes the exact path (groups larger than pairs) may "
+                    "place improving its design by POPMUSIC after its proof "
+                    "stops at its cap and before the iterative cutoff: "
+                    "clusters of the design's nearest groups are re-covered "
+                    "exactly, a cover kept only when its upper bound is "
+                    "lower, so the design never gets worse, and the certified "
+                    "gap is then measured from the better design. "
+                    "Deterministic. Arms whose proof finishes never run it. "
+                    "0 skips it.")
     recency_decay: float = Field(
         default=0.97, gt=0.0, le=1.0,
         description="Geometric recency-weight decay for objective='weighted' "
@@ -258,15 +278,17 @@ class PANGEOConfig(BaseModel):
         return int(v)
 
     @model_validator(mode="after")
+    def _fast_deprecated(self) -> "PANGEOConfig":
+        """``fast`` is accepted for one release and no longer changes the design."""
+        if self.fast is not None:
+            warnings.warn(_FAST_DEPRECATED, DeprecationWarning, stacklevel=2)
+        return self
+
+    @model_validator(mode="after")
     def _supergeo_total_scope(self) -> "PANGEOConfig":
-        """The paper's objective is wired for pairs on the exact path only:
-        PANGEO's Q caps each half, while the paper caps the group at four
-        with any split, and the fast path clusters similar trajectories,
-        which this objective does not reward."""
+        """The paper's objective is wired for pairs only: PANGEO's Q caps
+        each half, while the paper caps the group at four with any split."""
         if self.objective == "supergeo_total":
-            if self.fast:
-                raise ValueError("objective='supergeo_total' needs fast=False "
-                                 "(the exact-cover MIP).")
             if self.max_supergeo_size != 1:
                 raise ValueError("objective='supergeo_total' supports pairs "
                                  "only: set max_supergeo_size=1.")
