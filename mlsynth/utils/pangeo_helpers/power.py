@@ -2,8 +2,11 @@
 
 Once a PANGEO design is frozen, the minimum detectable effect (MDE) after
 ``X`` post-treatment periods is a closed-form function of the *pre-period
-parallelism the design achieved* -- which is exactly what the MILP
-minimised, so power and the design objective are the same quantity.
+parallelism the design achieved*. Each pair's noise below is the gap
+residual the design minimises, measured on the held-out window. The two
+are the same quantity only up to the pair weights: the design sums the
+pairs' costs unweighted, while the program variance weights each pair by
+the square of its treated share.
 
 For a supergeo pair the no-effect gap
 :math:`g_t = \\bar Y^T_t - \\bar Y^C_t` sits on its parallel-trends line
@@ -31,8 +34,10 @@ weeks are worth far fewer than ``X`` independent draws -- the trap a naive
 i.i.d. power calculation falls into. :math:`\\rho` is estimated from the
 pooled pre-period gap residuals of the chosen pairs.
 
-The **program** ATT is the treated-size-weighted average of the pair ATTs;
-its MDE is the headline number a program owner reports. Per-arm curves are
+The **program** ATT is the weighted average of the pair ATTs, each pair
+weighted by its treated half's total ``weight_col`` value (its treated unit
+count without one), as in the effects; its MDE is the headline number a
+program owner reports. Per-arm curves are
 also returned. Pairs are treated as independent across the program, so the
 arm count multiplies the effective sample size -- which is *why* pooling to
 the program level detects far smaller effects than any one small arm could.
@@ -43,11 +48,13 @@ placebo-in-time engine would absorb them).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
+
+from ...exceptions import MlsynthDataError
 
 
 @dataclass(frozen=True)
@@ -201,7 +208,7 @@ def _build_curve(
         return PowerCurve(level, float("nan"), 0, 0,
                           [MDEPoint(int(X), float("nan"), float("nan"),
                                     float("nan")) for X in post_periods])
-    w = np.array([p["n_t"] for p in pairs], dtype=float)
+    w = np.array([p["weight"] for p in pairs], dtype=float)
     w = w / w.sum()
     sigma2 = np.array([p["sigma2"] for p in pairs], dtype=float)
     T0 = np.array([p["T0"] for p in pairs], dtype=float)
@@ -222,14 +229,37 @@ def _build_curve(
     return PowerCurve(level, baseline, n_treated, len(pairs), points)
 
 
+def _treated_weight(treated: Sequence[Any], unit_weights: Optional[Mapping[Any, float]]) -> float:
+    """A pair's weight in its level: its treated half's total weight, or its treated count."""
+    if unit_weights is None:
+        return float(len(treated))
+    total = 0.0
+    for u in treated:
+        if u not in unit_weights:
+            raise MlsynthDataError(f"PANGEO power: treated unit {u!r} has no aggregation weight.")
+        v = float(unit_weights[u])
+        if not (np.isfinite(v) and v > 0.0):
+            raise MlsynthDataError(
+                f"PANGEO power: treated unit {u!r} has aggregation weight {v!r}; weights must be finite and positive.")
+        total += v
+    return total
+
+
 def compute_pangeo_power(
     arm_designs: Dict[Any, Any],
     *,
     post_periods: Optional[Sequence[int]] = None,
     alpha: float = 0.05,
     power_target: float = 0.80,
+    unit_weights: Optional[Mapping[Any, float]] = None,
 ) -> PangeoPower:
     """Program- and arm-level MDE curves for a frozen PANGEO design.
+
+    Each pair enters a level's variance with the weight the effects give it
+    (``effects._pair_records``): the total ``unit_weights`` value of its
+    treated half, or its treated unit count when ``unit_weights`` is
+    ``None``. The MDE is then the MDE of the reported ATT, including the
+    population-weighted one under ``weight_col``.
 
     Parameters
     ----------
@@ -241,6 +271,15 @@ def compute_pangeo_power(
         Two-sided significance level (default 0.05).
     power_target : float
         Target power (default 0.80).
+    unit_weights : mapping, optional
+        ``{unit: weight}`` aggregation weights (the ``weight_col`` values),
+        each finite and positive. ``None`` weights every unit equally.
+
+    Raises
+    ------
+    MlsynthDataError
+        If a treated unit has no weight, or a weight is not finite and
+        positive.
     """
     if post_periods is None:
         post_periods = list(range(2, 13))
@@ -265,6 +304,7 @@ def compute_pangeo_power(
                 "arm": arm,
                 "sigma2": sigma2,
                 "n_t": len(p.treatment),
+                "weight": _treated_weight(p.treatment, unit_weights),
                 "baseline": float(np.asarray(p.treatment_mean).mean()),
                 "T0": T0,
             })

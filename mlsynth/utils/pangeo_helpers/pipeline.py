@@ -432,6 +432,8 @@ def run_pangeo(
         power = compute_pangeo_power(
             arm_designs, post_periods=power_post_periods,
             alpha=power_alpha, power_target=power_target,
+            unit_weights=(None if uw is None
+                          else dict(zip(inputs.unit_names, map(float, uw)))),
         )
 
     if compute_q_sweep:
