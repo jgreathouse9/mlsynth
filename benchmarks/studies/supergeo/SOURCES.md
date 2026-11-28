@@ -173,3 +173,118 @@ read.
   pairs restricted to those that fit in the gap.
 - Checks: none second-hand.
 
+## sherali2025rlt
+- Reference: Sherali, H. D., & Adams, W. P. (2025). "Reformulation-Linearization
+  Techniques for Mixed-Discrete Optimization Problems." In Handbook of
+  Combinatorial Optimization, Springer. doi:10.1007/978-1-4614-6624-6_45-1.
+- Read: the pages cited below, from the PDF's extracted text; printed page
+  numbers equal the PDF's (checked on pp. 14, 19 and 47).
+- Used for: for set partitioning, published valid inequalities are captured
+  within the first two levels (p. 14, after Sherali and Lee); level-1 and
+  level-2 dual ascent bounds for the QAP (p. 19); RLT LPs are large and
+  degenerate, and Lagrangian dual schemes are recommended for them (p. 47).
+- Checks: the set-partitioning claim is checked at its origin, sherali1996spp.
+
+## adams2007qap
+- Reference: Adams, W. P., Guignard, M., Hahn, P. M., & Hightower, W. L.
+  (2007). "A level-2 reformulation-linearization technique bound for the
+  quadratic assignment problem." European Journal of Operational Research
+  180(3), 983-996.
+- Read: the abstract, sections 3, 4.1 and 5, and Table 2, from the PDF's
+  extracted text.
+- Used for: the level-2 LP is "large in size and highly degenerate" and is
+  solved by a dual ascent over a Lagrangian subproblem with block-diagonal
+  structure (section 5); the ascent's lower bound at each step (section 3);
+  2,897 s for 200 iterations on the size-20 instance (Table 2).
+- Checks: none second-hand.
+
+## bulhoes2018cspp
+- Reference: Bulhoes, T., Pessoa, A., Protti, F., & Uchoa, E. (2018). "On the
+  complete set packing and set partitioning polytopes: Properties and rank 1
+  facets." Operations Research Letters 46, 389-392.
+- Read: pp. 389-391, from the PDF's extracted text.
+- Used for: rank-1 multipliers, of which subset-row cuts (1/2 on three rows)
+  are one family; the families on 4 and 5 rows that vehicle-routing solvers
+  use (section 3.2, p. 391).
+- Checks: none second-hand.
+
+## zanetti2023ot
+- Reference: Zanetti, F., & Gondzio, J. (2023). "An Interior-Point-Inspired
+  algorithm for Linear Programs arising in Discrete Optimal Transport."
+  INFORMS Journal on Computing, doi:10.1287/ijoc.2022.0184; arXiv:2206.11009v2
+  (read); code github.com/INFORMSJoC/2022.0184 (MIT licence).
+- Read: sections 3.2 to 3.5, 4.2, 4.3 and 5.4 (pp. 6-14 and 19-20 of the arXiv
+  version), from the PDF's extracted text; the code's LinearSolver.m, mypcg.m,
+  updateindexred_full.m, updateindexred_heuristic.m and OT_IPM.m, read from
+  the raw files by a subagent.
+- Used for: one interior-point step per support, then pricing; entering at
+  v = s = sqrt(mu); leaving when small near convergence (section 3.2); pricing
+  over cheap columns between full pricing passes (section 3.4); incomplete-
+  Cholesky PCG switched to a direct factorisation when the support stops
+  shrinking (sections 4.2, 4.3); the code's thresholds: enter at reduced cost
+  below -1e-3, leave below 1e-6, at most m each, full pricing every third
+  iteration.
+- Checks: none second-hand. The switching argument rests on transport's
+  chordal structure (section 4.1), which the pair relaxation does not have.
+
+## andersen1996implementation
+- Reference: Andersen, E. D., Gondzio, J., Meszaros, C., & Xu, X. (1996).
+  "Implementation of interior-point methods for large scale linear programs."
+  In T. Terlaky (ed.), Interior Point Methods of Mathematical Programming,
+  Kluwer, chapter 6, pp. 189-252.
+- Read: section 6.1 (pp. 190-192) and section 6.4 (pp. 210-213), from the PDF's
+  extracted text.
+- Used for: iterative methods are "not competitive in general case" for lack of
+  a good cheap preconditioner (section 6.4); the normal equations suffer from
+  dense columns, treated by a Schur complement, and the augmented system allows
+  sparser factors and handles free variables (pp. 210-213).
+- Checks: none second-hand.
+
+## andersen2000mosek
+- Reference: Andersen, E. D., & Andersen, K. D. (2000). "The MOSEK interior
+  point optimizer for linear programming: an implementation of the homogeneous
+  algorithm." In H. Frenk et al. (eds.), High Performance Optimization, Kluwer,
+  chapter 8, pp. 197-232.
+- Read: sections 4 to 5.1 (pp. 204-213) and section 8 (p. 220), from the PDF's
+  extracted text.
+- Used for: with eta = 1 - gamma, the infeasibility and the complementarity gap
+  are reduced at the same rate (eqs. (8.10) and (8.11), p. 205); the KKT block
+  is nonsingular if A has full row rank, "which we assume" (p. 211); the
+  preprocessing checks full row rank first (section 8, p. 220).
+- Checks: the row-rank technique is credited to E. D. Andersen, Optimization
+  Methods and Software 6 (1995) 219-227, not read.
+
+## andersen1995presolve
+- Reference: Andersen, E. D., & Andersen, K. D. (1995). "Presolving in linear
+  programming." Mathematical Programming 71, 221-245.
+- Read: section 3 (pp. 223-232), from the PDF's extracted text, page numbers
+  from the running heads.
+- Used for: a singleton row fixes its variable (rule (v), p. 224); a forcing
+  constraint fixes every variable in it, and its variables are "structurally
+  degenerate" (rule (x), p. 226); with linearly dependent rows the
+  interior-point linear system is singular (section 3.5, p. 229).
+- Checks: none second-hand.
+
+## im2023degeneracy
+- Reference: Im, H., & Wolkowicz, H. (2023). "Revisiting Degeneracy, Strict
+  Feasibility, Stability, in Linear Programming." arXiv version of 9 January
+  2023 (EJOR submission).
+- Read: the abstract and section 2.2 (pp. 5-7), from the PDF's extracted text,
+  page numbers from the footers.
+- Used for: without strict feasibility every basic feasible solution is
+  degenerate (abstract); the theorem of the alternative: either some x > 0 has
+  Ax = b, or some y gives 0 != z = A'y >= 0 with b'y = 0, and then x_i = 0
+  wherever z_i > 0 for every feasible x (Proposition 2.2, p. 6, the exposing
+  vector); for an LP one step suffices (footnote 3, p. 6); every facial
+  reduction step makes at least one constraint redundant (Lemma 2.3, p. 7).
+- Checks: Proposition 2.2 is credited to [22, Theorem 3.1.3], not read.
+
+## mosek2026toolbox
+- Reference: MOSEK ApS. MOSEK Optimization Toolbox for MATLAB, release 11.2.9
+  (20 November 2026).
+- Read: sections 8.1 and 13.3.4, from the PDF's extracted text.
+- Used for: the layout of the prototypes' logs: the four parts of the optimizer
+  log (section 8.1) and the interior-point iteration columns ITE, PFEAS, DFEAS,
+  GFEAS, PRSTATUS, POBJ, DOBJ, MU, TIME (section 13.3.4).
+- Checks: none second-hand.
+
