@@ -28,7 +28,9 @@ def _fit(weighted: bool = True, Q: int = 2, units_per_arm: int = 6):
                display_graphs=False)
     if weighted:
         cfg["weight_col"] = "population"
-    pop = df.groupby("unit")["population"].first().to_dict()
+    # The pipeline's unit weight is the mean of the weight column over the unit's rows (setup.py); the mean of a
+    # constant column can differ from its value in the last bit, so the expected weights are formed the same way.
+    pop = df.groupby("unit")["population"].mean().to_dict()
     return PANGEO(cfg).fit(), pop
 
 
@@ -87,7 +89,8 @@ def test_the_fixture_has_power_to_tell_the_two_weightings_apart():
 def test_the_pipeline_passes_the_weight_column():
     res, pop = _fit()
     direct = compute_pangeo_power(res.arm_designs, unit_weights=pop)
-    assert [pt.se for pt in direct.program.points] == [pt.se for pt in res.power.program.points]
+    for a, b in zip(direct.program.points, res.power.program.points):
+        assert a.se == pytest.approx(b.se, rel=1e-12)
 
 
 def test_without_a_weight_column_pairs_are_weighted_by_treated_count():
