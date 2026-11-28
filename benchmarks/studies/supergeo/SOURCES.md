@@ -94,8 +94,9 @@ read.
   "Low-Rank Robust Subspace Tensor Clustering for Metro Passenger Flow
   Modeling." INFORMS Journal on Data Science 4(1), 33-50.
   doi:10.1287/ijds.2022.0028.
-- Read: sections 1 to 3.4 (pp. 33-40), from the PDF's extracted text, page
-  numbers from the running heads.
+- Read: the abstract, the section headings, section 3.3 and Algorithm 1
+  (pp. 38-39), from the PDF's extracted text, page numbers from the running
+  heads.
 - Used for: the partial Tucker decomposition on the non-clustering modes,
   L = C x_2 U_2 x_3 U_3 with a core C in R^{N x P2 x P3} that keeps the sample
   mode, orthonormal U_2 and U_3, and clustering done on the core (section 3.3,
