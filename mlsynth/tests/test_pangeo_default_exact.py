@@ -139,6 +139,17 @@ def test_the_q_sweep_passes_the_search_budget(monkeypatch):
     assert seen and set(seen) == {4321}
 
 
+def test_the_audit_sweep_beside_a_fixed_q_passes_the_search_budget(monkeypatch):
+    seen, real = [], columns.solve_exact
+
+    def spy(*a, **kw):
+        seen.append(kw.get("search_node_limit"))
+        return real(*a, **kw)
+    monkeypatch.setattr(pipeline, "solve_exact", spy)
+    _fit(_df(n=8), max_supergeo_size=2, compute_q_sweep=True, search_node_limit=4321)
+    assert len(seen) >= 2 and set(seen) == {4321}   # the fixed-Q design and the sweep's Q = 2 design
+
+
 # --- edge: the fallback past MAX_COLUMNS ----------------------------------------------------------------------------
 
 def test_past_max_columns_the_heuristic_runs_with_a_warning(monkeypatch):
